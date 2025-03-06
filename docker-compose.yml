@@ -1,0 +1,14 @@
+services:
+
+  analysis:
+    build:
+      context: ./analysis
+      args:
+        - PACKAGE_NAME=analysis
+        - RELEASE_BUILD=${ANALYSIS_RELEASE_BUILD}
+    container_name: analysis
+    environment:
+      LNM_API_KEY: ${LNM_API_KEY}
+      LNM_API_SECRET: ${LNM_API_SECRET}
+      LNM_API_PASSPHRASE: ${LNM_API_PASSPHRASE}
+    restart: "no"
