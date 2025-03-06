@@ -1,6 +1,6 @@
 use std::env;
 
-use sqlx::postgres::PgPoolOptions;
+mod db;
 
 #[tokio::main]
 async fn main() -> Result<(), sqlx::Error> {
@@ -15,21 +15,13 @@ async fn main() -> Result<(), sqlx::Error> {
     println!("LNM_API_PASSPHRASE: {lnm_api_passphrase}");
     println!("POSTGRES_DB_URL: {postgres_db_url}");
 
-    println!("Trying to connect to the db...");
+    println!("Trying to init the db...");
 
-    let pool = PgPoolOptions::new()
-        .max_connections(5)
-        .connect(&postgres_db_url)
-        .await?;
+    let pool = db::init(&postgres_db_url).await?;
 
-    let row: (i64,) = sqlx::query_as("SELECT $1")
-        .bind(150_i64)
-        .fetch_one(&pool)
-        .await?;
+    let price_history_entries = db::get_all_entries(&pool).await?;
 
-    assert_eq!(row.0, 150);
-
-    println!("Connected successfully");
+    println!("price_history_entries: {:?}", price_history_entries);
 
     Ok(())
 }
