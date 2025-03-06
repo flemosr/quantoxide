@@ -18,6 +18,8 @@ RUN rm -rf ./target
 # Copy actual src files and build the app
 COPY src ./src/
 
+COPY migrations ./migrations/
+
 ARG RELEASE_BUILD
 
 # If $RELEASE_BUILD is set, set BUILD_FLAG as '--release', or leave it empty
