@@ -1,11 +1,13 @@
+use std::collections::HashMap;
 use std::env;
 
+mod api;
 mod db;
 
 use db::DB;
 
 #[tokio::main]
-async fn main() -> Result<(), sqlx::Error> {
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let lnm_api_key = env::var("LNM_API_KEY").expect("LNM_API_KEY must be set");
     let lnm_api_secret = env::var("LNM_API_SECRET").expect("LNM_API_SECRET must be set");
     let lnm_api_passphrase =
@@ -24,6 +26,12 @@ async fn main() -> Result<(), sqlx::Error> {
     let price_history_entries = DB.get_all_entries().await?;
 
     println!("price_history_entries: {:?}", price_history_entries);
+
+    let resp = reqwest::get("https://httpbin.org/ip")
+        .await?
+        .json::<HashMap<String, String>>()
+        .await?;
+    println!("{resp:#?}");
 
     Ok(())
 }
