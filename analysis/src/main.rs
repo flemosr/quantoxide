@@ -1,9 +1,9 @@
-use std::collections::HashMap;
 use std::env;
 
 mod api;
 mod db;
 
+use api::LNMarketsAPI;
 use db::DB;
 
 #[tokio::main]
@@ -14,11 +14,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         env::var("LNM_API_PASSPHRASE").expect("LNM_API_PASSPHRASE must be set");
     let postgres_db_url = env::var("POSTGRES_DB_URL").expect("POSTGRES_DB_URL must be set");
 
-    println!("LNM_API_KEY: {lnm_api_key}");
-    println!("LNM_API_SECRET: {lnm_api_secret}");
-    println!("LNM_API_PASSPHRASE: {lnm_api_passphrase}");
-    println!("POSTGRES_DB_URL: {postgres_db_url}");
-
     println!("Trying to init the db...");
 
     DB.init(&postgres_db_url).await?;
@@ -27,11 +22,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("price_history_entries: {:?}", price_history_entries);
 
-    let resp = reqwest::get("https://httpbin.org/ip")
-        .await?
-        .json::<HashMap<String, String>>()
-        .await?;
-    println!("{resp:#?}");
+    let lnm_api = LNMarketsAPI::new(lnm_api_key, lnm_api_secret, lnm_api_passphrase);
+
+    lnm_api.futures_price_history(None, None).await?;
 
     Ok(())
 }
