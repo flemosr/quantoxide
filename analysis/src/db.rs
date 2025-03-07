@@ -1,39 +1,55 @@
 use sqlx::{postgres::PgPoolOptions, Pool, Postgres};
+use tokio::sync::OnceCell;
 
 mod models;
 
-pub type DbPool = Pool<Postgres>;
+pub static DB: Database = Database::new();
 
-pub async fn init(database_url: &str) -> Result<DbPool, sqlx::Error> {
-    println!("Connecting to database...");
-    let pool = PgPoolOptions::new()
-        .max_connections(5)
-        .connect(database_url)
-        .await?;
+pub struct Database(OnceCell<Pool<Postgres>>);
 
-    println!("Successfully connected to the database");
+impl Database {
+    const fn new() -> Self {
+        Self(OnceCell::const_new())
+    }
 
-    println!("Running migrations...");
-    sqlx::migrate!("./migrations").run(&pool).await?;
+    pub async fn init(&self, database_url: &str) -> Result<(), sqlx::Error> {
+        println!("Connecting to database...");
+        let pool = PgPoolOptions::new()
+            .max_connections(5)
+            .connect(database_url)
+            .await?;
 
-    println!("Migrations completed successfully");
+        println!("Successfully connected to the database");
 
-    println!("Checking database connection...");
-    let row: (i64,) = sqlx::query_as("SELECT $1")
-        .bind(150_i64)
-        .fetch_one(&pool)
-        .await?;
+        println!("Running migrations...");
+        sqlx::migrate!("./migrations").run(&pool).await?;
 
-    assert_eq!(row.0, 150);
-    println!("Database check successful");
+        println!("Migrations completed successfully");
 
-    Ok(pool)
-}
+        println!("Checking database connection...");
+        let row: (i64,) = sqlx::query_as("SELECT $1")
+            .bind(150_i64)
+            .fetch_one(&pool)
+            .await?;
 
-pub async fn get_all_entries(pool: &DbPool) -> Result<Vec<models::PriceHistoryEntry>, sqlx::Error> {
-    sqlx::query_as::<_, models::PriceHistoryEntry>(
-        "SELECT id, timestamp, value FROM price_history ORDER BY timestamp DESC",
-    )
-    .fetch_all(pool)
-    .await
+        assert_eq!(row.0, 150);
+        println!("Database check successful");
+
+        self.0.set(pool).expect("DB must not be initialized");
+
+        Ok(())
+    }
+
+    fn get_pool(&self) -> &Pool<Postgres> {
+        self.0.get().expect("DB must be initialized")
+    }
+
+    pub async fn get_all_entries(&self) -> Result<Vec<models::PriceHistoryEntry>, sqlx::Error> {
+        let pool = self.get_pool();
+        sqlx::query_as::<_, models::PriceHistoryEntry>(
+            "SELECT id, timestamp, value FROM price_history ORDER BY timestamp DESC",
+        )
+        .fetch_all(pool)
+        .await
+    }
 }

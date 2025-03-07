@@ -2,6 +2,8 @@ use std::env;
 
 mod db;
 
+use db::DB;
+
 #[tokio::main]
 async fn main() -> Result<(), sqlx::Error> {
     let lnm_api_key = env::var("LNM_API_KEY").expect("LNM_API_KEY must be set");
@@ -17,9 +19,9 @@ async fn main() -> Result<(), sqlx::Error> {
 
     println!("Trying to init the db...");
 
-    let pool = db::init(&postgres_db_url).await?;
+    DB.init(&postgres_db_url).await?;
 
-    let price_history_entries = db::get_all_entries(&pool).await?;
+    let price_history_entries = DB.get_all_entries().await?;
 
     println!("price_history_entries: {:?}", price_history_entries);
 
