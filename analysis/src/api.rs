@@ -1,9 +1,16 @@
 use chrono::{DateTime, Utc};
+use serde::Deserialize;
 
 pub struct LNMarketsAPI {
     lnm_api_key: String,
     lnm_api_secret: String,
     lnm_api_passphrase: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct PriceEntry {
+    time: u64,
+    value: f64,
 }
 
 impl LNMarketsAPI {
@@ -35,9 +42,9 @@ impl LNMarketsAPI {
 
         println!("res {:?}", res);
 
-        let body = res.text().await?;
+        let price_history = res.json::<Vec<PriceEntry>>().await?;
 
-        println!("body {:?}", body);
+        println!("body {:?}", price_history);
         Ok(())
     }
 }
