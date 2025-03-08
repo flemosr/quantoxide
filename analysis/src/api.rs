@@ -11,13 +11,13 @@ pub struct LNMarketsAPI {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct PriceEntry {
+pub struct PriceEntryLNM {
     #[serde(with = "ts_milliseconds")]
     time: DateTime<Utc>,
     value: f64,
 }
 
-impl PriceEntry {
+impl PriceEntryLNM {
     pub fn time(&self) -> &DateTime<Utc> {
         &self.time
     }
@@ -49,7 +49,7 @@ impl LNMarketsAPI {
         from: Option<DateTime<Utc>>,
         to: Option<DateTime<Utc>>,
         limit: Option<u32>,
-    ) -> Result<Vec<PriceEntry>, Box<dyn std::error::Error>> {
+    ) -> Result<Vec<PriceEntryLNM>, Box<dyn std::error::Error>> {
         let mut params = Vec::new();
         if let Some(from) = from {
             params.push(("from", from.timestamp_millis().to_string()));
@@ -65,7 +65,7 @@ impl LNMarketsAPI {
         let url = reqwest::Url::parse_with_params(&endpoint, params)?;
         let res = reqwest::get(url).await?;
 
-        let price_history = res.json::<Vec<PriceEntry>>().await?;
+        let price_history = res.json::<Vec<PriceEntryLNM>>().await?;
 
         Ok(price_history)
     }
