@@ -48,7 +48,7 @@ impl LNMarketsAPI {
         &self,
         from: Option<DateTime<Utc>>,
         to: Option<DateTime<Utc>>,
-        limit: Option<u32>,
+        limit: Option<usize>,
     ) -> Result<Vec<PriceEntryLNM>, Box<dyn std::error::Error>> {
         let mut params = Vec::new();
         if let Some(from) = from {
