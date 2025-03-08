@@ -46,13 +46,49 @@ impl Database {
         self.0.get().expect("DB must be initialized")
     }
 
-    pub async fn get_all_entries(&self) -> Result<Vec<models::PriceHistoryEntry>, sqlx::Error> {
+    pub async fn get_price_history(&self) -> Result<Vec<models::PriceHistoryEntry>, sqlx::Error> {
         let pool = self.get_pool();
         sqlx::query_as::<_, models::PriceHistoryEntry>(
-            "SELECT id, timestamp, value FROM price_history ORDER BY timestamp DESC",
+            "SELECT * FROM price_history ORDER BY timestamp DESC LIMIT 1000",
         )
         .fetch_all(pool)
         .await
+    }
+
+    pub async fn get_latest_price_entry(
+        &self,
+    ) -> Result<Option<models::PriceHistoryEntry>, sqlx::Error> {
+        let pool = self.get_pool();
+        match sqlx::query_as::<_, models::PriceHistoryEntry>(
+            "SELECT * FROM price_history ORDER BY timestamp DESC LIMIT 1",
+        )
+        .fetch_one(pool)
+        .await
+        {
+            Ok(price_entry) => Ok(Some(price_entry)),
+            Err(e) => match e {
+                sqlx::Error::RowNotFound => Ok(None),
+                _ => Err(e),
+            },
+        }
+    }
+
+    pub async fn get_earliest_price_entry(
+        &self,
+    ) -> Result<Option<models::PriceHistoryEntry>, sqlx::Error> {
+        let pool = self.get_pool();
+        match sqlx::query_as::<_, models::PriceHistoryEntry>(
+            "SELECT * FROM price_history ORDER BY timestamp ASC LIMIT 1",
+        )
+        .fetch_one(pool)
+        .await
+        {
+            Ok(price_entry) => Ok(Some(price_entry)),
+            Err(e) => match e {
+                sqlx::Error::RowNotFound => Ok(None),
+                _ => Err(e),
+            },
+        }
     }
 
     pub async fn add_price_entry(&self, price_entry: &PriceEntry) -> Result<bool, sqlx::Error> {
