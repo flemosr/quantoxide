@@ -46,7 +46,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // println!("hour_ago {:?}", hour_ago);
 
-    let price_history = lnm_api.futures_price_history(None, Some(now)).await?;
+    let price_history = lnm_api
+        .futures_price_history(None, Some(now), Some(1000))
+        .await?;
 
     for price_entry in price_history {
         match DB.add_price_entry(&price_entry).await? {

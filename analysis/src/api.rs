@@ -48,6 +48,7 @@ impl LNMarketsAPI {
         &self,
         from: Option<DateTime<Utc>>,
         to: Option<DateTime<Utc>>,
+        limit: Option<u32>,
     ) -> Result<Vec<PriceEntry>, Box<dyn std::error::Error>> {
         let mut params = Vec::new();
         if let Some(from) = from {
@@ -55,6 +56,9 @@ impl LNMarketsAPI {
         }
         if let Some(to) = to {
             params.push(("to", to.timestamp_millis().to_string()));
+        }
+        if let Some(limit) = limit {
+            params.push(("limit", limit.to_string()));
         }
 
         let endpoint = self.lnm_api_base_url.clone() + Self::FUTURES_PRICE_HISTORY_PATH;
