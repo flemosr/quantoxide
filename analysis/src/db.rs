@@ -1,6 +1,8 @@
 use sqlx::{postgres::PgPoolOptions, Pool, Postgres};
 use tokio::sync::OnceCell;
 
+use crate::api::PriceEntry;
+
 mod models;
 
 pub static DB: Database = Database::new();
@@ -51,5 +53,21 @@ impl Database {
         )
         .fetch_all(pool)
         .await
+    }
+
+    pub async fn add_price_entry(&self, price_entry: &PriceEntry) -> Result<bool, sqlx::Error> {
+        let pool = self.get_pool();
+        let query = "INSERT INTO price_history (timestamp, value) 
+                     VALUES ($1, $2) 
+                     ON CONFLICT (timestamp) 
+                     DO NOTHING";
+
+        let result = sqlx::query(query)
+            .bind(price_entry.time())
+            .bind(price_entry.value())
+            .execute(pool)
+            .await?;
+
+        Ok(result.rows_affected() > 0)
     }
 }
