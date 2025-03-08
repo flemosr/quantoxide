@@ -38,7 +38,7 @@ impl LNMarketsAPI {
         &self,
         from: Option<DateTime<Utc>>,
         to: Option<DateTime<Utc>>,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> Result<Vec<PriceEntry>, Box<dyn std::error::Error>> {
         let mut params = Vec::new();
         if let Some(from) = from {
             params.push(("from", from.timestamp_millis().to_string()));
@@ -52,11 +52,8 @@ impl LNMarketsAPI {
         )?;
         let res = reqwest::get(url).await?;
 
-        println!("res {:?}", res);
-
         let price_history = res.json::<Vec<PriceEntry>>().await?;
 
-        println!("body {:?}", price_history);
-        Ok(())
+        Ok(price_history)
     }
 }
