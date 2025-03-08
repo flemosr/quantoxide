@@ -1,9 +1,11 @@
 use sqlx::{postgres::PgPoolOptions, Pool, Postgres};
 use tokio::sync::OnceCell;
 
-use crate::api::PriceEntry;
+use crate::api::PriceEntryLNM;
 
 mod models;
+
+use models::PriceEntry;
 
 pub static DB: Database = Database::new();
 
@@ -46,21 +48,17 @@ impl Database {
         self.0.get().expect("DB must be initialized")
     }
 
-    pub async fn get_price_history(&self) -> Result<Vec<models::PriceHistoryEntry>, sqlx::Error> {
+    pub async fn get_price_history(&self) -> Result<Vec<PriceEntry>, sqlx::Error> {
         let pool = self.get_pool();
-        sqlx::query_as::<_, models::PriceHistoryEntry>(
-            "SELECT * FROM price_history ORDER BY timestamp DESC LIMIT 1000",
-        )
-        .fetch_all(pool)
-        .await
+        sqlx::query_as::<_, PriceEntry>("SELECT * FROM price_history ORDER BY time DESC LIMIT 1000")
+            .fetch_all(pool)
+            .await
     }
 
-    pub async fn get_latest_price_entry(
-        &self,
-    ) -> Result<Option<models::PriceHistoryEntry>, sqlx::Error> {
+    pub async fn get_latest_price_entry(&self) -> Result<Option<PriceEntry>, sqlx::Error> {
         let pool = self.get_pool();
-        match sqlx::query_as::<_, models::PriceHistoryEntry>(
-            "SELECT * FROM price_history ORDER BY timestamp DESC LIMIT 1",
+        match sqlx::query_as::<_, PriceEntry>(
+            "SELECT * FROM price_history ORDER BY time DESC LIMIT 1",
         )
         .fetch_one(pool)
         .await
@@ -73,12 +71,10 @@ impl Database {
         }
     }
 
-    pub async fn get_earliest_price_entry(
-        &self,
-    ) -> Result<Option<models::PriceHistoryEntry>, sqlx::Error> {
+    pub async fn get_earliest_price_entry(&self) -> Result<Option<PriceEntry>, sqlx::Error> {
         let pool = self.get_pool();
-        match sqlx::query_as::<_, models::PriceHistoryEntry>(
-            "SELECT * FROM price_history ORDER BY timestamp ASC LIMIT 1",
+        match sqlx::query_as::<_, PriceEntry>(
+            "SELECT * FROM price_history ORDER BY time ASC LIMIT 1",
         )
         .fetch_one(pool)
         .await
@@ -91,11 +87,11 @@ impl Database {
         }
     }
 
-    pub async fn add_price_entry(&self, price_entry: &PriceEntry) -> Result<bool, sqlx::Error> {
+    pub async fn add_price_entry(&self, price_entry: &PriceEntryLNM) -> Result<bool, sqlx::Error> {
         let pool = self.get_pool();
-        let query = "INSERT INTO price_history (timestamp, value) 
+        let query = "INSERT INTO price_history (time, value) 
                      VALUES ($1, $2) 
-                     ON CONFLICT (timestamp) 
+                     ON CONFLICT (time) 
                      DO NOTHING";
 
         let result = sqlx::query(query)
