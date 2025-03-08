@@ -18,6 +18,7 @@ async fn download_price_history(
     from: Option<&DateTime<Utc>>,
     mut to: Option<DateTime<Utc>>,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    let mut retries: u8 = 3;
     loop {
         thread::sleep(time::Duration::from_secs(LNM_API_COOLDOWN_SEC));
         match to {
@@ -25,9 +26,24 @@ async fn download_price_history(
             None => println!("\nFetching latest price entries..."),
         }
 
-        let price_history = lnm_api
+        let price_history = match lnm_api
             .futures_price_history(None, to, Some(LNM_PRICE_HISTORY_LIMIT))
-            .await?;
+            .await
+        {
+            Ok(price_history) => {
+                retries = 3;
+                price_history
+            }
+            Err(e) => {
+                println!("\nError fetching price history {:?}", e);
+                if retries == 1 {
+                    return Err(e);
+                }
+                retries -= 1;
+                println!("\nRemaining retries: {retries}");
+                continue;
+            }
+        };
 
         if price_history.len() < LNM_PRICE_HISTORY_LIMIT {
             panic!(
