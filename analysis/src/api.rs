@@ -9,10 +9,20 @@ pub struct LNMarketsAPI {
 }
 
 #[derive(Debug, Deserialize)]
-struct PriceEntry {
+pub struct PriceEntry {
     #[serde(with = "ts_milliseconds")]
     time: DateTime<Utc>,
     value: f64,
+}
+
+impl PriceEntry {
+    pub fn time(&self) -> &DateTime<Utc> {
+        &self.time
+    }
+
+    pub fn value(&self) -> f64 {
+        self.value
+    }
 }
 
 impl LNMarketsAPI {
