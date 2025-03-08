@@ -1,7 +1,7 @@
 -- Create price history table
 CREATE TABLE IF NOT EXISTS price_history (
     id SERIAL PRIMARY KEY,
-    timestamp TIMESTAMPTZ NOT NULL,
+    timestamp TIMESTAMPTZ NOT NULL UNIQUE,
     value DOUBLE PRECISION NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

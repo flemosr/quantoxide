@@ -24,7 +24,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let lnm_api = LNMarketsAPI::new(lnm_api_key, lnm_api_secret, lnm_api_passphrase);
 
-    lnm_api.futures_price_history(None, None).await?;
+    let now = chrono::offset::Utc::now();
+
+    let hour_ago = now - chrono::Duration::hours(1);
+
+    println!("hour_ago {:?}", hour_ago);
+
+    lnm_api.futures_price_history(None, Some(hour_ago)).await?;
 
     Ok(())
 }

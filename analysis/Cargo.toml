@@ -15,6 +15,6 @@ sqlx = { version = "0.8.3", features = [
     "chrono",
     "migrate",
 ] }
-chrono = { version = "0.4.40", features = ["serde"] }
+chrono = { version = "0.4.40", features = ["serde", "now"] }
 serde = "1.0.218"
 serde_json = "1.0.140"
