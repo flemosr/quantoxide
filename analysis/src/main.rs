@@ -19,9 +19,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     DB.init(&postgres_db_url).await?;
 
-    let price_history_entries = DB.get_all_entries().await?;
+    let price_history_entries = DB.get_price_history().await?;
 
     println!("price_history_entries: {:?}", price_history_entries);
+
+    let latest_price_entry = DB.get_latest_price_entry().await?;
+
+    println!("Latest price entry {:?}\n", latest_price_entry);
+
+    let earliest_price_entry = DB.get_earliest_price_entry().await?;
+
+    println!("Earliest price entry {:?}\n", earliest_price_entry);
+
+    println!("Getting entries...");
 
     let lnm_api = LNMarketsAPI::new(
         lnm_api_base_url,
