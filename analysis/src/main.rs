@@ -26,11 +26,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let now = chrono::offset::Utc::now();
 
-    let hour_ago = now - chrono::Duration::hours(1);
+    // let hour_ago = now - chrono::Duration::hours(1);
 
-    println!("hour_ago {:?}", hour_ago);
+    // println!("hour_ago {:?}", hour_ago);
 
-    lnm_api.futures_price_history(None, Some(hour_ago)).await?;
+    let price_history = lnm_api.futures_price_history(None, Some(now)).await?;
+
+    for price_entry in price_history {
+        match DB.add_price_entry(&price_entry).await? {
+            true => println!("Price entry {:?} was added to the db", price_entry),
+            false => println!("Price entry {:?} already existed in the db", price_entry),
+        }
+    }
 
     Ok(())
 }
