@@ -8,6 +8,7 @@ use db::DB;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let lnm_api_base_url = env::var("LNM_API_BASE_URL").expect("LNM_API_BASE_URL must be set");
     let lnm_api_key = env::var("LNM_API_KEY").expect("LNM_API_KEY must be set");
     let lnm_api_secret = env::var("LNM_API_SECRET").expect("LNM_API_SECRET must be set");
     let lnm_api_passphrase =
@@ -22,7 +23,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("price_history_entries: {:?}", price_history_entries);
 
-    let lnm_api = LNMarketsAPI::new(lnm_api_key, lnm_api_secret, lnm_api_passphrase);
+    let lnm_api = LNMarketsAPI::new(
+        lnm_api_base_url,
+        lnm_api_key,
+        lnm_api_secret,
+        lnm_api_passphrase,
+    );
 
     let now = chrono::offset::Utc::now();
 

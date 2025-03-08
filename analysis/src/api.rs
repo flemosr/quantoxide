@@ -2,7 +2,9 @@ use chrono::serde::ts_milliseconds;
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
 
+#[derive(Debug)]
 pub struct LNMarketsAPI {
+    lnm_api_base_url: String,
     lnm_api_key: String,
     lnm_api_secret: String,
     lnm_api_passphrase: String,
@@ -26,13 +28,21 @@ impl PriceEntry {
 }
 
 impl LNMarketsAPI {
-    pub fn new(lnm_api_key: String, lnm_api_secret: String, lnm_api_passphrase: String) -> Self {
+    pub fn new(
+        lnm_api_base_url: String,
+        lnm_api_key: String,
+        lnm_api_secret: String,
+        lnm_api_passphrase: String,
+    ) -> Self {
         Self {
+            lnm_api_base_url,
             lnm_api_key,
             lnm_api_secret,
             lnm_api_passphrase,
         }
     }
+
+    const FUTURES_PRICE_HISTORY_PATH: &'static str = "/futures/history/price";
 
     pub async fn futures_price_history(
         &self,
@@ -46,10 +56,9 @@ impl LNMarketsAPI {
         if let Some(to) = to {
             params.push(("to", to.timestamp_millis().to_string()));
         }
-        let url = reqwest::Url::parse_with_params(
-            "https://api.lnmarkets.com/v2/futures/history/price",
-            params,
-        )?;
+
+        let endpoint = self.lnm_api_base_url.clone() + Self::FUTURES_PRICE_HISTORY_PATH;
+        let url = reqwest::Url::parse_with_params(&endpoint, params)?;
         let res = reqwest::get(url).await?;
 
         let price_history = res.json::<Vec<PriceEntry>>().await?;
