@@ -27,3 +27,31 @@ services:
     depends_on:
       - pg-analysis
     restart: "no"
+
+  pg-metabase:
+    image: postgres:17.4-bookworm
+    container_name: pg-metabase
+    environment:
+      POSTGRES_USER: ${PG_METABASE_USER}
+      POSTGRES_PASSWORD: ${PG_METABASE_PASSWORD}
+      POSTGRES_DB: ${PG_METABASE_DB}
+    volumes:
+      - ${DATA_DIR}/pg-metabase:/var/lib/postgresql/data
+    restart: always
+
+  metabase:
+    image: metabase/metabase:latest
+    container_name: metabase
+    ports:
+      - "3000:3000"
+    environment:
+      MB_DB_TYPE: postgres
+      MB_DB_HOST: pg-metabase
+      MB_DB_PORT: 5432
+      MB_DB_USER: ${PG_METABASE_USER}
+      MB_DB_PASS: ${PG_METABASE_PASSWORD}
+      MB_DB_DBNAME: ${PG_METABASE_DB}
+    depends_on:
+      - pg-metabase
+      - pg-analysis
+    restart: unless-stopped
