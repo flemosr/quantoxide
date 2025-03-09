@@ -19,6 +19,7 @@ async fn download_price_history(
     mut to: Option<DateTime<Utc>>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut retries: u8 = 3;
+    let mut next: Option<DateTime<Utc>> = None;
     loop {
         thread::sleep(time::Duration::from_secs(LNM_API_COOLDOWN_SEC));
         match to {
@@ -53,28 +54,49 @@ async fn download_price_history(
         }
 
         if let Some(fixed_to) = to {
-            let first_entry_time = *price_history.first().expect("not empty").time();
-            if first_entry_time != fixed_to {
+            let first_entry_time = price_history.first().expect("not empty").time();
+            if first_entry_time != &fixed_to {
                 panic!("Tried to add price entries without overlap.");
             }
         }
 
-        for price_entry in price_history.iter() {
-            if let Some(fixed_from) = from {
-                if *price_entry.time() <= *fixed_from {
-                    // Reached `from` limit
-                    println!("\nReached `from` limit {fixed_from}.");
-                    return Ok(());
+        to = Some(price_history.last().expect("not empty").time().clone());
+
+        for price_entry in price_history.into_iter() {
+            if let Some(next) = next {
+                if &next == price_entry.time() {
+                    println!("Repeated price entry {:?} received.", price_entry);
+                    continue;
                 }
             }
 
-            match DB.add_price_entry(&price_entry).await? {
+            if let Some(from_limit) = from {
+                if price_entry.time() == from_limit {
+                    // Reached `from` limit
+                    println!(
+                        "\nReached `from` limit {from_limit}. Updating the entry's `next` field"
+                    );
+                    if let Some(set_next) = next {
+                        if DB.update_price_entry_next(&price_entry, &set_next).await? {
+                            println!("\nPrice entry's `next` field updated. History gap closed.");
+                        }
+                        return Ok(());
+                    } else {
+                        panic!("`next` is not set. No entries after `from` limit were received");
+                    }
+                }
+                if price_entry.time() < from_limit {
+                    panic!("Received an entry before fixed_from ({from_limit}), and no fixed_from entry.");
+                }
+            }
+
+            match DB.add_price_entry(&price_entry, next.as_ref()).await? {
                 true => println!("Price entry {:?} was added to the DB.", price_entry),
                 false => println!("Price entry {:?} already existed in the DB.", price_entry),
             }
-        }
 
-        to = Some(*price_history.last().expect("not empty").time());
+            next = Some(*price_entry.time());
+        }
     }
 }
 
