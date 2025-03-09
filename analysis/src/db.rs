@@ -1,3 +1,4 @@
+use chrono::{DateTime, Utc};
 use sqlx::{postgres::PgPoolOptions, Pool, Postgres};
 use tokio::sync::OnceCell;
 
@@ -48,13 +49,6 @@ impl Database {
         self.0.get().expect("DB must be initialized")
     }
 
-    pub async fn get_price_history(&self) -> Result<Vec<PriceEntry>, sqlx::Error> {
-        let pool = self.get_pool();
-        sqlx::query_as::<_, PriceEntry>("SELECT * FROM price_history ORDER BY time DESC LIMIT 1000")
-            .fetch_all(pool)
-            .await
-    }
-
     pub async fn get_latest_price_entry(&self) -> Result<Option<PriceEntry>, sqlx::Error> {
         let pool = self.get_pool();
         match sqlx::query_as::<_, PriceEntry>(
@@ -87,14 +81,39 @@ impl Database {
         }
     }
 
-    pub async fn add_price_entry(&self, price_entry: &PriceEntryLNM) -> Result<bool, sqlx::Error> {
+    pub async fn add_price_entry(
+        &self,
+        price_entry: &PriceEntryLNM,
+        next: Option<&DateTime<Utc>>,
+    ) -> Result<bool, sqlx::Error> {
         let pool = self.get_pool();
-        let query = "INSERT INTO price_history (time, value) 
-                     VALUES ($1, $2) 
+        let query = "INSERT INTO price_history (time, value, next) 
+                     VALUES ($1, $2, $3) 
                      ON CONFLICT (time) 
                      DO NOTHING";
 
         let result = sqlx::query(query)
+            .bind(price_entry.time())
+            .bind(price_entry.value())
+            .bind(next)
+            .execute(pool)
+            .await?;
+
+        Ok(result.rows_affected() > 0)
+    }
+
+    pub async fn update_price_entry_next(
+        &self,
+        price_entry: &PriceEntryLNM,
+        next: &DateTime<Utc>,
+    ) -> Result<bool, sqlx::Error> {
+        let pool = self.get_pool();
+        let query = "UPDATE price_history 
+                     SET next = $1 
+                     WHERE time = $2 AND value = $3 AND next IS NULL";
+
+        let result = sqlx::query(query)
+            .bind(next)
             .bind(price_entry.time())
             .bind(price_entry.value())
             .execute(pool)
