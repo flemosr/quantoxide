@@ -49,6 +49,22 @@ impl Database {
         self.0.get().expect("DB must be initialized")
     }
 
+    pub async fn get_earliest_price_entry_gap(&self) -> Result<Option<PriceEntry>, sqlx::Error> {
+        let pool = self.get_pool();
+        match sqlx::query_as::<_, PriceEntry>(
+            "SELECT * FROM price_history WHERE next IS NULL ORDER BY time ASC LIMIT 1",
+        )
+        .fetch_one(pool)
+        .await
+        {
+            Ok(price_entry) => Ok(Some(price_entry)),
+            Err(e) => match e {
+                sqlx::Error::RowNotFound => Ok(None),
+                _ => Err(e),
+            },
+        }
+    }
+
     pub async fn get_latest_price_entry(&self) -> Result<Option<PriceEntry>, sqlx::Error> {
         let pool = self.get_pool();
         match sqlx::query_as::<_, PriceEntry>(
