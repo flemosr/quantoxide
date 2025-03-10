@@ -97,6 +97,26 @@ impl Database {
         }
     }
 
+    pub async fn get_first_price_entry_after(
+        &self,
+        time: DateTime<Utc>,
+    ) -> Result<Option<PriceEntry>, sqlx::Error> {
+        let pool = self.get_pool();
+        match sqlx::query_as::<_, PriceEntry>(
+            "SELECT * FROM price_history WHERE time > $1 ORDER BY time ASC LIMIT 1",
+        )
+        .bind(time)
+        .fetch_one(pool)
+        .await
+        {
+            Ok(price_entry) => Ok(Some(price_entry)),
+            Err(e) => match e {
+                sqlx::Error::RowNotFound => Ok(None),
+                _ => Err(e),
+            },
+        }
+    }
+
     pub async fn add_price_entry(
         &self,
         price_entry: &PriceEntryLNM,
