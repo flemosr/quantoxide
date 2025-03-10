@@ -12,6 +12,11 @@ const LNM_PRICE_HISTORY_LIMIT: usize = 1000;
 // Max LNM REST API rate for public endpoints is 30 requests per minute.
 // Source: https://docs.lnmarkets.com/api/
 const LNM_API_COOLDOWN_SEC: u64 = 3;
+const LNM_API_ERROR_COOLDOWN_SEC: u64 = 10;
+
+fn wait(secs: u64) {
+    thread::sleep(time::Duration::from_secs(secs));
+}
 
 async fn download_price_history(
     lnm_api: &LNMarketsAPI,
@@ -20,7 +25,8 @@ async fn download_price_history(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut retries: u8 = 3;
     loop {
-        thread::sleep(time::Duration::from_secs(LNM_API_COOLDOWN_SEC));
+        wait(LNM_API_COOLDOWN_SEC);
+
         match to {
             Some(fixed_to) => println!("\nFetching price entries before {fixed_to}..."),
             None => println!("\nFetching latest price entries..."),
@@ -40,7 +46,12 @@ async fn download_price_history(
                     return Err(e);
                 }
                 retries -= 1;
-                println!("\nRemaining retries: {retries}");
+
+                println!(
+                    "\nRemaining retries: {retries}. Waiting {LNM_API_ERROR_COOLDOWN_SEC} secs..."
+                );
+                wait(LNM_API_ERROR_COOLDOWN_SEC);
+
                 continue;
             }
         };
