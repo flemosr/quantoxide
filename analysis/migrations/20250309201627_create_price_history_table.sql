@@ -4,7 +4,7 @@ CREATE TABLE IF NOT EXISTS price_history (
     time TIMESTAMPTZ NOT NULL UNIQUE,
     value DOUBLE PRECISION NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    next TIMESTAMPTZ UNIQUE,
+    next TIMESTAMPTZ UNIQUE
 );
 
 -- Add index on time for faster time-based queries
