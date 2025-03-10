@@ -79,6 +79,8 @@ async fn download_price_history(
                     if let Some(set_next) = next {
                         if DB.update_price_entry_next(&price_entry, &set_next).await? {
                             println!("\nPrice entry's `next` field updated. History gap closed.");
+                        } else {
+                            panic!("Failed to update the price entry's `next` field.")
                         }
                         return Ok(());
                     } else {
@@ -123,6 +125,34 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     if let Some(latest_price_entry) = DB.get_latest_price_entry().await? {
+        while let Some(earliest_price_entry_gap) = DB.get_earliest_price_entry_gap().await? {
+            if earliest_price_entry_gap.time == latest_price_entry.time {
+                // Earliest price entry gap is the latest price entry
+                println!("\nNo history gaps before the latest entry were found.");
+                break;
+            }
+
+            println!("\nGap after {:?} was found.", earliest_price_entry_gap);
+
+            let first_price_entry_after_gap = DB
+                .get_first_price_entry_after(earliest_price_entry_gap.time)
+                .await?;
+            let first_price_entry_after_gap_time = first_price_entry_after_gap
+                .expect("Gap entry is not latest entry.")
+                .time;
+
+            println!("First price entry after gap has time {first_price_entry_after_gap_time}.");
+
+            println!("\nDownloading entries from {first_price_entry_after_gap_time} backwards, until closing the gap...");
+
+            download_price_history(
+                &lnm_api,
+                Some(&earliest_price_entry_gap.time),
+                Some(first_price_entry_after_gap_time),
+            )
+            .await?;
+        }
+
         println!(
             "\nDownloading the latest price entries until reaching the latest ({}) in the DB...",
             latest_price_entry.time
