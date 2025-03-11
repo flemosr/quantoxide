@@ -1,5 +1,4 @@
--- Create price history table
-CREATE TABLE IF NOT EXISTS price_history (
+CREATE TABLE price_history (
     id SERIAL PRIMARY KEY,
     time TIMESTAMPTZ NOT NULL UNIQUE,
     value DOUBLE PRECISION NOT NULL,
@@ -7,5 +6,4 @@ CREATE TABLE IF NOT EXISTS price_history (
     next TIMESTAMPTZ UNIQUE
 );
 
--- Add index on time for faster time-based queries
 CREATE INDEX idx_price_history_time ON price_history (time);
