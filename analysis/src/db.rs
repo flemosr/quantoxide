@@ -132,13 +132,13 @@ impl Database {
         next: Option<&DateTime<Utc>>,
     ) -> Result<bool, sqlx::Error> {
         let mut tx = self.get_pool().begin().await?;
+
         let query = r#"
             INSERT INTO price_history (time, value, next) 
             VALUES ($1, $2, $3) 
             ON CONFLICT (time) 
             DO NOTHING
         "#;
-
         let result = sqlx::query(query)
             .bind(price_entry.time())
             .bind(price_entry.value())
@@ -213,10 +213,12 @@ impl Database {
         next: &DateTime<Utc>,
     ) -> Result<bool, sqlx::Error> {
         let pool = self.get_pool();
-        let query = "UPDATE price_history 
-                     SET next = $1 
-                     WHERE time = $2 AND value = $3 AND next IS NULL";
 
+        let query = r#"
+            UPDATE price_history 
+            SET next = $1 
+            WHERE time = $2 AND value = $3 AND next IS NULL
+        "#;
         let result = sqlx::query(query)
             .bind(next)
             .bind(price_entry.time())
