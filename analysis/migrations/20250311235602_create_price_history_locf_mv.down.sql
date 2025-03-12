@@ -1,0 +1,1 @@
+DROP MATERIALIZED VIEW price_history_locf_mv;

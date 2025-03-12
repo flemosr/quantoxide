@@ -1,4 +1,4 @@
-CREATE VIEW price_history_locf_view AS
+CREATE MATERIALIZED VIEW price_history_locf_mv AS
 SELECT s.second, t.value
 FROM generate_series(
     (SELECT date_trunc('second', min(time)) FROM price_history),

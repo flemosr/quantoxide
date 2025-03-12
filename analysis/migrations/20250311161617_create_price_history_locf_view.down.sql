@@ -1,1 +1,0 @@
-DROP VIEW price_history_locf_view;
