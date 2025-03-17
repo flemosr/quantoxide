@@ -202,6 +202,59 @@ impl Database {
             .execute(&mut *tx)
             .await?;
 
+        // Moving averages from start_locf_sec until end_locf_sec + max period
+        // secs could be affected.
+
+        const MAX_MA_PERIOD_SECS: i64 = 300;
+        let start_ma_sec = start_locf_sec - Duration::seconds(MAX_MA_PERIOD_SECS - 1);
+        let end_ma_sec = end_locf_sec + Duration::seconds(MAX_MA_PERIOD_SECS - 1);
+
+        let query = r#"
+            INSERT INTO indicators (time, value, ma_5, ma_60, ma_300)
+            WITH price_data AS (
+                SELECT time, value, ROW_NUMBER() OVER (ORDER BY time) AS rn
+                FROM price_history_locf
+                WHERE time >= $1 AND time <= $2
+                ORDER BY time ASC
+            ),
+            ma_calculations AS (
+                SELECT
+                    time,
+                    value,
+                    CASE
+                        WHEN rn >= 5
+                        THEN AVG(value) OVER (ROWS BETWEEN 4 PRECEDING AND CURRENT ROW)
+                        ELSE NULL
+                    END AS ma_5,
+                    CASE
+                        WHEN rn >= 60
+                        THEN AVG(value) OVER (ROWS BETWEEN 59 PRECEDING AND CURRENT ROW)
+                        ELSE NULL
+                    END AS ma_60,
+                    CASE
+                        WHEN rn >= 300
+                        THEN AVG(value) OVER (ROWS BETWEEN 299 PRECEDING AND CURRENT ROW)
+                        ELSE NULL
+                    END AS ma_300
+                FROM price_data
+            )
+            SELECT *
+            FROM ma_calculations
+            WHERE time >= $3
+            ON CONFLICT (time) 
+            DO UPDATE SET 
+                value = EXCLUDED.value,
+                ma_5 = EXCLUDED.ma_5,
+                ma_60 = EXCLUDED.ma_60,
+                ma_300 = EXCLUDED.ma_300;
+        "#;
+        sqlx::query(&query)
+            .bind(start_ma_sec)
+            .bind(end_ma_sec)
+            .bind(start_locf_sec)
+            .execute(&mut *tx)
+            .await?;
+
         tx.commit().await?;
 
         Ok(true)
