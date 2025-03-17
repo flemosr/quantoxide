@@ -210,43 +210,41 @@ impl Database {
         let end_ma_sec = end_locf_sec + Duration::seconds(MAX_MA_PERIOD_SECS - 1);
 
         let query = r#"
-            INSERT INTO indicators (time, value, ma_5, ma_60, ma_300)
             WITH price_data AS (
                 SELECT time, value, ROW_NUMBER() OVER (ORDER BY time) AS rn
                 FROM price_history_locf
                 WHERE time >= $1 AND time <= $2
                 ORDER BY time ASC
             ),
-            ma_calculations AS (
+            eval_indicators AS (
                 SELECT
                     time,
-                    value,
                     CASE
                         WHEN rn >= 5
-                        THEN AVG(value) OVER (ROWS BETWEEN 4 PRECEDING AND CURRENT ROW)
+                        THEN AVG(value) OVER (ORDER BY time ASC ROWS BETWEEN 4 PRECEDING AND CURRENT ROW)
                         ELSE NULL
                     END AS ma_5,
                     CASE
                         WHEN rn >= 60
-                        THEN AVG(value) OVER (ROWS BETWEEN 59 PRECEDING AND CURRENT ROW)
+                        THEN AVG(value) OVER (ORDER BY time ASC ROWS BETWEEN 59 PRECEDING AND CURRENT ROW)
                         ELSE NULL
                     END AS ma_60,
                     CASE
                         WHEN rn >= 300
-                        THEN AVG(value) OVER (ROWS BETWEEN 299 PRECEDING AND CURRENT ROW)
+                        THEN AVG(value) OVER (ORDER BY time ASC ROWS BETWEEN 299 PRECEDING AND CURRENT ROW)
                         ELSE NULL
                     END AS ma_300
                 FROM price_data
             )
-            SELECT *
-            FROM ma_calculations
-            WHERE time >= $3
-            ON CONFLICT (time) 
-            DO UPDATE SET 
-                value = EXCLUDED.value,
-                ma_5 = EXCLUDED.ma_5,
-                ma_60 = EXCLUDED.ma_60,
-                ma_300 = EXCLUDED.ma_300;
+            UPDATE price_history_locf
+            SET
+                ma_5 = eval_indicators.ma_5,
+                ma_60 = eval_indicators.ma_60,
+                ma_300 = eval_indicators.ma_300
+            FROM eval_indicators
+            WHERE
+                eval_indicators.time >= $3
+                AND price_history_locf.time = eval_indicators.time;
         "#;
         sqlx::query(&query)
             .bind(start_ma_sec)
