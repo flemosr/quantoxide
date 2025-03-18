@@ -6,7 +6,7 @@ use crate::api::PriceEntryLNM;
 
 mod models;
 
-use models::PriceEntry;
+use models::{PriceEntry, PriceEntryLOCF};
 
 pub static DB: Database = Database::new();
 
@@ -253,6 +253,98 @@ impl Database {
         tx.commit().await?;
 
         return Ok(());
+    }
+
+    // pub async fn get_price_entry_locf(
+    //     &self,
+    //     time: &DateTime<Utc>,
+    // ) -> Result<PriceEntryLOCF, sqlx::Error> {
+    //     let locf_sec = Self::get_locf_sec(time);
+
+    //     let pool = self.get_pool();
+    //     let price_entry_locf =
+    //         sqlx::query_as::<_, PriceEntryLOCF>("SELECT * FROM price_history_locf WHERE time = $1")
+    //             .bind(locf_sec)
+    //             .fetch_one(pool)
+    //             .await?;
+
+    //     Ok(price_entry_locf)
+    // }
+
+    pub async fn eval_price_entries_locf(
+        &self,
+        time: &DateTime<Utc>,
+        range_secs: usize,
+    ) -> Result<Vec<PriceEntryLOCF>, sqlx::Error> {
+        let locf_sec = time.trunc_subsecs(0);
+        let min_locf_sec = locf_sec - Duration::seconds(range_secs as i64 - 1);
+
+        let pool = self.get_pool();
+        let price_entries_locf = sqlx::query_as::<_, PriceEntryLOCF>(
+            "SELECT * FROM price_history_locf WHERE time >= $1 ORDER BY time ASC LIMIT $2",
+        )
+        .bind(min_locf_sec)
+        .bind(range_secs as i32)
+        .fetch_all(pool)
+        .await?;
+
+        if price_entries_locf.len() == range_secs {
+            return Ok(price_entries_locf);
+        }
+
+        // `locf_sec` is not present in the current historical data.
+        // indicators will have to be estimated from historical prices
+
+        const MAX_MA_PERIOD_SECS: i64 = 300;
+        let start_ma_sec = min_locf_sec - Duration::seconds(MAX_MA_PERIOD_SECS - 1);
+        let end_ma_sec = locf_sec;
+
+        // At least one price entry must exist before `min_locf_sec` in order to
+        // compute locf values and indicators.
+        let is_time_valid: bool =
+            sqlx::query_scalar("SELECT EXISTS (SELECT 1 FROM price_history WHERE time <= $1)")
+                .bind(min_locf_sec)
+                .fetch_one(pool)
+                .await?;
+        if is_time_valid == false {
+            return Ok(vec![]);
+        }
+
+        let query = r#"
+            WITH price_data AS (
+                SELECT s.time, t.value
+                FROM generate_series($1, $2, '1 second'::interval) AS s(time)
+                LEFT JOIN LATERAL (
+                    SELECT value
+                    FROM price_history
+                    WHERE time <= s.time
+                    ORDER BY time DESC
+                    LIMIT 1
+                ) t ON true
+                ORDER BY time ASC
+            ),
+            eval_indicators AS (
+                SELECT
+                    time,
+                    value,
+                    AVG(value) OVER (ORDER BY time ASC ROWS BETWEEN 4 PRECEDING AND CURRENT ROW) AS ma_5,
+                    AVG(value) OVER (ORDER BY time ASC ROWS BETWEEN 59 PRECEDING AND CURRENT ROW) AS ma_60,
+                    AVG(value) OVER (ORDER BY time ASC ROWS BETWEEN 299 PRECEDING AND CURRENT ROW) AS ma_300
+                FROM price_data
+            )
+            SELECT *
+            FROM eval_indicators
+            WHERE eval_indicators.time >= $3;
+        "#;
+
+        let price_entries_locf = sqlx::query_as::<_, PriceEntryLOCF>(query)
+            .bind(start_ma_sec)
+            .bind(end_ma_sec)
+            .bind(min_locf_sec)
+            .fetch_all(pool)
+            .await?;
+
+        Ok(price_entries_locf)
     }
 
     pub async fn update_price_entry_next(
