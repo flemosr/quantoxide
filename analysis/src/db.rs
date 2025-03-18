@@ -143,18 +143,18 @@ impl Database {
         let earliest_entry_time = price_entries.last().expect("not empty").time();
 
         for price_entry in price_entries {
-        let query = r#"
-            INSERT INTO price_history (time, value, next) 
-            VALUES ($1, $2, $3) 
-            ON CONFLICT (time) 
-            DO NOTHING
-        "#;
-        let result = sqlx::query(query)
-            .bind(price_entry.time())
-            .bind(price_entry.value())
+            let query = r#"
+                INSERT INTO price_history (time, value, next) 
+                VALUES ($1, $2, $3) 
+                ON CONFLICT (time) 
+                DO NOTHING
+            "#;
+            let result = sqlx::query(query)
+                .bind(price_entry.time())
+                .bind(price_entry.value())
                 .bind(next_entry_time)
-            .execute(&mut *tx)
-            .await?;
+                .execute(&mut *tx)
+                .await?;
 
             total_entries_added += result.rows_affected();
             next_entry_time = Some(price_entry.time());
@@ -269,7 +269,7 @@ impl Database {
 
     pub async fn update_price_entry_next(
         &self,
-        price_entry: &PriceEntryLNM,
+        price_entry_time: &DateTime<Utc>,
         next: &DateTime<Utc>,
     ) -> Result<bool, sqlx::Error> {
         let pool = self.get_pool();
@@ -277,12 +277,11 @@ impl Database {
         let query = r#"
             UPDATE price_history 
             SET next = $1 
-            WHERE time = $2 AND value = $3 AND next IS NULL
+            WHERE time = $2 AND next IS NULL
         "#;
         let result = sqlx::query(query)
             .bind(next)
-            .bind(price_entry.time())
-            .bind(price_entry.value())
+            .bind(price_entry_time)
             .execute(pool)
             .await?;
 
