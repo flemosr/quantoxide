@@ -89,8 +89,8 @@ async fn download_price_history(
                 None
             };
 
-            // If a from limit is set, check if it was reached. Remove previously
-            // added entries if so.
+            // If a `from` limit is set, check if it was reached, and remove
+            // previously added entries if so.
             if let Some(from_limit) = from {
                 if let Some(entry_i) = price_history
                     .iter()
@@ -109,21 +109,35 @@ async fn download_price_history(
             (price_history, next_observed_time)
         };
 
-        let entries_added = DB
-            .add_price_entries(&new_price_entries, next_observed_time.as_ref())
+        DB.add_price_entries(&new_price_entries, next_observed_time.as_ref())
             .await?;
 
-        let latest_new_entry_time = new_price_entries.first().expect("not empty").time();
-        let earliest_new_entry_time = new_price_entries.last().expect("not empty").time();
-
-        println!("{entries_added} added to the db, from {earliest_new_entry_time} to {latest_new_entry_time}");
+        if new_price_entries.is_empty() {
+            println!("\nNo new entries were received.");
+        } else {
+            let entries_added = new_price_entries.len();
+            let latest_new_entry_time = new_price_entries.first().expect("not empty").time();
+            let earliest_new_entry_time = new_price_entries.last().expect("not empty").time();
+            println!("\n{entries_added} new entries added to the db, from {earliest_new_entry_time} to {latest_new_entry_time}", );
+        }
 
         if let Some(from_reached) = from_reached {
+            let next = if let Some(earliest_new_entry) = new_price_entries.last() {
+                *earliest_new_entry.time()
+            } else if let Some(fixed_to) = to {
+                // If there is a `fixed_to`, the first entry received from the
+                // server matched its time (overlap enforcement). From this,
+                // we can infer that there are no entries to be fetched between
+                // `from` and `to` (edge case). But `from`'s `next` still needs
+                // to be updated to reflect this.
+                fixed_to
+            } else {
+                println!("\nNo entries available after `from` {from_reached} limit");
+                return Ok(());
+            };
+
             println!("\nReached `from` limit {from_reached}. Updating the corresponding entry's `next` field");
-            if DB
-                .update_price_entry_next(from_reached, earliest_new_entry_time)
-                .await?
-            {
+            if DB.update_price_entry_next(from_reached, &next).await? {
                 println!("\nPrice entry's `next` field updated. History gap closed.");
                 return Ok(());
             } else {
@@ -131,8 +145,15 @@ async fn download_price_history(
             }
         }
 
-        // Prepare to continue fetching from the earliest entry backwards
-        to = Some(earliest_new_entry_time.clone());
+        // No `from` limit reached
+
+        if let Some(earliest_new_entry) = new_price_entries.last() {
+            // Prepare to continue fetching from the earliest entry backwards
+            to = Some(*earliest_new_entry.time());
+        } else {
+            // No new entries available from LNM server
+            return Ok(());
+        }
     }
 }
 
@@ -166,7 +187,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 break;
             }
 
-            println!("\nGap after {:?} was found.", earliest_price_entry_gap);
+            println!("\nGap after {} was found.", earliest_price_entry_gap.time);
 
             let first_price_entry_after_gap = DB
                 .get_first_price_entry_after(earliest_price_entry_gap.time)
@@ -175,7 +196,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .expect("Gap entry is not latest entry.")
                 .time;
 
-            println!("First price entry after gap has time {first_price_entry_after_gap_time}.");
+            println!(
+                "\nEarliest price entry after gap has time {first_price_entry_after_gap_time}."
+            );
 
             println!("\nDownloading entries from {first_price_entry_after_gap_time} backwards, until closing the gap...");
 
