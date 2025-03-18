@@ -126,13 +126,23 @@ impl Database {
         }
     }
 
-    pub async fn add_price_entry(
+    pub async fn add_price_entries(
         &self,
-        price_entry: &PriceEntryLNM,
-        next: Option<&DateTime<Utc>>,
-    ) -> Result<bool, sqlx::Error> {
+        price_entries: &Vec<PriceEntryLNM>,
+        next_observed_time: Option<&DateTime<Utc>>,
+    ) -> Result<u64, sqlx::Error> {
+        if price_entries.is_empty() {
+            return Ok(0);
+        }
+
         let mut tx = self.get_pool().begin().await?;
 
+        let mut total_entries_added = 0;
+        let mut next_entry_time = next_observed_time;
+
+        let earliest_entry_time = price_entries.last().expect("not empty").time();
+
+        for price_entry in price_entries {
         let query = r#"
             INSERT INTO price_history (time, value, next) 
             VALUES ($1, $2, $3) 
@@ -142,12 +152,16 @@ impl Database {
         let result = sqlx::query(query)
             .bind(price_entry.time())
             .bind(price_entry.value())
-            .bind(next)
+                .bind(next_entry_time)
             .execute(&mut *tx)
             .await?;
 
-        if result.rows_affected() == 0 {
-            return Ok(false);
+            total_entries_added += result.rows_affected();
+            next_entry_time = Some(price_entry.time());
+        }
+
+        if total_entries_added == 0 {
+            return Ok(0);
         }
 
         // We can assume that `price_history_locf` is up-to-date in regards to the previously
@@ -160,8 +174,8 @@ impl Database {
         // gaps in the `price_history_locf` history. Said gaps need to be filled carrying the
         // corresponding locf value onwards or backwards.
 
-        let added_entry_time = price_entry.time();
-        let added_locf_sec = Self::get_locf_sec(added_entry_time);
+        let added_entry_time = earliest_entry_time;
+        let added_locf_sec = Self::get_locf_sec(&added_entry_time);
 
         let prev_locf_sec: Option<DateTime<Utc>> =
             sqlx::query_scalar("SELECT max(time) FROM price_history_locf WHERE time <= $1")
@@ -171,13 +185,8 @@ impl Database {
         // `prev_locf_sec` will be `None` only when `added_locf_sec` is the new min locf time
         let start_locf_sec = prev_locf_sec.unwrap_or(added_locf_sec);
 
-        let next_observed_entry_time: Option<DateTime<Utc>> =
-            sqlx::query_scalar("SELECT min(time) FROM price_history WHERE time > $1")
-                .bind(added_entry_time)
-                .fetch_one(&mut *tx)
-                .await?;
-        let end_locf_sec = if let Some(next_observed_entry_time) = next_observed_entry_time {
-            Self::get_locf_sec(&next_observed_entry_time)
+        let end_locf_sec = if let Some(next_observed_time) = next_observed_time {
+            Self::get_locf_sec(&next_observed_time)
         } else {
             added_locf_sec
         };
@@ -255,7 +264,7 @@ impl Database {
 
         tx.commit().await?;
 
-        Ok(true)
+        return Ok(total_entries_added);
     }
 
     pub async fn update_price_entry_next(
