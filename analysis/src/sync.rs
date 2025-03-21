@@ -2,7 +2,7 @@ use chrono::{DateTime, Utc};
 use std::collections::HashSet;
 use std::{thread, time};
 
-use crate::api::LNMarketsAPI;
+use crate::api;
 use crate::db::DB;
 use crate::env::{LNM_API_COOLDOWN_SEC, LNM_API_ERROR_COOLDOWN_SEC, LNM_PRICE_HISTORY_LIMIT};
 
@@ -11,7 +11,6 @@ fn wait(secs: u64) {
 }
 
 async fn download_price_history(
-    lnm_api: &LNMarketsAPI,
     from: Option<&DateTime<Utc>>,
     mut to: Option<DateTime<Utc>>,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -24,30 +23,28 @@ async fn download_price_history(
             None => println!("\nFetching latest price entries..."),
         }
 
-        let mut price_history = match lnm_api
-            .futures_price_history(None, to, Some(*LNM_PRICE_HISTORY_LIMIT))
-            .await
-        {
-            Ok(price_history) => {
-                retries = 3;
-                price_history
-            }
-            Err(e) => {
-                println!("\nError fetching price history {:?}", e);
-                if retries == 1 {
-                    return Err(e);
+        let mut price_history =
+            match api::futures_price_history(None, to, Some(*LNM_PRICE_HISTORY_LIMIT)).await {
+                Ok(price_history) => {
+                    retries = 3;
+                    price_history
                 }
-                retries -= 1;
+                Err(e) => {
+                    println!("\nError fetching price history {:?}", e);
+                    if retries == 1 {
+                        return Err(e);
+                    }
+                    retries -= 1;
 
-                println!(
-                    "\nRemaining retries: {retries}. Waiting {} secs...",
-                    *LNM_API_ERROR_COOLDOWN_SEC
-                );
-                wait(*LNM_API_ERROR_COOLDOWN_SEC);
+                    println!(
+                        "\nRemaining retries: {retries}. Waiting {} secs...",
+                        *LNM_API_ERROR_COOLDOWN_SEC
+                    );
+                    wait(*LNM_API_ERROR_COOLDOWN_SEC);
 
-                continue;
-            }
-        };
+                    continue;
+                }
+            };
 
         if price_history.len() < *LNM_PRICE_HISTORY_LIMIT {
             println!(
@@ -151,8 +148,6 @@ async fn download_price_history(
 }
 
 pub async fn start() -> Result<(), Box<dyn std::error::Error>> {
-    let lnm_api = LNMarketsAPI::new();
-
     if let Some(latest_price_entry) = DB.get_latest_price_entry().await? {
         while let Some(earliest_price_entry_gap) = DB.get_earliest_price_entry_gap().await? {
             if earliest_price_entry_gap.time == latest_price_entry.time {
@@ -177,7 +172,6 @@ pub async fn start() -> Result<(), Box<dyn std::error::Error>> {
             println!("\nDownloading entries from {first_price_entry_after_gap_time} backwards, until closing the gap...");
 
             download_price_history(
-                &lnm_api,
                 Some(&earliest_price_entry_gap.time),
                 Some(first_price_entry_after_gap_time),
             )
@@ -189,7 +183,7 @@ pub async fn start() -> Result<(), Box<dyn std::error::Error>> {
             latest_price_entry.time
         );
 
-        download_price_history(&lnm_api, Some(&latest_price_entry.time), None).await?;
+        download_price_history(Some(&latest_price_entry.time), None).await?;
     }
 
     if let Some(earliest_price_entry) = DB.get_earliest_price_entry().await? {
@@ -197,10 +191,10 @@ pub async fn start() -> Result<(), Box<dyn std::error::Error>> {
             "\nDownloading price entries from the earliest ({}) in the DB backwards...",
             earliest_price_entry.time
         );
-        download_price_history(&lnm_api, None, Some(earliest_price_entry.time)).await?;
+        download_price_history(None, Some(earliest_price_entry.time)).await?;
     } else {
         println!("\nNo price entries in the DB. Downloading from latest to earliest...");
-        download_price_history(&lnm_api, None, None).await?;
+        download_price_history(None, None).await?;
     }
 
     Ok(())
