@@ -3,6 +3,7 @@ use sqlx::{postgres::PgPoolOptions, Pool, Postgres};
 use tokio::sync::OnceCell;
 
 use crate::api::PriceEntryLNM;
+use crate::env::POSTGRES_DB_URL;
 
 mod models;
 
@@ -17,11 +18,11 @@ impl Database {
         Self(OnceCell::const_new())
     }
 
-    pub async fn init(&self, database_url: &str) -> Result<(), sqlx::Error> {
+    pub async fn init(&self) -> Result<(), sqlx::Error> {
         println!("Connecting to database...");
         let pool = PgPoolOptions::new()
             .max_connections(5)
-            .connect(database_url)
+            .connect(&POSTGRES_DB_URL)
             .await?;
 
         println!("Successfully connected to the database");
