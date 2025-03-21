@@ -5,6 +5,7 @@ use std::{thread, time};
 
 mod api;
 mod db;
+mod env;
 
 use api::LNMarketsAPI;
 use db::DB;
