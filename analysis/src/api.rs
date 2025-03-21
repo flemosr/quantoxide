@@ -2,13 +2,10 @@ use chrono::serde::ts_milliseconds;
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
 
+use crate::env::LNM_API_BASE_URL;
+
 #[derive(Debug)]
-pub struct LNMarketsAPI {
-    lnm_api_base_url: String,
-    lnm_api_key: String,
-    lnm_api_secret: String,
-    lnm_api_passphrase: String,
-}
+pub struct LNMarketsAPI;
 
 #[derive(Debug, Deserialize)]
 pub struct PriceEntryLNM {
@@ -28,18 +25,8 @@ impl PriceEntryLNM {
 }
 
 impl LNMarketsAPI {
-    pub fn new(
-        lnm_api_base_url: String,
-        lnm_api_key: String,
-        lnm_api_secret: String,
-        lnm_api_passphrase: String,
-    ) -> Self {
-        Self {
-            lnm_api_base_url,
-            lnm_api_key,
-            lnm_api_secret,
-            lnm_api_passphrase,
-        }
+    pub fn new() -> Self {
+        Self
     }
 
     const FUTURES_PRICE_HISTORY_PATH: &'static str = "/futures/history/price";
@@ -61,7 +48,7 @@ impl LNMarketsAPI {
             params.push(("limit", limit.to_string()));
         }
 
-        let endpoint = self.lnm_api_base_url.clone() + Self::FUTURES_PRICE_HISTORY_PATH;
+        let endpoint = LNM_API_BASE_URL.clone() + Self::FUTURES_PRICE_HISTORY_PATH;
         let url = reqwest::Url::parse_with_params(&endpoint, params)?;
         let res = reqwest::get(url).await?;
 
