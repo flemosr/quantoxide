@@ -3,6 +3,8 @@ services:
   pg-analysis:
     image: postgres:17.4-bookworm
     container_name: pg-analysis
+    ports:
+      - "5432:5432"
     environment:
       POSTGRES_USER: ${PG_ANALYSIS_USER}
       POSTGRES_PASSWORD: ${PG_ANALYSIS_PASSWORD}
@@ -23,6 +25,9 @@ services:
       LNM_API_KEY: ${LNM_API_KEY}
       LNM_API_SECRET: ${LNM_API_SECRET}
       LNM_API_PASSPHRASE: ${LNM_API_PASSPHRASE}
+      LNM_PRICE_HISTORY_LIMIT: ${LNM_PRICE_HISTORY_LIMIT}
+      LNM_API_COOLDOWN_SEC: ${LNM_API_COOLDOWN_SEC}
+      LNM_API_ERROR_COOLDOWN_SEC: ${LNM_API_ERROR_COOLDOWN_SEC}
       POSTGRES_DB_URL: postgres://${PG_ANALYSIS_USER}:${PG_ANALYSIS_PASSWORD}@pg-analysis:5432/${PG_ANALYSIS_DB}
     depends_on:
       - pg-analysis
