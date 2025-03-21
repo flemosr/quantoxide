@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
+use env::{LNM_API_COOLDOWN_SEC, LNM_API_ERROR_COOLDOWN_SEC, LNM_PRICE_HISTORY_LIMIT};
 use std::collections::HashSet;
-use std::env;
 use std::{thread, time};
 
 mod api;
@@ -9,12 +9,6 @@ mod env;
 
 use api::LNMarketsAPI;
 use db::DB;
-
-const LNM_PRICE_HISTORY_LIMIT: usize = 1000;
-// Max LNM REST API rate for public endpoints is 30 requests per minute.
-// Source: https://docs.lnmarkets.com/api/
-const LNM_API_COOLDOWN_SEC: u64 = 3;
-const LNM_API_ERROR_COOLDOWN_SEC: u64 = 10;
 
 fn wait(secs: u64) {
     thread::sleep(time::Duration::from_secs(secs));
@@ -27,7 +21,7 @@ async fn download_price_history(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut retries: u8 = 3;
     loop {
-        wait(LNM_API_COOLDOWN_SEC);
+        wait(*LNM_API_COOLDOWN_SEC);
 
         match to {
             Some(fixed_to) => println!("\nFetching price entries before {fixed_to}..."),
@@ -35,7 +29,7 @@ async fn download_price_history(
         }
 
         let mut price_history = match lnm_api
-            .futures_price_history(None, to, Some(LNM_PRICE_HISTORY_LIMIT))
+            .futures_price_history(None, to, Some(*LNM_PRICE_HISTORY_LIMIT))
             .await
         {
             Ok(price_history) => {
@@ -50,18 +44,20 @@ async fn download_price_history(
                 retries -= 1;
 
                 println!(
-                    "\nRemaining retries: {retries}. Waiting {LNM_API_ERROR_COOLDOWN_SEC} secs..."
+                    "\nRemaining retries: {retries}. Waiting {} secs...",
+                    *LNM_API_ERROR_COOLDOWN_SEC
                 );
-                wait(LNM_API_ERROR_COOLDOWN_SEC);
+                wait(*LNM_API_ERROR_COOLDOWN_SEC);
 
                 continue;
             }
         };
 
-        if price_history.len() < LNM_PRICE_HISTORY_LIMIT {
+        if price_history.len() < *LNM_PRICE_HISTORY_LIMIT {
             panic!(
-                "Received only {} price entries with limit {LNM_PRICE_HISTORY_LIMIT}.",
-                price_history.len()
+                "Received only {} price entries with limit {}.",
+                price_history.len(),
+                *LNM_PRICE_HISTORY_LIMIT
             );
         }
 
@@ -160,25 +156,13 @@ async fn download_price_history(
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let lnm_api_base_url = env::var("LNM_API_BASE_URL").expect("LNM_API_BASE_URL must be set");
-    let lnm_api_key = env::var("LNM_API_KEY").expect("LNM_API_KEY must be set");
-    let lnm_api_secret = env::var("LNM_API_SECRET").expect("LNM_API_SECRET must be set");
-    let lnm_api_passphrase =
-        env::var("LNM_API_PASSPHRASE").expect("LNM_API_PASSPHRASE must be set");
-    let postgres_db_url = env::var("POSTGRES_DB_URL").expect("POSTGRES_DB_URL must be set");
-
     println!("Trying to init the DB...");
 
-    DB.init(&postgres_db_url).await?;
+    DB.init().await?;
 
     println!("DB is ready.");
 
-    let lnm_api = LNMarketsAPI::new(
-        lnm_api_base_url,
-        lnm_api_key,
-        lnm_api_secret,
-        lnm_api_passphrase,
-    );
+    let lnm_api = LNMarketsAPI::new();
 
     if let Some(latest_price_entry) = DB.get_latest_price_entry().await? {
         while let Some(earliest_price_entry_gap) = DB.get_earliest_price_entry_gap().await? {
