@@ -32,6 +32,15 @@ lazy_static! {
             .expect("LNM_API_ERROR_COOLDOWN_SEC must be a valid number");
         num
     };
+    pub static ref LNM_MIN_PRICE_HISTORY_WEEKS: u64 = {
+        let var = env::var("LNM_MIN_PRICE_HISTORY_WEEKS")
+            .expect("LNM_MIN_PRICE_HISTORY_WEEKS must be set");
+        let num = var
+            .parse::<u64>()
+            .expect("LNM_MIN_PRICE_HISTORY_WEEKS must be a valid number");
+        assert!(num >= 1, "LNM_MIN_PRICE_HISTORY_WEEKS must be at least 1");
+        num
+    };
     pub static ref POSTGRES_DB_URL: String =
         env::var("POSTGRES_DB_URL").expect("POSTGRES_DB_URL must be set");
 }
