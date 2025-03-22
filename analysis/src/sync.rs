@@ -5,8 +5,8 @@ use std::{thread, time};
 use crate::api::{self, PriceEntryLNM};
 use crate::db::DB;
 use crate::env::{
-    LNM_API_COOLDOWN_SEC, LNM_API_ERROR_COOLDOWN_SEC, LNM_MIN_PRICE_HISTORY_WEEKS,
-    LNM_PRICE_HISTORY_LIMIT,
+    LNM_API_COOLDOWN_SEC, LNM_API_ERROR_COOLDOWN_SEC, LNM_API_ERROR_MAX_TRIALS,
+    LNM_MIN_PRICE_HISTORY_WEEKS, LNM_PRICE_HISTORY_LIMIT,
 };
 
 fn wait(secs: u64) {
@@ -22,34 +22,40 @@ async fn get_new_price_entries(
     limit: &DateTime<Utc>,
     before_observed_time: Option<DateTime<Utc>>,
 ) -> Result<(Vec<PriceEntryLNM>, LimitReached), Box<dyn std::error::Error>> {
-    let mut retries: u8 = 3;
+    let mut price_entries = {
+        let mut trials = 0;
 
-    let mut price_entries = loop {
-        wait(*LNM_API_COOLDOWN_SEC);
+        loop {
+            wait(*LNM_API_COOLDOWN_SEC);
 
-        match api::futures_price_history(None, before_observed_time, Some(*LNM_PRICE_HISTORY_LIMIT))
+            match api::futures_price_history(
+                None,
+                before_observed_time,
+                Some(*LNM_PRICE_HISTORY_LIMIT),
+            )
             .await
-        {
-            Ok(price_history) => {
-                retries = 3;
-                break price_history;
-            }
-            Err(e) => {
-                println!("\nError fetching price history {:?}", e);
-                if retries == 1 {
-                    return Err(e);
+            {
+                Ok(price_entries) => break price_entries,
+                Err(e) => {
+                    println!("\nError fetching price history {:?}", e);
+
+                    trials += 1;
+                    if trials >= *LNM_API_ERROR_MAX_TRIALS {
+                        return Err(e);
+                    }
+
+                    println!(
+                        "Remaining trials: {}. Waiting {} secs...",
+                        *LNM_API_ERROR_MAX_TRIALS - trials,
+                        *LNM_API_ERROR_COOLDOWN_SEC
+                    );
+
+                    wait(*LNM_API_ERROR_COOLDOWN_SEC);
+
+                    continue;
                 }
-                retries -= 1;
-
-                println!(
-                    "\nRemaining retries: {retries}. Waiting {} secs...",
-                    *LNM_API_ERROR_COOLDOWN_SEC
-                );
-                wait(*LNM_API_ERROR_COOLDOWN_SEC);
-
-                continue;
-            }
-        };
+            };
+        }
     };
 
     if price_entries.len() < *LNM_PRICE_HISTORY_LIMIT {
