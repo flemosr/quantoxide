@@ -24,6 +24,14 @@ lazy_static! {
             .expect("LNM_API_COOLDOWN_SEC must be a valid number");
         num
     };
+    pub static ref LNM_API_ERROR_MAX_TRIALS: u32 = {
+        let var =
+            env::var("LNM_API_ERROR_MAX_TRIALS").expect("LNM_API_ERROR_MAX_TRIALS must be set");
+        let num = var
+            .parse::<u32>()
+            .expect("LNM_API_ERROR_MAX_TRIALS must be a valid number");
+        num
+    };
     pub static ref LNM_API_ERROR_COOLDOWN_SEC: u64 = {
         let var =
             env::var("LNM_API_ERROR_COOLDOWN_SEC").expect("LNM_API_ERROR_COOLDOWN_SEC must be set");
