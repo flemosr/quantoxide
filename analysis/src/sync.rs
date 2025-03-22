@@ -1,153 +1,189 @@
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Duration, Utc};
 use std::collections::HashSet;
 use std::{thread, time};
 
-use crate::api;
+use crate::api::{self, PriceEntryLNM};
 use crate::db::DB;
-use crate::env::{LNM_API_COOLDOWN_SEC, LNM_API_ERROR_COOLDOWN_SEC, LNM_PRICE_HISTORY_LIMIT};
+use crate::env::{
+    LNM_API_COOLDOWN_SEC, LNM_API_ERROR_COOLDOWN_SEC, LNM_MIN_PRICE_HISTORY_WEEKS,
+    LNM_PRICE_HISTORY_LIMIT,
+};
 
 fn wait(secs: u64) {
     thread::sleep(time::Duration::from_secs(secs));
 }
 
-async fn download_price_history(
-    from: Option<&DateTime<Utc>>,
-    mut to: Option<DateTime<Utc>>,
-) -> Result<(), Box<dyn std::error::Error>> {
+enum LimitReached {
+    No,
+    Yes { overlap: bool },
+}
+
+async fn get_new_price_entries(
+    limit: &DateTime<Utc>,
+    before_observed_time: Option<DateTime<Utc>>,
+) -> Result<(Vec<PriceEntryLNM>, LimitReached), Box<dyn std::error::Error>> {
     let mut retries: u8 = 3;
-    loop {
+
+    let mut price_entries = loop {
         wait(*LNM_API_COOLDOWN_SEC);
 
-        match to {
-            Some(fixed_to) => println!("\nFetching price entries before {fixed_to}..."),
+        match api::futures_price_history(None, before_observed_time, Some(*LNM_PRICE_HISTORY_LIMIT))
+            .await
+        {
+            Ok(price_history) => {
+                retries = 3;
+                break price_history;
+            }
+            Err(e) => {
+                println!("\nError fetching price history {:?}", e);
+                if retries == 1 {
+                    return Err(e);
+                }
+                retries -= 1;
+
+                println!(
+                    "\nRemaining retries: {retries}. Waiting {} secs...",
+                    *LNM_API_ERROR_COOLDOWN_SEC
+                );
+                wait(*LNM_API_ERROR_COOLDOWN_SEC);
+
+                continue;
+            }
+        };
+    };
+
+    if price_entries.len() < *LNM_PRICE_HISTORY_LIMIT {
+        println!(
+            "\nReceived only {} price entries with limit {}.",
+            price_entries.len(),
+            *LNM_PRICE_HISTORY_LIMIT
+        );
+    }
+
+    // Remove entries with duplicated 'time'
+    let mut seen = HashSet::new();
+    price_entries.retain(|price_entry| seen.insert(*price_entry.time()));
+
+    let is_sorted_time_desc = price_entries.is_sorted_by(|a, b| a.time() > b.time());
+    if is_sorted_time_desc == false {
+        return Err("Got price entries unsorted by time desc".into());
+    }
+
+    // If a fixed `to` is set, ensure that the first (latest) entry matches it
+    if let Some(time) = before_observed_time {
+        let first_entry = price_entries.remove(0);
+        if *first_entry.time() != time {
+            return Err("Got price entries without overlap.".into());
+        }
+        println!(
+            "First received entry matches `to` time {}. Overlap OK.",
+            first_entry.time()
+        );
+    }
+
+    let limit_reached = if let Some(entry_i) = price_entries
+        .iter()
+        .position(|price_entry| price_entry.time() <= limit)
+    {
+        // Remove the entries before the `limit`
+        let before_limit = price_entries.split_off(entry_i);
+        let overlap = before_limit.first().expect("not empty").time() == limit;
+        LimitReached::Yes { overlap }
+    } else {
+        LimitReached::No
+    };
+
+    Ok((price_entries, limit_reached))
+}
+
+async fn download_price_history(
+    limit: &DateTime<Utc>,
+    mut next_observed_time: Option<DateTime<Utc>>,
+) -> Result<bool, Box<dyn std::error::Error>> {
+    let limit_next_observed_time = loop {
+        match next_observed_time {
+            Some(time) => println!("\nFetching price entries before {time}..."),
             None => println!("\nFetching latest price entries..."),
         }
 
-        let mut price_history =
-            match api::futures_price_history(None, to, Some(*LNM_PRICE_HISTORY_LIMIT)).await {
-                Ok(price_history) => {
-                    retries = 3;
-                    price_history
-                }
-                Err(e) => {
-                    println!("\nError fetching price history {:?}", e);
-                    if retries == 1 {
-                        return Err(e);
-                    }
-                    retries -= 1;
-
-                    println!(
-                        "\nRemaining retries: {retries}. Waiting {} secs...",
-                        *LNM_API_ERROR_COOLDOWN_SEC
-                    );
-                    wait(*LNM_API_ERROR_COOLDOWN_SEC);
-
-                    continue;
-                }
-            };
-
-        if price_history.len() < *LNM_PRICE_HISTORY_LIMIT {
-            println!(
-                "\nReceived only {} price entries with limit {}.",
-                price_history.len(),
-                *LNM_PRICE_HISTORY_LIMIT
-            );
-        }
-
-        let mut from_reached = None;
-        let (new_price_entries, next_observed_time) = {
-            // Sort by time descending
-            price_history.sort_by(|a, b| b.time().cmp(a.time()));
-
-            // Remove entries with duplicated 'time'
-            let mut seen = HashSet::new();
-            price_history.retain(|price_entry| seen.insert(*price_entry.time()));
-
-            // If a fixed `to` is set, ensure that the first (latest) entry matches it
-            let next_observed_time = if let Some(fixed_to) = to {
-                let first_entry = price_history.remove(0);
-                if *first_entry.time() != fixed_to {
-                    panic!("Tried to add price entries without overlap.");
-                }
-                println!(
-                    "First received entry matches `to` time {}. Overlap OK.",
-                    first_entry.time()
-                );
-
-                Some(fixed_to)
-            } else {
-                None
-            };
-
-            // If a `from` limit is set, check if it was reached, and remove
-            // previously added entries if so.
-            if let Some(from_limit) = from {
-                if let Some(entry_i) = price_history
-                    .iter()
-                    .position(|price_entry| price_entry.time() <= from_limit)
-                {
-                    from_reached = from;
-                    let already_on_db = price_history.split_off(entry_i);
-                    if already_on_db.first().expect("not empty").time() != from_limit {
-                        panic!(
-                            "Received an entry before fixed_from ({from_limit}), and no fixed_from entry."
-                        );
-                    }
-                }
-            }
-
-            (price_history, next_observed_time)
-        };
-
-        DB.add_price_entries(&new_price_entries, next_observed_time.as_ref())
-            .await?;
+        let (new_price_entries, limit_check) =
+            get_new_price_entries(limit, next_observed_time).await?;
 
         if new_price_entries.is_empty() {
             println!("\nNo new entries were received.");
         } else {
-            let entries_added = new_price_entries.len();
+            let entries_len = new_price_entries.len();
             let latest_new_entry_time = new_price_entries.first().expect("not empty").time();
             let earliest_new_entry_time = new_price_entries.last().expect("not empty").time();
-            println!("\n{entries_added} new entries added to the db, from {earliest_new_entry_time} to {latest_new_entry_time}", );
+            println!("\n{entries_len} new entries received, from {earliest_new_entry_time} to {latest_new_entry_time}");
+
+            DB.add_price_entries(&new_price_entries, next_observed_time.as_ref())
+                .await?;
+
+            println!("\nEntries added to the db");
         }
 
-        if let Some(from_reached) = from_reached {
-            let next = if let Some(earliest_new_entry) = new_price_entries.last() {
-                *earliest_new_entry.time()
-            } else if let Some(fixed_to) = to {
-                // If there is a `fixed_to`, the first entry received from the
-                // server matched its time (overlap enforcement). From this,
-                // we can infer that there are no entries to be fetched between
-                // `from` and `to` (edge case). But `from`'s `next` still needs
-                // to be updated to reflect this.
-                fixed_to
-            } else {
-                println!("\nNo entries available after `from` {from_reached} limit");
-                return Ok(());
-            };
+        if let LimitReached::Yes { overlap } = limit_check {
+            if overlap == false {
+                // Received an entry with time before `limit`, but not `limit`
+                break None;
+            }
 
-            println!("\nReached `from` limit {from_reached}. Updating the corresponding entry's `next` field");
-            if DB.update_price_entry_next(from_reached, &next).await? {
-                println!("\nPrice entry's `next` field updated. History gap closed.");
-                return Ok(());
+            // The `limit` price entry `next` value is now known, and the entry
+            // must be updated in the db.
+
+            if let Some(earliest_new_entry) = new_price_entries.last() {
+                break Some(*earliest_new_entry.time());
+            } else if let Some(time) = next_observed_time {
+                // If there is a `next_observed_time`, the first entry received
+                // from the server matched its time (overlap enforcement).
+                // From this, we can infer that there are no entries to be
+                // fetched between `limit` and `next_observed_time` (edge case).
+                break Some(time);
             } else {
-                panic!("Failed to update the price entry's `next` field.")
+                // No entries available after `limit`
+                break None;
             }
         }
 
-        // No `from` limit reached
+        // `limit` not reached
 
-        if let Some(earliest_new_entry) = new_price_entries.last() {
-            // Prepare to continue fetching from the earliest entry backwards
-            to = Some(*earliest_new_entry.time());
-        } else {
-            // No new entries available from LNM server
-            return Ok(());
-        }
+        let earliest_new_entry = new_price_entries.last().expect("not empty");
+        next_observed_time = Some(*earliest_new_entry.time());
+    };
+
+    if let Some(next) = limit_next_observed_time {
+        println!("\nReached `limit` {limit}. Updating the corresponding entry's `next` field");
+
+        DB.update_price_entry_next(limit, &next).await?;
+        return Ok(true);
     }
+
+    Ok(false)
 }
 
 pub async fn start() -> Result<(), Box<dyn std::error::Error>> {
+    let limit = Utc::now() - Duration::weeks(*LNM_MIN_PRICE_HISTORY_WEEKS as i64);
+
+    println!(
+        "\nPrice history sync limit: {} weeks",
+        *LNM_MIN_PRICE_HISTORY_WEEKS
+    );
+    println!("Limit timestamp: {limit}");
+
+    if let Some(earliest_price_entry_gap) = DB.get_earliest_price_entry_gap().await? {
+        if earliest_price_entry_gap.time < limit {
+            // There is a price gaps before `limit`. Since we shouldn't fetch
+            // entries before `limit`, said gaps can't be closed, and therefore
+            // the db can't be synced.
+            return Err(format!(
+                "Price gap after {} was found. DB can't be synced.",
+                earliest_price_entry_gap.time
+            )
+            .into());
+        }
+    }
+
     if let Some(latest_price_entry) = DB.get_latest_price_entry().await? {
         while let Some(earliest_price_entry_gap) = DB.get_earliest_price_entry_gap().await? {
             if earliest_price_entry_gap.time == latest_price_entry.time {
@@ -171,31 +207,54 @@ pub async fn start() -> Result<(), Box<dyn std::error::Error>> {
 
             println!("\nDownloading entries from {first_price_entry_after_gap_time} backwards, until closing the gap...");
 
-            download_price_history(
-                Some(&earliest_price_entry_gap.time),
+            let overlap_reached = download_price_history(
+                &earliest_price_entry_gap.time,
                 Some(first_price_entry_after_gap_time),
             )
             .await?;
-        }
 
+            if overlap_reached == false {
+                return Err(format!(
+                    "entry gap time {} not received from server",
+                    earliest_price_entry_gap.time
+                )
+                .into());
+            }
+        }
+    }
+
+    if let Some(earliest_price_entry) = DB.get_earliest_price_entry().await? {
+        if earliest_price_entry.time > limit {
+            println!(
+                "\nDownloading price entries from the earliest ({}) in the DB backwards, until limit ({})...",
+                earliest_price_entry.time,
+                limit
+            );
+            download_price_history(&limit, Some(earliest_price_entry.time)).await?;
+        }
+    } else {
+        println!("\nNo price entries in the DB. Downloading from latest to earliest...");
+        download_price_history(&limit, None).await?;
+    }
+
+    // We can assume that limit was reached, and the min history condition is ok
+
+    let mut latest_price_entry = DB.get_latest_price_entry().await?.expect("db not empty");
+
+    loop {
         println!(
             "\nDownloading the latest price entries until reaching the latest ({}) in the DB...",
             latest_price_entry.time
         );
 
-        download_price_history(Some(&latest_price_entry.time), None).await?;
-    }
+        let additional_entries_observed =
+            download_price_history(&latest_price_entry.time, None).await?;
 
-    if let Some(earliest_price_entry) = DB.get_earliest_price_entry().await? {
-        println!(
-            "\nDownloading price entries from the earliest ({}) in the DB backwards...",
-            earliest_price_entry.time
-        );
-        download_price_history(None, Some(earliest_price_entry.time)).await?;
-    } else {
-        println!("\nNo price entries in the DB. Downloading from latest to earliest...");
-        download_price_history(None, None).await?;
-    }
+        if additional_entries_observed == false {
+            println!("\nNo new entries after {}", latest_price_entry.time);
+            continue;
+        }
 
-    Ok(())
+        latest_price_entry = DB.get_latest_price_entry().await?.expect("db not empty");
+    }
 }
