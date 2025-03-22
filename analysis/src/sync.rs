@@ -75,15 +75,15 @@ async fn get_new_price_entries(
         return Err("Got price entries unsorted by time desc".into());
     }
 
-    // If a fixed `to` is set, ensure that the first (latest) entry matches it
-    if let Some(time) = before_observed_time {
+    // If `before_observed_time` is set, ensure that the first (latest) entry matches it
+    if let Some(observed_time) = before_observed_time {
         let first_entry = price_entries.remove(0);
-        if *first_entry.time() != time {
+        if *first_entry.time() != observed_time {
             return Err("Got price entries without overlap.".into());
         }
         println!(
-            "First received entry matches `to` time {}. Overlap OK.",
-            first_entry.time()
+            "First received entry matches `before_observed_time` time {}. Overlap OK.",
+            observed_time
         );
     }
 
