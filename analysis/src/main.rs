@@ -3,7 +3,7 @@ mod db;
 mod env;
 mod sync;
 
-use crate::db::DB;
+use crate::env::POSTGRES_DB_URL;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
@@ -11,7 +11,7 @@ type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 async fn main() -> Result<()> {
     println!("Trying to init the DB...");
 
-    DB.init().await?;
+    db::init(&POSTGRES_DB_URL).await?;
 
     println!("DB is ready.");
 
