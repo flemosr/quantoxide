@@ -2,184 +2,169 @@ use chrono::{DateTime, Duration, SubsecRound, Utc};
 use sqlx::{postgres::PgPoolOptions, Pool, Postgres};
 use tokio::sync::OnceCell;
 
-use crate::{api::models::PriceEntryLNM, env::POSTGRES_DB_URL, Result};
+use crate::{api::models::PriceEntryLNM, Result};
 
 mod models;
 
 use models::{PriceEntry, PriceEntryLOCF};
 
-pub static DB: Database = Database::new();
+static DB_CONNECTION: OnceCell<Pool<Postgres>> = OnceCell::const_new();
 
-pub struct Database(OnceCell<Pool<Postgres>>);
+pub async fn init(postgres_db_url: &str) -> Result<()> {
+    println!("Connecting to database...");
+    let pool = PgPoolOptions::new()
+        .max_connections(5)
+        .connect(postgres_db_url)
+        .await?;
 
-impl Database {
-    const fn new() -> Self {
-        Self(OnceCell::const_new())
+    println!("Successfully connected to the database");
+
+    println!("Running migrations...");
+    sqlx::migrate!("./migrations").run(&pool).await?;
+
+    println!("Migrations completed successfully");
+
+    println!("Checking database connection...");
+    let row: (i64,) = sqlx::query_as("SELECT $1")
+        .bind(150_i64)
+        .fetch_one(&pool)
+        .await?;
+
+    assert_eq!(row.0, 150);
+    println!("Database check successful");
+
+    DB_CONNECTION.set(pool).expect("DB must not be initialized");
+
+    Ok(())
+}
+
+fn get_pool() -> &'static Pool<Postgres> {
+    DB_CONNECTION.get().expect("DB must be initialized")
+}
+
+pub async fn get_earliest_price_entry_gap() -> Result<Option<PriceEntry>> {
+    let pool = get_pool();
+    match sqlx::query_as::<_, PriceEntry>(
+        "SELECT * FROM price_history WHERE next IS NULL ORDER BY time ASC LIMIT 1",
+    )
+    .fetch_one(pool)
+    .await
+    {
+        Ok(price_entry) => Ok(Some(price_entry)),
+        Err(e) => match e {
+            sqlx::Error::RowNotFound => Ok(None),
+            _ => Err(e.into()),
+        },
     }
+}
 
-    pub async fn init(&self) -> Result<()> {
-        println!("Connecting to database...");
-        let pool = PgPoolOptions::new()
-            .max_connections(5)
-            .connect(&POSTGRES_DB_URL)
-            .await?;
-
-        println!("Successfully connected to the database");
-
-        println!("Running migrations...");
-        sqlx::migrate!("./migrations").run(&pool).await?;
-
-        println!("Migrations completed successfully");
-
-        println!("Checking database connection...");
-        let row: (i64,) = sqlx::query_as("SELECT $1")
-            .bind(150_i64)
-            .fetch_one(&pool)
-            .await?;
-
-        assert_eq!(row.0, 150);
-        println!("Database check successful");
-
-        self.0.set(pool).expect("DB must not be initialized");
-
-        Ok(())
-    }
-
-    fn get_pool(&self) -> &Pool<Postgres> {
-        self.0.get().expect("DB must be initialized")
-    }
-
-    pub async fn get_earliest_price_entry_gap(&self) -> Result<Option<PriceEntry>> {
-        let pool = self.get_pool();
-        match sqlx::query_as::<_, PriceEntry>(
-            "SELECT * FROM price_history WHERE next IS NULL ORDER BY time ASC LIMIT 1",
-        )
+pub async fn get_latest_price_entry() -> Result<Option<PriceEntry>> {
+    let pool = get_pool();
+    match sqlx::query_as::<_, PriceEntry>("SELECT * FROM price_history ORDER BY time DESC LIMIT 1")
         .fetch_one(pool)
         .await
-        {
-            Ok(price_entry) => Ok(Some(price_entry)),
-            Err(e) => match e {
-                sqlx::Error::RowNotFound => Ok(None),
-                _ => Err(e.into()),
-            },
-        }
+    {
+        Ok(price_entry) => Ok(Some(price_entry)),
+        Err(e) => match e {
+            sqlx::Error::RowNotFound => Ok(None),
+            _ => Err(e.into()),
+        },
     }
+}
 
-    pub async fn get_latest_price_entry(&self) -> Result<Option<PriceEntry>> {
-        let pool = self.get_pool();
-        match sqlx::query_as::<_, PriceEntry>(
-            "SELECT * FROM price_history ORDER BY time DESC LIMIT 1",
-        )
+pub async fn get_earliest_price_entry() -> Result<Option<PriceEntry>> {
+    let pool = get_pool();
+    match sqlx::query_as::<_, PriceEntry>("SELECT * FROM price_history ORDER BY time ASC LIMIT 1")
         .fetch_one(pool)
         .await
-        {
-            Ok(price_entry) => Ok(Some(price_entry)),
-            Err(e) => match e {
-                sqlx::Error::RowNotFound => Ok(None),
-                _ => Err(e.into()),
-            },
-        }
+    {
+        Ok(price_entry) => Ok(Some(price_entry)),
+        Err(e) => match e {
+            sqlx::Error::RowNotFound => Ok(None),
+            _ => Err(e.into()),
+        },
+    }
+}
+
+pub async fn get_first_price_entry_after(time: DateTime<Utc>) -> Result<Option<PriceEntry>> {
+    let pool = get_pool();
+    match sqlx::query_as::<_, PriceEntry>(
+        "SELECT * FROM price_history WHERE time > $1 ORDER BY time ASC LIMIT 1",
+    )
+    .bind(time)
+    .fetch_one(pool)
+    .await
+    {
+        Ok(price_entry) => Ok(Some(price_entry)),
+        Err(e) => match e {
+            sqlx::Error::RowNotFound => Ok(None),
+            _ => Err(e.into()),
+        },
+    }
+}
+
+fn get_locf_sec(time: &DateTime<Utc>) -> DateTime<Utc> {
+    let trunc_time_sec = time.trunc_subsecs(0);
+    if trunc_time_sec == *time {
+        trunc_time_sec
+    } else {
+        trunc_time_sec + Duration::seconds(1)
+    }
+}
+
+pub async fn add_price_entries(
+    price_entries: &Vec<PriceEntryLNM>,
+    next_observed_time: Option<&DateTime<Utc>>,
+) -> Result<()> {
+    if price_entries.is_empty() {
+        return Ok(());
     }
 
-    pub async fn get_earliest_price_entry(&self) -> Result<Option<PriceEntry>> {
-        let pool = self.get_pool();
-        match sqlx::query_as::<_, PriceEntry>(
-            "SELECT * FROM price_history ORDER BY time ASC LIMIT 1",
-        )
-        .fetch_one(pool)
-        .await
-        {
-            Ok(price_entry) => Ok(Some(price_entry)),
-            Err(e) => match e {
-                sqlx::Error::RowNotFound => Ok(None),
-                _ => Err(e.into()),
-            },
-        }
-    }
+    let mut tx = get_pool().begin().await?;
 
-    pub async fn get_first_price_entry_after(
-        &self,
-        time: DateTime<Utc>,
-    ) -> Result<Option<PriceEntry>> {
-        let pool = self.get_pool();
-        match sqlx::query_as::<_, PriceEntry>(
-            "SELECT * FROM price_history WHERE time > $1 ORDER BY time ASC LIMIT 1",
-        )
-        .bind(time)
-        .fetch_one(pool)
-        .await
-        {
-            Ok(price_entry) => Ok(Some(price_entry)),
-            Err(e) => match e {
-                sqlx::Error::RowNotFound => Ok(None),
-                _ => Err(e.into()),
-            },
-        }
-    }
+    let mut next_entry_time = next_observed_time;
 
-    fn get_locf_sec(time: &DateTime<Utc>) -> DateTime<Utc> {
-        let trunc_time_sec = time.trunc_subsecs(0);
-        if trunc_time_sec == *time {
-            trunc_time_sec
-        } else {
-            trunc_time_sec + Duration::seconds(1)
-        }
-    }
-
-    pub async fn add_price_entries(
-        &self,
-        price_entries: &Vec<PriceEntryLNM>,
-        next_observed_time: Option<&DateTime<Utc>>,
-    ) -> Result<()> {
-        if price_entries.is_empty() {
-            return Ok(());
-        }
-
-        let mut tx = self.get_pool().begin().await?;
-
-        let mut next_entry_time = next_observed_time;
-
-        for price_entry in price_entries {
-            let query = r#"
+    for price_entry in price_entries {
+        let query = r#"
                 INSERT INTO price_history (time, value, next)
                 VALUES ($1, $2, $3)
             "#;
-            sqlx::query(query)
-                .bind(price_entry.time())
-                .bind(price_entry.value())
-                .bind(next_entry_time)
-                .execute(&mut *tx)
-                .await?;
+        sqlx::query(query)
+            .bind(price_entry.time())
+            .bind(price_entry.value())
+            .bind(next_entry_time)
+            .execute(&mut *tx)
+            .await?;
 
-            next_entry_time = Some(price_entry.time());
-        }
+        next_entry_time = Some(price_entry.time());
+    }
 
-        // We can assume that `price_history_locf` is up-to-date in regards to the previously
-        // added price entries.
-        // A new entry-batch will potentially affect the values of all locf entries between its own
-        // `min_locf_sec` and the `locf_sec` corresponding to the observed entry just AFTER it.
-        // If there are no observed entries after the just-added entry-batch, the batch's
-        // `max_locf_sec` will be the new locf upper bound.
-        // A new batch added after the current max locf time, or before the current min locf time
-        // may result in gaps in the `price_history_locf` history. Said gaps need to be filled by
-        // carrying the corresponding locf value forward.
+    // We can assume that `price_history_locf` is up-to-date in regards to the previously
+    // added price entries.
+    // A new entry-batch will potentially affect the values of all locf entries between its own
+    // `min_locf_sec` and the `locf_sec` corresponding to the observed entry just AFTER it.
+    // If there are no observed entries after the just-added entry-batch, the batch's
+    // `max_locf_sec` will be the new locf upper bound.
+    // A new batch added after the current max locf time, or before the current min locf time
+    // may result in gaps in the `price_history_locf` history. Said gaps need to be filled by
+    // carrying the corresponding locf value forward.
 
-        let earliest_entry_time = price_entries.last().expect("not empty").time();
-        let start_locf_sec = Self::get_locf_sec(&earliest_entry_time);
+    let earliest_entry_time = price_entries.last().expect("not empty").time();
+    let start_locf_sec = get_locf_sec(&earliest_entry_time);
 
-        let prev_locf_sec: Option<DateTime<Utc>> =
-            sqlx::query_scalar("SELECT max(time) FROM price_history_locf WHERE time <= $1")
-                .bind(earliest_entry_time)
-                .fetch_one(&mut *tx)
-                .await?;
-        // `prev_locf_sec` will be `None` only when `added_locf_sec` is the new min locf time
-        let start_locf_sec = prev_locf_sec.unwrap_or(start_locf_sec);
+    let prev_locf_sec: Option<DateTime<Utc>> =
+        sqlx::query_scalar("SELECT max(time) FROM price_history_locf WHERE time <= $1")
+            .bind(earliest_entry_time)
+            .fetch_one(&mut *tx)
+            .await?;
+    // `prev_locf_sec` will be `None` only when `added_locf_sec` is the new min locf time
+    let start_locf_sec = prev_locf_sec.unwrap_or(start_locf_sec);
 
-        let latest_batch_time = price_entries.first().expect("not empty").time();
-        let latest_ob_time_after_batch = next_observed_time.unwrap_or(latest_batch_time);
-        let end_locf_sec = Self::get_locf_sec(&latest_ob_time_after_batch);
+    let latest_batch_time = price_entries.first().expect("not empty").time();
+    let latest_ob_time_after_batch = next_observed_time.unwrap_or(latest_batch_time);
+    let end_locf_sec = get_locf_sec(&latest_ob_time_after_batch);
 
-        let query = r#"
+    let query = r#"
             INSERT INTO price_history_locf (time, value)
             SELECT s.time, t.value
             FROM generate_series($1, $2, '1 second'::interval) AS s(time)
@@ -193,20 +178,20 @@ impl Database {
             ON CONFLICT (time) 
             DO UPDATE SET value = EXCLUDED.value
         "#;
-        sqlx::query(query)
-            .bind(start_locf_sec)
-            .bind(end_locf_sec)
-            .execute(&mut *tx)
-            .await?;
+    sqlx::query(query)
+        .bind(start_locf_sec)
+        .bind(end_locf_sec)
+        .execute(&mut *tx)
+        .await?;
 
-        // Moving averages from start_locf_sec until end_locf_sec + max period
-        // secs could be affected.
+    // Moving averages from start_locf_sec until end_locf_sec + max period
+    // secs could be affected.
 
-        const MAX_MA_PERIOD_SECS: i64 = 300;
-        let start_ma_sec = start_locf_sec - Duration::seconds(MAX_MA_PERIOD_SECS - 1);
-        let end_ma_sec = end_locf_sec + Duration::seconds(MAX_MA_PERIOD_SECS - 1);
+    const MAX_MA_PERIOD_SECS: i64 = 300;
+    let start_ma_sec = start_locf_sec - Duration::seconds(MAX_MA_PERIOD_SECS - 1);
+    let end_ma_sec = end_locf_sec + Duration::seconds(MAX_MA_PERIOD_SECS - 1);
 
-        let query = r#"
+    let query = r#"
             WITH price_data AS (
                 SELECT time, value, ROW_NUMBER() OVER (ORDER BY time) AS rn
                 FROM price_history_locf
@@ -243,74 +228,73 @@ impl Database {
                 eval_indicators.time >= $3
                 AND price_history_locf.time = eval_indicators.time;
         "#;
-        sqlx::query(&query)
-            .bind(start_ma_sec)
-            .bind(end_ma_sec)
-            .bind(start_locf_sec)
-            .execute(&mut *tx)
-            .await?;
-
-        tx.commit().await?;
-
-        return Ok(());
-    }
-
-    // pub async fn get_price_entry_locf(
-    //     &self,
-    //     time: &DateTime<Utc>,
-    // ) -> Result<PriceEntryLOCF, sqlx::Error> {
-    //     let locf_sec = Self::get_locf_sec(time);
-
-    //     let pool = self.get_pool();
-    //     let price_entry_locf =
-    //         sqlx::query_as::<_, PriceEntryLOCF>("SELECT * FROM price_history_locf WHERE time = $1")
-    //             .bind(locf_sec)
-    //             .fetch_one(pool)
-    //             .await?;
-
-    //     Ok(price_entry_locf)
-    // }
-
-    pub async fn eval_price_entries_locf(
-        &self,
-        time: &DateTime<Utc>,
-        range_secs: usize,
-    ) -> Result<Vec<PriceEntryLOCF>> {
-        let locf_sec = time.trunc_subsecs(0);
-        let min_locf_sec = locf_sec - Duration::seconds(range_secs as i64 - 1);
-
-        let pool = self.get_pool();
-        let price_entries_locf = sqlx::query_as::<_, PriceEntryLOCF>(
-            "SELECT * FROM price_history_locf WHERE time >= $1 ORDER BY time ASC LIMIT $2",
-        )
-        .bind(min_locf_sec)
-        .bind(range_secs as i32)
-        .fetch_all(pool)
+    sqlx::query(&query)
+        .bind(start_ma_sec)
+        .bind(end_ma_sec)
+        .bind(start_locf_sec)
+        .execute(&mut *tx)
         .await?;
 
-        if price_entries_locf.len() == range_secs {
-            return Ok(price_entries_locf);
-        }
+    tx.commit().await?;
 
-        // `locf_sec` is not present in the current historical data.
-        // indicators will have to be estimated from historical prices
+    return Ok(());
+}
 
-        const MAX_MA_PERIOD_SECS: i64 = 300;
-        let start_ma_sec = min_locf_sec - Duration::seconds(MAX_MA_PERIOD_SECS - 1);
-        let end_ma_sec = locf_sec;
+// pub async fn get_price_entry_locf(
+//     &self,
+//     time: &DateTime<Utc>,
+// ) -> Result<PriceEntryLOCF, sqlx::Error> {
+//     let locf_sec = Self::get_locf_sec(time);
 
-        // At least one price entry must exist before `min_locf_sec` in order to
-        // compute locf values and indicators.
-        let is_time_valid: bool =
-            sqlx::query_scalar("SELECT EXISTS (SELECT 1 FROM price_history WHERE time <= $1)")
-                .bind(min_locf_sec)
-                .fetch_one(pool)
-                .await?;
-        if is_time_valid == false {
-            return Ok(vec![]);
-        }
+//     let pool = self.get_pool();
+//     let price_entry_locf =
+//         sqlx::query_as::<_, PriceEntryLOCF>("SELECT * FROM price_history_locf WHERE time = $1")
+//             .bind(locf_sec)
+//             .fetch_one(pool)
+//             .await?;
 
-        let query = r#"
+//     Ok(price_entry_locf)
+// }
+
+pub async fn eval_price_entries_locf(
+    time: &DateTime<Utc>,
+    range_secs: usize,
+) -> Result<Vec<PriceEntryLOCF>> {
+    let locf_sec = time.trunc_subsecs(0);
+    let min_locf_sec = locf_sec - Duration::seconds(range_secs as i64 - 1);
+
+    let pool = get_pool();
+    let price_entries_locf = sqlx::query_as::<_, PriceEntryLOCF>(
+        "SELECT * FROM price_history_locf WHERE time >= $1 ORDER BY time ASC LIMIT $2",
+    )
+    .bind(min_locf_sec)
+    .bind(range_secs as i32)
+    .fetch_all(pool)
+    .await?;
+
+    if price_entries_locf.len() == range_secs {
+        return Ok(price_entries_locf);
+    }
+
+    // `locf_sec` is not present in the current historical data.
+    // indicators will have to be estimated from historical prices
+
+    const MAX_MA_PERIOD_SECS: i64 = 300;
+    let start_ma_sec = min_locf_sec - Duration::seconds(MAX_MA_PERIOD_SECS - 1);
+    let end_ma_sec = locf_sec;
+
+    // At least one price entry must exist before `min_locf_sec` in order to
+    // compute locf values and indicators.
+    let is_time_valid: bool =
+        sqlx::query_scalar("SELECT EXISTS (SELECT 1 FROM price_history WHERE time <= $1)")
+            .bind(min_locf_sec)
+            .fetch_one(pool)
+            .await?;
+    if is_time_valid == false {
+        return Ok(vec![]);
+    }
+
+    let query = r#"
             WITH price_data AS (
                 SELECT s.time, t.value
                 FROM generate_series($1, $2, '1 second'::interval) AS s(time)
@@ -337,34 +321,32 @@ impl Database {
             WHERE eval_indicators.time >= $3;
         "#;
 
-        let price_entries_locf = sqlx::query_as::<_, PriceEntryLOCF>(query)
-            .bind(start_ma_sec)
-            .bind(end_ma_sec)
-            .bind(min_locf_sec)
-            .fetch_all(pool)
-            .await?;
+    let price_entries_locf = sqlx::query_as::<_, PriceEntryLOCF>(query)
+        .bind(start_ma_sec)
+        .bind(end_ma_sec)
+        .bind(min_locf_sec)
+        .fetch_all(pool)
+        .await?;
 
-        Ok(price_entries_locf)
-    }
+    Ok(price_entries_locf)
+}
 
-    pub async fn update_price_entry_next(
-        &self,
-        price_entry_time: &DateTime<Utc>,
-        next: &DateTime<Utc>,
-    ) -> Result<bool> {
-        let pool = self.get_pool();
+pub async fn update_price_entry_next(
+    price_entry_time: &DateTime<Utc>,
+    next: &DateTime<Utc>,
+) -> Result<bool> {
+    let pool = get_pool();
 
-        let query = r#"
+    let query = r#"
             UPDATE price_history 
             SET next = $1 
             WHERE time = $2 AND next IS NULL
         "#;
-        let result = sqlx::query(query)
-            .bind(next)
-            .bind(price_entry_time)
-            .execute(pool)
-            .await?;
+    let result = sqlx::query(query)
+        .bind(next)
+        .bind(price_entry_time)
+        .execute(pool)
+        .await?;
 
-        Ok(result.rows_affected() > 0)
-    }
+    Ok(result.rows_affected() > 0)
 }
