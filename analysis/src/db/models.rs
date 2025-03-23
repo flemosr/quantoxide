@@ -2,7 +2,7 @@ use chrono::{DateTime, Utc};
 use sqlx::FromRow;
 
 #[derive(Debug, FromRow)]
-pub struct PriceEntry {
+pub struct PriceHistoryEntry {
     pub time: DateTime<Utc>,
     pub value: f64,
     pub created_at: DateTime<Utc>,
@@ -10,7 +10,7 @@ pub struct PriceEntry {
 }
 
 #[derive(Debug, FromRow)]
-pub struct PriceEntryLOCF {
+pub struct PriceHistoryEntryLOCF {
     pub time: DateTime<Utc>,
     pub value: f64,
     pub ma_5: Option<f64>,

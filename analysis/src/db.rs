@@ -6,7 +6,7 @@ use crate::{api::models::PriceEntryLNM, Result};
 
 mod models;
 
-use models::{PriceEntry, PriceEntryLOCF};
+use models::{PriceHistoryEntry, PriceHistoryEntryLOCF};
 
 static DB_CONNECTION: OnceCell<Pool<Postgres>> = OnceCell::const_new();
 
@@ -42,9 +42,9 @@ fn get_pool() -> &'static Pool<Postgres> {
     DB_CONNECTION.get().expect("DB must be initialized")
 }
 
-pub async fn get_earliest_price_entry_gap() -> Result<Option<PriceEntry>> {
+pub async fn get_earliest_price_entry_gap() -> Result<Option<PriceHistoryEntry>> {
     let pool = get_pool();
-    match sqlx::query_as::<_, PriceEntry>(
+    match sqlx::query_as::<_, PriceHistoryEntry>(
         "SELECT * FROM price_history WHERE next IS NULL ORDER BY time ASC LIMIT 1",
     )
     .fetch_one(pool)
@@ -58,11 +58,13 @@ pub async fn get_earliest_price_entry_gap() -> Result<Option<PriceEntry>> {
     }
 }
 
-pub async fn get_latest_price_entry() -> Result<Option<PriceEntry>> {
+pub async fn get_latest_price_entry() -> Result<Option<PriceHistoryEntry>> {
     let pool = get_pool();
-    match sqlx::query_as::<_, PriceEntry>("SELECT * FROM price_history ORDER BY time DESC LIMIT 1")
-        .fetch_one(pool)
-        .await
+    match sqlx::query_as::<_, PriceHistoryEntry>(
+        "SELECT * FROM price_history ORDER BY time DESC LIMIT 1",
+    )
+    .fetch_one(pool)
+    .await
     {
         Ok(price_entry) => Ok(Some(price_entry)),
         Err(e) => match e {
@@ -72,11 +74,13 @@ pub async fn get_latest_price_entry() -> Result<Option<PriceEntry>> {
     }
 }
 
-pub async fn get_earliest_price_entry() -> Result<Option<PriceEntry>> {
+pub async fn get_earliest_price_entry() -> Result<Option<PriceHistoryEntry>> {
     let pool = get_pool();
-    match sqlx::query_as::<_, PriceEntry>("SELECT * FROM price_history ORDER BY time ASC LIMIT 1")
-        .fetch_one(pool)
-        .await
+    match sqlx::query_as::<_, PriceHistoryEntry>(
+        "SELECT * FROM price_history ORDER BY time ASC LIMIT 1",
+    )
+    .fetch_one(pool)
+    .await
     {
         Ok(price_entry) => Ok(Some(price_entry)),
         Err(e) => match e {
@@ -86,9 +90,9 @@ pub async fn get_earliest_price_entry() -> Result<Option<PriceEntry>> {
     }
 }
 
-pub async fn get_first_price_entry_after(time: DateTime<Utc>) -> Result<Option<PriceEntry>> {
+pub async fn get_first_price_entry_after(time: DateTime<Utc>) -> Result<Option<PriceHistoryEntry>> {
     let pool = get_pool();
-    match sqlx::query_as::<_, PriceEntry>(
+    match sqlx::query_as::<_, PriceHistoryEntry>(
         "SELECT * FROM price_history WHERE time > $1 ORDER BY time ASC LIMIT 1",
     )
     .bind(time)
@@ -259,12 +263,12 @@ pub async fn add_price_entries(
 pub async fn eval_price_entries_locf(
     time: &DateTime<Utc>,
     range_secs: usize,
-) -> Result<Vec<PriceEntryLOCF>> {
+) -> Result<Vec<PriceHistoryEntryLOCF>> {
     let locf_sec = time.trunc_subsecs(0);
     let min_locf_sec = locf_sec - Duration::seconds(range_secs as i64 - 1);
 
     let pool = get_pool();
-    let price_entries_locf = sqlx::query_as::<_, PriceEntryLOCF>(
+    let price_entries_locf = sqlx::query_as::<_, PriceHistoryEntryLOCF>(
         "SELECT * FROM price_history_locf WHERE time >= $1 ORDER BY time ASC LIMIT $2",
     )
     .bind(min_locf_sec)
@@ -321,7 +325,7 @@ pub async fn eval_price_entries_locf(
             WHERE eval_indicators.time >= $3;
         "#;
 
-    let price_entries_locf = sqlx::query_as::<_, PriceEntryLOCF>(query)
+    let price_entries_locf = sqlx::query_as::<_, PriceHistoryEntryLOCF>(query)
         .bind(start_ma_sec)
         .bind(end_ma_sec)
         .bind(min_locf_sec)
