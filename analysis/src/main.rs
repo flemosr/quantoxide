@@ -3,17 +3,21 @@ mod db;
 mod env;
 mod sync;
 
-use crate::env::POSTGRES_DB_URL;
+use crate::env::{LNM_API_BASE_URL, POSTGRES_DB_URL};
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    println!("Trying to init the DB...");
+    println!("Trying to init `db`...");
 
     db::init(&POSTGRES_DB_URL).await?;
 
-    println!("DB is ready.");
+    println!("`db` is ready. Trying to init `api`...");
+
+    api::init(LNM_API_BASE_URL.to_string());
+
+    println!("`api` is ready. Starting `sync`...");
 
     sync::start().await
 }
