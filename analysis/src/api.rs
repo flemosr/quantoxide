@@ -9,10 +9,12 @@ pub mod rest;
 
 static API_BASE_URL: OnceCell<String> = OnceCell::const_new();
 
-pub fn init(api_base_url: String) {
+pub fn init(api_base_url: String) -> Result<()> {
     API_BASE_URL
         .set(api_base_url)
-        .expect("`api` must not be initialized");
+        .map_err(|_| "`api` must not be initialized")?;
+
+    Ok(())
 }
 
 fn get_endpoint_url<I, K, V>(path: impl AsRef<str>, params: Option<I>) -> Result<Url>
@@ -22,7 +24,9 @@ where
     K: AsRef<str>,
     V: AsRef<str>,
 {
-    let base_url = API_BASE_URL.get().expect("`api` must be initialized");
+    let base_url = API_BASE_URL
+        .get()
+        .ok_or_else(|| "`api` must be initialized")?;
     let base_endpoint_url = base_url.clone() + path.as_ref();
 
     let endpoint_url = match params {

@@ -15,7 +15,7 @@ async fn main() -> Result<()> {
 
     println!("`db` is ready. Trying to init `api`...");
 
-    api::init(LNM_API_BASE_URL.to_string());
+    api::init(LNM_API_BASE_URL.to_string())?;
 
     println!("`api` is ready. Starting `sync`...");
 
