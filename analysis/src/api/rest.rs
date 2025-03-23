@@ -1,24 +1,7 @@
-use chrono::{serde::ts_milliseconds, DateTime, Utc};
-use serde::Deserialize;
+use chrono::{DateTime, Utc};
+use reqwest::{self, Url};
 
-use crate::{env::LNM_API_BASE_URL, Result};
-
-#[derive(Debug, Deserialize)]
-pub struct PriceEntryLNM {
-    #[serde(with = "ts_milliseconds")]
-    time: DateTime<Utc>,
-    value: f64,
-}
-
-impl PriceEntryLNM {
-    pub fn time(&self) -> &DateTime<Utc> {
-        &self.time
-    }
-
-    pub fn value(&self) -> f64 {
-        self.value
-    }
-}
+use crate::{api::models::PriceEntryLNM, env::LNM_API_BASE_URL, Result};
 
 const FUTURES_PRICE_HISTORY_PATH: &'static str = "/futures/history/price";
 
@@ -39,7 +22,7 @@ pub async fn futures_price_history(
     }
 
     let endpoint = LNM_API_BASE_URL.clone() + FUTURES_PRICE_HISTORY_PATH;
-    let url = reqwest::Url::parse_with_params(&endpoint, params)?;
+    let url = Url::parse_with_params(&endpoint, params)?;
     let res = reqwest::get(url).await?;
 
     let price_history = res.json::<Vec<PriceEntryLNM>>().await?;
