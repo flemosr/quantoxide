@@ -2,7 +2,7 @@ use chrono::{DateTime, Duration, SubsecRound, Utc};
 use sqlx::{postgres::PgPoolOptions, Pool, Postgres};
 use tokio::sync::OnceCell;
 
-use crate::{api::rest::PriceEntryLNM, env::POSTGRES_DB_URL, Result};
+use crate::{api::models::PriceEntryLNM, env::POSTGRES_DB_URL, Result};
 
 mod models;
 
