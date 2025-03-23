@@ -33,11 +33,15 @@ pub async fn init(postgres_db_url: &str) -> Result<()> {
 
     DB_CONNECTION
         .set(pool)
-        .expect("`db` must not be initialized");
+        .map_err(|_| "`db` must not be initialized")?;
 
     Ok(())
 }
 
-fn get_pool() -> &'static Pool<Postgres> {
-    DB_CONNECTION.get().expect("`db` must be initialized")
+fn get_pool() -> Result<&'static Pool<Postgres>> {
+    let pool = DB_CONNECTION
+        .get()
+        .ok_or_else(|| "`db` must be initialized")?;
+
+    Ok(&pool)
 }

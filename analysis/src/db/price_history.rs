@@ -5,7 +5,7 @@ use crate::{api::models::PriceEntryLNM, Result};
 use super::models::{PriceHistoryEntry, PriceHistoryEntryLOCF};
 
 pub async fn get_earliest_entry_gap() -> Result<Option<PriceHistoryEntry>> {
-    let pool = super::get_pool();
+    let pool = super::get_pool()?;
     match sqlx::query_as::<_, PriceHistoryEntry>(
         "SELECT * FROM price_history WHERE next IS NULL ORDER BY time ASC LIMIT 1",
     )
@@ -21,7 +21,7 @@ pub async fn get_earliest_entry_gap() -> Result<Option<PriceHistoryEntry>> {
 }
 
 pub async fn get_latest_entry() -> Result<Option<PriceHistoryEntry>> {
-    let pool = super::get_pool();
+    let pool = super::get_pool()?;
     match sqlx::query_as::<_, PriceHistoryEntry>(
         "SELECT * FROM price_history ORDER BY time DESC LIMIT 1",
     )
@@ -37,7 +37,7 @@ pub async fn get_latest_entry() -> Result<Option<PriceHistoryEntry>> {
 }
 
 pub async fn get_earliest_entry() -> Result<Option<PriceHistoryEntry>> {
-    let pool = super::get_pool();
+    let pool = super::get_pool()?;
     match sqlx::query_as::<_, PriceHistoryEntry>(
         "SELECT * FROM price_history ORDER BY time ASC LIMIT 1",
     )
@@ -53,7 +53,7 @@ pub async fn get_earliest_entry() -> Result<Option<PriceHistoryEntry>> {
 }
 
 pub async fn get_earliest_entry_after(time: DateTime<Utc>) -> Result<Option<PriceHistoryEntry>> {
-    let pool = super::get_pool();
+    let pool = super::get_pool()?;
     match sqlx::query_as::<_, PriceHistoryEntry>(
         "SELECT * FROM price_history WHERE time > $1 ORDER BY time ASC LIMIT 1",
     )
@@ -86,7 +86,7 @@ pub async fn add_entries(
         return Ok(());
     }
 
-    let mut tx = super::get_pool().begin().await?;
+    let mut tx = super::get_pool()?.begin().await?;
 
     let mut next_entry_time = next_observed_time;
 
@@ -229,7 +229,7 @@ pub async fn eval_entries_locf(
     let locf_sec = time.trunc_subsecs(0);
     let min_locf_sec = locf_sec - Duration::seconds(range_secs as i64 - 1);
 
-    let pool = super::get_pool();
+    let pool = super::get_pool()?;
     let entries_locf = sqlx::query_as::<_, PriceHistoryEntryLOCF>(
         "SELECT * FROM price_history_locf WHERE time >= $1 ORDER BY time ASC LIMIT $2",
     )
@@ -298,7 +298,7 @@ pub async fn eval_entries_locf(
 }
 
 pub async fn update_entry_next(entry_time: &DateTime<Utc>, next: &DateTime<Utc>) -> Result<bool> {
-    let pool = super::get_pool();
+    let pool = super::get_pool()?;
 
     let query = r#"
             UPDATE price_history 
