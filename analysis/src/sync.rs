@@ -125,8 +125,7 @@ async fn download_price_history(
             let earliest_new_entry_time = new_price_entries.last().expect("not empty").time();
             println!("\n{entries_len} new entries received, from {earliest_new_entry_time} to {latest_new_entry_time}");
 
-            db::price_history::add_price_entries(&new_price_entries, next_observed_time.as_ref())
-                .await?;
+            db::price_history::add_entries(&new_price_entries, next_observed_time.as_ref()).await?;
 
             println!("\nEntries added to the db");
         }
@@ -163,7 +162,7 @@ async fn download_price_history(
     if let Some(next) = limit_next_observed_time {
         println!("\nReached `limit` {limit}. Updating the corresponding entry's `next` field");
 
-        db::price_history::update_price_entry_next(limit, &next).await?;
+        db::price_history::update_entry_next(limit, &next).await?;
         return Ok(true);
     }
 
@@ -179,9 +178,7 @@ pub async fn start() -> Result<()> {
     );
     println!("Limit timestamp: {limit}");
 
-    if let Some(earliest_price_entry_gap) =
-        db::price_history::get_earliest_price_entry_gap().await?
-    {
+    if let Some(earliest_price_entry_gap) = db::price_history::get_earliest_entry_gap().await? {
         if earliest_price_entry_gap.time < limit {
             // There is a price gaps before `limit`. Since we shouldn't fetch
             // entries before `limit`, said gaps can't be closed, and therefore
@@ -194,9 +191,9 @@ pub async fn start() -> Result<()> {
         }
     }
 
-    if let Some(latest_price_entry) = db::price_history::get_latest_price_entry().await? {
+    if let Some(latest_price_entry) = db::price_history::get_latest_entry().await? {
         while let Some(earliest_price_entry_gap) =
-            db::price_history::get_earliest_price_entry_gap().await?
+            db::price_history::get_earliest_entry_gap().await?
         {
             if earliest_price_entry_gap.time == latest_price_entry.time {
                 // Earliest price entry gap is the latest price entry
@@ -207,8 +204,7 @@ pub async fn start() -> Result<()> {
             println!("\nGap after {} was found.", earliest_price_entry_gap.time);
 
             let first_price_entry_after_gap =
-                db::price_history::get_first_price_entry_after(earliest_price_entry_gap.time)
-                    .await?;
+                db::price_history::get_earliest_entry_after(earliest_price_entry_gap.time).await?;
             let first_price_entry_after_gap_time = first_price_entry_after_gap
                 .expect("Gap entry is not latest entry.")
                 .time;
@@ -235,7 +231,7 @@ pub async fn start() -> Result<()> {
         }
     }
 
-    if let Some(earliest_price_entry) = db::price_history::get_earliest_price_entry().await? {
+    if let Some(earliest_price_entry) = db::price_history::get_earliest_entry().await? {
         if earliest_price_entry.time > limit {
             println!(
                 "\nDownloading price entries from the earliest ({}) in the DB backwards, until limit ({})...",
@@ -252,7 +248,7 @@ pub async fn start() -> Result<()> {
     // We can assume that `limit` was reached, and the min history condition is
     // satisfied.
 
-    let mut latest_price_entry = db::price_history::get_latest_price_entry()
+    let mut latest_price_entry = db::price_history::get_latest_entry()
         .await?
         .expect("db not empty");
 
@@ -270,7 +266,7 @@ pub async fn start() -> Result<()> {
             continue;
         }
 
-        latest_price_entry = db::price_history::get_latest_price_entry()
+        latest_price_entry = db::price_history::get_latest_entry()
             .await?
             .expect("db not empty");
     }
