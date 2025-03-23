@@ -2,7 +2,7 @@ use chrono::{DateTime, Duration, Utc};
 use std::{collections::HashSet, thread, time};
 
 use crate::{
-    api::{self, PriceEntryLNM},
+    api::rest::{self, PriceEntryLNM},
     db::DB,
     env::{
         LNM_API_COOLDOWN_SEC, LNM_API_ERROR_COOLDOWN_SEC, LNM_API_ERROR_MAX_TRIALS,
@@ -30,7 +30,7 @@ async fn get_new_price_entries(
         loop {
             wait(*LNM_API_COOLDOWN_SEC);
 
-            match api::futures_price_history(
+            match rest::futures_price_history(
                 None,
                 before_observed_time,
                 Some(*LNM_PRICE_HISTORY_LIMIT),
