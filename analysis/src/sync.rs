@@ -1,12 +1,14 @@
 use chrono::{DateTime, Duration, Utc};
-use std::collections::HashSet;
-use std::{thread, time};
+use std::{collections::HashSet, thread, time};
 
-use crate::api::{self, PriceEntryLNM};
-use crate::db::DB;
-use crate::env::{
-    LNM_API_COOLDOWN_SEC, LNM_API_ERROR_COOLDOWN_SEC, LNM_API_ERROR_MAX_TRIALS,
-    LNM_MIN_PRICE_HISTORY_WEEKS, LNM_PRICE_HISTORY_LIMIT,
+use crate::{
+    api::{self, PriceEntryLNM},
+    db::DB,
+    env::{
+        LNM_API_COOLDOWN_SEC, LNM_API_ERROR_COOLDOWN_SEC, LNM_API_ERROR_MAX_TRIALS,
+        LNM_MIN_PRICE_HISTORY_WEEKS, LNM_PRICE_HISTORY_LIMIT,
+    },
+    Result,
 };
 
 fn wait(secs: u64) {
@@ -21,7 +23,7 @@ enum LimitReached {
 async fn get_new_price_entries(
     limit: &DateTime<Utc>,
     before_observed_time: Option<DateTime<Utc>>,
-) -> Result<(Vec<PriceEntryLNM>, LimitReached), Box<dyn std::error::Error>> {
+) -> Result<(Vec<PriceEntryLNM>, LimitReached)> {
     let mut price_entries = {
         let mut trials = 0;
 
@@ -105,7 +107,7 @@ async fn get_new_price_entries(
 async fn download_price_history(
     limit: &DateTime<Utc>,
     mut next_observed_time: Option<DateTime<Utc>>,
-) -> Result<bool, Box<dyn std::error::Error>> {
+) -> Result<bool> {
     let limit_next_observed_time = loop {
         match next_observed_time {
             Some(time) => println!("\nFetching price entries before {time}..."),
@@ -168,7 +170,7 @@ async fn download_price_history(
     Ok(false)
 }
 
-pub async fn start() -> Result<(), Box<dyn std::error::Error>> {
+pub async fn start() -> Result<()> {
     let limit = Utc::now() - Duration::weeks(*LNM_MIN_PRICE_HISTORY_WEEKS as i64);
 
     println!(
@@ -243,7 +245,8 @@ pub async fn start() -> Result<(), Box<dyn std::error::Error>> {
         download_price_history(&limit, None).await?;
     }
 
-    // We can assume that limit was reached, and the min history condition is ok
+    // We can assume that `limit` was reached, and the min history condition is
+    // satisfied.
 
     let mut latest_price_entry = DB.get_latest_price_entry().await?.expect("db not empty");
 

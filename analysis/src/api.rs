@@ -2,7 +2,7 @@ use chrono::serde::ts_milliseconds;
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
 
-use crate::env::LNM_API_BASE_URL;
+use crate::{env::LNM_API_BASE_URL, Result};
 
 #[derive(Debug, Deserialize)]
 pub struct PriceEntryLNM {
@@ -27,7 +27,7 @@ pub async fn futures_price_history(
     from: Option<DateTime<Utc>>,
     to: Option<DateTime<Utc>>,
     limit: Option<usize>,
-) -> Result<Vec<PriceEntryLNM>, Box<dyn std::error::Error>> {
+) -> Result<Vec<PriceEntryLNM>> {
     let mut params = Vec::new();
     if let Some(from) = from {
         params.push(("from", from.timestamp_millis().to_string()));

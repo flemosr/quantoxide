@@ -2,8 +2,7 @@ use chrono::{DateTime, Duration, SubsecRound, Utc};
 use sqlx::{postgres::PgPoolOptions, Pool, Postgres};
 use tokio::sync::OnceCell;
 
-use crate::api::PriceEntryLNM;
-use crate::env::POSTGRES_DB_URL;
+use crate::{api::PriceEntryLNM, env::POSTGRES_DB_URL, Result};
 
 mod models;
 
@@ -18,7 +17,7 @@ impl Database {
         Self(OnceCell::const_new())
     }
 
-    pub async fn init(&self) -> Result<(), sqlx::Error> {
+    pub async fn init(&self) -> Result<()> {
         println!("Connecting to database...");
         let pool = PgPoolOptions::new()
             .max_connections(5)
@@ -50,7 +49,7 @@ impl Database {
         self.0.get().expect("DB must be initialized")
     }
 
-    pub async fn get_earliest_price_entry_gap(&self) -> Result<Option<PriceEntry>, sqlx::Error> {
+    pub async fn get_earliest_price_entry_gap(&self) -> Result<Option<PriceEntry>> {
         let pool = self.get_pool();
         match sqlx::query_as::<_, PriceEntry>(
             "SELECT * FROM price_history WHERE next IS NULL ORDER BY time ASC LIMIT 1",
@@ -61,12 +60,12 @@ impl Database {
             Ok(price_entry) => Ok(Some(price_entry)),
             Err(e) => match e {
                 sqlx::Error::RowNotFound => Ok(None),
-                _ => Err(e),
+                _ => Err(e.into()),
             },
         }
     }
 
-    pub async fn get_latest_price_entry(&self) -> Result<Option<PriceEntry>, sqlx::Error> {
+    pub async fn get_latest_price_entry(&self) -> Result<Option<PriceEntry>> {
         let pool = self.get_pool();
         match sqlx::query_as::<_, PriceEntry>(
             "SELECT * FROM price_history ORDER BY time DESC LIMIT 1",
@@ -77,12 +76,12 @@ impl Database {
             Ok(price_entry) => Ok(Some(price_entry)),
             Err(e) => match e {
                 sqlx::Error::RowNotFound => Ok(None),
-                _ => Err(e),
+                _ => Err(e.into()),
             },
         }
     }
 
-    pub async fn get_earliest_price_entry(&self) -> Result<Option<PriceEntry>, sqlx::Error> {
+    pub async fn get_earliest_price_entry(&self) -> Result<Option<PriceEntry>> {
         let pool = self.get_pool();
         match sqlx::query_as::<_, PriceEntry>(
             "SELECT * FROM price_history ORDER BY time ASC LIMIT 1",
@@ -93,7 +92,7 @@ impl Database {
             Ok(price_entry) => Ok(Some(price_entry)),
             Err(e) => match e {
                 sqlx::Error::RowNotFound => Ok(None),
-                _ => Err(e),
+                _ => Err(e.into()),
             },
         }
     }
@@ -101,7 +100,7 @@ impl Database {
     pub async fn get_first_price_entry_after(
         &self,
         time: DateTime<Utc>,
-    ) -> Result<Option<PriceEntry>, sqlx::Error> {
+    ) -> Result<Option<PriceEntry>> {
         let pool = self.get_pool();
         match sqlx::query_as::<_, PriceEntry>(
             "SELECT * FROM price_history WHERE time > $1 ORDER BY time ASC LIMIT 1",
@@ -113,7 +112,7 @@ impl Database {
             Ok(price_entry) => Ok(Some(price_entry)),
             Err(e) => match e {
                 sqlx::Error::RowNotFound => Ok(None),
-                _ => Err(e),
+                _ => Err(e.into()),
             },
         }
     }
@@ -131,7 +130,7 @@ impl Database {
         &self,
         price_entries: &Vec<PriceEntryLNM>,
         next_observed_time: Option<&DateTime<Utc>>,
-    ) -> Result<(), sqlx::Error> {
+    ) -> Result<()> {
         if price_entries.is_empty() {
             return Ok(());
         }
@@ -276,7 +275,7 @@ impl Database {
         &self,
         time: &DateTime<Utc>,
         range_secs: usize,
-    ) -> Result<Vec<PriceEntryLOCF>, sqlx::Error> {
+    ) -> Result<Vec<PriceEntryLOCF>> {
         let locf_sec = time.trunc_subsecs(0);
         let min_locf_sec = locf_sec - Duration::seconds(range_secs as i64 - 1);
 
@@ -352,7 +351,7 @@ impl Database {
         &self,
         price_entry_time: &DateTime<Utc>,
         next: &DateTime<Utc>,
-    ) -> Result<bool, sqlx::Error> {
+    ) -> Result<bool> {
         let pool = self.get_pool();
 
         let query = r#"
