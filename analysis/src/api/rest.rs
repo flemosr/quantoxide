@@ -1,7 +1,6 @@
 use chrono::{DateTime, Utc};
-use reqwest::{self, Url};
 
-use crate::{api::models::PriceEntryLNM, env::LNM_API_BASE_URL, Result};
+use crate::{api::models::PriceEntryLNM, Result};
 
 const FUTURES_PRICE_HISTORY_PATH: &'static str = "/futures/history/price";
 
@@ -21,8 +20,7 @@ pub async fn futures_price_history(
         params.push(("limit", limit.to_string()));
     }
 
-    let endpoint = LNM_API_BASE_URL.clone() + FUTURES_PRICE_HISTORY_PATH;
-    let url = Url::parse_with_params(&endpoint, params)?;
+    let url = super::get_endpoint_url(FUTURES_PRICE_HISTORY_PATH, Some(params))?;
     let res = reqwest::get(url).await?;
 
     let price_history = res.json::<Vec<PriceEntryLNM>>().await?;
