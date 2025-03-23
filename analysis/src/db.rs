@@ -31,11 +31,13 @@ pub async fn init(postgres_db_url: &str) -> Result<()> {
     assert_eq!(row.0, 150);
     println!("Database check successful");
 
-    DB_CONNECTION.set(pool).expect("DB must not be initialized");
+    DB_CONNECTION
+        .set(pool)
+        .expect("`db` must not be initialized");
 
     Ok(())
 }
 
 fn get_pool() -> &'static Pool<Postgres> {
-    DB_CONNECTION.get().expect("DB must be initialized")
+    DB_CONNECTION.get().expect("`db` must be initialized")
 }
