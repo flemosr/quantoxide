@@ -2,7 +2,7 @@ use chrono::{DateTime, Duration, Utc};
 use std::{collections::HashSet, thread, time};
 
 use crate::{
-    api::rest::{self, PriceEntryLNM},
+    api::{models::PriceEntryLNM, rest},
     db::DB,
     env::{
         LNM_API_COOLDOWN_SEC, LNM_API_ERROR_COOLDOWN_SEC, LNM_API_ERROR_MAX_TRIALS,
