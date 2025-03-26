@@ -1,11 +1,12 @@
 mod api;
 mod db;
 mod env;
+mod error;
 mod sync;
 
-use crate::env::{LNM_API_DOMAIN, POSTGRES_DB_URL};
+use error::Result;
 
-type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
+use crate::env::{LNM_API_DOMAIN, POSTGRES_DB_URL};
 
 #[tokio::main]
 async fn main() -> Result<()> {

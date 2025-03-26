@@ -8,6 +8,7 @@ use crate::{
         LNM_API_COOLDOWN_SEC, LNM_API_ERROR_COOLDOWN_SEC, LNM_API_ERROR_MAX_TRIALS,
         LNM_MIN_PRICE_HISTORY_WEEKS, LNM_PRICE_HISTORY_LIMIT,
     },
+    error::AppError,
     Result,
 };
 
@@ -38,12 +39,15 @@ async fn get_new_price_entries(
             .await
             {
                 Ok(price_entries) => break price_entries,
-                Err(e) => {
-                    println!("\nError fetching price history {:?}", e);
+                Err(api_error) => {
+                    println!("\nError fetching price history {:?}", api_error);
 
                     trials += 1;
                     if trials >= *LNM_API_ERROR_MAX_TRIALS {
-                        return Err(e);
+                        return Err(AppError::ApiMaxTrialsReached {
+                            api_error,
+                            max_trials: *LNM_API_ERROR_MAX_TRIALS,
+                        });
                     }
 
                     println!(
@@ -74,14 +78,18 @@ async fn get_new_price_entries(
 
     let is_sorted_time_desc = price_entries.is_sorted_by(|a, b| a.time() > b.time());
     if is_sorted_time_desc == false {
-        return Err("Got price entries unsorted by time desc".into());
+        return Err(AppError::UnexpectedLNMPayload(
+            "Price entries unsorted by time desc".to_string(),
+        ));
     }
 
     // If `before_observed_time` is set, ensure that the first (latest) entry matches it
     if let Some(observed_time) = before_observed_time {
         let first_entry = price_entries.remove(0);
         if *first_entry.time() != observed_time {
-            return Err("Got price entries without overlap.".into());
+            return Err(AppError::UnexpectedLNMPayload(
+                "Price entries without overlap".to_string(),
+            ));
         }
         println!(
             "First received entry matches `before_observed_time` time {}. Overlap OK.",
@@ -183,11 +191,10 @@ pub async fn start() -> Result<()> {
             // There is a price gaps before `limit`. Since we shouldn't fetch
             // entries before `limit`, said gaps can't be closed, and therefore
             // the db can't be synced.
-            return Err(format!(
-                "Price gap after {} was found. DB can't be synced.",
-                earliest_price_entry_gap.time
-            )
-            .into());
+            return Err(AppError::UnreachableDbGap {
+                earliest_gap: earliest_price_entry_gap.time,
+                limit,
+            });
         }
     }
 
@@ -222,11 +229,10 @@ pub async fn start() -> Result<()> {
             .await?;
 
             if overlap_reached == false {
-                return Err(format!(
+                return Err(AppError::UnexpectedLNMPayload(format!(
                     "entry gap time {} not received from server",
                     earliest_price_entry_gap.time
-                )
-                .into());
+                )));
             }
         }
     }
