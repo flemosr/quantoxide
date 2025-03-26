@@ -2,17 +2,18 @@ use reqwest::Url;
 use std::borrow::Borrow;
 use tokio::sync::OnceCell;
 
-use crate::Result;
-
+pub mod error;
 pub mod models;
 pub mod rest;
+
+use error::{ApiError, Result};
 
 static API_DOMAIN: OnceCell<String> = OnceCell::const_new();
 
 pub fn init(api_base_url: String) -> Result<()> {
     API_DOMAIN
         .set(api_base_url)
-        .map_err(|_| "`api` must not be initialized")?;
+        .map_err(|_| ApiError::Init("`api` must not be initialized"))?;
 
     Ok(())
 }
@@ -26,13 +27,14 @@ where
 {
     let api_domain = API_DOMAIN
         .get()
-        .ok_or_else(|| "`api` must be initialized")?;
+        .ok_or_else(|| ApiError::Init("`api` must be initialized"))?;
     let base_endpoint_url = format!("https://{api_domain}{}", path.as_ref());
 
     let endpoint_url = match params {
-        Some(params) => Url::parse_with_params(&base_endpoint_url, params)?,
-        None => Url::parse(&base_endpoint_url)?,
-    };
+        Some(params) => Url::parse_with_params(&base_endpoint_url, params),
+        None => Url::parse(&base_endpoint_url),
+    }
+    .map_err(|e| ApiError::UrlParse(e.to_string()))?;
 
     Ok(endpoint_url)
 }

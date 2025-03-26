@@ -1,6 +1,9 @@
 use chrono::{DateTime, Utc};
 
-use crate::{api::models::PriceEntryLNM, Result};
+use super::{
+    error::{ApiError, Result},
+    models::PriceEntryLNM,
+};
 
 const FUTURES_PRICE_HISTORY_PATH: &'static str = "/v2/futures/history/price";
 
@@ -21,9 +24,12 @@ pub async fn futures_price_history(
     }
 
     let url = super::get_endpoint_url(FUTURES_PRICE_HISTORY_PATH, Some(params))?;
-    let res = reqwest::get(url).await?;
+    let res = reqwest::get(url).await.map_err(|e| ApiError::Request(e))?;
 
-    let price_history = res.json::<Vec<PriceEntryLNM>>().await?;
+    let price_history = res
+        .json::<Vec<PriceEntryLNM>>()
+        .await
+        .map_err(|e| ApiError::UnexpectedResponse(e))?;
 
     Ok(price_history)
 }
