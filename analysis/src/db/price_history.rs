@@ -1,8 +1,11 @@
 use chrono::{DateTime, Duration, SubsecRound, Utc};
 
-use crate::{api::models::PriceEntryLNM, Result};
+use crate::api::models::PriceEntryLNM;
 
-use super::models::{PriceHistoryEntry, PriceHistoryEntryLOCF};
+use super::{
+    error::{DbError, Result},
+    models::{PriceHistoryEntry, PriceHistoryEntryLOCF},
+};
 
 pub async fn get_earliest_entry_gap() -> Result<Option<PriceHistoryEntry>> {
     let pool = super::get_pool()?;
@@ -15,7 +18,7 @@ pub async fn get_earliest_entry_gap() -> Result<Option<PriceHistoryEntry>> {
         Ok(entry) => Ok(Some(entry)),
         Err(e) => match e {
             sqlx::Error::RowNotFound => Ok(None),
-            _ => Err(e.into()),
+            _ => Err(DbError::Query(e)),
         },
     }
 }
@@ -31,7 +34,7 @@ pub async fn get_latest_entry() -> Result<Option<PriceHistoryEntry>> {
         Ok(entry) => Ok(Some(entry)),
         Err(e) => match e {
             sqlx::Error::RowNotFound => Ok(None),
-            _ => Err(e.into()),
+            _ => Err(DbError::Query(e)),
         },
     }
 }
@@ -47,7 +50,7 @@ pub async fn get_earliest_entry() -> Result<Option<PriceHistoryEntry>> {
         Ok(entry) => Ok(Some(entry)),
         Err(e) => match e {
             sqlx::Error::RowNotFound => Ok(None),
-            _ => Err(e.into()),
+            _ => Err(DbError::Query(e)),
         },
     }
 }
@@ -64,7 +67,7 @@ pub async fn get_earliest_entry_after(time: DateTime<Utc>) -> Result<Option<Pric
         Ok(entry) => Ok(Some(entry)),
         Err(e) => match e {
             sqlx::Error::RowNotFound => Ok(None),
-            _ => Err(e.into()),
+            _ => Err(DbError::Query(e)),
         },
     }
 }
@@ -86,7 +89,10 @@ pub async fn add_entries(
         return Ok(());
     }
 
-    let mut tx = super::get_pool()?.begin().await?;
+    let mut tx = super::get_pool()?
+        .begin()
+        .await
+        .map_err(|e| DbError::TransactionBegin(e))?;
 
     let mut next_entry_time = next_observed_time;
 
@@ -100,7 +106,8 @@ pub async fn add_entries(
             .bind(entry.value())
             .bind(next_entry_time)
             .execute(&mut *tx)
-            .await?;
+            .await
+            .map_err(|e| DbError::Query(e))?;
 
         next_entry_time = Some(entry.time());
     }
@@ -122,7 +129,8 @@ pub async fn add_entries(
         sqlx::query_scalar("SELECT max(time) FROM price_history_locf WHERE time <= $1")
             .bind(earliest_entry_time)
             .fetch_one(&mut *tx)
-            .await?;
+            .await
+            .map_err(|e| DbError::Query(e))?;
     // `prev_locf_sec` will be `None` only when `added_locf_sec` is the new min locf time
     let start_locf_sec = prev_locf_sec.unwrap_or(start_locf_sec);
 
@@ -148,7 +156,8 @@ pub async fn add_entries(
         .bind(start_locf_sec)
         .bind(end_locf_sec)
         .execute(&mut *tx)
-        .await?;
+        .await
+        .map_err(|e| DbError::Query(e))?;
 
     // Moving averages from start_locf_sec until end_locf_sec + max period
     // secs could be affected.
@@ -199,9 +208,12 @@ pub async fn add_entries(
         .bind(end_ma_sec)
         .bind(start_locf_sec)
         .execute(&mut *tx)
-        .await?;
+        .await
+        .map_err(|e| DbError::Query(e))?;
 
-    tx.commit().await?;
+    tx.commit()
+        .await
+        .map_err(|e| DbError::TransactionCommit(e))?;
 
     return Ok(());
 }
@@ -236,7 +248,8 @@ pub async fn eval_entries_locf(
     .bind(min_locf_sec)
     .bind(range_secs as i32)
     .fetch_all(pool)
-    .await?;
+    .await
+    .map_err(|e| DbError::Query(e))?;
 
     if entries_locf.len() == range_secs {
         return Ok(entries_locf);
@@ -255,7 +268,8 @@ pub async fn eval_entries_locf(
         sqlx::query_scalar("SELECT EXISTS (SELECT 1 FROM price_history WHERE time <= $1)")
             .bind(min_locf_sec)
             .fetch_one(pool)
-            .await?;
+            .await
+            .map_err(|e| DbError::Query(e))?;
     if is_time_valid == false {
         return Ok(vec![]);
     }
@@ -292,7 +306,8 @@ pub async fn eval_entries_locf(
         .bind(end_ma_sec)
         .bind(min_locf_sec)
         .fetch_all(pool)
-        .await?;
+        .await
+        .map_err(|e| DbError::Query(e))?;
 
     Ok(entries_locf)
 }
@@ -309,7 +324,8 @@ pub async fn update_entry_next(entry_time: &DateTime<Utc>, next: &DateTime<Utc>)
         .bind(next)
         .bind(entry_time)
         .execute(pool)
-        .await?;
+        .await
+        .map_err(|e| DbError::Query(e))?;
 
     Ok(result.rows_affected() > 0)
 }
