@@ -2,8 +2,8 @@ use lazy_static::lazy_static;
 use std::env;
 
 lazy_static! {
-    pub static ref LNM_API_BASE_URL: String =
-        env::var("LNM_API_BASE_URL").expect("LNM_API_BASE_URL must be set");
+    pub static ref LNM_API_DOMAIN: String =
+        env::var("LNM_API_DOMAIN").expect("LNM_API_DOMAIN must be set");
     pub static ref LNM_API_KEY: String = env::var("LNM_API_KEY").expect("LNM_API_KEY must be set");
     pub static ref LNM_API_SECRET: String =
         env::var("LNM_API_SECRET").expect("LNM_API_SECRET must be set");

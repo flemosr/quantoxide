@@ -2,7 +2,7 @@ use chrono::{DateTime, Utc};
 
 use crate::{api::models::PriceEntryLNM, Result};
 
-const FUTURES_PRICE_HISTORY_PATH: &'static str = "/futures/history/price";
+const FUTURES_PRICE_HISTORY_PATH: &'static str = "/v2/futures/history/price";
 
 pub async fn futures_price_history(
     from: Option<DateTime<Utc>>,

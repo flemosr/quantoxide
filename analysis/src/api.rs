@@ -7,10 +7,10 @@ use crate::Result;
 pub mod models;
 pub mod rest;
 
-static API_BASE_URL: OnceCell<String> = OnceCell::const_new();
+static API_DOMAIN: OnceCell<String> = OnceCell::const_new();
 
 pub fn init(api_base_url: String) -> Result<()> {
-    API_BASE_URL
+    API_DOMAIN
         .set(api_base_url)
         .map_err(|_| "`api` must not be initialized")?;
 
@@ -24,10 +24,10 @@ where
     K: AsRef<str>,
     V: AsRef<str>,
 {
-    let base_url = API_BASE_URL
+    let api_domain = API_DOMAIN
         .get()
         .ok_or_else(|| "`api` must be initialized")?;
-    let base_endpoint_url = base_url.clone() + path.as_ref();
+    let base_endpoint_url = format!("https://{api_domain}{}", path.as_ref());
 
     let endpoint_url = match params {
         Some(params) => Url::parse_with_params(&base_endpoint_url, params)?,

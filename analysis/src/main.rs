@@ -3,7 +3,7 @@ mod db;
 mod env;
 mod sync;
 
-use crate::env::{LNM_API_BASE_URL, POSTGRES_DB_URL};
+use crate::env::{LNM_API_DOMAIN, POSTGRES_DB_URL};
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
@@ -15,7 +15,7 @@ async fn main() -> Result<()> {
 
     println!("`db` is ready. Trying to init `api`...");
 
-    api::init(LNM_API_BASE_URL.to_string())?;
+    api::init(LNM_API_DOMAIN.to_string())?;
 
     println!("`api` is ready. Starting `sync`...");
 
