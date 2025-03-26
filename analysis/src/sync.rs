@@ -2,7 +2,11 @@ use chrono::{DateTime, Duration, Utc};
 use std::{collections::HashSet, thread, time};
 
 use crate::{
-    api::{models::PriceEntryLNM, rest},
+    api::{
+        models::PriceEntryLNM,
+        rest,
+        websocket::{LNMWebSocketChannels, WebSocketAPI},
+    },
     db,
     env::{
         LNM_API_COOLDOWN_SEC, LNM_API_ERROR_COOLDOWN_SEC, LNM_API_ERROR_MAX_TRIALS,
@@ -269,11 +273,29 @@ pub async fn start() -> Result<()> {
 
         if additional_entries_observed == false {
             println!("\nNo new entries after {}", latest_price_entry.time);
-            continue;
+            break;
         }
 
         latest_price_entry = db::price_history::get_latest_entry()
             .await?
             .expect("db not empty");
     }
+
+    println!("\nInit WebSocket connection");
+
+    let ws_api = WebSocketAPI::new().await?;
+
+    ws_api
+        .subscribe(vec![LNMWebSocketChannels::FuturesBtcUsdLastPrice])
+        .await?;
+
+    let mut receiver = ws_api.receiver();
+
+    while let Ok(msg) = receiver.recv().await {
+        println!("Receiver got msg: {:?}", msg);
+    }
+
+    println!("Receiver closed");
+
+    Ok(())
 }
