@@ -11,6 +11,8 @@ pub enum ApiError {
     Response(reqwest::Error),
     #[error("Unexpected schema error: {0}")]
     UnexpectedSchema(reqwest::Error),
+    #[error("WebSocket generic error: {0}")]
+    WebSocketGeneric(String),
 }
 
 pub type Result<T> = result::Result<T, ApiError>;
