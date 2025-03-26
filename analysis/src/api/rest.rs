@@ -24,12 +24,12 @@ pub async fn futures_price_history(
     }
 
     let url = super::get_endpoint_url(FUTURES_PRICE_HISTORY_PATH, Some(params))?;
-    let res = reqwest::get(url).await.map_err(|e| ApiError::Request(e))?;
+    let res = reqwest::get(url).await.map_err(|e| ApiError::Response(e))?;
 
     let price_history = res
         .json::<Vec<PriceEntryLNM>>()
         .await
-        .map_err(|e| ApiError::UnexpectedResponse(e))?;
+        .map_err(|e| ApiError::UnexpectedSchema(e))?;
 
     Ok(price_history)
 }
