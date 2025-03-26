@@ -18,6 +18,13 @@ pub fn init(api_base_url: String) -> Result<()> {
     Ok(())
 }
 
+fn get_api_domain() -> Result<&'static String> {
+    let api_domain = API_DOMAIN
+        .get()
+        .ok_or_else(|| ApiError::Init("`api` must be initialized"))?;
+    Ok(api_domain)
+}
+
 fn get_endpoint_url<I, K, V>(path: impl AsRef<str>, params: Option<I>) -> Result<Url>
 where
     I: IntoIterator,
@@ -25,9 +32,7 @@ where
     K: AsRef<str>,
     V: AsRef<str>,
 {
-    let api_domain = API_DOMAIN
-        .get()
-        .ok_or_else(|| ApiError::Init("`api` must be initialized"))?;
+    let api_domain = get_api_domain()?;
     let base_endpoint_url = format!("https://{api_domain}{}", path.as_ref());
 
     let endpoint_url = match params {
