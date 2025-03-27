@@ -291,11 +291,20 @@ pub async fn start() -> Result<()> {
 
     let mut receiver = ws_api.receiver();
 
-    while let Ok(msg) = receiver.recv().await {
-        println!("Receiver got msg: {:?}", msg);
-    }
+    tokio::spawn(async move {
+        while let Ok(msg) = receiver.recv().await {
+            println!("Receiver got msg: {:?}", msg);
+        }
+        println!("Receiver closed");
+    });
 
-    println!("Receiver closed");
+    wait(10);
+
+    println!("\nShutdown");
+
+    ws_api.shutdown().await?;
+
+    wait(5);
 
     Ok(())
 }
