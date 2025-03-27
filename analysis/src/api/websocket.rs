@@ -1,4 +1,4 @@
-use fastwebsockets::{handshake, FragmentCollector, Frame, OpCode};
+use fastwebsockets::{handshake, FragmentCollector, Frame, OpCode, WebSocketError};
 use http_body_util::Empty;
 use hyper::{
     body::Bytes,
@@ -164,6 +164,96 @@ impl WebSocketAPI {
         Ok(ws)
     }
 
+    async fn handle_shutdown_signal(ws: &mut FragmentCollector<TokioIo<Upgraded>>) -> Result<()> {
+        ws.write_frame(Frame::close(1000, &[]))
+            .await
+            .map_err(|e| ApiError::WebSocketGeneric(e.to_string()))
+    }
+
+    async fn handle_subscription_request(
+        ws: &mut FragmentCollector<TokioIo<Upgraded>>,
+        pending_subs: &mut HashMap<String, oneshot::Sender<bool>>,
+        req: (Vec<LNMWebSocketChannels>, oneshot::Sender<bool>),
+    ) -> Result<()> {
+        let (channels, oneshot_tx) = req;
+
+        let channels = channels
+            .into_iter()
+            .map(|channel| channel.to_string())
+            .collect();
+        let req = JsonRpcRequest::new(JsonRpcMethod::Subscribe, channels);
+
+        let request_bytes = req
+            .try_to_bytes()
+            .map_err(|e| ApiError::WebSocketGeneric(e.to_string()))?;
+        let frame = Frame::text(request_bytes.into());
+
+        ws.write_frame(frame)
+            .await
+            .map_err(|e| ApiError::WebSocketGeneric(e.to_string()))?;
+
+        pending_subs.insert(req.id, oneshot_tx);
+
+        Ok(())
+    }
+
+    async fn handle_incoming_ws_frame(
+        pending_subs: &mut HashMap<String, oneshot::Sender<bool>>,
+        msg_sender: &broadcast::Sender<JsonRpcResponse>,
+        frame_result: std::result::Result<Frame<'_>, WebSocketError>,
+    ) -> Result<()> {
+        let frame =
+            frame_result.map_err(|e| ApiError::WebSocketGeneric(format!("frame error {:?}", e)))?;
+        match frame.opcode {
+            OpCode::Text => {
+                let text = String::from_utf8(frame.payload.to_vec())
+                    .map_err(|e| ApiError::WebSocketGeneric(e.to_string()))?;
+                let json_rpc_res = serde_json::from_str::<JsonRpcResponse>(&text)
+                    .map_err(|e| ApiError::WebSocketGeneric(e.to_string()))?;
+
+                if let Some(id) = json_rpc_res.id.as_ref() {
+                    if let Some(oneshot_tx) = pending_subs.remove(id) {
+                        // This is a subscription confirmation response
+
+                        // TODO: Check if subscription was successfull
+                        let is_success = true;
+
+                        oneshot_tx
+                            .send(is_success)
+                            .map_err(|e| ApiError::WebSocketGeneric(e.to_string()))?;
+
+                        return Ok(());
+                    }
+                } else if let Some(method) = &json_rpc_res.method {
+                    // Regular message; send to consumer
+                    if method == "subscription" {
+                        // TODO: check channel and parse it propertly
+
+                        msg_sender
+                            .send(json_rpc_res)
+                            .map_err(|e| ApiError::WebSocketGeneric(e.to_string()))?;
+
+                        return Ok(());
+                    }
+                }
+
+                return Err(ApiError::WebSocketGeneric(format!(
+                    "unhandled text {:?}",
+                    text
+                )));
+            }
+            OpCode::Close => {
+                return Err(ApiError::WebSocketGeneric("unhandled close".to_string()));
+            }
+            unhandled_opcode => {
+                return Err(ApiError::WebSocketGeneric(format!(
+                    "unhandled opcode {:?}",
+                    unhandled_opcode
+                )));
+            }
+        }
+    }
+
     async fn manager_task(
         mut ws: FragmentCollector<TokioIo<Upgraded>>,
         mut shutdown_receiver: mpsc::Receiver<()>,
@@ -177,62 +267,10 @@ impl WebSocketAPI {
             async move {
                 loop {
                     tokio::select! {
-                        // Handle shutdown signal
-                        Some(()) = shutdown_receiver.recv() => {
-                            ws.write_frame(Frame::close(1000, &[])).await.map_err(|e| ApiError::WebSocketGeneric(e.to_string()))?;
-                        }
-                        // Handle subscription requests
-                        Some((channels, oneshot_tx)) = sub_receiver.recv() => {
-                            let channels = channels.into_iter().map(|channel| channel.to_string()).collect();
-                            let req = JsonRpcRequest::new(JsonRpcMethod::Subscribe, channels);
-
-                            let request_bytes = req.try_to_bytes().map_err(|e| ApiError::WebSocketGeneric(e.to_string()))?;
-                            let frame = Frame::text(request_bytes.into());
-
-                            ws.write_frame(frame).await.map_err(|e| ApiError::WebSocketGeneric(e.to_string()))?;
-
-                            pending_subs.insert(req.id, oneshot_tx);
-                        }
-                        // Handle incoming frames
-                        frame_result = ws.read_frame() => {
-                            let frame = frame_result.map_err(|e| ApiError::WebSocketGeneric(format!("frame error {:?}", e)))?;
-                            match frame.opcode {
-                                OpCode::Text => {
-                                    let text= String::from_utf8(frame.payload.to_vec()).map_err(|e| ApiError::WebSocketGeneric(e.to_string()))?;
-                                    let json_rpc_res = serde_json::from_str::<JsonRpcResponse>(&text).map_err(|e| ApiError::WebSocketGeneric(e.to_string()))?;
-
-                                    if let Some(id) = json_rpc_res.id.as_ref() {
-                                        if let Some(oneshot_tx) = pending_subs.remove(id) {
-                                            // This is a subscription confirmation response
-
-                                            // TODO: Check if subscription was successfull
-                                            let is_success = true;
-
-                                            oneshot_tx.send(is_success).map_err(|e| ApiError::WebSocketGeneric(e.to_string()))?;
-                                            continue;
-                                        }
-                                    } else if let Some(method) = &json_rpc_res.method {
-                                        // Regular message; send to consumer
-                                        if method == "subscription" {
-                                            // TODO: check channel and parse it propertly
-
-                                            msg_sender.send(json_rpc_res).map_err(|e| ApiError::WebSocketGeneric(e.to_string()))?;
-                                            continue;
-                                        }
-
-                                    }
-
-                                    return Err(ApiError::WebSocketGeneric(format!("unhandled text {:?}", text)));
-                                }
-                                OpCode::Close => {
-                                    return Err(ApiError::WebSocketGeneric("unhandled close".to_string()));
-                                }
-                                unhandled_opcode => {
-                                    return Err(ApiError::WebSocketGeneric(format!("unhandled opcode {:?}", unhandled_opcode)));
-                                }
-                            }
-                        }
-                    }
+                        Some(_) = shutdown_receiver.recv() => Self::handle_shutdown_signal(&mut ws).await?,
+                        Some(req) = sub_receiver.recv() => Self::handle_subscription_request(&mut ws, pending_subs, req).await?,
+                        frame_result = ws.read_frame() => Self::handle_incoming_ws_frame(pending_subs, &msg_sender, frame_result).await?
+                    };
                 }
             }
         };
