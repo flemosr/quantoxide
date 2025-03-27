@@ -5,7 +5,7 @@ use crate::{
     api::{
         models::PriceEntryLNM,
         rest,
-        websocket::{LNMWebSocketChannels, WebSocketAPI},
+        websocket::{LnmWebSocketChannels, WebSocketAPI},
     },
     db,
     env::{
@@ -285,8 +285,10 @@ pub async fn start() -> Result<()> {
 
     let ws_api = WebSocketAPI::new().await?;
 
+    println!("\nSubscribe to prices");
+
     ws_api
-        .subscribe(vec![LNMWebSocketChannels::FuturesBtcUsdLastPrice])
+        .subscribe(vec![LnmWebSocketChannels::FuturesBtcUsdLastPrice])
         .await?;
 
     let mut receiver = ws_api.receiver();
@@ -297,6 +299,23 @@ pub async fn start() -> Result<()> {
         }
         println!("Receiver closed");
     });
+    wait(10);
+
+    println!("\nSubscribe to index");
+
+    ws_api
+        .subscribe(vec![LnmWebSocketChannels::FuturesBtcUsdIndex])
+        .await?;
+
+    wait(10);
+
+    println!("\nUnsubscribe from prices");
+
+    ws_api
+        .unsubscribe(vec![LnmWebSocketChannels::FuturesBtcUsdLastPrice])
+        .await?;
+
+    println!("\nUnsubscribed from prices");
 
     wait(10);
 
