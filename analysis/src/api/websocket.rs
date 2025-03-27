@@ -198,10 +198,12 @@ impl WebSocketAPI {
     }
 
     async fn handle_incoming_ws_frame(
+        ws: &mut FragmentCollector<TokioIo<Upgraded>>,
         pending_subs: &mut HashMap<String, oneshot::Sender<bool>>,
         msg_sender: &broadcast::Sender<JsonRpcResponse>,
+        shutdown_initiated: bool,
         frame_result: std::result::Result<Frame<'_>, WebSocketError>,
-    ) -> Result<()> {
+    ) -> Result<bool> {
         let frame =
             frame_result.map_err(|e| ApiError::WebSocketGeneric(format!("frame error {:?}", e)))?;
         match frame.opcode {
@@ -222,7 +224,7 @@ impl WebSocketAPI {
                             .send(is_success)
                             .map_err(|e| ApiError::WebSocketGeneric(e.to_string()))?;
 
-                        return Ok(());
+                        return Ok(false);
                     }
                 } else if let Some(method) = &json_rpc_res.method {
                     // Regular message; send to consumer
@@ -233,7 +235,7 @@ impl WebSocketAPI {
                             .send(json_rpc_res)
                             .map_err(|e| ApiError::WebSocketGeneric(e.to_string()))?;
 
-                        return Ok(());
+                        return Ok(false);
                     }
                 }
 
@@ -243,7 +245,17 @@ impl WebSocketAPI {
                 )));
             }
             OpCode::Close => {
-                return Err(ApiError::WebSocketGeneric("unhandled close".to_string()));
+                if shutdown_initiated {
+                    // Shutdown confirmation response received
+                    return Ok(true);
+                }
+
+                // Send shutdown confirmation response
+                let _ = Self::handle_shutdown_signal(ws).await;
+
+                return Err(ApiError::WebSocketGeneric(
+                    "server requested shutdown".to_string(),
+                ));
             }
             unhandled_opcode => {
                 return Err(ApiError::WebSocketGeneric(format!(
@@ -265,11 +277,29 @@ impl WebSocketAPI {
         let interaction_loop = || {
             let pending_subs = &mut pending_subs;
             async move {
+                let mut shutdown_initiated = false;
                 loop {
                     tokio::select! {
-                        Some(_) = shutdown_receiver.recv() => Self::handle_shutdown_signal(&mut ws).await?,
-                        Some(req) = sub_receiver.recv() => Self::handle_subscription_request(&mut ws, pending_subs, req).await?,
-                        frame_result = ws.read_frame() => Self::handle_incoming_ws_frame(pending_subs, &msg_sender, frame_result).await?
+                        Some(_) = shutdown_receiver.recv() => {
+                            shutdown_initiated = true;
+                            Self::handle_shutdown_signal(&mut ws).await?
+                        }
+                        Some(req) = sub_receiver.recv() => {
+                            Self::handle_subscription_request(&mut ws, pending_subs, req).await?;
+                        }
+                        frame_result = ws.read_frame() => {
+                            let is_close_signal = Self::handle_incoming_ws_frame(
+                                &mut ws,
+                                pending_subs,
+                                &msg_sender,
+                                shutdown_initiated,
+                                frame_result
+                            ).await?;
+
+                            if is_close_signal {
+                                return Ok(());
+                            }
+                        }
                     };
                 }
             }
