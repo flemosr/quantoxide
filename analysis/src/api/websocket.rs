@@ -1,4 +1,5 @@
 use fastwebsockets::{handshake, FragmentCollector, Frame, OpCode, WebSocketError};
+use futures::future::Either;
 use http_body_util::Empty;
 use hyper::{
     body::Bytes,
@@ -10,11 +11,13 @@ use hyper_util::rt::TokioIo;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::pin::Pin;
 use std::{collections::HashMap, future::Future, sync::Arc};
 use tokio::{
     net::TcpStream,
     sync::{broadcast, mpsc, oneshot},
     task::JoinHandle,
+    time::{self, Sleep},
 };
 use tokio_rustls::{
     rustls::{pki_types::ServerName, ClientConfig, RootCertStore},
@@ -278,11 +281,23 @@ impl WebSocketAPI {
             let pending_subs = &mut pending_subs;
             async move {
                 let mut shutdown_initiated = false;
+                let mut shutdown_timeout: Option<Pin<Box<Sleep>>> = None;
+
                 loop {
                     tokio::select! {
                         Some(_) = shutdown_receiver.recv() => {
                             shutdown_initiated = true;
-                            Self::handle_shutdown_signal(&mut ws).await?
+
+                            Self::handle_shutdown_signal(&mut ws).await?;
+
+                            shutdown_timeout = Some(Box::pin(time::sleep(time::Duration::from_secs(5))));
+                        }
+                        _ = if let Some(timeout) = &mut shutdown_timeout {
+                            Either::Left(timeout)
+                        } else {
+                            Either::Right(std::future::pending::<()>())
+                        } => {
+                            return Err(ApiError::WebSocketGeneric("shutdown timeout reached".to_string()));
                         }
                         Some(req) = sub_receiver.recv() => {
                             Self::handle_subscription_request(&mut ws, pending_subs, req).await?;
