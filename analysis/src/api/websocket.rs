@@ -14,6 +14,7 @@ use std::{collections::HashMap, future::Future, sync::Arc};
 use tokio::{
     net::TcpStream,
     sync::{broadcast, mpsc, oneshot},
+    task::JoinHandle,
 };
 use tokio_rustls::{
     rustls::{pki_types::ServerName, ClientConfig, RootCertStore},
@@ -121,6 +122,8 @@ fn tls_connector() -> Result<TlsConnector> {
 }
 
 pub struct WebSocketAPI {
+    manager_handle: JoinHandle<Result<()>>,
+    shutdown_sender: mpsc::Sender<()>, // select! doesn't handle oneshot well
     sub_sender: mpsc::Sender<(Vec<LNMWebSocketChannels>, oneshot::Sender<bool>)>,
     msg_sender: broadcast::Sender<JsonRpcResponse>,
 }
@@ -163,6 +166,7 @@ impl WebSocketAPI {
 
     async fn manager_task(
         mut ws: FragmentCollector<TokioIo<Upgraded>>,
+        mut shutdown_receiver: mpsc::Receiver<()>,
         mut sub_receiver: mpsc::Receiver<(Vec<LNMWebSocketChannels>, oneshot::Sender<bool>)>,
         msg_sender: broadcast::Sender<JsonRpcResponse>,
     ) -> Result<()> {
@@ -173,9 +177,12 @@ impl WebSocketAPI {
             async move {
                 loop {
                     tokio::select! {
+                        // Handle shutdown signal
+                        Some(()) = shutdown_receiver.recv() => {
+                            ws.write_frame(Frame::close(1000, &[])).await.map_err(|e| ApiError::WebSocketGeneric(e.to_string()))?;
+                        }
                         // Handle subscription requests
                         Some((channels, oneshot_tx)) = sub_receiver.recv() => {
-
                             let channels = channels.into_iter().map(|channel| channel.to_string()).collect();
                             let req = JsonRpcRequest::new(JsonRpcMethod::Subscribe, channels);
 
@@ -188,10 +195,9 @@ impl WebSocketAPI {
                         }
                         // Handle incoming frames
                         frame_result = ws.read_frame() => {
-                            let frame = frame_result.map_err(|e| ApiError::WebSocketGeneric(e.to_string()))?;
+                            let frame = frame_result.map_err(|e| ApiError::WebSocketGeneric(format!("frame error {:?}", e)))?;
                             match frame.opcode {
                                 OpCode::Text => {
-
                                     let text= String::from_utf8(frame.payload.to_vec()).map_err(|e| ApiError::WebSocketGeneric(e.to_string()))?;
                                     let json_rpc_res = serde_json::from_str::<JsonRpcResponse>(&text).map_err(|e| ApiError::WebSocketGeneric(e.to_string()))?;
 
@@ -215,11 +221,16 @@ impl WebSocketAPI {
                                         }
 
                                     }
-                                }
-                                _ => {}
-                            }
 
-                            return Err(ApiError::WebSocketGeneric("unexpected message".to_string()));
+                                    return Err(ApiError::WebSocketGeneric(format!("unhandled text {:?}", text)));
+                                }
+                                OpCode::Close => {
+                                    return Err(ApiError::WebSocketGeneric("unhandled close".to_string()));
+                                }
+                                unhandled_opcode => {
+                                    return Err(ApiError::WebSocketGeneric(format!("unhandled opcode {:?}", unhandled_opcode)));
+                                }
+                            }
                         }
                     }
                 }
@@ -241,6 +252,9 @@ impl WebSocketAPI {
     pub async fn new() -> Result<Self> {
         let ws = Self::connect().await?;
 
+        // Internal channel for shutdown signal
+        let (shutdown_sender, shutdown_receiver) = mpsc::channel::<()>(1);
+
         // Internal channel for subscription requests
         let (sub_sender, sub_receiver) =
             mpsc::channel::<(Vec<LNMWebSocketChannels>, oneshot::Sender<bool>)>(100);
@@ -248,12 +262,30 @@ impl WebSocketAPI {
         // External channel for subscription messages
         let (msg_sender, _) = broadcast::channel::<JsonRpcResponse>(100);
 
-        tokio::spawn(Self::manager_task(ws, sub_receiver, msg_sender.clone()));
+        let manager_handle = tokio::spawn(Self::manager_task(
+            ws,
+            shutdown_receiver,
+            sub_receiver,
+            msg_sender.clone(),
+        ));
 
         Ok(WebSocketAPI {
+            manager_handle,
+            shutdown_sender,
             sub_sender,
             msg_sender,
         })
+    }
+
+    pub async fn shutdown(self) -> Result<()> {
+        self.shutdown_sender
+            .send(())
+            .await
+            .map_err(|e| ApiError::WebSocketGeneric(e.to_string()))?;
+
+        self.manager_handle
+            .await
+            .map_err(|e| ApiError::WebSocketGeneric(e.to_string()))?
     }
 
     pub async fn subscribe(&self, channels: Vec<LNMWebSocketChannels>) -> Result<()> {
