@@ -4,9 +4,8 @@ mod env;
 mod error;
 mod sync;
 
+use env::{LNM_API_DOMAIN, POSTGRES_DB_URL};
 use error::Result;
-
-use crate::env::{LNM_API_DOMAIN, POSTGRES_DB_URL};
 
 #[tokio::main]
 async fn main() -> Result<()> {
