@@ -207,8 +207,13 @@ impl WebSocketAPI {
         shutdown_initiated: bool,
         frame_result: std::result::Result<Frame<'_>, WebSocketError>,
     ) -> Result<bool> {
-        let frame =
-            frame_result.map_err(|e| ApiError::WebSocketGeneric(format!("frame error {:?}", e)))?;
+        let frame = match frame_result {
+            Ok(frame) => frame,
+            // Expect scenario where connection is closed before shutdown confirmation response
+            Err(WebSocketError::ConnectionClosed) if shutdown_initiated => return Ok(true),
+            Err(err) => return Err(ApiError::WebSocketGeneric(format!("frame error {:?}", err))),
+        };
+
         match frame.opcode {
             OpCode::Text => {
                 let text = String::from_utf8(frame.payload.to_vec())
