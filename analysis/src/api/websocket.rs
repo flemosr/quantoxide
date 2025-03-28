@@ -291,10 +291,10 @@ impl WebSocketAPI {
                     }
                 }
 
-                return Err(ApiError::WebSocketGeneric(format!(
+                Err(ApiError::WebSocketGeneric(format!(
                     "unhandled text {:?}",
                     text
-                )));
+                )))
             }
             OpCode::Close => {
                 if shutdown_initiated {
@@ -305,15 +305,15 @@ impl WebSocketAPI {
                 // Send shutdown confirmation response
                 let _ = Self::handle_shutdown_signal(ws).await;
 
-                return Err(ApiError::WebSocketGeneric(
+                Err(ApiError::WebSocketGeneric(
                     "server requested shutdown".to_string(),
-                ));
+                ))
             }
             unhandled_opcode => {
-                return Err(ApiError::WebSocketGeneric(format!(
+                Err(ApiError::WebSocketGeneric(format!(
                     "unhandled opcode {:?}",
                     unhandled_opcode
-                )));
+                )))
             }
         }
     }
@@ -448,7 +448,7 @@ impl WebSocketAPI {
             .await
             .map_err(|e| ApiError::WebSocketGeneric(e.to_string()))?;
 
-        if success == false {
+        if !success {
             return Err(ApiError::WebSocketGeneric(
                 "could not subscribe".to_string(),
             ));
@@ -471,7 +471,7 @@ impl WebSocketAPI {
             .await
             .map_err(|e| ApiError::WebSocketGeneric(e.to_string()))?;
 
-        if success == false {
+        if !success {
             return Err(ApiError::WebSocketGeneric(
                 "could not unsubscribe".to_string(),
             ));
