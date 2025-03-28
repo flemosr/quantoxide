@@ -25,7 +25,9 @@ use super::error::{ApiError, Result};
 
 pub mod models;
 
-use models::{JsonRpcRequest, JsonRpcResponse, LnmJsonRpcMethod, LnmWebSocketChannels};
+use models::{
+    JsonRpcRequest, JsonRpcResponse, LnmJsonRpcMethod, LnmWebSocketChannels, WebSocketDataLNM,
+};
 
 struct SpawnExecutor;
 
@@ -53,7 +55,7 @@ pub struct WebSocketAPI {
     shutdown_sender: mpsc::Sender<()>, // select! doesn't handle oneshot well
     sub_sender: mpsc::Sender<(Vec<LnmWebSocketChannels>, oneshot::Sender<bool>)>,
     unsub_sender: mpsc::Sender<(Vec<LnmWebSocketChannels>, oneshot::Sender<bool>)>,
-    msg_sender: broadcast::Sender<JsonRpcResponse>,
+    msg_sender: broadcast::Sender<WebSocketDataLNM>,
 }
 
 impl WebSocketAPI {
@@ -156,7 +158,7 @@ impl WebSocketAPI {
         ws: &mut FragmentCollector<TokioIo<Upgraded>>,
         pending_subs: &mut HashMap<String, oneshot::Sender<bool>>,
         pending_unsubs: &mut HashMap<String, oneshot::Sender<bool>>,
-        msg_sender: &broadcast::Sender<JsonRpcResponse>,
+        msg_sender: &broadcast::Sender<WebSocketDataLNM>,
         shutdown_initiated: bool,
         frame_result: std::result::Result<Frame<'_>, WebSocketError>,
     ) -> Result<bool> {
@@ -199,12 +201,12 @@ impl WebSocketAPI {
                         return Ok(false);
                     }
                 } else if let Some(method) = &json_rpc_res.method {
-                    // Regular message; send to consumer
+                    // TODO: Use proper method enum
                     if method == "subscription" {
-                        // TODO: check channel and parse it propertly
+                        let data = json_rpc_res.try_into()?;
 
                         msg_sender
-                            .send(json_rpc_res)
+                            .send(data)
                             .map_err(|e| ApiError::WebSocketGeneric(e.to_string()))?;
 
                         return Ok(false);
@@ -241,7 +243,7 @@ impl WebSocketAPI {
         mut shutdown_receiver: mpsc::Receiver<()>,
         mut sub_receiver: mpsc::Receiver<(Vec<LnmWebSocketChannels>, oneshot::Sender<bool>)>,
         mut unsub_receiver: mpsc::Receiver<(Vec<LnmWebSocketChannels>, oneshot::Sender<bool>)>,
-        msg_sender: broadcast::Sender<JsonRpcResponse>,
+        msg_sender: broadcast::Sender<WebSocketDataLNM>,
     ) -> Result<()> {
         let mut pending_subs: HashMap<String, oneshot::Sender<bool>> = HashMap::new();
         let mut pending_unsubs: HashMap<String, oneshot::Sender<bool>> = HashMap::new();
@@ -322,7 +324,7 @@ impl WebSocketAPI {
             mpsc::channel::<(Vec<LnmWebSocketChannels>, oneshot::Sender<bool>)>(100);
 
         // External channel for subscription messages
-        let (msg_sender, _) = broadcast::channel::<JsonRpcResponse>(100);
+        let (msg_sender, _) = broadcast::channel::<WebSocketDataLNM>(100);
 
         let manager_handle = tokio::spawn(Self::manager_task(
             ws,
@@ -398,7 +400,7 @@ impl WebSocketAPI {
         Ok(())
     }
 
-    pub fn receiver(&self) -> broadcast::Receiver<JsonRpcResponse> {
+    pub fn receiver(&self) -> broadcast::Receiver<WebSocketDataLNM> {
         self.msg_sender.subscribe()
     }
 }

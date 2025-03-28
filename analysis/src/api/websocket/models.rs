@@ -1,3 +1,4 @@
+use chrono::{DateTime, Utc};
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -69,6 +70,20 @@ impl LnmWebSocketChannels {
     }
 }
 
+impl TryFrom<&str> for LnmWebSocketChannels {
+    type Error = ApiError;
+
+    fn try_from(value: &str) -> Result<Self> {
+        match value {
+            "futures:btc_usd:index" => Ok(LnmWebSocketChannels::FuturesBtcUsdIndex),
+            "futures:btc_usd:last-price" => Ok(LnmWebSocketChannels::FuturesBtcUsdLastPrice),
+            _ => Err(ApiError::WebSocketGeneric(format!(
+                "Unknown channel: {value}",
+            ))),
+        }
+    }
+}
+
 impl fmt::Display for LnmWebSocketChannels {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.as_str())
@@ -83,4 +98,81 @@ pub struct JsonRpcResponse {
     result: Option<Value>,
     error: Option<Value>,
     params: Option<Value>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+enum LastTickDirection {
+    Minus,
+    ZeroMinus,
+    Plus,
+    ZeroPlus,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct PriceTickLNM {
+    time: DateTime<Utc>,
+    last_price: f64,
+    last_tick_direction: LastTickDirection,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct PriceIndexLNM {
+    index: f64,
+    time: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone)]
+pub enum WebSocketDataLNM {
+    PriceTick(PriceTickLNM),
+    PriceIndex(PriceIndexLNM),
+}
+
+impl TryFrom<JsonRpcResponse> for WebSocketDataLNM {
+    type Error = ApiError;
+
+    fn try_from(response: JsonRpcResponse) -> Result<Self> {
+        if response.method.as_deref() != Some("subscription") {
+            return Err(ApiError::WebSocketGeneric(
+                "Not a subscription message".to_string(),
+            ));
+        }
+
+        let params = response.params.ok_or_else(|| {
+            ApiError::WebSocketGeneric("Missing params in subscription".to_string())
+        })?;
+
+        let params_obj = params
+            .as_object()
+            .ok_or_else(|| ApiError::WebSocketGeneric("Params is not an object".to_string()))?;
+
+        let channel: LnmWebSocketChannels = params_obj
+            .get("channel")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| ApiError::WebSocketGeneric("Missing channel in params".to_string()))?
+            .try_into()?;
+
+        let data = params_obj
+            .get("data")
+            .ok_or_else(|| ApiError::WebSocketGeneric("Missing data in params".to_string()))?;
+
+        let data = match channel {
+            LnmWebSocketChannels::FuturesBtcUsdLastPrice => {
+                let price_tick: PriceTickLNM =
+                    serde_json::from_value(data.clone()).map_err(|e| {
+                        ApiError::WebSocketGeneric(format!("Failed to parse price tick: {}", e))
+                    })?;
+                WebSocketDataLNM::PriceTick(price_tick)
+            }
+            LnmWebSocketChannels::FuturesBtcUsdIndex => {
+                let price_index: PriceIndexLNM =
+                    serde_json::from_value(data.clone()).map_err(|e| {
+                        ApiError::WebSocketGeneric(format!("Failed to parse price index: {}", e))
+                    })?;
+                WebSocketDataLNM::PriceIndex(price_index)
+            }
+        };
+
+        Ok(data)
+    }
 }
