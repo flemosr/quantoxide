@@ -3,9 +3,8 @@ use std::{collections::HashSet, thread, time};
 
 use crate::{
     api::{
-        models::PriceEntryLNM,
-        rest,
-        websocket::{LnmWebSocketChannels, WebSocketAPI},
+        rest::{self, models::PriceEntryLNM},
+        websocket::{models::LnmWebSocketChannels, WebSocketAPI},
     },
     db,
     env::{
