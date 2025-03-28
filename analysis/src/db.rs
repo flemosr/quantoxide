@@ -16,7 +16,7 @@ pub async fn init(postgres_db_url: &str) -> Result<()> {
         .max_connections(5)
         .connect(postgres_db_url)
         .await
-        .map_err(|e| DbError::Connection(e))?;
+        .map_err(DbError::Connection)?;
 
     println!("Successfully connected to the database");
 
@@ -24,7 +24,7 @@ pub async fn init(postgres_db_url: &str) -> Result<()> {
     sqlx::migrate!("./migrations")
         .run(&pool)
         .await
-        .map_err(|e| DbError::Migration(e))?;
+        .map_err(DbError::Migration)?;
 
     println!("Migrations completed successfully");
 
@@ -33,7 +33,7 @@ pub async fn init(postgres_db_url: &str) -> Result<()> {
         .bind(150_i64)
         .fetch_one(&pool)
         .await
-        .map_err(|e| DbError::Query(e))?;
+        .map_err(DbError::Query)?;
 
     assert_eq!(row.0, 150);
     println!("Database check successful");
@@ -50,5 +50,5 @@ fn get_pool() -> Result<&'static Pool<Postgres>> {
         .get()
         .ok_or_else(|| DbError::Init("`db` must be initialized"))?;
 
-    Ok(&pool)
+    Ok(pool)
 }
