@@ -81,7 +81,7 @@ async fn get_new_price_entries(
     price_entries.retain(|price_entry| seen.insert(*price_entry.time()));
 
     let is_sorted_time_desc = price_entries.is_sorted_by(|a, b| a.time() > b.time());
-    if is_sorted_time_desc == false {
+    if !is_sorted_time_desc {
         return Err(AppError::UnexpectedLNMPayload(
             "Price entries unsorted by time desc".to_string(),
         ));
@@ -143,7 +143,7 @@ async fn download_price_history(
         }
 
         if let LimitReached::Yes { overlap } = limit_check {
-            if overlap == false {
+            if !overlap {
                 // Received an entry with time before `limit`, but not `limit`
                 break None;
             }
@@ -232,7 +232,7 @@ pub async fn start() -> Result<()> {
             )
             .await?;
 
-            if overlap_reached == false {
+            if !overlap_reached {
                 return Err(AppError::UnexpectedLNMPayload(format!(
                     "entry gap time {} not received from server",
                     earliest_price_entry_gap.time
@@ -271,7 +271,7 @@ pub async fn start() -> Result<()> {
         let additional_entries_observed =
             download_price_history(&latest_price_entry.time, None).await?;
 
-        if additional_entries_observed == false {
+        if !additional_entries_observed {
             println!("\nNo new entries after {}", latest_price_entry.time);
             break;
         }
