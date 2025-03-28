@@ -92,7 +92,7 @@ pub async fn add_entries(
     let mut tx = super::get_pool()?
         .begin()
         .await
-        .map_err(|e| DbError::TransactionBegin(e))?;
+        .map_err(DbError::TransactionBegin)?;
 
     let mut next_entry_time = next_observed_time;
 
@@ -107,7 +107,7 @@ pub async fn add_entries(
             .bind(next_entry_time)
             .execute(&mut *tx)
             .await
-            .map_err(|e| DbError::Query(e))?;
+            .map_err(DbError::Query)?;
 
         next_entry_time = Some(entry.time());
     }
@@ -123,20 +123,20 @@ pub async fn add_entries(
     // carrying the corresponding locf value forward.
 
     let earliest_entry_time = entries.last().expect("not empty").time();
-    let start_locf_sec = get_locf_sec(&earliest_entry_time);
+    let start_locf_sec = get_locf_sec(earliest_entry_time);
 
     let prev_locf_sec: Option<DateTime<Utc>> =
         sqlx::query_scalar("SELECT max(time) FROM price_history_locf WHERE time <= $1")
             .bind(earliest_entry_time)
             .fetch_one(&mut *tx)
             .await
-            .map_err(|e| DbError::Query(e))?;
+            .map_err(DbError::Query)?;
     // `prev_locf_sec` will be `None` only when `added_locf_sec` is the new min locf time
     let start_locf_sec = prev_locf_sec.unwrap_or(start_locf_sec);
 
     let latest_batch_time = entries.first().expect("not empty").time();
     let latest_ob_time_after_batch = next_observed_time.unwrap_or(latest_batch_time);
-    let end_locf_sec = get_locf_sec(&latest_ob_time_after_batch);
+    let end_locf_sec = get_locf_sec(latest_ob_time_after_batch);
 
     let query = r#"
             INSERT INTO price_history_locf (time, value)
@@ -157,7 +157,7 @@ pub async fn add_entries(
         .bind(end_locf_sec)
         .execute(&mut *tx)
         .await
-        .map_err(|e| DbError::Query(e))?;
+        .map_err(DbError::Query)?;
 
     // Moving averages from start_locf_sec until end_locf_sec + max period
     // secs could be affected.
@@ -203,19 +203,19 @@ pub async fn add_entries(
                 eval_indicators.time >= $3
                 AND price_history_locf.time = eval_indicators.time;
         "#;
-    sqlx::query(&query)
+    sqlx::query(query)
         .bind(start_ma_sec)
         .bind(end_ma_sec)
         .bind(start_locf_sec)
         .execute(&mut *tx)
         .await
-        .map_err(|e| DbError::Query(e))?;
+        .map_err(DbError::Query)?;
 
     tx.commit()
         .await
-        .map_err(|e| DbError::TransactionCommit(e))?;
+        .map_err(DbError::TransactionCommit)?;
 
-    return Ok(());
+    Ok(())
 }
 
 // pub async fn get_price_entry_locf(
@@ -249,7 +249,7 @@ pub async fn eval_entries_locf(
     .bind(range_secs as i32)
     .fetch_all(pool)
     .await
-    .map_err(|e| DbError::Query(e))?;
+    .map_err(DbError::Query)?;
 
     if entries_locf.len() == range_secs {
         return Ok(entries_locf);
@@ -269,8 +269,8 @@ pub async fn eval_entries_locf(
             .bind(min_locf_sec)
             .fetch_one(pool)
             .await
-            .map_err(|e| DbError::Query(e))?;
-    if is_time_valid == false {
+            .map_err(DbError::Query)?;
+    if !is_time_valid {
         return Ok(vec![]);
     }
 
@@ -307,7 +307,7 @@ pub async fn eval_entries_locf(
         .bind(min_locf_sec)
         .fetch_all(pool)
         .await
-        .map_err(|e| DbError::Query(e))?;
+        .map_err(DbError::Query)?;
 
     Ok(entries_locf)
 }
@@ -325,7 +325,7 @@ pub async fn update_entry_next(entry_time: &DateTime<Utc>, next: &DateTime<Utc>)
         .bind(entry_time)
         .execute(pool)
         .await
-        .map_err(|e| DbError::Query(e))?;
+        .map_err(DbError::Query)?;
 
     Ok(result.rows_affected() > 0)
 }
