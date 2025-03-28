@@ -1,6 +1,6 @@
 use chrono::{DateTime, Duration, SubsecRound, Utc};
 
-use crate::api::models::PriceEntryLNM;
+use crate::api::rest::models::PriceEntryLNM;
 
 use super::{
     error::{DbError, Result},
@@ -149,7 +149,7 @@ pub async fn add_entries(
                 ORDER BY time DESC
                 LIMIT 1
             ) t ON true
-            ON CONFLICT (time) 
+            ON CONFLICT (time)
             DO UPDATE SET value = EXCLUDED.value
         "#;
     sqlx::query(query)
@@ -211,9 +211,7 @@ pub async fn add_entries(
         .await
         .map_err(DbError::Query)?;
 
-    tx.commit()
-        .await
-        .map_err(DbError::TransactionCommit)?;
+    tx.commit().await.map_err(DbError::TransactionCommit)?;
 
     Ok(())
 }
@@ -316,8 +314,8 @@ pub async fn update_entry_next(entry_time: &DateTime<Utc>, next: &DateTime<Utc>)
     let pool = super::get_pool()?;
 
     let query = r#"
-            UPDATE price_history 
-            SET next = $1 
+            UPDATE price_history
+            SET next = $1
             WHERE time = $2 AND next IS NULL
         "#;
     let result = sqlx::query(query)
