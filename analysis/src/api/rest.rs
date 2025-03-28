@@ -1,9 +1,10 @@
 use chrono::{DateTime, Utc};
 
-use super::{
-    error::{ApiError, Result},
-    models::PriceEntryLNM,
-};
+use super::error::{ApiError, Result};
+
+pub mod models;
+
+use models::PriceEntryLNM;
 
 const FUTURES_PRICE_HISTORY_PATH: &str = "/v2/futures/history/price";
 

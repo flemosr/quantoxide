@@ -3,7 +3,6 @@ use std::borrow::Borrow;
 use tokio::sync::OnceCell;
 
 pub mod error;
-pub mod models;
 pub mod rest;
 pub mod websocket;
 
