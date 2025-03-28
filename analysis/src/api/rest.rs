@@ -5,7 +5,7 @@ use super::{
     models::PriceEntryLNM,
 };
 
-const FUTURES_PRICE_HISTORY_PATH: &'static str = "/v2/futures/history/price";
+const FUTURES_PRICE_HISTORY_PATH: &str = "/v2/futures/history/price";
 
 pub async fn futures_price_history(
     from: Option<DateTime<Utc>>,
@@ -24,12 +24,12 @@ pub async fn futures_price_history(
     }
 
     let url = super::get_endpoint_url(FUTURES_PRICE_HISTORY_PATH, Some(params))?;
-    let res = reqwest::get(url).await.map_err(|e| ApiError::Response(e))?;
+    let res = reqwest::get(url).await.map_err(ApiError::Response)?;
 
     let price_history = res
         .json::<Vec<PriceEntryLNM>>()
         .await
-        .map_err(|e| ApiError::UnexpectedSchema(e))?;
+        .map_err(ApiError::UnexpectedSchema)?;
 
     Ok(price_history)
 }
