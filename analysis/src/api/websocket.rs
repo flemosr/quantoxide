@@ -11,8 +11,7 @@ use hyper_util::rt::TokioIo;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::pin::Pin;
-use std::{collections::HashMap, future::Future, sync::Arc};
+use std::{collections::HashMap, fmt, future::Future, pin::Pin, sync::Arc};
 use tokio::{
     net::TcpStream,
     sync::{broadcast, mpsc, oneshot},
@@ -41,9 +40,9 @@ impl LnmJsonRpcMethod {
     }
 }
 
-impl ToString for LnmJsonRpcMethod {
-    fn to_string(&self) -> String {
-        self.as_str().to_string()
+impl fmt::Display for LnmJsonRpcMethod {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.as_str())
     }
 }
 
@@ -101,9 +100,9 @@ impl LnmWebSocketChannels {
     }
 }
 
-impl ToString for LnmWebSocketChannels {
-    fn to_string(&self) -> String {
-        self.as_str().to_string()
+impl fmt::Display for LnmWebSocketChannels {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.as_str())
     }
 }
 
@@ -309,12 +308,10 @@ impl WebSocketAPI {
                     "server requested shutdown".to_string(),
                 ))
             }
-            unhandled_opcode => {
-                Err(ApiError::WebSocketGeneric(format!(
-                    "unhandled opcode {:?}",
-                    unhandled_opcode
-                )))
-            }
+            unhandled_opcode => Err(ApiError::WebSocketGeneric(format!(
+                "unhandled opcode {:?}",
+                unhandled_opcode
+            ))),
         }
     }
 
