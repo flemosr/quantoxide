@@ -4,7 +4,10 @@ use std::{collections::HashSet, thread, time};
 use crate::{
     api::{
         rest::{self, models::PriceEntryLNM},
-        websocket::{models::LnmWebSocketChannels, WebSocketAPI},
+        websocket::{
+            models::{LnmWebSocketChannels, WebSocketApiRes},
+            WebSocketAPI,
+        },
     },
     db,
     env::{
@@ -295,8 +298,18 @@ pub async fn start() -> Result<()> {
     let mut receiver = ws_api.receiver().await?;
 
     tokio::spawn(async move {
-        while let Ok(msg) = receiver.recv().await {
-            println!("Receiver got msg: {:?}", msg);
+        while let Ok(res) = receiver.recv().await {
+            match res {
+                WebSocketApiRes::PriceTick(tick) => {
+                    println!("Tick received {:?}", tick);
+                }
+                WebSocketApiRes::PriceIndex(index) => {
+                    println!("Index received {:?}", index);
+                }
+                WebSocketApiRes::ConnectionUpdate(new_state) => {
+                    println!("Connection update received {:?}", new_state);
+                }
+            }
         }
         println!("Receiver closed");
     });
