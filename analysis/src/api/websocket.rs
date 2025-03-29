@@ -21,10 +21,10 @@ use tokio_rustls::{
 };
 use webpki_roots::TLS_SERVER_ROOTS;
 
-use super::error::{ApiError, Result};
-
+pub mod error;
 pub mod models;
 
+use error::{Result, WebSocketApiError};
 use models::{
     JsonRpcRequest, JsonRpcResponse, LnmJsonRpcMethod, LnmWebSocketChannels, WebSocketDataLNM,
 };
@@ -68,20 +68,21 @@ pub struct WebSocketAPI {
 
 impl WebSocketAPI {
     async fn connect() -> Result<FragmentCollector<TokioIo<Upgraded>>> {
-        let api_domain = super::get_api_domain()?;
+        let api_domain =
+            super::get_api_domain().map_err(|e| WebSocketApiError::Generic(e.to_string()))?;
         let api_addr = format!("{api_domain}:443");
         let api_uri = format!("wss://{api_domain}/");
 
         let api_domain = ServerName::try_from(api_domain.to_string())
-            .map_err(|e| ApiError::WebSocketGeneric(e.to_string()))?;
+            .map_err(|e| WebSocketApiError::Generic(e.to_string()))?;
         let tls_connector = tls_connector()?;
         let tcp_stream = TcpStream::connect(&api_addr)
             .await
-            .map_err(|e| ApiError::WebSocketGeneric(e.to_string()))?;
+            .map_err(|e| WebSocketApiError::Generic(e.to_string()))?;
         let tls_stream = tls_connector
             .connect(api_domain, tcp_stream)
             .await
-            .map_err(|e| ApiError::WebSocketGeneric(e.to_string()))?;
+            .map_err(|e| WebSocketApiError::Generic(e.to_string()))?;
 
         let req = Request::builder()
             .method("GET")
@@ -92,11 +93,11 @@ impl WebSocketAPI {
             .header("Sec-WebSocket-Key", handshake::generate_key())
             .header("Sec-WebSocket-Version", "13")
             .body(Empty::<Bytes>::new())
-            .map_err(|e| ApiError::WebSocketGeneric(e.to_string()))?;
+            .map_err(|e| WebSocketApiError::Generic(e.to_string()))?;
 
         let (ws, _) = handshake::client(&SpawnExecutor, req, tls_stream)
             .await
-            .map_err(|e| ApiError::WebSocketGeneric(e.to_string()))?;
+            .map_err(|e| WebSocketApiError::Generic(e.to_string()))?;
         let ws = FragmentCollector::new(ws);
 
         Ok(ws)
@@ -105,7 +106,7 @@ impl WebSocketAPI {
     async fn handle_shutdown_signal(ws: &mut FragmentCollector<TokioIo<Upgraded>>) -> Result<()> {
         ws.write_frame(Frame::close(1000, &[]))
             .await
-            .map_err(|e| ApiError::WebSocketGeneric(e.to_string()))
+            .map_err(|e| WebSocketApiError::Generic(e.to_string()))
     }
 
     async fn handle_subscription_request(
@@ -123,12 +124,12 @@ impl WebSocketAPI {
 
         let request_bytes = req
             .try_to_bytes()
-            .map_err(|e| ApiError::WebSocketGeneric(e.to_string()))?;
+            .map_err(|e| WebSocketApiError::Generic(e.to_string()))?;
         let frame = Frame::text(request_bytes.into());
 
         ws.write_frame(frame)
             .await
-            .map_err(|e| ApiError::WebSocketGeneric(e.to_string()))?;
+            .map_err(|e| WebSocketApiError::Generic(e.to_string()))?;
 
         pending_subs.insert(req.id, oneshot_tx);
 
@@ -150,12 +151,12 @@ impl WebSocketAPI {
 
         let request_bytes = req
             .try_to_bytes()
-            .map_err(|e| ApiError::WebSocketGeneric(e.to_string()))?;
+            .map_err(|e| WebSocketApiError::Generic(e.to_string()))?;
         let frame = Frame::text(request_bytes.into());
 
         ws.write_frame(frame)
             .await
-            .map_err(|e| ApiError::WebSocketGeneric(e.to_string()))?;
+            .map_err(|e| WebSocketApiError::Generic(e.to_string()))?;
 
         pending_unsubs.insert(req.id, oneshot_tx);
 
@@ -174,15 +175,15 @@ impl WebSocketAPI {
             Ok(frame) => frame,
             // Expect scenario where connection is closed before shutdown confirmation response
             Err(WebSocketError::ConnectionClosed) if shutdown_initiated => return Ok(true),
-            Err(err) => return Err(ApiError::WebSocketGeneric(format!("frame error {:?}", err))),
+            Err(err) => return Err(WebSocketApiError::Generic(format!("frame error {:?}", err))),
         };
 
         match frame.opcode {
             OpCode::Text => {
                 let text = String::from_utf8(frame.payload.to_vec())
-                    .map_err(|e| ApiError::WebSocketGeneric(e.to_string()))?;
+                    .map_err(|e| WebSocketApiError::Generic(e.to_string()))?;
                 let json_rpc_res = serde_json::from_str::<JsonRpcResponse>(&text)
-                    .map_err(|e| ApiError::WebSocketGeneric(e.to_string()))?;
+                    .map_err(|e| WebSocketApiError::Generic(e.to_string()))?;
 
                 if let Some(id) = json_rpc_res.id.as_ref() {
                     if let Some(oneshot_tx) = pending_subs.remove(id) {
@@ -193,7 +194,7 @@ impl WebSocketAPI {
 
                         oneshot_tx
                             .send(is_success)
-                            .map_err(|e| ApiError::WebSocketGeneric(e.to_string()))?;
+                            .map_err(|e| WebSocketApiError::Generic(e.to_string()))?;
 
                         return Ok(false);
                     } else if let Some(oneshot_tx) = pending_unsubs.remove(id) {
@@ -204,7 +205,7 @@ impl WebSocketAPI {
 
                         oneshot_tx
                             .send(is_success)
-                            .map_err(|e| ApiError::WebSocketGeneric(e.to_string()))?;
+                            .map_err(|e| WebSocketApiError::Generic(e.to_string()))?;
 
                         return Ok(false);
                     }
@@ -215,13 +216,13 @@ impl WebSocketAPI {
 
                         msg_sender
                             .send(data)
-                            .map_err(|e| ApiError::WebSocketGeneric(e.to_string()))?;
+                            .map_err(|e| WebSocketApiError::Generic(e.to_string()))?;
 
                         return Ok(false);
                     }
                 }
 
-                Err(ApiError::WebSocketGeneric(format!(
+                Err(WebSocketApiError::Generic(format!(
                     "unhandled text {:?}",
                     text
                 )))
@@ -235,11 +236,11 @@ impl WebSocketAPI {
                 // Send shutdown confirmation response
                 let _ = Self::handle_shutdown_signal(ws).await;
 
-                Err(ApiError::WebSocketGeneric(
+                Err(WebSocketApiError::Generic(
                     "server requested shutdown".to_string(),
                 ))
             }
-            unhandled_opcode => Err(ApiError::WebSocketGeneric(format!(
+            unhandled_opcode => Err(WebSocketApiError::Generic(format!(
                 "unhandled opcode {:?}",
                 unhandled_opcode
             ))),
@@ -279,7 +280,7 @@ impl WebSocketAPI {
                         } else {
                             Either::Right(std::future::pending::<()>())
                         } => {
-                            return Err(ApiError::WebSocketGeneric("shutdown timeout reached".to_string()));
+                            return Err(WebSocketApiError::Generic("shutdown timeout reached".to_string()));
                         }
                         Some(req) = sub_receiver.recv() => {
                             Self::handle_subscription_request(&mut ws, pending_subs, req).await?;
@@ -371,9 +372,9 @@ impl WebSocketAPI {
     async fn evaluate_manager_status(&self) -> Result<()> {
         let err = match self.connection_state().await {
             ConnectionState::Connected => return Ok(()),
-            ConnectionState::Failed(err) => ApiError::WebSocketGeneric(err),
+            ConnectionState::Failed(err) => WebSocketApiError::Generic(err),
             ConnectionState::Disconnected => {
-                ApiError::WebSocketGeneric(format!("WebSocket manager is finished"))
+                WebSocketApiError::Generic(format!("WebSocket manager is finished"))
             }
         };
 
@@ -385,12 +386,12 @@ impl WebSocketAPI {
             self.shutdown_sender
                 .send(())
                 .await
-                .map_err(|e| ApiError::WebSocketGeneric(e.to_string()))?;
+                .map_err(|e| WebSocketApiError::Generic(e.to_string()))?;
         }
 
         self.manager_handle
             .await
-            .map_err(|e| ApiError::WebSocketGeneric(e.to_string()))?
+            .map_err(|e| WebSocketApiError::Generic(e.to_string()))?
     }
 
     pub async fn subscribe(&self, channels: Vec<LnmWebSocketChannels>) -> Result<()> {
@@ -402,15 +403,15 @@ impl WebSocketAPI {
         self.sub_sender
             .send((channels, oneshot_tx))
             .await
-            .map_err(|e| ApiError::WebSocketGeneric(e.to_string()))?;
+            .map_err(|e| WebSocketApiError::Generic(e.to_string()))?;
 
         // Wait for confirmation
         let success = oneshot_rx
             .await
-            .map_err(|e| ApiError::WebSocketGeneric(e.to_string()))?;
+            .map_err(|e| WebSocketApiError::Generic(e.to_string()))?;
 
         if !success {
-            return Err(ApiError::WebSocketGeneric(
+            return Err(WebSocketApiError::Generic(
                 "could not subscribe".to_string(),
             ));
         }
@@ -427,15 +428,15 @@ impl WebSocketAPI {
         self.unsub_sender
             .send((channels, oneshot_tx))
             .await
-            .map_err(|e| ApiError::WebSocketGeneric(e.to_string()))?;
+            .map_err(|e| WebSocketApiError::Generic(e.to_string()))?;
 
         // Wait for confirmation
         let success = oneshot_rx
             .await
-            .map_err(|e| ApiError::WebSocketGeneric(e.to_string()))?;
+            .map_err(|e| WebSocketApiError::Generic(e.to_string()))?;
 
         if !success {
-            return Err(ApiError::WebSocketGeneric(
+            return Err(WebSocketApiError::Generic(
                 "could not unsubscribe".to_string(),
             ));
         }

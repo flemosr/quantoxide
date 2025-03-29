@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::fmt;
 
-use crate::api::error::{ApiError, Result};
+use super::error::{Result, WebSocketApiError};
 
 pub enum LnmJsonRpcMethod {
     Subscribe,
@@ -50,7 +50,7 @@ impl JsonRpcRequest {
 
     pub fn try_to_bytes(&self) -> Result<Vec<u8>> {
         let request_json =
-            serde_json::to_string(&self).map_err(|e| ApiError::WebSocketGeneric(e.to_string()))?;
+            serde_json::to_string(&self).map_err(|e| WebSocketApiError::Generic(e.to_string()))?;
         let bytes = request_json.into_bytes();
         Ok(bytes)
     }
@@ -71,13 +71,13 @@ impl LnmWebSocketChannels {
 }
 
 impl TryFrom<&str> for LnmWebSocketChannels {
-    type Error = ApiError;
+    type Error = WebSocketApiError;
 
     fn try_from(value: &str) -> Result<Self> {
         match value {
             "futures:btc_usd:index" => Ok(LnmWebSocketChannels::FuturesBtcUsdIndex),
             "futures:btc_usd:last-price" => Ok(LnmWebSocketChannels::FuturesBtcUsdLastPrice),
-            _ => Err(ApiError::WebSocketGeneric(format!(
+            _ => Err(WebSocketApiError::Generic(format!(
                 "Unknown channel: {value}",
             ))),
         }
@@ -129,45 +129,45 @@ pub enum WebSocketDataLNM {
 }
 
 impl TryFrom<JsonRpcResponse> for WebSocketDataLNM {
-    type Error = ApiError;
+    type Error = WebSocketApiError;
 
     fn try_from(response: JsonRpcResponse) -> Result<Self> {
         if response.method.as_deref() != Some("subscription") {
-            return Err(ApiError::WebSocketGeneric(
+            return Err(WebSocketApiError::Generic(
                 "Not a subscription message".to_string(),
             ));
         }
 
         let params = response.params.ok_or_else(|| {
-            ApiError::WebSocketGeneric("Missing params in subscription".to_string())
+            WebSocketApiError::Generic("Missing params in subscription".to_string())
         })?;
 
         let params_obj = params
             .as_object()
-            .ok_or_else(|| ApiError::WebSocketGeneric("Params is not an object".to_string()))?;
+            .ok_or_else(|| WebSocketApiError::Generic("Params is not an object".to_string()))?;
 
         let channel: LnmWebSocketChannels = params_obj
             .get("channel")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| ApiError::WebSocketGeneric("Missing channel in params".to_string()))?
+            .ok_or_else(|| WebSocketApiError::Generic("Missing channel in params".to_string()))?
             .try_into()?;
 
         let data = params_obj
             .get("data")
-            .ok_or_else(|| ApiError::WebSocketGeneric("Missing data in params".to_string()))?;
+            .ok_or_else(|| WebSocketApiError::Generic("Missing data in params".to_string()))?;
 
         let data = match channel {
             LnmWebSocketChannels::FuturesBtcUsdLastPrice => {
                 let price_tick: PriceTickLNM =
                     serde_json::from_value(data.clone()).map_err(|e| {
-                        ApiError::WebSocketGeneric(format!("Failed to parse price tick: {}", e))
+                        WebSocketApiError::Generic(format!("Failed to parse price tick: {}", e))
                     })?;
                 WebSocketDataLNM::PriceTick(price_tick)
             }
             LnmWebSocketChannels::FuturesBtcUsdIndex => {
                 let price_index: PriceIndexLNM =
                     serde_json::from_value(data.clone()).map_err(|e| {
-                        ApiError::WebSocketGeneric(format!("Failed to parse price index: {}", e))
+                        WebSocketApiError::Generic(format!("Failed to parse price index: {}", e))
                     })?;
                 WebSocketDataLNM::PriceIndex(price_index)
             }

@@ -1,6 +1,8 @@
 use std::result;
 use thiserror::Error;
 
+use super::websocket::error::WebSocketApiError;
+
 #[derive(Error, Debug)]
 pub enum ApiError {
     #[error("Init error: {0}")]
@@ -11,8 +13,8 @@ pub enum ApiError {
     Response(reqwest::Error),
     #[error("Unexpected schema error: {0}")]
     UnexpectedSchema(reqwest::Error),
-    #[error("WebSocket generic error: {0}")]
-    WebSocketGeneric(String),
+    #[error("WebSocketApi generic error: {0}")]
+    WebSocket(#[from] WebSocketApiError),
 }
 
 pub type Result<T> = result::Result<T, ApiError>;

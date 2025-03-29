@@ -2,7 +2,10 @@ use chrono::{DateTime, Utc};
 use std::result;
 use thiserror::Error;
 
-use crate::{api::error::ApiError, db::error::DbError};
+use crate::{
+    api::{error::ApiError, websocket::error::WebSocketApiError},
+    db::error::DbError,
+};
 
 #[derive(Error, Debug)]
 pub enum AppError {
@@ -22,6 +25,12 @@ pub enum AppError {
         earliest_gap: DateTime<Utc>,
         limit: DateTime<Utc>,
     },
+}
+
+impl From<WebSocketApiError> for AppError {
+    fn from(err: WebSocketApiError) -> Self {
+        AppError::Api(ApiError::from(err))
+    }
 }
 
 pub type Result<T> = result::Result<T, AppError>;
