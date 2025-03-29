@@ -29,7 +29,7 @@ impl fmt::Display for LnmJsonRpcMethod {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Debug, PartialEq, Eq)]
 pub struct JsonRpcRequest {
     jsonrpc: String,
     method: String,
@@ -94,7 +94,7 @@ impl fmt::Display for LnmWebSocketChannel {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct JsonRpcResponse {
     jsonrpc: String,
     pub id: Option<String>,
