@@ -1,5 +1,4 @@
 use fastwebsockets::{handshake, FragmentCollector, Frame, OpCode, WebSocketError};
-use futures::future::Either;
 use http_body_util::Empty;
 use hyper::{
     body::Bytes,
@@ -8,12 +7,12 @@ use hyper::{
     Request,
 };
 use hyper_util::rt::TokioIo;
-use std::{collections::HashMap, future::Future, pin::Pin, sync::Arc};
+use std::{collections::HashMap, future::Future, sync::Arc};
 use tokio::{
     net::TcpStream,
     sync::{broadcast, mpsc, oneshot, Mutex},
     task::JoinHandle,
-    time::{self, Sleep},
+    time::{self},
 };
 use tokio_rustls::{
     rustls::{pki_types::ServerName, ClientConfig, RootCertStore},
@@ -262,26 +261,18 @@ impl WebSocketAPI {
             let msg_sender = &msg_sender;
 
             async move {
-                let mut shutdown_initiated = false;
-                let mut shutdown_timeout: Option<Pin<Box<Sleep>>> = None;
-                let mut heartbeat_timer = Box::pin(time::sleep(time::Duration::from_secs(5)));
+                let new_heartbeat_timer = || Box::pin(time::sleep(time::Duration::from_secs(5)));
+                let mut heartbeat_timer = new_heartbeat_timer();
                 let mut waiting_for_pong = false;
+                let mut shutdown_initiated = false;
 
                 loop {
                     tokio::select! {
                         Some(_) = shutdown_receiver.recv() => {
                             shutdown_initiated = true;
+                            heartbeat_timer = new_heartbeat_timer();
 
                             Self::handle_shutdown_signal(&mut ws).await?;
-
-                            shutdown_timeout = Some(Box::pin(time::sleep(time::Duration::from_secs(5))));
-                        }
-                        _ = if let Some(timeout) = &mut shutdown_timeout {
-                            Either::Left(timeout)
-                        } else {
-                            Either::Right(std::future::pending::<()>())
-                        } => {
-                            return Err(WebSocketApiError::Generic("shutdown timeout reached".to_string()));
                         }
                         Some(req) = sub_receiver.recv() => {
                             Self::handle_subscription_request(&mut ws, pending_subs, req).await?;
@@ -290,10 +281,6 @@ impl WebSocketAPI {
                             Self::handle_unsubscription_request(&mut ws, pending_unsubs, req).await?;
                         }
                         frame_result = ws.read_frame() => {
-                            // Reset heartbeat timer after receiving any message
-                            heartbeat_timer = Box::pin(time::sleep(time::Duration::from_secs(5)));
-                            waiting_for_pong = false;
-
                             let is_close_signal = Self::handle_incoming_ws_frame(
                                 &mut ws,
                                 pending_subs,
@@ -302,6 +289,10 @@ impl WebSocketAPI {
                                 shutdown_initiated,
                                 frame_result
                             ).await?;
+
+                            // Reset heartbeat mechanism after receiving any message
+                            waiting_for_pong = false;
+                            heartbeat_timer = new_heartbeat_timer();
 
                             if !is_close_signal {
                                 continue;
@@ -320,6 +311,10 @@ impl WebSocketAPI {
                             ));
                         }
                         _ = &mut heartbeat_timer => {
+                            if shutdown_initiated {
+                                // No shutdown confirmation after a heartbeat, timeout
+                                return Err(WebSocketApiError::Generic("shutdown timeout reached".to_string()));
+                            }
 
                             if waiting_for_pong {
                                 // No pong received after ping and a heartbeat, timeout
@@ -331,8 +326,8 @@ impl WebSocketAPI {
                             ws.write_frame(ping).await
                                 .map_err(|e| WebSocketApiError::Generic(format!("failed to send ping: {}", e)))?;
 
-                            heartbeat_timer = Box::pin(time::sleep(time::Duration::from_secs(5)));
                             waiting_for_pong = true;
+                            heartbeat_timer = new_heartbeat_timer();
                         }
                     };
                 }
