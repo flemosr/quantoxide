@@ -101,11 +101,12 @@ pub struct JsonRpcResponse {
 }
 
 #[derive(Debug, Deserialize, Clone)]
+#[allow(clippy::enum_variant_names)]
 enum LastTickDirection {
-    Minus,
-    ZeroMinus,
-    Plus,
-    ZeroPlus,
+    MinusTick,
+    ZeroMinusTick,
+    PlusTick,
+    ZeroPlusTick,
 }
 
 #[derive(Debug, Deserialize, Clone)]
