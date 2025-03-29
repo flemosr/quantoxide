@@ -50,7 +50,7 @@ fn tls_connector() -> Result<TlsConnector> {
     Ok(TlsConnector::from(Arc::new(config)))
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum ConnectionState {
     Connected,
     Failed(String),
@@ -222,10 +222,9 @@ impl WebSocketAPI {
                     }
                 }
 
-                Err(WebSocketApiError::Generic(format!(
-                    "unhandled text {:?}",
-                    text
-                )))
+                Err(WebSocketApiError::Generic(
+                    format!("unhandled text {text}",),
+                ))
             }
             OpCode::Close => {
                 if shutdown_initiated {
@@ -240,6 +239,17 @@ impl WebSocketAPI {
                     "server requested shutdown".to_string(),
                 ))
             }
+            OpCode::Ping => {
+                // Automatically respond to pings with pongs
+                ws.write_frame(Frame::pong(frame.payload.to_vec().into()))
+                    .await
+                    .map_err(|e| {
+                        WebSocketApiError::Generic(format!("failed to send pong: {}", e))
+                    })?;
+                Ok(false)
+            }
+            // Pongs can be ignored since heartbeat mechanism is reset after any message
+            OpCode::Pong => Ok(false),
             unhandled_opcode => Err(WebSocketApiError::Generic(format!(
                 "unhandled opcode {:?}",
                 unhandled_opcode
@@ -265,6 +275,8 @@ impl WebSocketAPI {
             async move {
                 let mut shutdown_initiated = false;
                 let mut shutdown_timeout: Option<Pin<Box<Sleep>>> = None;
+                let mut heartbeat_timer = Box::pin(time::sleep(time::Duration::from_secs(5)));
+                let mut waiting_for_pong = false;
 
                 loop {
                     tokio::select! {
@@ -289,6 +301,10 @@ impl WebSocketAPI {
                             Self::handle_unsubscription_request(&mut ws, pending_unsubs, req).await?;
                         }
                         frame_result = ws.read_frame() => {
+                            // Reset heartbeat timer after receiving any message
+                            heartbeat_timer = Box::pin(time::sleep(time::Duration::from_secs(5)));
+                            waiting_for_pong = false;
+
                             let is_close_signal = Self::handle_incoming_ws_frame(
                                 &mut ws,
                                 pending_subs,
@@ -301,6 +317,21 @@ impl WebSocketAPI {
                             if is_close_signal {
                                 return Ok(());
                             }
+                        }
+                        _ = &mut heartbeat_timer => {
+
+                            if waiting_for_pong {
+                                // No pong received after ping and a heartbeat, timeout
+                                return Err(WebSocketApiError::Generic("pong response timeout, connection may be dead".to_string()));
+                            }
+
+                            // No messages received for a heartbeat, send a ping
+                            let ping = Frame::new(true, OpCode::Ping, None, Vec::new().into());
+                            ws.write_frame(ping).await
+                                .map_err(|e| WebSocketApiError::Generic(format!("failed to send ping: {}", e)))?;
+
+                            heartbeat_timer = Box::pin(time::sleep(time::Duration::from_secs(5)));
+                            waiting_for_pong = true;
                         }
                     };
                 }
@@ -374,7 +405,7 @@ impl WebSocketAPI {
             ConnectionState::Connected => return Ok(()),
             ConnectionState::Failed(err) => WebSocketApiError::Generic(err),
             ConnectionState::Disconnected => {
-                WebSocketApiError::Generic(format!("WebSocket manager is finished"))
+                WebSocketApiError::Generic("WebSocket manager is finished".to_string())
             }
         };
 
