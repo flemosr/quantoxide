@@ -284,13 +284,15 @@ pub async fn start() -> Result<()> {
 
     let ws_api = WebSocketAPI::new().await?;
 
+    println!("\nWS running {}", ws_api.is_connected());
+
     println!("\nSubscribe to prices");
 
     ws_api
         .subscribe(vec![LnmWebSocketChannels::FuturesBtcUsdLastPrice])
         .await?;
 
-    let mut receiver = ws_api.receiver();
+    let mut receiver = ws_api.receiver().await?;
 
     tokio::spawn(async move {
         while let Ok(msg) = receiver.recv().await {
@@ -298,6 +300,7 @@ pub async fn start() -> Result<()> {
         }
         println!("Receiver closed");
     });
+
     wait(10);
 
     println!("\nSubscribe to index");

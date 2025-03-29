@@ -11,7 +11,7 @@ use hyper_util::rt::TokioIo;
 use std::{collections::HashMap, future::Future, pin::Pin, sync::Arc};
 use tokio::{
     net::TcpStream,
-    sync::{broadcast, mpsc, oneshot},
+    sync::{broadcast, mpsc, oneshot, Mutex},
     task::JoinHandle,
     time::{self, Sleep},
 };
@@ -50,12 +50,20 @@ fn tls_connector() -> Result<TlsConnector> {
     Ok(TlsConnector::from(Arc::new(config)))
 }
 
+#[derive(Clone)]
+pub enum ConnectionState {
+    Connected,
+    Failed(String),
+    Disconnected,
+}
+
 pub struct WebSocketAPI {
     manager_handle: JoinHandle<Result<()>>,
     shutdown_sender: mpsc::Sender<()>, // select! doesn't handle oneshot well
     sub_sender: mpsc::Sender<(Vec<LnmWebSocketChannels>, oneshot::Sender<bool>)>,
     unsub_sender: mpsc::Sender<(Vec<LnmWebSocketChannels>, oneshot::Sender<bool>)>,
     msg_sender: broadcast::Sender<WebSocketDataLNM>,
+    connection_state: Arc<Mutex<ConnectionState>>,
 }
 
 impl WebSocketAPI {
@@ -244,11 +252,12 @@ impl WebSocketAPI {
         mut sub_receiver: mpsc::Receiver<(Vec<LnmWebSocketChannels>, oneshot::Sender<bool>)>,
         mut unsub_receiver: mpsc::Receiver<(Vec<LnmWebSocketChannels>, oneshot::Sender<bool>)>,
         msg_sender: broadcast::Sender<WebSocketDataLNM>,
+        connection_state: Arc<Mutex<ConnectionState>>,
     ) -> Result<()> {
         let mut pending_subs: HashMap<String, oneshot::Sender<bool>> = HashMap::new();
         let mut pending_unsubs: HashMap<String, oneshot::Sender<bool>> = HashMap::new();
 
-        let interaction_loop = || {
+        let handler = || {
             let pending_subs = &mut pending_subs;
             let pending_unsubs = &mut pending_unsubs;
 
@@ -297,16 +306,20 @@ impl WebSocketAPI {
             }
         };
 
-        let res = interaction_loop().await;
+        let handler_res = handler().await;
 
         // Notify all pending subscriptions of failure on shutdown
         for (_, oneshot_tx) in pending_subs {
-            oneshot_tx
-                .send(false)
-                .map_err(|e| ApiError::WebSocketGeneric(e.to_string()))?;
+            let _ = oneshot_tx.send(false);
         }
 
-        res
+        let mut connection_state_guard = connection_state.lock().await;
+        *connection_state_guard = match handler_res {
+            Err(err) => ConnectionState::Failed(err.to_string()),
+            Ok(_) => ConnectionState::Disconnected,
+        };
+
+        Ok(())
     }
 
     pub async fn new() -> Result<Self> {
@@ -326,16 +339,20 @@ impl WebSocketAPI {
         // External channel for subscription messages
         let (msg_sender, _) = broadcast::channel::<WebSocketDataLNM>(100);
 
+        let connection_state = Arc::new(Mutex::new(ConnectionState::Connected));
+
         let manager_handle = tokio::spawn(Self::manager_task(
             ws,
             shutdown_receiver,
             sub_receiver,
             unsub_receiver,
             msg_sender.clone(),
+            connection_state.clone(),
         ));
 
         Ok(WebSocketAPI {
             manager_handle,
+            connection_state,
             shutdown_sender,
             sub_sender,
             unsub_sender,
@@ -343,11 +360,33 @@ impl WebSocketAPI {
         })
     }
 
+    pub fn is_connected(&self) -> bool {
+        !self.manager_handle.is_finished()
+    }
+
+    pub async fn connection_state(&self) -> ConnectionState {
+        self.connection_state.lock().await.clone()
+    }
+
+    async fn evaluate_manager_status(&self) -> Result<()> {
+        let err = match self.connection_state().await {
+            ConnectionState::Connected => return Ok(()),
+            ConnectionState::Failed(err) => ApiError::WebSocketGeneric(err),
+            ConnectionState::Disconnected => {
+                ApiError::WebSocketGeneric(format!("WebSocket manager is finished"))
+            }
+        };
+
+        Err(err)
+    }
+
     pub async fn shutdown(self) -> Result<()> {
-        self.shutdown_sender
-            .send(())
-            .await
-            .map_err(|e| ApiError::WebSocketGeneric(e.to_string()))?;
+        if !self.manager_handle.is_finished() {
+            self.shutdown_sender
+                .send(())
+                .await
+                .map_err(|e| ApiError::WebSocketGeneric(e.to_string()))?;
+        }
 
         self.manager_handle
             .await
@@ -355,6 +394,8 @@ impl WebSocketAPI {
     }
 
     pub async fn subscribe(&self, channels: Vec<LnmWebSocketChannels>) -> Result<()> {
+        self.evaluate_manager_status().await?;
+
         let (oneshot_tx, oneshot_rx) = oneshot::channel();
 
         // Send subscription request to the manager task
@@ -378,6 +419,8 @@ impl WebSocketAPI {
     }
 
     pub async fn unsubscribe(&self, channels: Vec<LnmWebSocketChannels>) -> Result<()> {
+        self.evaluate_manager_status().await?;
+
         let (oneshot_tx, oneshot_rx) = oneshot::channel();
 
         // Send unsubscription request to the manager task
@@ -400,7 +443,10 @@ impl WebSocketAPI {
         Ok(())
     }
 
-    pub fn receiver(&self) -> broadcast::Receiver<WebSocketDataLNM> {
-        self.msg_sender.subscribe()
+    pub async fn receiver(&self) -> Result<broadcast::Receiver<WebSocketDataLNM>> {
+        self.evaluate_manager_status().await?;
+
+        let broadcast_rx = self.msg_sender.subscribe();
+        Ok(broadcast_rx)
     }
 }
