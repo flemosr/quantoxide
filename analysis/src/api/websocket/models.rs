@@ -4,7 +4,10 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::fmt;
 
-use super::error::{Result, WebSocketApiError};
+use super::{
+    error::{Result, WebSocketApiError},
+    ConnectionState,
+};
 
 pub enum LnmJsonRpcMethod {
     Subscribe,
@@ -124,12 +127,19 @@ pub struct PriceIndexLNM {
 }
 
 #[derive(Debug, Clone)]
-pub enum WebSocketDataLNM {
+pub enum WebSocketApiRes {
     PriceTick(PriceTickLNM),
     PriceIndex(PriceIndexLNM),
+    ConnectionUpdate(ConnectionState),
 }
 
-impl TryFrom<JsonRpcResponse> for WebSocketDataLNM {
+impl From<&ConnectionState> for WebSocketApiRes {
+    fn from(value: &ConnectionState) -> Self {
+        Self::ConnectionUpdate(value.clone())
+    }
+}
+
+impl TryFrom<JsonRpcResponse> for WebSocketApiRes {
     type Error = WebSocketApiError;
 
     fn try_from(response: JsonRpcResponse) -> Result<Self> {
@@ -163,14 +173,14 @@ impl TryFrom<JsonRpcResponse> for WebSocketDataLNM {
                     serde_json::from_value(data.clone()).map_err(|e| {
                         WebSocketApiError::Generic(format!("Failed to parse price tick: {}", e))
                     })?;
-                WebSocketDataLNM::PriceTick(price_tick)
+                WebSocketApiRes::PriceTick(price_tick)
             }
             LnmWebSocketChannels::FuturesBtcUsdIndex => {
                 let price_index: PriceIndexLNM =
                     serde_json::from_value(data.clone()).map_err(|e| {
                         WebSocketApiError::Generic(format!("Failed to parse price index: {}", e))
                     })?;
-                WebSocketDataLNM::PriceIndex(price_index)
+                WebSocketApiRes::PriceIndex(price_index)
             }
         };
 

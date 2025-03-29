@@ -26,7 +26,7 @@ pub mod models;
 
 use error::{Result, WebSocketApiError};
 use models::{
-    JsonRpcRequest, JsonRpcResponse, LnmJsonRpcMethod, LnmWebSocketChannels, WebSocketDataLNM,
+    JsonRpcRequest, JsonRpcResponse, LnmJsonRpcMethod, LnmWebSocketChannels, WebSocketApiRes,
 };
 
 struct SpawnExecutor;
@@ -62,7 +62,7 @@ pub struct WebSocketAPI {
     shutdown_sender: mpsc::Sender<()>, // select! doesn't handle oneshot well
     sub_sender: mpsc::Sender<(Vec<LnmWebSocketChannels>, oneshot::Sender<bool>)>,
     unsub_sender: mpsc::Sender<(Vec<LnmWebSocketChannels>, oneshot::Sender<bool>)>,
-    msg_sender: broadcast::Sender<WebSocketDataLNM>,
+    res_sender: broadcast::Sender<WebSocketApiRes>,
     connection_state: Arc<Mutex<ConnectionState>>,
 }
 
@@ -167,7 +167,7 @@ impl WebSocketAPI {
         ws: &mut FragmentCollector<TokioIo<Upgraded>>,
         pending_subs: &mut HashMap<String, oneshot::Sender<bool>>,
         pending_unsubs: &mut HashMap<String, oneshot::Sender<bool>>,
-        msg_sender: &broadcast::Sender<WebSocketDataLNM>,
+        res_sender: &broadcast::Sender<WebSocketApiRes>,
         shutdown_initiated: bool,
         frame_result: std::result::Result<Frame<'_>, WebSocketError>,
     ) -> Result<bool> {
@@ -214,7 +214,7 @@ impl WebSocketAPI {
                     if method == "subscription" {
                         let data = json_rpc_res.try_into()?;
 
-                        msg_sender
+                        res_sender
                             .send(data)
                             .map_err(|e| WebSocketApiError::Generic(e.to_string()))?;
 
@@ -262,7 +262,7 @@ impl WebSocketAPI {
         mut shutdown_receiver: mpsc::Receiver<()>,
         mut sub_receiver: mpsc::Receiver<(Vec<LnmWebSocketChannels>, oneshot::Sender<bool>)>,
         mut unsub_receiver: mpsc::Receiver<(Vec<LnmWebSocketChannels>, oneshot::Sender<bool>)>,
-        msg_sender: broadcast::Sender<WebSocketDataLNM>,
+        msg_sender: broadcast::Sender<WebSocketApiRes>,
         connection_state: Arc<Mutex<ConnectionState>>,
     ) -> Result<()> {
         let mut pending_subs: HashMap<String, oneshot::Sender<bool>> = HashMap::new();
@@ -271,6 +271,7 @@ impl WebSocketAPI {
         let handler = || {
             let pending_subs = &mut pending_subs;
             let pending_unsubs = &mut pending_unsubs;
+            let msg_sender = &msg_sender;
 
             async move {
                 let mut shutdown_initiated = false;
@@ -351,6 +352,12 @@ impl WebSocketAPI {
             Ok(_) => ConnectionState::Disconnected,
         };
 
+        let connection_update = WebSocketApiRes::from(&*connection_state_guard);
+
+        msg_sender.send(connection_update).map_err(|e| {
+            WebSocketApiError::Generic(format!("Failed to send connection update {:?}", e))
+        })?;
+
         Ok(())
     }
 
@@ -368,8 +375,8 @@ impl WebSocketAPI {
         let (unsub_sender, unsub_receiver) =
             mpsc::channel::<(Vec<LnmWebSocketChannels>, oneshot::Sender<bool>)>(100);
 
-        // External channel for subscription messages
-        let (msg_sender, _) = broadcast::channel::<WebSocketDataLNM>(100);
+        // External channel for API responses
+        let (res_sender, _) = broadcast::channel::<WebSocketApiRes>(100);
 
         let connection_state = Arc::new(Mutex::new(ConnectionState::Connected));
 
@@ -378,7 +385,7 @@ impl WebSocketAPI {
             shutdown_receiver,
             sub_receiver,
             unsub_receiver,
-            msg_sender.clone(),
+            res_sender.clone(),
             connection_state.clone(),
         ));
 
@@ -388,7 +395,7 @@ impl WebSocketAPI {
             shutdown_sender,
             sub_sender,
             unsub_sender,
-            msg_sender,
+            res_sender,
         })
     }
 
@@ -475,10 +482,10 @@ impl WebSocketAPI {
         Ok(())
     }
 
-    pub async fn receiver(&self) -> Result<broadcast::Receiver<WebSocketDataLNM>> {
+    pub async fn receiver(&self) -> Result<broadcast::Receiver<WebSocketApiRes>> {
         self.evaluate_manager_status().await?;
 
-        let broadcast_rx = self.msg_sender.subscribe();
+        let broadcast_rx = self.res_sender.subscribe();
         Ok(broadcast_rx)
     }
 }
