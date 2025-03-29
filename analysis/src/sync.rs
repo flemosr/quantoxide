@@ -5,13 +5,13 @@ use crate::{
     api::{
         rest::{self, models::PriceEntryLNM},
         websocket::{
-            models::{LnmWebSocketChannels, WebSocketApiRes},
+            models::{LnmWebSocketChannel, WebSocketApiRes},
             WebSocketAPI,
         },
     },
     db,
     env::{
-        LNM_API_COOLDOWN_SEC, LNM_API_ERROR_COOLDOWN_SEC, LNM_API_ERROR_MAX_TRIALS,
+        LNM_API_COOLDOWN_SEC, LNM_API_DOMAIN, LNM_API_ERROR_COOLDOWN_SEC, LNM_API_ERROR_MAX_TRIALS,
         LNM_MIN_PRICE_HISTORY_WEEKS, LNM_PRICE_HISTORY_LIMIT,
     },
     error::AppError,
@@ -285,15 +285,11 @@ pub async fn start() -> Result<()> {
 
     println!("\nInit WebSocket connection");
 
-    let ws_api = WebSocketAPI::new().await?;
+    let ws_api = WebSocketAPI::new(LNM_API_DOMAIN.to_string()).await?;
 
     println!("\nWS running {}", ws_api.is_connected());
 
-    println!("\nSubscribe to prices");
-
-    ws_api
-        .subscribe(vec![LnmWebSocketChannels::FuturesBtcUsdLastPrice])
-        .await?;
+    println!("\nSetup receiver");
 
     let mut receiver = ws_api.receiver().await?;
 
@@ -314,23 +310,47 @@ pub async fn start() -> Result<()> {
         println!("Receiver closed");
     });
 
+    println!("\nReceiver running");
+
     wait(10);
 
-    println!("\nSubscribe to index");
+    println!("\nSubscribe to prices");
 
     ws_api
-        .subscribe(vec![LnmWebSocketChannels::FuturesBtcUsdIndex])
+        .subscribe(vec![LnmWebSocketChannel::FuturesBtcUsdLastPrice])
         .await?;
+
+    println!("\nSubscriptions {:?}", ws_api.subscriptions().await);
 
     wait(10);
 
     println!("\nUnsubscribe from prices");
 
     ws_api
-        .unsubscribe(vec![LnmWebSocketChannels::FuturesBtcUsdLastPrice])
+        .unsubscribe(vec![LnmWebSocketChannel::FuturesBtcUsdLastPrice])
         .await?;
 
-    println!("\nUnsubscribed from prices");
+    println!("\nSubscriptions {:?}", ws_api.subscriptions().await);
+
+    wait(10);
+
+    println!("\nSubscribe to index");
+
+    ws_api
+        .subscribe(vec![LnmWebSocketChannel::FuturesBtcUsdIndex])
+        .await?;
+
+    println!("\nSubscriptions {:?}", ws_api.subscriptions().await);
+
+    wait(10);
+
+    println!("\nUnsubscribe from prices");
+
+    ws_api
+        .unsubscribe(vec![LnmWebSocketChannel::FuturesBtcUsdLastPrice])
+        .await?;
+
+    println!("\nSubscriptions {:?}", ws_api.subscriptions().await);
 
     wait(10);
 
