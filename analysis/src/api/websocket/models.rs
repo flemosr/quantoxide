@@ -9,46 +9,55 @@ use super::{
     ConnectionState,
 };
 
-pub enum LnmJsonRpcMethod {
+pub enum LnmJsonRpcReqMethod {
     Subscribe,
     Unsubscribe,
 }
 
-impl LnmJsonRpcMethod {
+impl LnmJsonRpcReqMethod {
     fn as_str(&self) -> &'static str {
         match self {
-            LnmJsonRpcMethod::Subscribe => "v1/public/subscribe",
-            LnmJsonRpcMethod::Unsubscribe => "v1/public/unsubscribe",
+            LnmJsonRpcReqMethod::Subscribe => "v1/public/subscribe",
+            LnmJsonRpcReqMethod::Unsubscribe => "v1/public/unsubscribe",
         }
     }
 }
 
-impl fmt::Display for LnmJsonRpcMethod {
+impl fmt::Display for LnmJsonRpcReqMethod {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.as_str())
     }
 }
 
 #[derive(Serialize, Debug, PartialEq, Eq)]
-pub struct JsonRpcRequest {
+pub struct LnmJsonRpcRequest {
     jsonrpc: String,
     method: String,
-    pub id: String,
+    id: String,
     params: Vec<String>,
 }
 
-impl JsonRpcRequest {
-    pub fn new(method: LnmJsonRpcMethod, params: Vec<String>) -> Self {
+impl LnmJsonRpcRequest {
+    pub fn new(method: LnmJsonRpcReqMethod, channels: Vec<LnmWebSocketChannel>) -> Self {
         let mut random_bytes = [0u8; 16];
         rand::rng().fill(&mut random_bytes);
-        let request_id = hex::encode(random_bytes);
+        let id = hex::encode(random_bytes);
+
+        let channels = channels
+            .into_iter()
+            .map(|channel| channel.to_string())
+            .collect();
 
         Self {
             jsonrpc: "2.0".to_string(),
-            method: method.to_string(),
-            id: request_id,
-            params,
+            method: method.as_str().to_string(),
+            id,
+            params: channels,
         }
+    }
+
+    pub fn id(&self) -> &str {
+        self.id.as_str()
     }
 
     pub fn try_to_bytes(&self) -> Result<Vec<u8>> {

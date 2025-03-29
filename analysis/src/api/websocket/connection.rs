@@ -17,7 +17,7 @@ use webpki_roots::TLS_SERVER_ROOTS;
 
 use super::{
     error::{Result, WebSocketApiError},
-    models::{JsonRpcRequest, JsonRpcResponse},
+    models::{JsonRpcResponse, LnmJsonRpcRequest},
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -93,7 +93,7 @@ impl WebSocketApiConnection {
             .map_err(|e| WebSocketApiError::Generic(e.to_string()))
     }
 
-    pub async fn send_json_rpc(&mut self, req: JsonRpcRequest) -> Result<()> {
+    pub async fn send_json_rpc(&mut self, req: LnmJsonRpcRequest) -> Result<()> {
         let request_bytes = req
             .try_to_bytes()
             .map_err(|e| WebSocketApiError::Generic(e.to_string()))?;

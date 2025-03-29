@@ -14,7 +14,7 @@ pub mod error;
 pub mod models;
 
 use error::{Result, WebSocketApiError};
-use models::{JsonRpcRequest, LnmJsonRpcMethod, LnmWebSocketChannel, WebSocketApiRes};
+use models::{LnmJsonRpcReqMethod, LnmJsonRpcRequest, LnmWebSocketChannel, WebSocketApiRes};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum ChannelStatus {
@@ -48,13 +48,8 @@ impl WebSocketAPI {
     ) -> Result<()> {
         let (channels, oneshot_tx) = req;
 
-        let channels = channels
-            .into_iter()
-            .map(|channel| channel.to_string())
-            .collect();
-
-        let req = JsonRpcRequest::new(LnmJsonRpcMethod::Subscribe, channels);
-        let req_id = req.id.clone();
+        let req = LnmJsonRpcRequest::new(LnmJsonRpcReqMethod::Subscribe, channels);
+        let req_id = req.id().to_string();
 
         ws.send_json_rpc(req).await?;
 
@@ -70,13 +65,8 @@ impl WebSocketAPI {
     ) -> Result<()> {
         let (channels, oneshot_tx) = req;
 
-        let channels = channels
-            .into_iter()
-            .map(|channel| channel.to_string())
-            .collect();
-
-        let req = JsonRpcRequest::new(LnmJsonRpcMethod::Unsubscribe, channels);
-        let req_id = req.id.clone();
+        let req = LnmJsonRpcRequest::new(LnmJsonRpcReqMethod::Unsubscribe, channels);
+        let req_id = req.id().to_string();
 
         ws.send_json_rpc(req).await?;
 
