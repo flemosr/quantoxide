@@ -53,7 +53,7 @@ fn tls_connector() -> Result<TlsConnector> {
 #[derive(Clone, Debug)]
 pub enum ConnectionState {
     Connected,
-    Failed(String),
+    Failed(WebSocketApiError),
     Disconnected,
 }
 
@@ -347,7 +347,7 @@ impl WebSocketAPI {
 
         let mut connection_state_guard = connection_state.lock().await;
         *connection_state_guard = match handler_res {
-            Err(err) => ConnectionState::Failed(err.to_string()),
+            Err(err) => ConnectionState::Failed(err),
             Ok(_) => ConnectionState::Disconnected,
         };
 
@@ -403,7 +403,7 @@ impl WebSocketAPI {
     async fn evaluate_manager_status(&self) -> Result<()> {
         let err = match self.connection_state().await {
             ConnectionState::Connected => return Ok(()),
-            ConnectionState::Failed(err) => WebSocketApiError::Generic(err),
+            ConnectionState::Failed(err) => err,
             ConnectionState::Disconnected => {
                 WebSocketApiError::Generic("WebSocket manager is finished".to_string())
             }

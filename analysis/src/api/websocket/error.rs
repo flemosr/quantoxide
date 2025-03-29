@@ -1,7 +1,7 @@
 use std::result;
 use thiserror::Error;
 
-#[derive(Error, Debug)]
+#[derive(Error, Debug, Clone)]
 pub enum WebSocketApiError {
     #[error("WebSocket generic error: {0}")]
     Generic(String),
