@@ -226,19 +226,7 @@ impl WebSocketAPI {
                     format!("unhandled text {text}",),
                 ))
             }
-            OpCode::Close => {
-                if shutdown_initiated {
-                    // Shutdown confirmation response received
-                    return Ok(true);
-                }
-
-                // Send shutdown confirmation response
-                let _ = Self::handle_shutdown_signal(ws).await;
-
-                Err(WebSocketApiError::Generic(
-                    "server requested shutdown".to_string(),
-                ))
-            }
+            OpCode::Close => Ok(true),
             OpCode::Ping => {
                 // Automatically respond to pings with pongs
                 ws.write_frame(Frame::pong(frame.payload.to_vec().into()))
@@ -315,9 +303,21 @@ impl WebSocketAPI {
                                 frame_result
                             ).await?;
 
-                            if is_close_signal {
-                                return Ok(());
+                            if !is_close_signal {
+                                continue;
                             }
+
+                            if shutdown_initiated {
+                                // Shutdown confirmation response received
+                                return Ok(true);
+                            }
+
+                            // Send shutdown confirmation response
+                            let _ = Self::handle_shutdown_signal(&mut ws).await;
+
+                            return Err(WebSocketApiError::Generic(
+                                "server requested shutdown".to_string(),
+                            ));
                         }
                         _ = &mut heartbeat_timer => {
 
