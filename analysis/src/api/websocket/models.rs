@@ -2,7 +2,7 @@ use chrono::{DateTime, Utc};
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::fmt;
+use std::{fmt, fs::read};
 
 use super::{
     error::{Result, WebSocketApiError},
@@ -135,8 +135,8 @@ impl fmt::Display for LnmWebSocketChannel {
 #[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct JsonRpcResponse {
     jsonrpc: String,
-    pub id: Option<String>,
-    pub method: Option<String>,
+    id: Option<String>,
+    method: Option<String>,
     result: Option<Value>,
     error: Option<Value>,
     params: Option<Value>,
@@ -224,5 +224,89 @@ impl TryFrom<JsonRpcResponse> for WebSocketApiRes {
         };
 
         Ok(data)
+    }
+}
+
+pub enum LnmJsonRpcResponse {
+    Confirmation {
+        id: String,
+        channels: Vec<LnmWebSocketChannel>,
+    },
+    Subscription(WebSocketApiRes),
+}
+
+impl TryFrom<JsonRpcResponse> for LnmJsonRpcResponse {
+    type Error = WebSocketApiError;
+
+    fn try_from(response: JsonRpcResponse) -> Result<Self> {
+        if let Some(id) = response.id {
+            let result = response.result.ok_or_else(|| {
+                WebSocketApiError::Generic("Missing result in confirmation".to_string())
+            })?;
+
+            let result_array = result.as_array().ok_or_else(|| {
+                WebSocketApiError::Generic("Result is not an array in confirmation".to_string())
+            })?;
+
+            let result_array_len = result_array.len();
+            let channels: Vec<LnmWebSocketChannel> = result_array
+                .into_iter()
+                .filter_map(|channel| LnmWebSocketChannel::try_from(channel.as_str()?).ok())
+                .collect();
+
+            if channels.len() != result_array_len {
+                return Err(WebSocketApiError::Generic(
+                    "Received unknown channel in result array".to_string(),
+                ));
+            }
+
+            return Ok(Self::Confirmation { id, channels });
+        }
+
+        if response.method.as_deref() == Some("subscription") {
+            let params = response.params.ok_or_else(|| {
+                WebSocketApiError::Generic("Missing params in subscription".to_string())
+            })?;
+
+            let params_obj = params
+                .as_object()
+                .ok_or_else(|| WebSocketApiError::Generic("Params is not an object".to_string()))?;
+
+            let channel: LnmWebSocketChannel = params_obj
+                .get("channel")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| WebSocketApiError::Generic("Missing channel in params".to_string()))?
+                .try_into()?;
+
+            let data = params_obj
+                .get("data")
+                .ok_or_else(|| WebSocketApiError::Generic("Missing data in params".to_string()))?;
+
+            let data = match channel {
+                LnmWebSocketChannel::FuturesBtcUsdLastPrice => {
+                    let price_tick: PriceTickLNM =
+                        serde_json::from_value(data.clone()).map_err(|e| {
+                            WebSocketApiError::Generic(format!("Failed to parse price tick: {}", e))
+                        })?;
+                    WebSocketApiRes::PriceTick(price_tick)
+                }
+                LnmWebSocketChannel::FuturesBtcUsdIndex => {
+                    let price_index: PriceIndexLNM =
+                        serde_json::from_value(data.clone()).map_err(|e| {
+                            WebSocketApiError::Generic(format!(
+                                "Failed to parse price index: {}",
+                                e
+                            ))
+                        })?;
+                    WebSocketApiRes::PriceIndex(price_index)
+                }
+            };
+
+            return Ok(Self::Subscription(data));
+        }
+
+        return Err(WebSocketApiError::Generic(
+            "Unknown JSON RPC response".to_string(),
+        ));
     }
 }

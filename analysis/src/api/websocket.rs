@@ -14,7 +14,10 @@ pub mod error;
 pub mod models;
 
 use error::{Result, WebSocketApiError};
-use models::{LnmJsonRpcReqMethod, LnmJsonRpcRequest, LnmWebSocketChannel, WebSocketApiRes};
+use models::{
+    LnmJsonRpcReqMethod, LnmJsonRpcRequest, LnmJsonRpcResponse, LnmWebSocketChannel,
+    WebSocketApiRes,
+};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum ChannelStatus {
@@ -66,33 +69,26 @@ impl WebSocketAPI {
     ) -> Result<()> {
         match response {
             WebSocketResponse::JsonRpc(json_rpc_res) => {
-                if let Some(id) = json_rpc_res.id.as_ref() {
-                    if let Some((_, oneshot_tx)) = pending.remove(id) {
-                        // This is a subscription confirmation response
+                let lnm_json_rpc_res = LnmJsonRpcResponse::try_from(json_rpc_res)?;
 
-                        // TODO: Check if subscription OR subscription was successfull
-                        let is_success = true;
+                match lnm_json_rpc_res {
+                    LnmJsonRpcResponse::Confirmation { id, channels: _ } => {
+                        if let Some((_, oneshot_tx)) = pending.remove(&id) {
+                            // TODO: Check if subscription OR subscription was successfull
+                            let is_success = true;
 
-                        oneshot_tx
-                            .send(is_success)
-                            .map_err(|e| WebSocketApiError::Generic(e.to_string()))?;
+                            oneshot_tx
+                                .send(is_success)
+                                .map_err(|e| WebSocketApiError::Generic(e.to_string()))?;
+                        }
+
+                        // Ignore unhandled ids
                     }
-
-                    // Ignore unhandled ids
-                } else if let Some(method) = &json_rpc_res.method {
-                    // TODO: Use proper method enum
-                    if method == "subscription" {
-                        let data = json_rpc_res.try_into()?;
-
+                    LnmJsonRpcResponse::Subscription(data) => {
                         responses_tx
                             .send(data)
                             .map_err(|e| WebSocketApiError::Generic(e.to_string()))?;
                     }
-                } else {
-                    return Err(WebSocketApiError::Generic(format!(
-                        "unhandled json_rpc_res {:?}",
-                        json_rpc_res
-                    )));
                 }
             }
             WebSocketResponse::Ping(payload) => {
