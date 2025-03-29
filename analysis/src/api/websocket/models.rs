@@ -9,6 +9,24 @@ use super::{
     ConnectionState,
 };
 
+#[derive(Serialize, Debug, PartialEq, Eq)]
+struct JsonRpcRequest {
+    jsonrpc: String,
+    method: String,
+    id: String,
+    params: Vec<String>,
+}
+
+impl JsonRpcRequest {
+    pub fn try_to_bytes(&self) -> Result<Vec<u8>> {
+        let request_json =
+            serde_json::to_string(&self).map_err(|e| WebSocketApiError::Generic(e.to_string()))?;
+        let bytes = request_json.into_bytes();
+        Ok(bytes)
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum LnmJsonRpcReqMethod {
     Subscribe,
     Unsubscribe,
@@ -29,12 +47,11 @@ impl fmt::Display for LnmJsonRpcReqMethod {
     }
 }
 
-#[derive(Serialize, Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct LnmJsonRpcRequest {
-    jsonrpc: String,
-    method: String,
+    method: LnmJsonRpcReqMethod,
     id: String,
-    params: Vec<String>,
+    channels: Vec<LnmWebSocketChannel>,
 }
 
 impl LnmJsonRpcRequest {
@@ -43,28 +60,40 @@ impl LnmJsonRpcRequest {
         rand::rng().fill(&mut random_bytes);
         let id = hex::encode(random_bytes);
 
-        let channels = channels
+        Self {
+            method,
+            id,
+            channels,
+        }
+    }
+
+    pub fn id(&self) -> &String {
+        &self.id
+    }
+
+    pub fn method(&self) -> &LnmJsonRpcReqMethod {
+        &self.method
+    }
+
+    pub fn try_into_bytes(self) -> Result<Vec<u8>> {
+        JsonRpcRequest::from(self).try_to_bytes()
+    }
+}
+
+impl From<LnmJsonRpcRequest> for JsonRpcRequest {
+    fn from(request: LnmJsonRpcRequest) -> Self {
+        let channels = request
+            .channels
             .into_iter()
             .map(|channel| channel.to_string())
             .collect();
 
-        Self {
+        JsonRpcRequest {
             jsonrpc: "2.0".to_string(),
-            method: method.as_str().to_string(),
-            id,
+            method: request.method.as_str().to_string(),
+            id: request.id,
             params: channels,
         }
-    }
-
-    pub fn id(&self) -> &str {
-        self.id.as_str()
-    }
-
-    pub fn try_to_bytes(&self) -> Result<Vec<u8>> {
-        let request_json =
-            serde_json::to_string(&self).map_err(|e| WebSocketApiError::Generic(e.to_string()))?;
-        let bytes = request_json.into_bytes();
-        Ok(bytes)
     }
 }
 

@@ -30,74 +30,47 @@ pub enum ConnectionState {
     Disconnected,
 }
 
+type PendingMap = HashMap<String, (LnmJsonRpcReqMethod, oneshot::Sender<bool>)>;
+
 pub struct WebSocketAPI {
     manager_handle: JoinHandle<Result<()>>,
-    shutdown_sender: mpsc::Sender<()>, // select! doesn't handle oneshot well
-    sub_sender: mpsc::Sender<(Vec<LnmWebSocketChannel>, oneshot::Sender<bool>)>,
-    unsub_sender: mpsc::Sender<(Vec<LnmWebSocketChannel>, oneshot::Sender<bool>)>,
-    res_sender: broadcast::Sender<WebSocketApiRes>,
+    shutdown_tx: mpsc::Sender<()>, // select! doesn't handle oneshot well
+    subscriptions_tx: mpsc::Sender<(LnmJsonRpcRequest, oneshot::Sender<bool>)>,
+    responses_tx: broadcast::Sender<WebSocketApiRes>,
     connection_state: Arc<Mutex<ConnectionState>>,
     subscriptions: Arc<Mutex<HashMap<LnmWebSocketChannel, ChannelStatus>>>,
 }
 
 impl WebSocketAPI {
-    async fn handle_subscription_request(
+    async fn handle_json_rpc_request(
         ws: &mut WebSocketApiConnection,
-        pending_subs: &mut HashMap<String, oneshot::Sender<bool>>,
-        req: (Vec<LnmWebSocketChannel>, oneshot::Sender<bool>),
+        pending: &mut PendingMap,
+        json_rpc_req: LnmJsonRpcRequest,
+        oneshot_tx: oneshot::Sender<bool>,
     ) -> Result<()> {
-        let (channels, oneshot_tx) = req;
+        let req_id = json_rpc_req.id().clone();
+        let req_method = json_rpc_req.method().clone();
 
-        let req = LnmJsonRpcRequest::new(LnmJsonRpcReqMethod::Subscribe, channels);
-        let req_id = req.id().to_string();
+        ws.send_json_rpc(json_rpc_req).await?;
 
-        ws.send_json_rpc(req).await?;
-
-        pending_subs.insert(req_id, oneshot_tx);
-
-        Ok(())
-    }
-
-    async fn handle_unsubscription_request(
-        ws: &mut WebSocketApiConnection,
-        pending_unsubs: &mut HashMap<String, oneshot::Sender<bool>>,
-        req: (Vec<LnmWebSocketChannel>, oneshot::Sender<bool>),
-    ) -> Result<()> {
-        let (channels, oneshot_tx) = req;
-
-        let req = LnmJsonRpcRequest::new(LnmJsonRpcReqMethod::Unsubscribe, channels);
-        let req_id = req.id().to_string();
-
-        ws.send_json_rpc(req).await?;
-
-        pending_unsubs.insert(req_id, oneshot_tx);
+        pending.insert(req_id, (req_method, oneshot_tx));
 
         Ok(())
     }
 
     async fn handle_ws_response(
         ws: &mut WebSocketApiConnection,
-        pending_subs: &mut HashMap<String, oneshot::Sender<bool>>,
-        pending_unsubs: &mut HashMap<String, oneshot::Sender<bool>>,
+        pending: &mut PendingMap,
         res_sender: &broadcast::Sender<WebSocketApiRes>,
         response: WebSocketResponse,
     ) -> Result<()> {
         match response {
             WebSocketResponse::JsonRpc(json_rpc_res) => {
                 if let Some(id) = json_rpc_res.id.as_ref() {
-                    if let Some(oneshot_tx) = pending_subs.remove(id) {
+                    if let Some((_, oneshot_tx)) = pending.remove(id) {
                         // This is a subscription confirmation response
 
-                        // TODO: Check if subscription was successfull
-                        let is_success = true;
-
-                        oneshot_tx
-                            .send(is_success)
-                            .map_err(|e| WebSocketApiError::Generic(e.to_string()))?;
-                    } else if let Some(oneshot_tx) = pending_unsubs.remove(id) {
-                        // This is a unsubscription confirmation response
-
-                        // TODO: Check if unsubscription was successfull
+                        // TODO: Check if subscription OR subscription was successfull
                         let is_success = true;
 
                         oneshot_tx
@@ -136,19 +109,17 @@ impl WebSocketAPI {
 
     async fn manager_task(
         mut ws: WebSocketApiConnection,
-        mut shutdown_receiver: mpsc::Receiver<()>,
-        mut sub_receiver: mpsc::Receiver<(Vec<LnmWebSocketChannel>, oneshot::Sender<bool>)>,
-        mut unsub_receiver: mpsc::Receiver<(Vec<LnmWebSocketChannel>, oneshot::Sender<bool>)>,
-        msg_sender: broadcast::Sender<WebSocketApiRes>,
+        mut shutdown_rx: mpsc::Receiver<()>,
+        mut subscriptions_rx: mpsc::Receiver<(LnmJsonRpcRequest, oneshot::Sender<bool>)>,
+        responses_tx: broadcast::Sender<WebSocketApiRes>,
         connection_state: Arc<Mutex<ConnectionState>>,
     ) -> Result<()> {
-        let mut pending_subs: HashMap<String, oneshot::Sender<bool>> = HashMap::new();
-        let mut pending_unsubs: HashMap<String, oneshot::Sender<bool>> = HashMap::new();
+        let mut pending: HashMap<String, (LnmJsonRpcReqMethod, oneshot::Sender<bool>)> =
+            HashMap::new();
 
         let handler = || {
-            let pending_subs = &mut pending_subs;
-            let pending_unsubs = &mut pending_unsubs;
-            let msg_sender = &msg_sender;
+            let pending = &mut pending;
+            let msg_sender = &responses_tx;
 
             async move {
                 let new_heartbeat_timer = || Box::pin(time::sleep(time::Duration::from_secs(5)));
@@ -158,17 +129,14 @@ impl WebSocketAPI {
 
                 loop {
                     tokio::select! {
-                        Some(_) = shutdown_receiver.recv() => {
+                        Some(_) = shutdown_rx.recv() => {
                             shutdown_initiated = true;
                             heartbeat_timer = new_heartbeat_timer();
 
                             ws.send_close().await?;
                         }
-                        Some(req) = sub_receiver.recv() => {
-                            Self::handle_subscription_request(&mut ws, pending_subs, req).await?;
-                        }
-                        Some(req) = unsub_receiver.recv() => {
-                            Self::handle_unsubscription_request(&mut ws, pending_unsubs, req).await?;
+                        Some((json_rpc_req,oneshot_tx)) = subscriptions_rx.recv() => {
+                            Self::handle_json_rpc_request(&mut ws, pending, json_rpc_req, oneshot_tx).await?;
                         }
                         read_res = ws.read_respose() => {
                             let response = read_res?;
@@ -180,8 +148,7 @@ impl WebSocketAPI {
 
                             Self::handle_ws_response(
                                 &mut ws,
-                                pending_subs,
-                                pending_unsubs,
+                                pending,
                                 &msg_sender,
                                 response
                             ).await?;
@@ -228,8 +195,8 @@ impl WebSocketAPI {
 
         let handler_res = handler().await;
 
-        // Notify all pending subscriptions of failure on shutdown
-        for (_, oneshot_tx) in pending_subs {
+        // Notify all pending subscriptions / unsubscriptions of failure on shutdown
+        for (_, (_, oneshot_tx)) in pending {
             let _ = oneshot_tx.send(false);
         }
 
@@ -241,7 +208,7 @@ impl WebSocketAPI {
 
         let connection_update = WebSocketApiRes::from(&*connection_state_guard);
 
-        msg_sender.send(connection_update).map_err(|e| {
+        responses_tx.send(connection_update).map_err(|e| {
             WebSocketApiError::Generic(format!("Failed to send connection update {:?}", e))
         })?;
 
@@ -252,15 +219,11 @@ impl WebSocketAPI {
         let ws = WebSocketApiConnection::new(api_domain).await?;
 
         // Internal channel for shutdown signal
-        let (shutdown_sender, shutdown_receiver) = mpsc::channel::<()>(1);
+        let (shutdown_tx, shutdown_rx) = mpsc::channel::<()>(1);
 
-        // Internal channel for subscription requests
-        let (sub_sender, sub_receiver) =
-            mpsc::channel::<(Vec<LnmWebSocketChannel>, oneshot::Sender<bool>)>(100);
-
-        // Internal channel for unsubscription requests
-        let (unsub_sender, unsub_receiver) =
-            mpsc::channel::<(Vec<LnmWebSocketChannel>, oneshot::Sender<bool>)>(100);
+        // Internal channel for subscription and unsubscription requests
+        let (subscriptions_tx, subscriptions_rx) =
+            mpsc::channel::<(LnmJsonRpcRequest, oneshot::Sender<bool>)>(100);
 
         // External channel for API responses
         let (res_sender, _) = broadcast::channel::<WebSocketApiRes>(100);
@@ -269,9 +232,8 @@ impl WebSocketAPI {
 
         let manager_handle = tokio::spawn(Self::manager_task(
             ws,
-            shutdown_receiver,
-            sub_receiver,
-            unsub_receiver,
+            shutdown_rx,
+            subscriptions_rx,
             res_sender.clone(),
             connection_state.clone(),
         ));
@@ -281,10 +243,9 @@ impl WebSocketAPI {
         Ok(WebSocketAPI {
             manager_handle,
             connection_state,
-            shutdown_sender,
-            sub_sender,
-            unsub_sender,
-            res_sender,
+            shutdown_tx,
+            subscriptions_tx,
+            responses_tx: res_sender,
             subscriptions,
         })
     }
@@ -343,9 +304,14 @@ impl WebSocketAPI {
 
         let (oneshot_tx, oneshot_rx) = oneshot::channel();
 
+        let req = LnmJsonRpcRequest::new(
+            LnmJsonRpcReqMethod::Subscribe,
+            channels_to_subscribe.clone(),
+        );
+
         // Send subscription request to the manager task
-        self.sub_sender
-            .send((channels_to_subscribe.clone(), oneshot_tx))
+        self.subscriptions_tx
+            .send((req, oneshot_tx))
             .await
             .map_err(|e| WebSocketApiError::Generic(e.to_string()))?;
 
@@ -410,9 +376,14 @@ impl WebSocketAPI {
 
         let (oneshot_tx, oneshot_rx) = oneshot::channel();
 
+        let req = LnmJsonRpcRequest::new(
+            LnmJsonRpcReqMethod::Unsubscribe,
+            channels_to_unsubscribe.clone(),
+        );
+
         // Send subscription request to the manager task
-        self.unsub_sender
-            .send((channels_to_unsubscribe.clone(), oneshot_tx))
+        self.subscriptions_tx
+            .send((req, oneshot_tx))
             .await
             .map_err(|e| WebSocketApiError::Generic(e.to_string()))?;
 
@@ -461,13 +432,13 @@ impl WebSocketAPI {
     pub async fn receiver(&self) -> Result<broadcast::Receiver<WebSocketApiRes>> {
         self.evaluate_manager_status().await?;
 
-        let broadcast_rx = self.res_sender.subscribe();
+        let broadcast_rx = self.responses_tx.subscribe();
         Ok(broadcast_rx)
     }
 
     pub async fn shutdown(self) -> Result<()> {
         if !self.manager_handle.is_finished() {
-            self.shutdown_sender
+            self.shutdown_tx
                 .send(())
                 .await
                 .map_err(|e| WebSocketApiError::Generic(e.to_string()))?;

@@ -95,7 +95,7 @@ impl WebSocketApiConnection {
 
     pub async fn send_json_rpc(&mut self, req: LnmJsonRpcRequest) -> Result<()> {
         let request_bytes = req
-            .try_to_bytes()
+            .try_into_bytes()
             .map_err(|e| WebSocketApiError::Generic(e.to_string()))?;
 
         let frame = Frame::text(request_bytes.into());
