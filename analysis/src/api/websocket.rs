@@ -7,7 +7,11 @@ use hyper::{
     Request,
 };
 use hyper_util::rt::TokioIo;
-use std::{collections::HashMap, future::Future, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    future::Future,
+    sync::Arc,
+};
 use tokio::{
     net::TcpStream,
     sync::{broadcast, mpsc, oneshot, Mutex},
@@ -25,7 +29,7 @@ pub mod models;
 
 use error::{Result, WebSocketApiError};
 use models::{
-    JsonRpcRequest, JsonRpcResponse, LnmJsonRpcMethod, LnmWebSocketChannels, WebSocketApiRes,
+    JsonRpcRequest, JsonRpcResponse, LnmJsonRpcMethod, LnmWebSocketChannel, WebSocketApiRes,
 };
 
 struct SpawnExecutor;
@@ -49,6 +53,13 @@ fn tls_connector() -> Result<TlsConnector> {
     Ok(TlsConnector::from(Arc::new(config)))
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum ChannelStatus {
+    SubscriptionPending,
+    Subscribed,
+    UnsubscriptionPending,
+}
+
 #[derive(Clone, Debug)]
 pub enum ConnectionState {
     Connected,
@@ -59,10 +70,11 @@ pub enum ConnectionState {
 pub struct WebSocketAPI {
     manager_handle: JoinHandle<Result<()>>,
     shutdown_sender: mpsc::Sender<()>, // select! doesn't handle oneshot well
-    sub_sender: mpsc::Sender<(Vec<LnmWebSocketChannels>, oneshot::Sender<bool>)>,
-    unsub_sender: mpsc::Sender<(Vec<LnmWebSocketChannels>, oneshot::Sender<bool>)>,
+    sub_sender: mpsc::Sender<(Vec<LnmWebSocketChannel>, oneshot::Sender<bool>)>,
+    unsub_sender: mpsc::Sender<(Vec<LnmWebSocketChannel>, oneshot::Sender<bool>)>,
     res_sender: broadcast::Sender<WebSocketApiRes>,
     connection_state: Arc<Mutex<ConnectionState>>,
+    subscriptions: Arc<Mutex<HashMap<LnmWebSocketChannel, ChannelStatus>>>,
 }
 
 impl WebSocketAPI {
@@ -111,7 +123,7 @@ impl WebSocketAPI {
     async fn handle_subscription_request(
         ws: &mut FragmentCollector<TokioIo<Upgraded>>,
         pending_subs: &mut HashMap<String, oneshot::Sender<bool>>,
-        req: (Vec<LnmWebSocketChannels>, oneshot::Sender<bool>),
+        req: (Vec<LnmWebSocketChannel>, oneshot::Sender<bool>),
     ) -> Result<()> {
         let (channels, oneshot_tx) = req;
 
@@ -138,7 +150,7 @@ impl WebSocketAPI {
     async fn handle_unsubscription_request(
         ws: &mut FragmentCollector<TokioIo<Upgraded>>,
         pending_unsubs: &mut HashMap<String, oneshot::Sender<bool>>,
-        req: (Vec<LnmWebSocketChannels>, oneshot::Sender<bool>),
+        req: (Vec<LnmWebSocketChannel>, oneshot::Sender<bool>),
     ) -> Result<()> {
         let (channels, oneshot_tx) = req;
 
@@ -247,8 +259,8 @@ impl WebSocketAPI {
     async fn manager_task(
         mut ws: FragmentCollector<TokioIo<Upgraded>>,
         mut shutdown_receiver: mpsc::Receiver<()>,
-        mut sub_receiver: mpsc::Receiver<(Vec<LnmWebSocketChannels>, oneshot::Sender<bool>)>,
-        mut unsub_receiver: mpsc::Receiver<(Vec<LnmWebSocketChannels>, oneshot::Sender<bool>)>,
+        mut sub_receiver: mpsc::Receiver<(Vec<LnmWebSocketChannel>, oneshot::Sender<bool>)>,
+        mut unsub_receiver: mpsc::Receiver<(Vec<LnmWebSocketChannel>, oneshot::Sender<bool>)>,
         msg_sender: broadcast::Sender<WebSocketApiRes>,
         connection_state: Arc<Mutex<ConnectionState>>,
     ) -> Result<()> {
@@ -364,11 +376,11 @@ impl WebSocketAPI {
 
         // Internal channel for subscription requests
         let (sub_sender, sub_receiver) =
-            mpsc::channel::<(Vec<LnmWebSocketChannels>, oneshot::Sender<bool>)>(100);
+            mpsc::channel::<(Vec<LnmWebSocketChannel>, oneshot::Sender<bool>)>(100);
 
         // Internal channel for unsubscription requests
         let (unsub_sender, unsub_receiver) =
-            mpsc::channel::<(Vec<LnmWebSocketChannels>, oneshot::Sender<bool>)>(100);
+            mpsc::channel::<(Vec<LnmWebSocketChannel>, oneshot::Sender<bool>)>(100);
 
         // External channel for API responses
         let (res_sender, _) = broadcast::channel::<WebSocketApiRes>(100);
@@ -384,6 +396,8 @@ impl WebSocketAPI {
             connection_state.clone(),
         ));
 
+        let subscriptions = Arc::new(Mutex::new(HashMap::new()));
+
         Ok(WebSocketAPI {
             manager_handle,
             connection_state,
@@ -391,6 +405,7 @@ impl WebSocketAPI {
             sub_sender,
             unsub_sender,
             res_sender,
+            subscriptions,
         })
     }
 
@@ -427,14 +442,43 @@ impl WebSocketAPI {
             .map_err(|e| WebSocketApiError::Generic(e.to_string()))?
     }
 
-    pub async fn subscribe(&self, channels: Vec<LnmWebSocketChannels>) -> Result<()> {
+    pub async fn subscribe(&self, channels: Vec<LnmWebSocketChannel>) -> Result<()> {
         self.evaluate_manager_status().await?;
+
+        // Check current subscriptions
+        let mut subscriptions_lock = self.subscriptions.lock().await;
+        let mut channels_to_subscribe = Vec::new();
+
+        for channel in channels {
+            match subscriptions_lock.get(&channel) {
+                Some(ChannelStatus::Subscribed | ChannelStatus::SubscriptionPending) => {
+                    continue;
+                }
+                Some(ChannelStatus::UnsubscriptionPending) => {
+                    return Err(WebSocketApiError::Generic(format!(
+                        "Channel {channel} is pending unsubscription"
+                    )));
+                }
+                None => {
+                    // New subscription
+                    channels_to_subscribe.push(channel.clone());
+                    subscriptions_lock.insert(channel, ChannelStatus::SubscriptionPending);
+                }
+            }
+        }
+
+        drop(subscriptions_lock);
+
+        // If no channels to subscribe, return success
+        if channels_to_subscribe.is_empty() {
+            return Ok(());
+        }
 
         let (oneshot_tx, oneshot_rx) = oneshot::channel();
 
         // Send subscription request to the manager task
         self.sub_sender
-            .send((channels, oneshot_tx))
+            .send((channels_to_subscribe.clone(), oneshot_tx))
             .await
             .map_err(|e| WebSocketApiError::Generic(e.to_string()))?;
 
@@ -443,23 +487,65 @@ impl WebSocketAPI {
             .await
             .map_err(|e| WebSocketApiError::Generic(e.to_string()))?;
 
-        if !success {
-            return Err(WebSocketApiError::Generic(
-                "could not subscribe".to_string(),
-            ));
+        let mut subscriptions_lock = self.subscriptions.lock().await;
+
+        for channel in channels_to_subscribe {
+            let channel_status = subscriptions_lock.get(&channel).ok_or_else(|| {
+                WebSocketApiError::Generic("Invalid subscriptions state".to_string())
+            })?;
+
+            if *channel_status != ChannelStatus::SubscriptionPending {
+                return Err(WebSocketApiError::Generic(
+                    "Invalid subscriptions state".to_string(),
+                ));
+            }
+
+            if success {
+                subscriptions_lock.insert(channel, ChannelStatus::Subscribed);
+            } else {
+                subscriptions_lock.remove(&channel);
+            }
         }
 
         Ok(())
     }
 
-    pub async fn unsubscribe(&self, channels: Vec<LnmWebSocketChannels>) -> Result<()> {
+    pub async fn unsubscribe(&self, channels: Vec<LnmWebSocketChannel>) -> Result<()> {
         self.evaluate_manager_status().await?;
+
+        let mut subscriptions_lock = self.subscriptions.lock().await;
+        let mut channels_to_unsubscribe = Vec::new();
+
+        for channel in channels {
+            match subscriptions_lock.get(&channel) {
+                Some(ChannelStatus::Subscribed) => {
+                    // New subscription
+                    channels_to_unsubscribe.push(channel.clone());
+                    subscriptions_lock.insert(channel, ChannelStatus::UnsubscriptionPending);
+                }
+                Some(ChannelStatus::SubscriptionPending) => {
+                    return Err(WebSocketApiError::Generic(format!(
+                        "Channel {channel} is pending subscription"
+                    )));
+                }
+                Some(ChannelStatus::UnsubscriptionPending) | None => {
+                    continue;
+                }
+            }
+        }
+
+        drop(subscriptions_lock);
+
+        // If no channels to subscribe, return success
+        if channels_to_unsubscribe.is_empty() {
+            return Ok(());
+        }
 
         let (oneshot_tx, oneshot_rx) = oneshot::channel();
 
-        // Send unsubscription request to the manager task
+        // Send subscription request to the manager task
         self.unsub_sender
-            .send((channels, oneshot_tx))
+            .send((channels_to_unsubscribe.clone(), oneshot_tx))
             .await
             .map_err(|e| WebSocketApiError::Generic(e.to_string()))?;
 
@@ -468,13 +554,41 @@ impl WebSocketAPI {
             .await
             .map_err(|e| WebSocketApiError::Generic(e.to_string()))?;
 
-        if !success {
-            return Err(WebSocketApiError::Generic(
-                "could not unsubscribe".to_string(),
-            ));
+        let mut subscriptions_lock = self.subscriptions.lock().await;
+
+        for channel in channels_to_unsubscribe {
+            let channel_status = subscriptions_lock.get(&channel).ok_or_else(|| {
+                WebSocketApiError::Generic("Invalid subscriptions state".to_string())
+            })?;
+
+            if *channel_status != ChannelStatus::UnsubscriptionPending {
+                return Err(WebSocketApiError::Generic(
+                    "Invalid subscriptions state".to_string(),
+                ));
+            }
+
+            if success {
+                subscriptions_lock.remove(&channel);
+            } else {
+                subscriptions_lock.insert(channel, ChannelStatus::Subscribed);
+            }
         }
 
         Ok(())
+    }
+
+    pub async fn subscriptions(&self) -> HashSet<LnmWebSocketChannel> {
+        let subscriptions = self.subscriptions.lock().await;
+        subscriptions
+            .iter()
+            .filter_map(|(channel, status)| {
+                if let ChannelStatus::Subscribed = status {
+                    Some(channel.clone())
+                } else {
+                    None
+                }
+            })
+            .collect::<HashSet<LnmWebSocketChannel>>()
     }
 
     pub async fn receiver(&self) -> Result<broadcast::Receiver<WebSocketApiRes>> {
