@@ -59,27 +59,28 @@ impl JsonRpcRequest {
     }
 }
 
-pub enum LnmWebSocketChannels {
+#[derive(PartialEq, Eq, Clone, Hash, Debug)]
+pub enum LnmWebSocketChannel {
     FuturesBtcUsdIndex,
     FuturesBtcUsdLastPrice,
 }
 
-impl LnmWebSocketChannels {
+impl LnmWebSocketChannel {
     fn as_str(&self) -> &'static str {
         match self {
-            LnmWebSocketChannels::FuturesBtcUsdIndex => "futures:btc_usd:index",
-            LnmWebSocketChannels::FuturesBtcUsdLastPrice => "futures:btc_usd:last-price",
+            LnmWebSocketChannel::FuturesBtcUsdIndex => "futures:btc_usd:index",
+            LnmWebSocketChannel::FuturesBtcUsdLastPrice => "futures:btc_usd:last-price",
         }
     }
 }
 
-impl TryFrom<&str> for LnmWebSocketChannels {
+impl TryFrom<&str> for LnmWebSocketChannel {
     type Error = WebSocketApiError;
 
     fn try_from(value: &str) -> Result<Self> {
         match value {
-            "futures:btc_usd:index" => Ok(LnmWebSocketChannels::FuturesBtcUsdIndex),
-            "futures:btc_usd:last-price" => Ok(LnmWebSocketChannels::FuturesBtcUsdLastPrice),
+            "futures:btc_usd:index" => Ok(LnmWebSocketChannel::FuturesBtcUsdIndex),
+            "futures:btc_usd:last-price" => Ok(LnmWebSocketChannel::FuturesBtcUsdLastPrice),
             _ => Err(WebSocketApiError::Generic(format!(
                 "Unknown channel: {value}",
             ))),
@@ -87,7 +88,7 @@ impl TryFrom<&str> for LnmWebSocketChannels {
     }
 }
 
-impl fmt::Display for LnmWebSocketChannels {
+impl fmt::Display for LnmWebSocketChannel {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.as_str())
     }
@@ -157,7 +158,7 @@ impl TryFrom<JsonRpcResponse> for WebSocketApiRes {
             .as_object()
             .ok_or_else(|| WebSocketApiError::Generic("Params is not an object".to_string()))?;
 
-        let channel: LnmWebSocketChannels = params_obj
+        let channel: LnmWebSocketChannel = params_obj
             .get("channel")
             .and_then(|v| v.as_str())
             .ok_or_else(|| WebSocketApiError::Generic("Missing channel in params".to_string()))?
@@ -168,14 +169,14 @@ impl TryFrom<JsonRpcResponse> for WebSocketApiRes {
             .ok_or_else(|| WebSocketApiError::Generic("Missing data in params".to_string()))?;
 
         let data = match channel {
-            LnmWebSocketChannels::FuturesBtcUsdLastPrice => {
+            LnmWebSocketChannel::FuturesBtcUsdLastPrice => {
                 let price_tick: PriceTickLNM =
                     serde_json::from_value(data.clone()).map_err(|e| {
                         WebSocketApiError::Generic(format!("Failed to parse price tick: {}", e))
                     })?;
                 WebSocketApiRes::PriceTick(price_tick)
             }
-            LnmWebSocketChannels::FuturesBtcUsdIndex => {
+            LnmWebSocketChannel::FuturesBtcUsdIndex => {
                 let price_index: PriceIndexLNM =
                     serde_json::from_value(data.clone()).map_err(|e| {
                         WebSocketApiError::Generic(format!("Failed to parse price index: {}", e))
