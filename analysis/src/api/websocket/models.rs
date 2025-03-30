@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
 use rand::Rng;
-use serde::{Deserialize, Serialize};
+use serde::{de, Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 use std::fmt;
 
@@ -133,7 +133,7 @@ impl fmt::Display for LnmWebSocketChannel {
 }
 
 #[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
-pub struct JsonRpcResponse {
+struct JsonRpcResponse {
     jsonrpc: String,
     id: Option<String>,
     method: Option<String>,
@@ -178,55 +178,7 @@ impl From<&ConnectionState> for WebSocketApiRes {
     }
 }
 
-impl TryFrom<JsonRpcResponse> for WebSocketApiRes {
-    type Error = WebSocketApiError;
-
-    fn try_from(response: JsonRpcResponse) -> Result<Self> {
-        if response.method.as_deref() != Some("subscription") {
-            return Err(WebSocketApiError::Generic(
-                "Not a subscription message".to_string(),
-            ));
-        }
-
-        let params = response.params.ok_or_else(|| {
-            WebSocketApiError::Generic("Missing params in subscription".to_string())
-        })?;
-
-        let params_obj = params
-            .as_object()
-            .ok_or_else(|| WebSocketApiError::Generic("Params is not an object".to_string()))?;
-
-        let channel: LnmWebSocketChannel = params_obj
-            .get("channel")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| WebSocketApiError::Generic("Missing channel in params".to_string()))?
-            .try_into()?;
-
-        let data = params_obj
-            .get("data")
-            .ok_or_else(|| WebSocketApiError::Generic("Missing data in params".to_string()))?;
-
-        let data = match channel {
-            LnmWebSocketChannel::FuturesBtcUsdLastPrice => {
-                let price_tick: PriceTickLNM =
-                    serde_json::from_value(data.clone()).map_err(|e| {
-                        WebSocketApiError::Generic(format!("Failed to parse price tick: {}", e))
-                    })?;
-                WebSocketApiRes::PriceTick(price_tick)
-            }
-            LnmWebSocketChannel::FuturesBtcUsdIndex => {
-                let price_index: PriceIndexLNM =
-                    serde_json::from_value(data.clone()).map_err(|e| {
-                        WebSocketApiError::Generic(format!("Failed to parse price index: {}", e))
-                    })?;
-                WebSocketApiRes::PriceIndex(price_index)
-            }
-        };
-
-        Ok(data)
-    }
-}
-
+#[derive(Clone, Debug)]
 pub enum LnmJsonRpcResponse {
     Confirmation {
         id: String,
@@ -308,5 +260,17 @@ impl TryFrom<JsonRpcResponse> for LnmJsonRpcResponse {
         return Err(WebSocketApiError::Generic(
             "Unknown JSON RPC response".to_string(),
         ));
+    }
+}
+
+impl<'de> Deserialize<'de> for LnmJsonRpcResponse {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let json_rpc_response = JsonRpcResponse::deserialize(deserializer)?;
+
+        LnmJsonRpcResponse::try_from(json_rpc_response)
+            .map_err(|e| de::Error::custom(format!("Conversion error: {}", e)))
     }
 }

@@ -17,13 +17,13 @@ use webpki_roots::TLS_SERVER_ROOTS;
 
 use super::super::{
     error::{Result, WebSocketApiError},
-    models::{JsonRpcResponse, LnmJsonRpcRequest},
+    models::{LnmJsonRpcRequest, LnmJsonRpcResponse},
 };
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum WebSocketResponse {
+#[derive(Clone, Debug)]
+pub enum LnmWebSocketResponse {
     Close,
-    JsonRpc(JsonRpcResponse),
+    JsonRpc(LnmJsonRpcResponse),
     Ping(Vec<u8>),
     Pong,
 }
@@ -117,11 +117,11 @@ impl WebSocketApiConnection {
         self.send_frame(frame).await
     }
 
-    pub async fn read_respose(&mut self) -> Result<WebSocketResponse> {
+    pub async fn read_respose(&mut self) -> Result<LnmWebSocketResponse> {
         let frame = match self.0.read_frame().await {
             Ok(frame) => frame,
             // Expect scenario where connection is closed before shutdown confirmation response
-            Err(WebSocketError::ConnectionClosed) => return Ok(WebSocketResponse::Close),
+            Err(WebSocketError::ConnectionClosed) => return Ok(LnmWebSocketResponse::Close),
             Err(err) => return Err(WebSocketApiError::Generic(format!("frame error {:?}", err))),
         };
 
@@ -129,14 +129,13 @@ impl WebSocketApiConnection {
             OpCode::Text => {
                 let text = String::from_utf8(frame.payload.to_vec())
                     .map_err(|e| WebSocketApiError::Generic(e.to_string()))?;
-                let json_rpc_res = serde_json::from_str::<JsonRpcResponse>(&text)
+                let json_rpc_res = serde_json::from_str::<LnmJsonRpcResponse>(&text)
                     .map_err(|e| WebSocketApiError::Generic(e.to_string()))?;
-
-                WebSocketResponse::JsonRpc(json_rpc_res)
+                LnmWebSocketResponse::JsonRpc(json_rpc_res)
             }
-            OpCode::Close => WebSocketResponse::Close,
-            OpCode::Ping => WebSocketResponse::Ping(frame.payload.to_vec()),
-            OpCode::Pong => WebSocketResponse::Pong,
+            OpCode::Close => LnmWebSocketResponse::Close,
+            OpCode::Ping => LnmWebSocketResponse::Ping(frame.payload.to_vec()),
+            OpCode::Pong => LnmWebSocketResponse::Pong,
             unhandled_opcode => {
                 return Err(WebSocketApiError::Generic(format!(
                     "unhandled opcode {:?}",

@@ -11,7 +11,7 @@ use super::{
 
 mod connection;
 
-use connection::{WebSocketApiConnection, WebSocketResponse};
+use connection::{LnmWebSocketResponse, WebSocketApiConnection};
 
 type PendingMap = HashMap<String, (LnmJsonRpcRequest, oneshot::Sender<bool>)>;
 
@@ -113,10 +113,8 @@ impl ManagerTask {
                             heartbeat_timer = new_heartbeat_timer();
 
                             match read_response_result? {
-                                WebSocketResponse::JsonRpc(json_rpc_res) => {
-                                    let lnm_json_rpc_res = LnmJsonRpcResponse::try_from(json_rpc_res)?;
-
-                                    match lnm_json_rpc_res {
+                                LnmWebSocketResponse::JsonRpc(json_rpc_res) => {
+                                    match json_rpc_res {
                                         LnmJsonRpcResponse::Confirmation { id, channels } => {
                                             if let Some((req, oneshot_tx)) = pending.remove(&id) {
                                                 let is_success = req.id() == &id && req.channels() == &channels;
@@ -135,12 +133,12 @@ impl ManagerTask {
                                         }
                                     }
                                 }
-                                WebSocketResponse::Ping(payload) => {
+                                LnmWebSocketResponse::Ping(payload) => {
                                     // Automatically respond to pings with pongs
                                     ws.send_pong(payload).await?;
                                 }
                                 // Closes are handled at `manager_task`
-                                WebSocketResponse::Close => {
+                                LnmWebSocketResponse::Close => {
                                     if shutdown_initiated {
                                         // Shutdown confirmation response received
                                         return Ok(true);
@@ -156,7 +154,7 @@ impl ManagerTask {
                                     ));
                                 }
                                 // Pongs can be ignored since heartbeat mechanism is reset after any message
-                                WebSocketResponse::Pong => {}
+                                LnmWebSocketResponse::Pong => {}
                             };
                         }
                         _ = &mut heartbeat_timer => {
