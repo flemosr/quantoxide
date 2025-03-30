@@ -2,7 +2,7 @@ use chrono::{DateTime, Utc};
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::{fmt, fs::read};
+use std::fmt;
 
 use super::{
     error::{Result, WebSocketApiError},
@@ -47,7 +47,7 @@ impl fmt::Display for LnmJsonRpcReqMethod {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LnmJsonRpcRequest {
     method: LnmJsonRpcReqMethod,
     id: String,
@@ -71,8 +71,8 @@ impl LnmJsonRpcRequest {
         &self.id
     }
 
-    pub fn method(&self) -> &LnmJsonRpcReqMethod {
-        &self.method
+    pub fn channels(&self) -> &Vec<LnmWebSocketChannel> {
+        &self.channels
     }
 
     pub fn try_into_bytes(self) -> Result<Vec<u8>> {

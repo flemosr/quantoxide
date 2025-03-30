@@ -33,7 +33,7 @@ pub enum ConnectionState {
     Disconnected,
 }
 
-type PendingMap = HashMap<String, (LnmJsonRpcReqMethod, oneshot::Sender<bool>)>;
+type PendingMap = HashMap<String, (LnmJsonRpcRequest, oneshot::Sender<bool>)>;
 
 pub struct WebSocketAPI {
     manager_handle: JoinHandle<Result<()>>,
@@ -45,22 +45,6 @@ pub struct WebSocketAPI {
 }
 
 impl WebSocketAPI {
-    async fn handle_json_rpc_request(
-        ws: &mut WebSocketApiConnection,
-        pending: &mut PendingMap,
-        json_rpc_req: LnmJsonRpcRequest,
-        oneshot_tx: oneshot::Sender<bool>,
-    ) -> Result<()> {
-        let req_id = json_rpc_req.id().clone();
-        let req_method = json_rpc_req.method().clone();
-
-        ws.send_json_rpc(json_rpc_req).await?;
-
-        pending.insert(req_id, (req_method, oneshot_tx));
-
-        Ok(())
-    }
-
     async fn handle_ws_response(
         ws: &mut WebSocketApiConnection,
         pending: &mut PendingMap,
@@ -72,17 +56,16 @@ impl WebSocketAPI {
                 let lnm_json_rpc_res = LnmJsonRpcResponse::try_from(json_rpc_res)?;
 
                 match lnm_json_rpc_res {
-                    LnmJsonRpcResponse::Confirmation { id, channels: _ } => {
-                        if let Some((_, oneshot_tx)) = pending.remove(&id) {
-                            // TODO: Check if subscription OR subscription was successfull
-                            let is_success = true;
+                    LnmJsonRpcResponse::Confirmation { id, channels } => {
+                        if let Some((req, oneshot_tx)) = pending.remove(&id) {
+                            let is_success = req.id() == &id && req.channels() == &channels;
 
                             oneshot_tx
                                 .send(is_success)
                                 .map_err(|e| WebSocketApiError::Generic(e.to_string()))?;
                         }
 
-                        // Ignore unhandled ids
+                        // Ignore unknown ids
                     }
                     LnmJsonRpcResponse::Subscription(data) => {
                         responses_tx
@@ -110,8 +93,7 @@ impl WebSocketAPI {
         responses_tx: broadcast::Sender<WebSocketApiRes>,
         connection_state: Arc<Mutex<ConnectionState>>,
     ) -> Result<()> {
-        let mut pending: HashMap<String, (LnmJsonRpcReqMethod, oneshot::Sender<bool>)> =
-            HashMap::new();
+        let mut pending: PendingMap = HashMap::new();
 
         let handler = || {
             let pending = &mut pending;
@@ -132,7 +114,8 @@ impl WebSocketAPI {
                             ws.send_close().await?;
                         }
                         Some((json_rpc_req, oneshot_tx)) = requests_rx.recv() => {
-                            Self::handle_json_rpc_request(&mut ws, pending, json_rpc_req, oneshot_tx).await?;
+                            ws.send_json_rpc(json_rpc_req.clone()).await?;
+                            pending.insert(json_rpc_req.id().clone(), (json_rpc_req, oneshot_tx));
                         }
                         read_res = ws.read_respose() => {
                             let response = read_res?;
