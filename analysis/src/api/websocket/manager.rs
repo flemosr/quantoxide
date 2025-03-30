@@ -128,7 +128,7 @@ impl ManagerTask {
                                         }
                                         LnmJsonRpcResponse::Subscription(data) => {
                                             responses_tx
-                                                .send(data)
+                                                .send(data.into())
                                                 .map_err(|e| WebSocketApiError::Generic(e.to_string()))?;
                                         }
                                     }
