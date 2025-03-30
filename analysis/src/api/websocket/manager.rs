@@ -14,47 +14,6 @@ use super::{
 
 type PendingMap = HashMap<String, (LnmJsonRpcRequest, oneshot::Sender<bool>)>;
 
-async fn handle_ws_response(
-    ws: &mut WebSocketApiConnection,
-    pending: &mut PendingMap,
-    responses_tx: &broadcast::Sender<WebSocketApiRes>,
-    response: WebSocketResponse,
-) -> Result<()> {
-    match response {
-        WebSocketResponse::JsonRpc(json_rpc_res) => {
-            let lnm_json_rpc_res = LnmJsonRpcResponse::try_from(json_rpc_res)?;
-
-            match lnm_json_rpc_res {
-                LnmJsonRpcResponse::Confirmation { id, channels } => {
-                    if let Some((req, oneshot_tx)) = pending.remove(&id) {
-                        let is_success = req.id() == &id && req.channels() == &channels;
-
-                        oneshot_tx
-                            .send(is_success)
-                            .map_err(|e| WebSocketApiError::Generic(e.to_string()))?;
-                    }
-
-                    // Ignore unknown ids
-                }
-                LnmJsonRpcResponse::Subscription(data) => {
-                    responses_tx
-                        .send(data)
-                        .map_err(|e| WebSocketApiError::Generic(e.to_string()))?;
-                }
-            }
-        }
-        WebSocketResponse::Ping(payload) => {
-            // Automatically respond to pings with pongs
-            ws.send_pong(payload).await?;
-        }
-        // Closes are handled at `manager_task`
-        WebSocketResponse::Close => {}
-        // Pongs can be ignored since heartbeat mechanism is reset after any message
-        WebSocketResponse::Pong => {}
-    };
-    Ok(())
-}
-
 pub async fn task(
     mut ws: WebSocketApiConnection,
     mut shutdown_rx: mpsc::Receiver<()>,
@@ -66,7 +25,7 @@ pub async fn task(
 
     let handler = || {
         let pending = &mut pending;
-        let msg_sender = &responses_tx;
+        let responses_tx = &responses_tx;
 
         async move {
             let new_heartbeat_timer = || Box::pin(time::sleep(time::Duration::from_secs(5)));
@@ -86,38 +45,57 @@ pub async fn task(
                         ws.send_json_rpc(json_rpc_req.clone()).await?;
                         pending.insert(json_rpc_req.id().clone(), (json_rpc_req, oneshot_tx));
                     }
-                    read_res = ws.read_respose() => {
-                        let response = read_res?;
-                        let is_close_response = response == WebSocketResponse::Close;
-
+                    read_response_result = ws.read_respose() => {
                         // Reset heartbeat mechanism after receiving any message
                         waiting_for_pong = false;
                         heartbeat_timer = new_heartbeat_timer();
 
-                        handle_ws_response(
-                            &mut ws,
-                            pending,
-                            &msg_sender,
-                            response
-                        ).await?;
+                        match read_response_result? {
+                            WebSocketResponse::JsonRpc(json_rpc_res) => {
+                                let lnm_json_rpc_res = LnmJsonRpcResponse::try_from(json_rpc_res)?;
 
-                        if !is_close_response {
-                            continue;
-                        }
+                                match lnm_json_rpc_res {
+                                    LnmJsonRpcResponse::Confirmation { id, channels } => {
+                                        if let Some((req, oneshot_tx)) = pending.remove(&id) {
+                                            let is_success = req.id() == &id && req.channels() == &channels;
 
-                        if shutdown_initiated {
-                            // Shutdown confirmation response received
-                            return Ok(true);
-                        }
+                                            oneshot_tx
+                                                .send(is_success)
+                                                .map_err(|e| WebSocketApiError::Generic(e.to_string()))?;
+                                        }
 
-                        // Server requested shutdown. Attempt to send close confirmation response
-                        // but don't handle potential errors since `WebSocketApiError::Generic`
-                        // will be returned bellow.
-                        let _ = ws.send_close().await;
+                                        // Ignore unknown ids
+                                    }
+                                    LnmJsonRpcResponse::Subscription(data) => {
+                                        responses_tx
+                                            .send(data)
+                                            .map_err(|e| WebSocketApiError::Generic(e.to_string()))?;
+                                    }
+                                }
+                            }
+                            WebSocketResponse::Ping(payload) => {
+                                // Automatically respond to pings with pongs
+                                ws.send_pong(payload).await?;
+                            }
+                            // Closes are handled at `manager_task`
+                            WebSocketResponse::Close => {
+                                if shutdown_initiated {
+                                    // Shutdown confirmation response received
+                                    return Ok(true);
+                                }
 
-                        return Err(WebSocketApiError::Generic(
-                            "server requested shutdown".to_string(),
-                        ));
+                                // Server requested shutdown. Attempt to send close confirmation response
+                                // but don't handle potential errors since `WebSocketApiError::Generic`
+                                // will be returned bellow.
+                                let _ = ws.send_close().await;
+
+                                return Err(WebSocketApiError::Generic(
+                                    "server requested shutdown".to_string(),
+                                ));
+                            }
+                            // Pongs can be ignored since heartbeat mechanism is reset after any message
+                            WebSocketResponse::Pong => {}
+                        };
                     }
                     _ = &mut heartbeat_timer => {
                         if shutdown_initiated {
