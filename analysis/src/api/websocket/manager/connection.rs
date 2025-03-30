@@ -15,7 +15,7 @@ use tokio_rustls::{
 };
 use webpki_roots::TLS_SERVER_ROOTS;
 
-use super::{
+use super::super::{
     error::{Result, WebSocketApiError},
     models::{JsonRpcResponse, LnmJsonRpcRequest},
 };

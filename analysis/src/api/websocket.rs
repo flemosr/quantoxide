@@ -1,20 +1,22 @@
-use connection::WebSocketApiConnection;
 use std::{
     collections::{HashMap, HashSet},
     sync::Arc,
 };
 use tokio::{
-    sync::{broadcast, mpsc, oneshot, Mutex},
+    sync::{oneshot, Mutex},
     task::JoinHandle,
 };
 
-mod connection;
 pub mod error;
 mod manager;
 pub mod models;
 
 use error::{Result, WebSocketApiError};
-use models::{LnmJsonRpcReqMethod, LnmJsonRpcRequest, LnmWebSocketChannel, WebSocketApiRes};
+use manager::{
+    ConnectionState, ManagerTask, RequestTransmiter, ResponseReceiver, ResponseTransmiter,
+    ShutdownTransmiter,
+};
+use models::{LnmJsonRpcReqMethod, LnmJsonRpcRequest, LnmWebSocketChannel};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum ChannelStatus {
@@ -23,50 +25,26 @@ enum ChannelStatus {
     UnsubscriptionPending,
 }
 
-#[derive(Clone, Debug)]
-pub enum ConnectionState {
-    Connected,
-    Failed(WebSocketApiError),
-    Disconnected,
-}
-
 pub struct WebSocketAPI {
-    manager_handle: JoinHandle<Result<()>>,
-    shutdown_tx: mpsc::Sender<()>, // select! doesn't handle oneshot well
-    requests_tx: mpsc::Sender<(LnmJsonRpcRequest, oneshot::Sender<bool>)>,
-    responses_tx: broadcast::Sender<WebSocketApiRes>,
+    manager_task_handle: JoinHandle<Result<()>>,
+    shutdown_tx: ShutdownTransmiter,
+    requests_tx: RequestTransmiter,
+    responses_tx: ResponseTransmiter,
     connection_state: Arc<Mutex<ConnectionState>>,
     subscriptions: Arc<Mutex<HashMap<LnmWebSocketChannel, ChannelStatus>>>,
 }
 
 impl WebSocketAPI {
     pub async fn new(api_domain: String) -> Result<Self> {
-        let ws = WebSocketApiConnection::new(api_domain).await?;
+        let (manager_task, shutdown_tx, requests_tx, responses_tx, connection_state) =
+            ManagerTask::new(api_domain).await?;
 
-        // Internal channel for shutdown signal
-        let (shutdown_tx, shutdown_rx) = mpsc::channel::<()>(1);
-
-        // Internal channel for JSON RPC requests
-        let (requests_tx, resquests_rx) =
-            mpsc::channel::<(LnmJsonRpcRequest, oneshot::Sender<bool>)>(100);
-
-        // External channel for API responses
-        let (responses_tx, _) = broadcast::channel::<WebSocketApiRes>(100);
-
-        let connection_state = Arc::new(Mutex::new(ConnectionState::Connected));
-
-        let manager_handle = tokio::spawn(manager::task(
-            ws,
-            shutdown_rx,
-            resquests_rx,
-            responses_tx.clone(),
-            connection_state.clone(),
-        ));
+        let manager_task_handle = tokio::spawn(manager_task.run());
 
         let subscriptions = Arc::new(Mutex::new(HashMap::new()));
 
         Ok(WebSocketAPI {
-            manager_handle,
+            manager_task_handle,
             connection_state,
             shutdown_tx,
             requests_tx,
@@ -76,7 +54,7 @@ impl WebSocketAPI {
     }
 
     pub fn is_connected(&self) -> bool {
-        !self.manager_handle.is_finished()
+        !self.manager_task_handle.is_finished()
     }
 
     pub async fn connection_state(&self) -> ConnectionState {
@@ -254,7 +232,7 @@ impl WebSocketAPI {
             .collect::<HashSet<LnmWebSocketChannel>>()
     }
 
-    pub async fn receiver(&self) -> Result<broadcast::Receiver<WebSocketApiRes>> {
+    pub async fn receiver(&self) -> Result<ResponseReceiver> {
         self.evaluate_manager_status().await?;
 
         let broadcast_rx = self.responses_tx.subscribe();
@@ -262,14 +240,14 @@ impl WebSocketAPI {
     }
 
     pub async fn shutdown(self) -> Result<()> {
-        if !self.manager_handle.is_finished() {
+        if !self.manager_task_handle.is_finished() {
             self.shutdown_tx
                 .send(())
                 .await
                 .map_err(|e| WebSocketApiError::Generic(e.to_string()))?;
         }
 
-        self.manager_handle
+        self.manager_task_handle
             .await
             .map_err(|e| WebSocketApiError::Generic(e.to_string()))?
     }
