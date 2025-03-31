@@ -117,7 +117,7 @@ impl ManagerTask {
                                     match json_rpc_res {
                                         LnmJsonRpcResponse::Confirmation { id, channels } => {
                                             if let Some((req, oneshot_tx)) = pending.remove(&id) {
-                                                let is_success = req.id() == &id && req.channels() == &channels;
+                                                let is_success = req.id() == &id && req.is_same_channel_set(&channels);
 
                                                 oneshot_tx
                                                     .send(is_success)
@@ -154,9 +154,7 @@ impl ManagerTask {
                                     // will be returned bellow.
                                     let _ = ws.send_close().await;
 
-                                    return Err(WebSocketApiError::Generic(
-                                        "server requested shutdown".to_string(),
-                                    ));
+                                    return Err(WebSocketApiError::Generic("server requested shutdown".to_string()));
                                 }
                                 // Pongs can be ignored since heartbeat mechanism is reset after any message
                                 LnmWebSocketResponse::Pong => {}
@@ -170,7 +168,9 @@ impl ManagerTask {
 
                             if waiting_for_pong {
                                 // No pong received after ping and a heartbeat, timeout
-                                return Err(WebSocketApiError::Generic("pong response timeout, connection may be dead".to_string()));
+                                return Err(WebSocketApiError::Generic(
+                                    "pong response timeout, connection may be dead".to_string(),
+                                ));
                             }
 
                             // No messages received for a heartbeat, send a ping

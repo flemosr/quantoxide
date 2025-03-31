@@ -2,7 +2,7 @@ use chrono::{DateTime, Utc};
 use rand::Rng;
 use serde::{de, Deserialize, Deserializer, Serialize};
 use serde_json::Value;
-use std::fmt;
+use std::{collections::HashSet, fmt};
 
 use super::{
     error::{Result, WebSocketApiError},
@@ -108,6 +108,12 @@ impl LnmJsonRpcRequest {
 
     pub fn channels(&self) -> &Vec<LnmWebSocketChannel> {
         &self.channels
+    }
+
+    pub fn is_same_channel_set(&self, other: &[LnmWebSocketChannel]) -> bool {
+        let set_a: HashSet<&LnmWebSocketChannel> = self.channels().iter().collect();
+        let set_b: HashSet<&LnmWebSocketChannel> = other.iter().collect();
+        set_a == set_b
     }
 
     pub fn try_into_bytes(self) -> Result<Vec<u8>> {
