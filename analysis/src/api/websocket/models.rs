@@ -110,9 +110,13 @@ impl LnmJsonRpcRequest {
         &self.channels
     }
 
-    pub fn is_same_channel_set(&self, other: &[LnmWebSocketChannel]) -> bool {
+    pub fn check_confirmation(&self, id: &String, channels: &[LnmWebSocketChannel]) -> bool {
+        if self.id() != id {
+            return false;
+        }
+
         let set_a: HashSet<&LnmWebSocketChannel> = self.channels().iter().collect();
-        let set_b: HashSet<&LnmWebSocketChannel> = other.iter().collect();
+        let set_b: HashSet<&LnmWebSocketChannel> = channels.iter().collect();
         set_a == set_b
     }
 

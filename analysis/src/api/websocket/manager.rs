@@ -117,7 +117,7 @@ impl ManagerTask {
                                     match json_rpc_res {
                                         LnmJsonRpcResponse::Confirmation { id, channels } => {
                                             if let Some((req, oneshot_tx)) = pending.remove(&id) {
-                                                let is_success = req.id() == &id && req.is_same_channel_set(&channels);
+                                                let is_success = req.check_confirmation(&id, &channels);
 
                                                 oneshot_tx
                                                     .send(is_success)
