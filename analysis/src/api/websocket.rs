@@ -76,6 +76,11 @@ impl LnmWebSocketApi {
     pub async fn subscribe(&self, channels: Vec<LnmWebSocketChannel>) -> Result<()> {
         self.evaluate_manager_status().await?;
 
+        let channels: HashSet<LnmWebSocketChannel> = channels.into_iter().collect();
+        if channels.is_empty() {
+            return Ok(());
+        }
+
         // Check current subscriptions
         let mut subscriptions_lock = self.subscriptions.lock().await;
         let mut channels_to_subscribe = Vec::new();
@@ -146,6 +151,11 @@ impl LnmWebSocketApi {
 
     pub async fn unsubscribe(&self, channels: Vec<LnmWebSocketChannel>) -> Result<()> {
         self.evaluate_manager_status().await?;
+
+        let channels: HashSet<LnmWebSocketChannel> = channels.into_iter().collect();
+        if channels.is_empty() {
+            return Ok(());
+        }
 
         let mut subscriptions_lock = self.subscriptions.lock().await;
         let mut channels_to_unsubscribe = Vec::new();
