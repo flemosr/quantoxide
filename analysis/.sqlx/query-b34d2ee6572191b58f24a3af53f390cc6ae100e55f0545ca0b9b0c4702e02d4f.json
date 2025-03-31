@@ -1,0 +1,47 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT * FROM price_history_locf WHERE time >= $1 ORDER BY time ASC LIMIT $2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "time",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 1,
+        "name": "value",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 2,
+        "name": "ma_5",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 3,
+        "name": "ma_60",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 4,
+        "name": "ma_300",
+        "type_info": "Float8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Timestamptz",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "b34d2ee6572191b58f24a3af53f390cc6ae100e55f0545ca0b9b0c4702e02d4f"
+}
