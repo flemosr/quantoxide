@@ -25,7 +25,7 @@ enum ChannelStatus {
     UnsubscriptionPending,
 }
 
-pub struct WebSocketAPI {
+pub struct LnmWebSocketApi {
     manager_task_handle: JoinHandle<Result<()>>,
     shutdown_tx: ShutdownTransmiter,
     requests_tx: RequestTransmiter,
@@ -34,7 +34,7 @@ pub struct WebSocketAPI {
     subscriptions: Arc<Mutex<HashMap<LnmWebSocketChannel, ChannelStatus>>>,
 }
 
-impl WebSocketAPI {
+impl LnmWebSocketApi {
     pub async fn new(api_domain: String) -> Result<Self> {
         let (manager_task, shutdown_tx, requests_tx, responses_tx, connection_state) =
             ManagerTask::new(api_domain).await?;
@@ -43,7 +43,7 @@ impl WebSocketAPI {
 
         let subscriptions = Arc::new(Mutex::new(HashMap::new()));
 
-        Ok(WebSocketAPI {
+        Ok(Self {
             manager_task_handle,
             connection_state,
             shutdown_tx,
@@ -91,7 +91,6 @@ impl WebSocketAPI {
                     )));
                 }
                 None => {
-                    // New subscription
                     channels_to_subscribe.push(channel.clone());
                     subscriptions_lock.insert(channel, ChannelStatus::SubscriptionPending);
                 }
@@ -100,7 +99,6 @@ impl WebSocketAPI {
 
         drop(subscriptions_lock);
 
-        // If no channels to subscribe, return success
         if channels_to_subscribe.is_empty() {
             return Ok(());
         }
@@ -155,7 +153,6 @@ impl WebSocketAPI {
         for channel in channels {
             match subscriptions_lock.get(&channel) {
                 Some(ChannelStatus::Subscribed) => {
-                    // New subscription
                     channels_to_unsubscribe.push(channel.clone());
                     subscriptions_lock.insert(channel, ChannelStatus::UnsubscriptionPending);
                 }
@@ -172,7 +169,6 @@ impl WebSocketAPI {
 
         drop(subscriptions_lock);
 
-        // If no channels to subscribe, return success
         if channels_to_unsubscribe.is_empty() {
             return Ok(());
         }
@@ -184,7 +180,7 @@ impl WebSocketAPI {
             channels_to_unsubscribe.clone(),
         );
 
-        // Send subscription request to the manager task
+        // Send unsubscription request to the manager task
         self.requests_tx
             .send((req, oneshot_tx))
             .await
