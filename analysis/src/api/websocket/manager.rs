@@ -127,6 +127,11 @@ impl ManagerTask {
                                             // Ignore unknown ids
                                         }
                                         LnmJsonRpcResponse::Subscription(data) => {
+                                            if responses_tx.receiver_count() == 0 {
+                                                // No external receivers. Ignore message
+                                                continue;
+                                            }
+
                                             responses_tx
                                                 .send(data.into())
                                                 .map_err(|e| WebSocketApiError::Generic(e.to_string()))?;
@@ -194,9 +199,11 @@ impl ManagerTask {
 
         let connection_update = WebSocketApiRes::from(&*connection_state_guard);
 
-        self.responses_tx.send(connection_update).map_err(|e| {
-            WebSocketApiError::Generic(format!("Failed to send connection update {:?}", e))
-        })?;
+        if self.responses_tx.receiver_count() > 0 {
+            self.responses_tx.send(connection_update).map_err(|e| {
+                WebSocketApiError::Generic(format!("Failed to send connection update {:?}", e))
+            })?;
+        }
 
         Ok(())
     }
