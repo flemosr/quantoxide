@@ -6,7 +6,7 @@ use crate::{
         rest::{self, models::PriceEntryLNM},
         websocket::{
             models::{LnmWebSocketChannel, WebSocketApiRes},
-            WebSocketAPI,
+            LnmWebSocketApi,
         },
     },
     db,
@@ -194,8 +194,8 @@ pub async fn start() -> Result<()> {
 
     if let Some(earliest_price_entry_gap) = db::price_history::get_earliest_entry_gap().await? {
         if earliest_price_entry_gap.time < limit {
-            // There is a price gaps before `limit`. Since we shouldn't fetch
-            // entries before `limit`, said gaps can't be closed, and therefore
+            // There is a price gap before `limit`. Since we shouldn't fetch
+            // entries before `limit`. Said gap can't be closed, and therefore
             // the db can't be synced.
             return Err(AppError::UnreachableDbGap {
                 earliest_gap: earliest_price_entry_gap.time,
@@ -285,11 +285,9 @@ pub async fn start() -> Result<()> {
 
     println!("\nInit WebSocket connection");
 
-    let ws_api = WebSocketAPI::new(LNM_API_DOMAIN.to_string()).await?;
+    let ws_api = LnmWebSocketApi::new(LNM_API_DOMAIN.to_string()).await?;
 
-    println!("\nWS running {}", ws_api.is_connected());
-
-    println!("\nSetup receiver");
+    println!("\nWS running. Setting up receiver...");
 
     let mut receiver = ws_api.receiver().await?;
 
@@ -310,44 +308,13 @@ pub async fn start() -> Result<()> {
         println!("Receiver closed");
     });
 
-    println!("\nReceiver running");
-
-    wait(10);
-
-    println!("\nSubscribe to prices");
+    println!("\nReceiver running. Subscribing to prices and index...");
 
     ws_api
-        .subscribe(vec![LnmWebSocketChannel::FuturesBtcUsdLastPrice])
-        .await?;
-
-    println!("\nSubscriptions {:?}", ws_api.subscriptions().await);
-
-    wait(10);
-
-    println!("\nUnsubscribe from prices");
-
-    ws_api
-        .unsubscribe(vec![LnmWebSocketChannel::FuturesBtcUsdLastPrice])
-        .await?;
-
-    println!("\nSubscriptions {:?}", ws_api.subscriptions().await);
-
-    wait(10);
-
-    println!("\nSubscribe to index");
-
-    ws_api
-        .subscribe(vec![LnmWebSocketChannel::FuturesBtcUsdIndex])
-        .await?;
-
-    println!("\nSubscriptions {:?}", ws_api.subscriptions().await);
-
-    wait(10);
-
-    println!("\nUnsubscribe from prices");
-
-    ws_api
-        .unsubscribe(vec![LnmWebSocketChannel::FuturesBtcUsdLastPrice])
+        .subscribe(vec![
+            LnmWebSocketChannel::FuturesBtcUsdLastPrice,
+            LnmWebSocketChannel::FuturesBtcUsdIndex,
+        ])
         .await?;
 
     println!("\nSubscriptions {:?}", ws_api.subscriptions().await);
