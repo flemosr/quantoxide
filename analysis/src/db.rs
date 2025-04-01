@@ -1,54 +1,50 @@
-use error::Result;
-use sqlx::{postgres::PgPoolOptions, Pool, Postgres};
-use tokio::sync::OnceCell;
+use sqlx::postgres::PgPoolOptions;
+use std::sync::Arc;
 
 pub mod error;
 mod models;
-pub mod price_history;
+mod postgres;
+mod repositories;
 
-use error::DbError;
+use error::{DbError, Result};
+use postgres::price_history::PgPriceHistoryRepo;
+use repositories::PriceHistoryRepository;
 
-static DB_CONNECTION: OnceCell<Pool<Postgres>> = OnceCell::const_new();
-
-pub async fn init(postgres_db_url: &str) -> Result<()> {
-    println!("Connecting to database...");
-    let pool = PgPoolOptions::new()
-        .max_connections(5)
-        .connect(postgres_db_url)
-        .await
-        .map_err(DbError::Connection)?;
-
-    println!("Successfully connected to the database");
-
-    println!("Running migrations...");
-    sqlx::migrate!("./migrations")
-        .run(&pool)
-        .await
-        .map_err(DbError::Migration)?;
-
-    println!("Migrations completed successfully");
-
-    println!("Checking database connection...");
-    let row: (i64,) = sqlx::query_as("SELECT $1")
-        .bind(150_i64)
-        .fetch_one(&pool)
-        .await
-        .map_err(DbError::Query)?;
-
-    assert_eq!(row.0, 150);
-    println!("Database check successful");
-
-    DB_CONNECTION
-        .set(pool)
-        .map_err(|_| DbError::Init("`db` must not be initialized"))?;
-
-    Ok(())
+pub struct DbContext {
+    pub price_history: Box<dyn PriceHistoryRepository>,
 }
 
-fn get_pool() -> Result<&'static Pool<Postgres>> {
-    let pool = DB_CONNECTION
-        .get()
-        .ok_or_else(|| DbError::Init("`db` must be initialized"))?;
+impl DbContext {
+    pub async fn new(postgres_db_url: &str) -> Result<Self> {
+        println!("Connecting to database...");
+        let pool = PgPoolOptions::new()
+            .max_connections(5)
+            .connect(postgres_db_url)
+            .await
+            .map_err(DbError::Connection)?;
 
-    Ok(pool)
+        println!("Successfully connected to the database");
+
+        println!("Running migrations...");
+        sqlx::migrate!("./migrations")
+            .run(&pool)
+            .await
+            .map_err(DbError::Migration)?;
+
+        println!("Migrations completed successfully");
+
+        println!("Checking database connection...");
+        let row = sqlx::query_scalar!("SELECT $1::bigint", 150)
+            .fetch_one(&pool)
+            .await
+            .map_err(DbError::Query)?;
+
+        assert_eq!(row, Some(150));
+        println!("Database check successful");
+
+        let pool = Arc::new(pool);
+        let price_history = Box::new(PgPriceHistoryRepo::new(pool));
+
+        Ok(Self { price_history })
+    }
 }

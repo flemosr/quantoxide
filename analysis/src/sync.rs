@@ -9,7 +9,7 @@ use crate::{
             LnmWebSocketApi,
         },
     },
-    db,
+    db::DbContext,
     env::{
         LNM_API_COOLDOWN_SEC, LNM_API_DOMAIN, LNM_API_ERROR_COOLDOWN_SEC, LNM_API_ERROR_MAX_TRIALS,
         LNM_MIN_PRICE_HISTORY_WEEKS, LNM_PRICE_HISTORY_LIMIT,
@@ -119,6 +119,7 @@ async fn get_new_price_entries(
 }
 
 async fn download_price_history(
+    db: &DbContext,
     limit: &DateTime<Utc>,
     mut next_observed_time: Option<DateTime<Utc>>,
 ) -> Result<bool> {
@@ -139,7 +140,9 @@ async fn download_price_history(
             let earliest_new_entry_time = new_price_entries.last().expect("not empty").time();
             println!("\n{entries_len} new entries received, from {earliest_new_entry_time} to {latest_new_entry_time}");
 
-            db::price_history::add_entries(&new_price_entries, next_observed_time.as_ref()).await?;
+            db.price_history
+                .add_entries(&new_price_entries, next_observed_time.as_ref())
+                .await?;
 
             println!("\nEntries added to the db");
         }
@@ -176,14 +179,14 @@ async fn download_price_history(
     if let Some(next) = limit_next_observed_time {
         println!("\nReached `limit` {limit}. Updating the corresponding entry's `next` field");
 
-        db::price_history::update_entry_next(limit, &next).await?;
+        db.price_history.update_entry_next(limit, &next).await?;
         return Ok(true);
     }
 
     Ok(false)
 }
 
-pub async fn start() -> Result<()> {
+pub async fn start(db: &DbContext) -> Result<()> {
     let limit = Utc::now() - Duration::weeks(*LNM_MIN_PRICE_HISTORY_WEEKS as i64);
 
     println!(
@@ -192,7 +195,7 @@ pub async fn start() -> Result<()> {
     );
     println!("Limit timestamp: {limit}");
 
-    if let Some(earliest_price_entry_gap) = db::price_history::get_earliest_entry_gap().await? {
+    if let Some(earliest_price_entry_gap) = db.price_history.get_earliest_entry_gap().await? {
         if earliest_price_entry_gap.time < limit {
             // There is a price gap before `limit`. Since we shouldn't fetch
             // entries before `limit`. Said gap can't be closed, and therefore
@@ -204,9 +207,8 @@ pub async fn start() -> Result<()> {
         }
     }
 
-    if let Some(latest_price_entry) = db::price_history::get_latest_entry().await? {
-        while let Some(earliest_price_entry_gap) =
-            db::price_history::get_earliest_entry_gap().await?
+    if let Some(latest_price_entry) = db.price_history.get_latest_entry().await? {
+        while let Some(earliest_price_entry_gap) = db.price_history.get_earliest_entry_gap().await?
         {
             if earliest_price_entry_gap.time == latest_price_entry.time {
                 // Earliest price entry gap is the latest price entry
@@ -216,8 +218,10 @@ pub async fn start() -> Result<()> {
 
             println!("\nGap after {} was found.", earliest_price_entry_gap.time);
 
-            let first_price_entry_after_gap =
-                db::price_history::get_earliest_entry_after(earliest_price_entry_gap.time).await?;
+            let first_price_entry_after_gap = db
+                .price_history
+                .get_earliest_entry_after(earliest_price_entry_gap.time)
+                .await?;
             let first_price_entry_after_gap_time = first_price_entry_after_gap
                 .expect("Gap entry is not latest entry.")
                 .time;
@@ -229,6 +233,7 @@ pub async fn start() -> Result<()> {
             println!("\nDownloading entries from {first_price_entry_after_gap_time} backwards, until closing the gap...");
 
             let overlap_reached = download_price_history(
+                db,
                 &earliest_price_entry_gap.time,
                 Some(first_price_entry_after_gap_time),
             )
@@ -243,24 +248,26 @@ pub async fn start() -> Result<()> {
         }
     }
 
-    if let Some(earliest_price_entry) = db::price_history::get_earliest_entry().await? {
+    if let Some(earliest_price_entry) = db.price_history.get_earliest_entry().await? {
         if earliest_price_entry.time > limit {
             println!(
                 "\nDownloading price entries from the earliest ({}) in the DB backwards, until limit ({})...",
                 earliest_price_entry.time,
                 limit
             );
-            download_price_history(&limit, Some(earliest_price_entry.time)).await?;
+            download_price_history(db, &limit, Some(earliest_price_entry.time)).await?;
         }
     } else {
         println!("\nNo price entries in the DB. Downloading from latest to earliest...");
-        download_price_history(&limit, None).await?;
+        download_price_history(db, &limit, None).await?;
     }
 
     // We can assume that `limit` was reached, and the min history condition is
     // satisfied.
 
-    let mut latest_price_entry = db::price_history::get_latest_entry()
+    let mut latest_price_entry = db
+        .price_history
+        .get_latest_entry()
         .await?
         .expect("db not empty");
 
@@ -271,14 +278,16 @@ pub async fn start() -> Result<()> {
         );
 
         let additional_entries_observed =
-            download_price_history(&latest_price_entry.time, None).await?;
+            download_price_history(db, &latest_price_entry.time, None).await?;
 
         if !additional_entries_observed {
             println!("\nNo new entries after {}", latest_price_entry.time);
             break;
         }
 
-        latest_price_entry = db::price_history::get_latest_entry()
+        latest_price_entry = db
+            .price_history
+            .get_latest_entry()
             .await?
             .expect("db not empty");
     }
