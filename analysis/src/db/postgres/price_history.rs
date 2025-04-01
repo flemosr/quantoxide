@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Duration, SubsecRound, Utc};
-use sqlx::{Pool, Postgres};
+use sqlx::{Pool, Postgres, Transaction};
 use std::sync::Arc;
 
 use crate::api::rest::models::PriceEntryLNM;
@@ -31,6 +31,10 @@ impl PgPriceHistoryRepo {
 
     fn pool(&self) -> &Pool<Postgres> {
         self.pool.as_ref()
+    }
+
+    async fn start_transaction(&self) -> Result<Transaction<'static, Postgres>> {
+        self.pool.begin().await.map_err(DbError::TransactionBegin)
     }
 }
 
@@ -113,7 +117,7 @@ impl PriceHistoryRepository for PgPriceHistoryRepo {
             return Ok(());
         }
 
-        let mut tx = self.pool.begin().await.map_err(DbError::TransactionBegin)?;
+        let mut tx = self.start_transaction().await?;
 
         let mut next_entry_time = next_observed_time;
 
