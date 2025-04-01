@@ -1,0 +1,48 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                WITH price_data AS (\n                    SELECT s.time, t.value\n                    FROM generate_series($1, $2, '1 second'::interval) AS s(time)\n                    LEFT JOIN LATERAL (\n                        SELECT value\n                        FROM price_history\n                        WHERE time <= s.time\n                        ORDER BY time DESC\n                        LIMIT 1\n                    ) t ON true\n                    ORDER BY time ASC\n                ),\n                eval_indicators AS (\n                    SELECT\n                        time,\n                        value,\n                        AVG(value) OVER (ORDER BY time ASC ROWS BETWEEN 4 PRECEDING AND CURRENT ROW) AS ma_5,\n                        AVG(value) OVER (ORDER BY time ASC ROWS BETWEEN 59 PRECEDING AND CURRENT ROW) AS ma_60,\n                        AVG(value) OVER (ORDER BY time ASC ROWS BETWEEN 299 PRECEDING AND CURRENT ROW) AS ma_300\n                    FROM price_data\n                )\n                SELECT\n                    time as \"time!\",\n                    value as \"value!\",\n                    ma_5 as \"ma_5\",\n                    ma_60 as \"ma_60\",\n                    ma_300 as \"ma_300\"\n                FROM eval_indicators\n                WHERE eval_indicators.time >= $3\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "time!",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 1,
+        "name": "value!",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 2,
+        "name": "ma_5",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 3,
+        "name": "ma_60",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 4,
+        "name": "ma_300",
+        "type_info": "Float8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Timestamptz",
+        "Timestamptz",
+        "Timestamptz"
+      ]
+    },
+    "nullable": [
+      null,
+      false,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "1062357434759b9dbb6d777bc04821440ebae6da3cd3775eb0fd78e863cf126a"
+}

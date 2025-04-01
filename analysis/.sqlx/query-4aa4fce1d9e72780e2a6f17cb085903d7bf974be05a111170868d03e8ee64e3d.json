@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                UPDATE price_history\n                SET next = $1\n                WHERE time = $2 AND next IS NULL\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Timestamptz",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "4aa4fce1d9e72780e2a6f17cb085903d7bf974be05a111170868d03e8ee64e3d"
+}

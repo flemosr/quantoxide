@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                WITH price_data AS (\n                    SELECT time, value, ROW_NUMBER() OVER (ORDER BY time) AS rn\n                    FROM price_history_locf\n                    WHERE time >= $1 AND time <= $2\n                    ORDER BY time ASC\n                ),\n                eval_indicators AS (\n                    SELECT\n                        time,\n                        CASE\n                            WHEN rn >= 5\n                            THEN AVG(value) OVER (ORDER BY time ASC ROWS BETWEEN 4 PRECEDING AND CURRENT ROW)\n                            ELSE NULL\n                        END AS ma_5,\n                        CASE\n                            WHEN rn >= 60\n                            THEN AVG(value) OVER (ORDER BY time ASC ROWS BETWEEN 59 PRECEDING AND CURRENT ROW)\n                            ELSE NULL\n                        END AS ma_60,\n                        CASE\n                            WHEN rn >= 300\n                            THEN AVG(value) OVER (ORDER BY time ASC ROWS BETWEEN 299 PRECEDING AND CURRENT ROW)\n                            ELSE NULL\n                        END AS ma_300\n                    FROM price_data\n                )\n                UPDATE price_history_locf\n                SET\n                    ma_5 = eval_indicators.ma_5,\n                    ma_60 = eval_indicators.ma_60,\n                    ma_300 = eval_indicators.ma_300\n                FROM eval_indicators\n                WHERE\n                    eval_indicators.time >= $3\n                    AND price_history_locf.time = eval_indicators.time\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Timestamptz",
+        "Timestamptz",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "e3a767b89beb1e630c02bcf5d574174d4c6876f2449ec34c75f34649528fa118"
+}
