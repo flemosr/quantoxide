@@ -3,8 +3,6 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum DbError {
-    #[error("Init error: {0}")]
-    Init(&'static str),
     #[error("Connection error: {0}")]
     Connection(sqlx::Error),
     #[error("Migration error: {0}")]
