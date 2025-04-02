@@ -4,10 +4,7 @@ use std::{collections::HashSet, thread, time};
 use analysis::{
     api::{
         rest::{models::PriceEntryLNM, RestApiContext},
-        websocket::{
-            models::{LnmWebSocketChannel, WebSocketApiRes},
-            WebSocketApiContext,
-        },
+        websocket::models::{LnmWebSocketChannel, WebSocketApiRes},
         ApiContext,
     },
     db::DbContext,
@@ -15,7 +12,7 @@ use analysis::{
 };
 
 use crate::env::{
-    LNM_API_COOLDOWN_SEC, LNM_API_DOMAIN, LNM_API_ERROR_COOLDOWN_SEC, LNM_API_ERROR_MAX_TRIALS,
+    LNM_API_COOLDOWN_SEC, LNM_API_ERROR_COOLDOWN_SEC, LNM_API_ERROR_MAX_TRIALS,
     LNM_MIN_PRICE_HISTORY_WEEKS, LNM_PRICE_HISTORY_LIMIT,
 };
 
