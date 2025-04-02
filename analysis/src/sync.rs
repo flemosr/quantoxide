@@ -3,11 +3,12 @@ use std::{collections::HashSet, thread, time};
 
 use analysis::{
     api::{
-        rest::{models::PriceEntryLNM, RestContext},
+        rest::{models::PriceEntryLNM, RestApiContext},
         websocket::{
             models::{LnmWebSocketChannel, WebSocketApiRes},
             WebSocketApiContext,
         },
+        ApiContext,
     },
     db::DbContext,
     error::{AppError, Result},
@@ -28,7 +29,7 @@ enum LimitReached {
 }
 
 async fn get_new_price_entries(
-    rest: &RestContext,
+    rest: &RestApiContext,
     limit: &DateTime<Utc>,
     before_observed_time: Option<DateTime<Utc>>,
 ) -> Result<(Vec<PriceEntryLNM>, LimitReached)> {
@@ -118,7 +119,7 @@ async fn get_new_price_entries(
 }
 
 async fn download_price_history(
-    rest: &RestContext,
+    rest: &RestApiContext,
     db: &DbContext,
     limit: &DateTime<Utc>,
     mut next_observed_time: Option<DateTime<Utc>>,
@@ -186,7 +187,7 @@ async fn download_price_history(
     Ok(false)
 }
 
-pub async fn start(rest: &RestContext, ws: &WebSocketApiContext, db: &DbContext) -> Result<()> {
+pub async fn start(api: &ApiContext, db: &DbContext) -> Result<()> {
     let limit = Utc::now() - Duration::weeks(*LNM_MIN_PRICE_HISTORY_WEEKS as i64);
 
     println!(
@@ -233,7 +234,7 @@ pub async fn start(rest: &RestContext, ws: &WebSocketApiContext, db: &DbContext)
             println!("\nDownloading entries from {first_price_entry_after_gap_time} backwards, until closing the gap...");
 
             let overlap_reached = download_price_history(
-                rest,
+                api.rest(),
                 db,
                 &earliest_price_entry_gap.time,
                 Some(first_price_entry_after_gap_time),
@@ -256,11 +257,11 @@ pub async fn start(rest: &RestContext, ws: &WebSocketApiContext, db: &DbContext)
                 earliest_price_entry.time,
                 limit
             );
-            download_price_history(rest, db, &limit, Some(earliest_price_entry.time)).await?;
+            download_price_history(api.rest(), db, &limit, Some(earliest_price_entry.time)).await?;
         }
     } else {
         println!("\nNo price entries in the DB. Downloading from latest to earliest...");
-        download_price_history(rest, db, &limit, None).await?;
+        download_price_history(api.rest(), db, &limit, None).await?;
     }
 
     // We can assume that `limit` was reached, and the min history condition is
@@ -279,7 +280,7 @@ pub async fn start(rest: &RestContext, ws: &WebSocketApiContext, db: &DbContext)
         );
 
         let additional_entries_observed =
-            download_price_history(rest, db, &latest_price_entry.time, None).await?;
+            download_price_history(api.rest(), db, &latest_price_entry.time, None).await?;
 
         if !additional_entries_observed {
             println!("\nNo new entries after {}", latest_price_entry.time);
@@ -295,7 +296,7 @@ pub async fn start(rest: &RestContext, ws: &WebSocketApiContext, db: &DbContext)
 
     println!("\nInit WebSocket connection");
 
-    // let ws_api = LnmWebSocketApi::new(LNM_API_DOMAIN.to_string()).await?;
+    let ws = api.connect_ws().await?;
 
     println!("\nWS running. Setting up receiver...");
 

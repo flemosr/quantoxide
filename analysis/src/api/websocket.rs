@@ -14,5 +14,6 @@ pub type WebSocketApiContext = Box<dyn WebSocketRepository>;
 pub async fn new(api_domain: String) -> Result<WebSocketApiContext> {
     let lnm_websocket_repo = LnmWebSocketRepo::new(api_domain).await?;
     let ws_api_context = Box::new(lnm_websocket_repo);
+
     Ok(ws_api_context)
 }

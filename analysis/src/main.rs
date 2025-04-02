@@ -1,8 +1,4 @@
-use analysis::{
-    api::{self, rest::RestContext, websocket},
-    db::DbContext,
-    error::Result,
-};
+use analysis::{api::ApiContext, db::DbContext, error::Result};
 
 mod env;
 mod sync;
@@ -17,12 +13,9 @@ async fn main() -> Result<()> {
 
     println!("`db` is ready. Trying to init `api`...");
 
-    let api_domain = LNM_API_DOMAIN.to_string();
-
-    let rest = RestContext::new(api_domain.clone());
-    let ws = websocket::new(api_domain).await?;
+    let api = ApiContext::new(LNM_API_DOMAIN.to_string());
 
     println!("`api` is ready. Starting `sync`...");
 
-    sync::start(&rest, &ws, &db).await
+    sync::start(&api, &db).await
 }

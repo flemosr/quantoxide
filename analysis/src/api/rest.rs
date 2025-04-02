@@ -5,11 +5,11 @@ mod repositories;
 use lnm::futures::LnmFuturesRepository;
 use repositories::FuturesRepository;
 
-pub struct RestContext {
+pub struct RestApiContext {
     pub futures: Box<dyn FuturesRepository>,
 }
 
-impl RestContext {
+impl RestApiContext {
     pub fn new(api_domain: String) -> Self {
         let futures = Box::new(LnmFuturesRepository::new(api_domain));
         Self { futures }
