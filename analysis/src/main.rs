@@ -1,4 +1,8 @@
-use analysis::{api, db::DbContext, error::Result};
+use analysis::{
+    api::{self, rest::RestContext},
+    db::DbContext,
+    error::Result,
+};
 
 mod env;
 mod sync;
@@ -13,9 +17,13 @@ async fn main() -> Result<()> {
 
     println!("`db` is ready. Trying to init `api`...");
 
-    api::init(LNM_API_DOMAIN.to_string())?;
+    let api_domain = LNM_API_DOMAIN.to_string();
+
+    api::init(api_domain.clone())?;
+
+    let rest = RestContext::new(api_domain);
 
     println!("`api` is ready. Starting `sync`...");
 
-    sync::start(&db).await
+    sync::start(&rest, &db).await
 }
