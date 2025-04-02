@@ -1,5 +1,5 @@
 use analysis::{
-    api::{self, rest::RestContext},
+    api::{self, rest::RestContext, websocket},
     db::DbContext,
     error::Result,
 };
@@ -19,11 +19,10 @@ async fn main() -> Result<()> {
 
     let api_domain = LNM_API_DOMAIN.to_string();
 
-    api::init(api_domain.clone())?;
-
-    let rest = RestContext::new(api_domain);
+    let rest = RestContext::new(api_domain.clone());
+    let ws = websocket::new(api_domain).await?;
 
     println!("`api` is ready. Starting `sync`...");
 
-    sync::start(&rest, &db).await
+    sync::start(&rest, &ws, &db).await
 }

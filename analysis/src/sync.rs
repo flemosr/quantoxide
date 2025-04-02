@@ -6,7 +6,7 @@ use analysis::{
         rest::{models::PriceEntryLNM, RestContext},
         websocket::{
             models::{LnmWebSocketChannel, WebSocketApiRes},
-            LnmWebSocketApi,
+            WebSocketApiContext,
         },
     },
     db::DbContext,
@@ -186,7 +186,7 @@ async fn download_price_history(
     Ok(false)
 }
 
-pub async fn start(rest: &RestContext, db: &DbContext) -> Result<()> {
+pub async fn start(rest: &RestContext, ws: &WebSocketApiContext, db: &DbContext) -> Result<()> {
     let limit = Utc::now() - Duration::weeks(*LNM_MIN_PRICE_HISTORY_WEEKS as i64);
 
     println!(
@@ -295,11 +295,11 @@ pub async fn start(rest: &RestContext, db: &DbContext) -> Result<()> {
 
     println!("\nInit WebSocket connection");
 
-    let ws_api = LnmWebSocketApi::new(LNM_API_DOMAIN.to_string()).await?;
+    // let ws_api = LnmWebSocketApi::new(LNM_API_DOMAIN.to_string()).await?;
 
     println!("\nWS running. Setting up receiver...");
 
-    let mut receiver = ws_api.receiver().await?;
+    let mut receiver = ws.receiver().await?;
 
     tokio::spawn(async move {
         while let Ok(res) = receiver.recv().await {
@@ -320,20 +320,19 @@ pub async fn start(rest: &RestContext, db: &DbContext) -> Result<()> {
 
     println!("\nReceiver running. Subscribing to prices and index...");
 
-    ws_api
-        .subscribe(vec![
-            LnmWebSocketChannel::FuturesBtcUsdLastPrice,
-            LnmWebSocketChannel::FuturesBtcUsdIndex,
-        ])
-        .await?;
+    ws.subscribe(vec![
+        LnmWebSocketChannel::FuturesBtcUsdLastPrice,
+        LnmWebSocketChannel::FuturesBtcUsdIndex,
+    ])
+    .await?;
 
-    println!("\nSubscriptions {:?}", ws_api.subscriptions().await);
+    println!("\nSubscriptions {:?}", ws.subscriptions().await);
 
     wait(10);
 
     println!("\nShutdown");
 
-    ws_api.shutdown().await?;
+    ws.shutdown().await?;
 
     wait(5);
 
