@@ -6,7 +6,6 @@ mod repositories;
 
 use error::Result;
 use lnm::LnmWebSocketRepo;
-use manager::ConnectionState;
 use repositories::WebSocketRepository;
 
 pub type WebSocketApiContext = Box<dyn WebSocketRepository>;

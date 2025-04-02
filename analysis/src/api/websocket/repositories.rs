@@ -3,8 +3,8 @@ use std::collections::HashSet;
 
 use super::{
     error::Result,
-    manager::{ConnectionState, ResponseReceiver},
-    models::LnmWebSocketChannel,
+    manager::ResponseReceiver,
+    models::{ConnectionState, LnmWebSocketChannel},
 };
 
 #[async_trait]

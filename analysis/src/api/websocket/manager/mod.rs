@@ -6,7 +6,7 @@ use tokio::{
 
 use super::{
     error::{Result, WebSocketApiError},
-    models::{LnmJsonRpcRequest, LnmJsonRpcResponse, WebSocketApiRes},
+    models::{ConnectionState, LnmJsonRpcRequest, LnmJsonRpcResponse, WebSocketApiRes},
 };
 
 mod connection;
@@ -23,13 +23,6 @@ type RequestReceiver = mpsc::Receiver<(LnmJsonRpcRequest, oneshot::Sender<bool>)
 
 pub type ResponseTransmiter = broadcast::Sender<WebSocketApiRes>;
 pub type ResponseReceiver = broadcast::Receiver<WebSocketApiRes>;
-
-#[derive(Clone, Debug)]
-pub enum ConnectionState {
-    Connected,
-    Disconnected,
-    Failed(WebSocketApiError),
-}
 
 pub struct ManagerTask {
     ws: WebSocketApiConnection,

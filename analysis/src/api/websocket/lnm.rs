@@ -8,13 +8,15 @@ use tokio::{
     task::JoinHandle,
 };
 
-use super::error::{Result, WebSocketApiError};
 use super::manager::{
-    ConnectionState, ManagerTask, RequestTransmiter, ResponseReceiver, ResponseTransmiter,
-    ShutdownTransmiter,
+    ManagerTask, RequestTransmiter, ResponseReceiver, ResponseTransmiter, ShutdownTransmiter,
 };
 use super::models::{LnmJsonRpcReqMethod, LnmJsonRpcRequest, LnmWebSocketChannel};
 use super::repositories::WebSocketRepository;
+use super::{
+    error::{Result, WebSocketApiError},
+    models::ConnectionState,
+};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum ChannelStatus {
