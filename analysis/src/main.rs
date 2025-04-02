@@ -1,12 +1,9 @@
-mod api;
-mod db;
+use analysis::{api, db::DbContext, error::Result};
+
 mod env;
-mod error;
 mod sync;
 
-use db::DbContext;
 use env::{LNM_API_DOMAIN, POSTGRES_DB_URL};
-use error::Result;
 
 #[tokio::main]
 async fn main() -> Result<()> {

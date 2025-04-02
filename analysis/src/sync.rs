@@ -1,7 +1,7 @@
 use chrono::{DateTime, Duration, Utc};
 use std::{collections::HashSet, thread, time};
 
-use crate::{
+use analysis::{
     api::{
         rest::{self, models::PriceEntryLNM},
         websocket::{
@@ -10,12 +10,12 @@ use crate::{
         },
     },
     db::DbContext,
-    env::{
-        LNM_API_COOLDOWN_SEC, LNM_API_DOMAIN, LNM_API_ERROR_COOLDOWN_SEC, LNM_API_ERROR_MAX_TRIALS,
-        LNM_MIN_PRICE_HISTORY_WEEKS, LNM_PRICE_HISTORY_LIMIT,
-    },
-    error::AppError,
-    Result,
+    error::{AppError, Result},
+};
+
+use crate::env::{
+    LNM_API_COOLDOWN_SEC, LNM_API_DOMAIN, LNM_API_ERROR_COOLDOWN_SEC, LNM_API_ERROR_MAX_TRIALS,
+    LNM_MIN_PRICE_HISTORY_WEEKS, LNM_PRICE_HISTORY_LIMIT,
 };
 
 fn wait(secs: u64) {
