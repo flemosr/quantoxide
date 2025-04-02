@@ -5,8 +5,6 @@ use super::websocket::error::WebSocketApiError;
 
 #[derive(Error, Debug)]
 pub enum ApiError {
-    #[error("Init error: {0}")]
-    Init(&'static str),
     #[error("Url parse error: {0}")]
     UrlParse(String),
     #[error("Response error: {0}")]
