@@ -8,14 +8,17 @@ use tokio::{
     task::JoinHandle,
 };
 
-use super::manager::{
-    ManagerTask, RequestTransmiter, ResponseReceiver, ResponseTransmiter, ShutdownTransmiter,
-};
 use super::models::{LnmJsonRpcReqMethod, LnmJsonRpcRequest, LnmWebSocketChannel};
 use super::repositories::WebSocketRepository;
 use super::{
     error::{Result, WebSocketApiError},
     models::ConnectionState,
+};
+
+mod manager;
+
+use manager::{
+    ManagerTask, RequestTransmiter, ResponseReceiver, ResponseTransmiter, ShutdownTransmiter,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]

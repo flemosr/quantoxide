@@ -4,7 +4,7 @@ use tokio::{
     time,
 };
 
-use super::{
+use super::super::{
     error::{Result, WebSocketApiError},
     models::{ConnectionState, LnmJsonRpcRequest, LnmJsonRpcResponse, WebSocketApiRes},
 };

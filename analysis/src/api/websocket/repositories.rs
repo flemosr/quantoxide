@@ -1,10 +1,10 @@
 use async_trait::async_trait;
 use std::collections::HashSet;
+use tokio::sync::broadcast::Receiver;
 
 use super::{
     error::Result,
-    manager::ResponseReceiver,
-    models::{ConnectionState, LnmWebSocketChannel},
+    models::{ConnectionState, LnmWebSocketChannel, WebSocketApiRes},
 };
 
 #[async_trait]
@@ -19,7 +19,7 @@ pub trait WebSocketRepository: Send + Sync {
 
     async fn subscriptions(&self) -> HashSet<LnmWebSocketChannel>;
 
-    async fn receiver(&self) -> Result<ResponseReceiver>;
+    async fn receiver(&self) -> Result<Receiver<WebSocketApiRes>>;
 
     async fn shutdown(&self) -> Result<()>;
 }

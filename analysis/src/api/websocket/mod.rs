@@ -1,6 +1,5 @@
 pub mod error;
 mod lnm;
-mod manager;
 pub mod models;
 mod repositories;
 
