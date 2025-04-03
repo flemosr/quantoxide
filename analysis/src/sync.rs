@@ -1,7 +1,7 @@
 use chrono::{DateTime, Duration, Utc};
 use std::{collections::HashSet, thread, time};
 
-use analysis::{
+use crate::{
     api::{
         rest::{models::PriceEntryLNM, RestApiContext},
         websocket::models::{LnmWebSocketChannel, WebSocketApiRes},

@@ -1,13 +1,11 @@
-use analysis::{api::ApiContext, db::DbContext, error::Result};
+use analysis::{api::ApiContext, db::DbContext, error::Result, sync::Sync};
 
 mod env;
-mod sync;
 
 use env::{
     LNM_API_COOLDOWN_SEC, LNM_API_DOMAIN, LNM_API_ERROR_COOLDOWN_SEC, LNM_API_ERROR_MAX_TRIALS,
     LNM_PRICE_HISTORY_LIMIT, POSTGRES_DB_URL, SYNC_HISTORY_REACH_WEEKS,
 };
-use sync::Sync;
 
 #[tokio::main]
 async fn main() -> Result<()> {
