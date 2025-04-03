@@ -41,71 +41,47 @@ impl PgPriceHistoryRepo {
 #[async_trait]
 impl PriceHistoryRepository for PgPriceHistoryRepo {
     async fn get_earliest_entry_gap(&self) -> Result<Option<PriceHistoryEntry>> {
-        match sqlx::query_as!(
+        sqlx::query_as!(
             PriceHistoryEntry,
             "SELECT * FROM price_history WHERE next IS NULL ORDER BY time ASC LIMIT 1"
         )
-        .fetch_one(self.pool())
+        .fetch_optional(self.pool())
         .await
-        {
-            Ok(entry) => Ok(Some(entry)),
-            Err(e) => match e {
-                sqlx::Error::RowNotFound => Ok(None),
-                _ => Err(DbError::Query(e)),
-            },
-        }
+        .map_err(DbError::Query)
     }
 
     async fn get_latest_entry(&self) -> Result<Option<PriceHistoryEntry>> {
-        match sqlx::query_as!(
+        sqlx::query_as!(
             PriceHistoryEntry,
             "SELECT * FROM price_history ORDER BY time DESC LIMIT 1"
         )
-        .fetch_one(self.pool())
+        .fetch_optional(self.pool())
         .await
-        {
-            Ok(entry) => Ok(Some(entry)),
-            Err(e) => match e {
-                sqlx::Error::RowNotFound => Ok(None),
-                _ => Err(DbError::Query(e)),
-            },
-        }
+        .map_err(DbError::Query)
     }
 
     async fn get_earliest_entry(&self) -> Result<Option<PriceHistoryEntry>> {
-        match sqlx::query_as!(
+        sqlx::query_as!(
             PriceHistoryEntry,
             "SELECT * FROM price_history ORDER BY time ASC LIMIT 1"
         )
-        .fetch_one(self.pool())
+        .fetch_optional(self.pool())
         .await
-        {
-            Ok(entry) => Ok(Some(entry)),
-            Err(e) => match e {
-                sqlx::Error::RowNotFound => Ok(None),
-                _ => Err(DbError::Query(e)),
-            },
-        }
+        .map_err(DbError::Query)
     }
 
     async fn get_earliest_entry_after(
         &self,
         time: DateTime<Utc>,
     ) -> Result<Option<PriceHistoryEntry>> {
-        match sqlx::query_as!(
+        sqlx::query_as!(
             PriceHistoryEntry,
             "SELECT * FROM price_history WHERE time > $1 ORDER BY time ASC LIMIT 1",
             time
         )
-        .fetch_one(self.pool())
+        .fetch_optional(self.pool())
         .await
-        {
-            Ok(entry) => Ok(Some(entry)),
-            Err(e) => match e {
-                sqlx::Error::RowNotFound => Ok(None),
-                _ => Err(DbError::Query(e)),
-            },
-        }
+        .map_err(DbError::Query)
     }
 
     async fn add_entries(
@@ -151,7 +127,7 @@ impl PriceHistoryRepository for PgPriceHistoryRepo {
         let earliest_entry_time = entries.last().expect("not empty").time();
         let start_locf_sec = get_locf_sec(earliest_entry_time);
 
-        let prev_locf_sec: Option<DateTime<Utc>> = sqlx::query_scalar!(
+        let prev_locf_sec = sqlx::query_scalar!(
             "SELECT max(time) FROM price_history_locf WHERE time <= $1",
             earliest_entry_time
         )
@@ -292,7 +268,7 @@ impl PriceHistoryRepository for PgPriceHistoryRepo {
 
         // At least one price entry must exist before `min_locf_sec` in order to
         // compute locf values and indicators.
-        let is_time_valid: bool = sqlx::query_scalar!(
+        let is_time_valid = sqlx::query_scalar!(
             "SELECT EXISTS (SELECT 1 FROM price_history WHERE time <= $1)",
             min_locf_sec
         )
