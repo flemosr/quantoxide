@@ -64,7 +64,7 @@ pub trait PriceHistoryRepository: Send + Sync {
     ///   - `Err` on database or transaction errors
     async fn add_entries(
         &self,
-        entries: &Vec<PriceEntryLNM>,
+        entries: &[PriceEntryLNM],
         next_observed_time: Option<&DateTime<Utc>>,
     ) -> Result<()>;
 
