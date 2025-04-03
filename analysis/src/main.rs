@@ -3,7 +3,11 @@ use analysis::{api::ApiContext, db::DbContext, error::Result};
 mod env;
 mod sync;
 
-use env::{LNM_API_DOMAIN, POSTGRES_DB_URL};
+use env::{
+    LNM_API_COOLDOWN_SEC, LNM_API_DOMAIN, LNM_API_ERROR_COOLDOWN_SEC, LNM_API_ERROR_MAX_TRIALS,
+    LNM_PRICE_HISTORY_LIMIT, POSTGRES_DB_URL, SYNC_HISTORY_REACH_WEEKS,
+};
+use sync::Sync;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -11,11 +15,19 @@ async fn main() -> Result<()> {
 
     let db = DbContext::new(&POSTGRES_DB_URL).await?;
 
-    println!("`db` is ready. Trying to init `api`...");
+    println!("`db` is ready. Init `api`...");
 
     let api = ApiContext::new(LNM_API_DOMAIN.to_string());
 
     println!("`api` is ready. Starting `sync`...");
 
-    sync::start(&api, &db).await
+    let sync = Sync::new(
+        *LNM_API_COOLDOWN_SEC,
+        *LNM_API_ERROR_COOLDOWN_SEC,
+        *LNM_API_ERROR_MAX_TRIALS,
+        *LNM_PRICE_HISTORY_LIMIT,
+        *SYNC_HISTORY_REACH_WEEKS,
+    );
+
+    sync.start(&api, &db).await
 }
