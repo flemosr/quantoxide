@@ -20,100 +20,6 @@ enum LimitReached {
     Yes { overlap: bool },
 }
 
-async fn get_new_price_entries(
-    api_cooldown_sec: u64,
-    api_error_cooldown_sec: u64,
-    api_error_max_trials: u32,
-    api_history_max_entries: usize,
-    rest: &RestApiContext,
-    limit: &DateTime<Utc>,
-    before_observed_time: Option<DateTime<Utc>>,
-) -> Result<(Vec<PriceEntryLNM>, LimitReached)> {
-    let mut price_entries = {
-        let mut trials = 0;
-
-        loop {
-            wait(api_cooldown_sec);
-
-            match rest
-                .futures
-                .price_history(None, before_observed_time, Some(api_history_max_entries))
-                .await
-            {
-                Ok(price_entries) => break price_entries,
-                Err(api_error) => {
-                    println!("\nError fetching price history {:?}", api_error);
-
-                    trials += 1;
-                    if trials >= api_error_max_trials {
-                        return Err(AppError::ApiMaxTrialsReached {
-                            api_error,
-                            max_trials: api_error_max_trials,
-                        });
-                    }
-
-                    println!(
-                        "Remaining trials: {}. Waiting {} secs...",
-                        api_error_max_trials - trials,
-                        api_error_cooldown_sec
-                    );
-
-                    wait(api_error_cooldown_sec);
-
-                    continue;
-                }
-            };
-        }
-    };
-
-    if price_entries.len() < api_history_max_entries {
-        println!(
-            "\nReceived only {} price entries with limit {}.",
-            price_entries.len(),
-            api_history_max_entries
-        );
-    }
-
-    // Remove entries with duplicated 'time'
-    let mut seen = HashSet::new();
-    price_entries.retain(|price_entry| seen.insert(*price_entry.time()));
-
-    let is_sorted_time_desc = price_entries.is_sorted_by(|a, b| a.time() > b.time());
-    if !is_sorted_time_desc {
-        return Err(AppError::UnexpectedLNMPayload(
-            "Price entries unsorted by time desc".to_string(),
-        ));
-    }
-
-    // If `before_observed_time` is set, ensure that the first (latest) entry matches it
-    if let Some(observed_time) = before_observed_time {
-        let first_entry = price_entries.remove(0);
-        if *first_entry.time() != observed_time {
-            return Err(AppError::UnexpectedLNMPayload(
-                "Price entries without overlap".to_string(),
-            ));
-        }
-        println!(
-            "First received entry matches `before_observed_time` time {}. Overlap OK.",
-            observed_time
-        );
-    }
-
-    let limit_reached = if let Some(entry_i) = price_entries
-        .iter()
-        .position(|price_entry| price_entry.time() <= limit)
-    {
-        // Remove the entries before the `limit`
-        let before_limit = price_entries.split_off(entry_i);
-        let overlap = before_limit.first().expect("not empty").time() == limit;
-        LimitReached::Yes { overlap }
-    } else {
-        LimitReached::No
-    };
-
-    Ok((price_entries, limit_reached))
-}
-
 pub struct Sync {
     api_cooldown_sec: u64,
     api_error_cooldown_sec: u64,
@@ -144,6 +50,101 @@ impl Sync {
         }
     }
 
+    async fn get_new_price_entries(
+        &self,
+        rest: &RestApiContext,
+        limit: &DateTime<Utc>,
+        before_observed_time: Option<DateTime<Utc>>,
+    ) -> Result<(Vec<PriceEntryLNM>, LimitReached)> {
+        let mut price_entries = {
+            let mut trials = 0;
+
+            loop {
+                wait(self.api_cooldown_sec);
+
+                match rest
+                    .futures
+                    .price_history(
+                        None,
+                        before_observed_time,
+                        Some(self.api_history_max_entries),
+                    )
+                    .await
+                {
+                    Ok(price_entries) => break price_entries,
+                    Err(api_error) => {
+                        println!("\nError fetching price history {:?}", api_error);
+
+                        trials += 1;
+                        if trials >= self.api_error_max_trials {
+                            return Err(AppError::ApiMaxTrialsReached {
+                                api_error,
+                                max_trials: self.api_error_max_trials,
+                            });
+                        }
+
+                        println!(
+                            "Remaining trials: {}. Waiting {} secs...",
+                            self.api_error_max_trials - trials,
+                            self.api_error_cooldown_sec
+                        );
+
+                        wait(self.api_error_cooldown_sec);
+
+                        continue;
+                    }
+                };
+            }
+        };
+
+        if price_entries.len() < self.api_history_max_entries {
+            println!(
+                "\nReceived only {} price entries with limit {}.",
+                price_entries.len(),
+                self.api_history_max_entries
+            );
+        }
+
+        // Remove entries with duplicated 'time'
+        let mut seen = HashSet::new();
+        price_entries.retain(|price_entry| seen.insert(*price_entry.time()));
+
+        let is_sorted_time_desc = price_entries.is_sorted_by(|a, b| a.time() > b.time());
+        if !is_sorted_time_desc {
+            return Err(AppError::UnexpectedLNMPayload(
+                "Price entries unsorted by time desc".to_string(),
+            ));
+        }
+
+        // If `before_observed_time` is set, ensure that the first (latest) entry matches it
+        if let Some(observed_time) = before_observed_time {
+            let first_entry = price_entries.remove(0);
+            if *first_entry.time() != observed_time {
+                return Err(AppError::UnexpectedLNMPayload(
+                    "Price entries without overlap".to_string(),
+                ));
+            }
+            println!(
+                "First received entry matches `before_observed_time` time {}. Overlap OK.",
+                observed_time
+            );
+        }
+
+        let limit_reached = if let Some(entry_i) = price_entries
+            .iter()
+            .position(|price_entry| price_entry.time() <= limit)
+        {
+            // Remove the entries before the `limit`
+            let before_limit = price_entries.split_off(entry_i);
+            let overlap = before_limit.first().expect("not empty").time() == limit;
+            LimitReached::Yes { overlap }
+        } else {
+            LimitReached::No
+        };
+
+        Ok((price_entries, limit_reached))
+    }
+
     async fn download_price_history(
         &self,
         rest: &RestApiContext,
@@ -157,16 +158,9 @@ impl Sync {
                 None => println!("\nFetching latest price entries..."),
             }
 
-            let (new_price_entries, limit_check) = get_new_price_entries(
-                self.api_cooldown_sec,
-                self.api_error_cooldown_sec,
-                self.api_error_max_trials,
-                self.api_history_max_entries,
-                rest,
-                limit,
-                next_observed_time,
-            )
-            .await?;
+            let (new_price_entries, limit_check) = self
+                .get_new_price_entries(rest, limit, next_observed_time)
+                .await?;
 
             if new_price_entries.is_empty() {
                 println!("\nNo new entries were received.");
