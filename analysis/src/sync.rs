@@ -1,5 +1,5 @@
 use chrono::{DateTime, Duration, Utc};
-use std::{collections::HashSet, thread, time};
+use std::{collections::HashSet, sync::Arc, thread, time};
 
 use crate::{
     api::{
@@ -26,6 +26,8 @@ pub struct Sync {
     api_error_max_trials: u32,
     api_history_max_entries: usize,
     sync_reach: DateTime<Utc>,
+    db: Arc<DbContext>,
+    api: Arc<ApiContext>,
 }
 
 impl Sync {
@@ -35,6 +37,8 @@ impl Sync {
         api_error_max_trials: u32,
         api_history_max_entries: usize,
         sync_history_reach_weeks: u64,
+        db: Arc<DbContext>,
+        api: Arc<ApiContext>,
     ) -> Self {
         let sync_reach = Utc::now() - Duration::weeks(sync_history_reach_weeks as i64);
 
@@ -47,23 +51,23 @@ impl Sync {
             api_error_max_trials,
             api_history_max_entries,
             sync_reach,
+            db,
+            api,
         }
     }
 
     async fn get_new_price_entries(
         &self,
-        rest: &RestApiContext,
         limit: &DateTime<Utc>,
         before_observed_time: Option<DateTime<Utc>>,
     ) -> Result<(Vec<PriceEntryLNM>, LimitReached)> {
         let mut price_entries = {
             let mut trials = 0;
-
+            let rest_futures = &self.api.rest().futures;
             loop {
                 wait(self.api_cooldown_sec);
 
-                match rest
-                    .futures
+                match rest_futures
                     .price_history(
                         None,
                         before_observed_time,
@@ -147,8 +151,6 @@ impl Sync {
 
     async fn download_price_history(
         &self,
-        rest: &RestApiContext,
-        db: &DbContext,
         limit: &DateTime<Utc>,
         mut next_observed_time: Option<DateTime<Utc>>,
     ) -> Result<bool> {
@@ -159,7 +161,7 @@ impl Sync {
             }
 
             let (new_price_entries, limit_check) = self
-                .get_new_price_entries(rest, limit, next_observed_time)
+                .get_new_price_entries(limit, next_observed_time)
                 .await?;
 
             if new_price_entries.is_empty() {
@@ -170,7 +172,8 @@ impl Sync {
                 let earliest_new_entry_time = new_price_entries.last().expect("not empty").time();
                 println!("\n{entries_len} new entries received, from {earliest_new_entry_time} to {latest_new_entry_time}");
 
-                db.price_history
+                self.db
+                    .price_history
                     .add_entries(&new_price_entries, next_observed_time.as_ref())
                     .await?;
 
@@ -209,15 +212,20 @@ impl Sync {
         if let Some(next) = limit_next_observed_time {
             println!("\nReached `limit` {limit}. Updating the corresponding entry's `next` field");
 
-            db.price_history.update_entry_next(limit, &next).await?;
+            self.db
+                .price_history
+                .update_entry_next(limit, &next)
+                .await?;
             return Ok(true);
         }
 
         Ok(false)
     }
 
-    pub async fn start(&self, api: &ApiContext, db: &DbContext) -> Result<()> {
-        if let Some(earliest_price_entry_gap) = db.price_history.get_earliest_entry_gap().await? {
+    pub async fn run(&self) -> Result<()> {
+        if let Some(earliest_price_entry_gap) =
+            self.db.price_history.get_earliest_entry_gap().await?
+        {
             if earliest_price_entry_gap.time < self.sync_reach {
                 // There is a price gap before `limit`. Since we shouldn't fetch
                 // entries before `limit`. Said gap can't be closed, and therefore
@@ -229,9 +237,9 @@ impl Sync {
             }
         }
 
-        if let Some(latest_price_entry) = db.price_history.get_latest_entry().await? {
+        if let Some(latest_price_entry) = self.db.price_history.get_latest_entry().await? {
             while let Some(earliest_price_entry_gap) =
-                db.price_history.get_earliest_entry_gap().await?
+                self.db.price_history.get_earliest_entry_gap().await?
             {
                 if earliest_price_entry_gap.time == latest_price_entry.time {
                     // Earliest price entry gap is the latest price entry
@@ -241,7 +249,8 @@ impl Sync {
 
                 println!("\nGap after {} was found.", earliest_price_entry_gap.time);
 
-                let first_price_entry_after_gap = db
+                let first_price_entry_after_gap = self
+                    .db
                     .price_history
                     .get_earliest_entry_after(earliest_price_entry_gap.time)
                     .await?;
@@ -257,8 +266,6 @@ impl Sync {
 
                 let overlap_reached = self
                     .download_price_history(
-                        api.rest(),
-                        db,
                         &earliest_price_entry_gap.time,
                         Some(first_price_entry_after_gap_time),
                     )
@@ -273,31 +280,26 @@ impl Sync {
             }
         }
 
-        if let Some(earliest_price_entry) = db.price_history.get_earliest_entry().await? {
+        if let Some(earliest_price_entry) = self.db.price_history.get_earliest_entry().await? {
             if earliest_price_entry.time > self.sync_reach {
                 println!(
                     "\nDownloading price entries from the earliest ({}) in the DB backwards, until limit ({})...",
                     earliest_price_entry.time,
                     self.sync_reach
                 );
-                self.download_price_history(
-                    api.rest(),
-                    db,
-                    &self.sync_reach,
-                    Some(earliest_price_entry.time),
-                )
-                .await?;
+                self.download_price_history(&self.sync_reach, Some(earliest_price_entry.time))
+                    .await?;
             }
         } else {
             println!("\nNo price entries in the DB. Downloading from latest to earliest...");
-            self.download_price_history(api.rest(), db, &self.sync_reach, None)
-                .await?;
+            self.download_price_history(&self.sync_reach, None).await?;
         }
 
         // We can assume that `limit` was reached, and the min history condition is
         // satisfied.
 
-        let mut latest_price_entry = db
+        let mut latest_price_entry = self
+            .db
             .price_history
             .get_latest_entry()
             .await?
@@ -310,7 +312,7 @@ impl Sync {
             );
 
             let additional_entries_observed = self
-                .download_price_history(api.rest(), db, &latest_price_entry.time, None)
+                .download_price_history(&latest_price_entry.time, None)
                 .await?;
 
             if !additional_entries_observed {
@@ -318,7 +320,8 @@ impl Sync {
                 break;
             }
 
-            latest_price_entry = db
+            latest_price_entry = self
+                .db
                 .price_history
                 .get_latest_entry()
                 .await?
@@ -327,7 +330,7 @@ impl Sync {
 
         println!("\nInit WebSocket connection");
 
-        let ws = api.connect_ws().await?;
+        let ws = self.api.connect_ws().await?;
 
         println!("\nWS running. Setting up receiver...");
 

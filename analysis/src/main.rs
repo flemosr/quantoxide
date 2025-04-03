@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use analysis::{api::ApiContext, db::DbContext, error::Result, sync::Sync};
 
 mod env;
@@ -11,11 +13,11 @@ use env::{
 async fn main() -> Result<()> {
     println!("Trying to init `db`...");
 
-    let db = DbContext::new(&POSTGRES_DB_URL).await?;
+    let db = Arc::new(DbContext::new(&POSTGRES_DB_URL).await?);
 
     println!("`db` is ready. Init `api`...");
 
-    let api = ApiContext::new(LNM_API_DOMAIN.to_string());
+    let api = Arc::new(ApiContext::new(LNM_API_DOMAIN.to_string()));
 
     println!("`api` is ready. Starting `sync`...");
 
@@ -25,7 +27,9 @@ async fn main() -> Result<()> {
         *LNM_API_ERROR_MAX_TRIALS,
         *LNM_PRICE_HISTORY_LIMIT,
         *SYNC_HISTORY_REACH_WEEKS,
+        db.clone(),
+        api.clone(),
     );
 
-    sync.start(&api, &db).await
+    sync.run().await
 }
