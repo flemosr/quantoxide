@@ -13,7 +13,7 @@ use env::{
 async fn main() -> Result<()> {
     println!("Trying to init `db`...");
 
-    let db = Arc::new(DbContext::new(&POSTGRES_DB_URL).await?);
+    let db = DbContext::new(&POSTGRES_DB_URL).await?;
 
     println!("`db` is ready. Init `api`...");
 

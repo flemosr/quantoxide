@@ -15,7 +15,7 @@ pub struct DbContext {
 }
 
 impl DbContext {
-    pub async fn new(postgres_db_url: &str) -> Result<Self> {
+    pub async fn new(postgres_db_url: &str) -> Result<Arc<Self>> {
         println!("Connecting to database...");
         let pool = PgPoolOptions::new()
             .max_connections(5)
@@ -45,6 +45,6 @@ impl DbContext {
         let pool = Arc::new(pool);
         let price_history = Box::new(PgPriceHistoryRepo::new(pool));
 
-        Ok(Self { price_history })
+        Ok(Arc::new(Self { price_history }))
     }
 }
