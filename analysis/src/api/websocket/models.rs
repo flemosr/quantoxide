@@ -209,7 +209,7 @@ impl TryFrom<JsonRpcResponse> for LnmJsonRpcResponse {
 
             let result_array_len = result_array.len();
             let channels: Vec<LnmWebSocketChannel> = result_array
-                .into_iter()
+                .iter()
                 .filter_map(|channel| LnmWebSocketChannel::try_from(channel.as_str()?).ok())
                 .collect();
 
@@ -264,9 +264,9 @@ impl TryFrom<JsonRpcResponse> for LnmJsonRpcResponse {
             return Ok(Self::Subscription(data));
         }
 
-        return Err(WebSocketApiError::Generic(
+        Err(WebSocketApiError::Generic(
             "Unknown JSON RPC response".to_string(),
-        ));
+        ))
     }
 }
 
