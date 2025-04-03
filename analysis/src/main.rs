@@ -17,7 +17,7 @@ async fn main() -> Result<()> {
 
     println!("`db` is ready. Init `api`...");
 
-    let api = Arc::new(ApiContext::new(LNM_API_DOMAIN.to_string()));
+    let api = ApiContext::new(LNM_API_DOMAIN.to_string());
 
     println!("`api` is ready. Starting `sync`...");
 

@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use tokio::sync::OnceCell;
 
 pub mod error;
@@ -15,14 +17,14 @@ pub struct ApiContext {
 }
 
 impl ApiContext {
-    pub fn new(api_domain: String) -> Self {
+    pub fn new(api_domain: String) -> Arc<Self> {
         let rest = RestApiContext::new(api_domain.clone());
 
-        Self {
+        Arc::new(Self {
             api_domain,
             rest,
             ws: OnceCell::new(),
-        }
+        })
     }
 
     pub fn rest(&self) -> &RestApiContext {
