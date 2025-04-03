@@ -11,11 +11,6 @@ use analysis::{
     error::{AppError, Result},
 };
 
-use crate::env::{
-    LNM_API_COOLDOWN_SEC, LNM_API_ERROR_COOLDOWN_SEC, LNM_API_ERROR_MAX_TRIALS,
-    LNM_MIN_PRICE_HISTORY_WEEKS, LNM_PRICE_HISTORY_LIMIT,
-};
-
 fn wait(secs: u64) {
     thread::sleep(time::Duration::from_secs(secs));
 }
@@ -26,6 +21,10 @@ enum LimitReached {
 }
 
 async fn get_new_price_entries(
+    api_cooldown_sec: u64,
+    api_error_cooldown_sec: u64,
+    api_error_max_trials: u32,
+    api_history_max_entries: usize,
     rest: &RestApiContext,
     limit: &DateTime<Utc>,
     before_observed_time: Option<DateTime<Utc>>,
@@ -34,11 +33,11 @@ async fn get_new_price_entries(
         let mut trials = 0;
 
         loop {
-            wait(*LNM_API_COOLDOWN_SEC);
+            wait(api_cooldown_sec);
 
             match rest
                 .futures
-                .price_history(None, before_observed_time, Some(*LNM_PRICE_HISTORY_LIMIT))
+                .price_history(None, before_observed_time, Some(api_history_max_entries))
                 .await
             {
                 Ok(price_entries) => break price_entries,
@@ -46,20 +45,20 @@ async fn get_new_price_entries(
                     println!("\nError fetching price history {:?}", api_error);
 
                     trials += 1;
-                    if trials >= *LNM_API_ERROR_MAX_TRIALS {
+                    if trials >= api_error_max_trials {
                         return Err(AppError::ApiMaxTrialsReached {
                             api_error,
-                            max_trials: *LNM_API_ERROR_MAX_TRIALS,
+                            max_trials: api_error_max_trials,
                         });
                     }
 
                     println!(
                         "Remaining trials: {}. Waiting {} secs...",
-                        *LNM_API_ERROR_MAX_TRIALS - trials,
-                        *LNM_API_ERROR_COOLDOWN_SEC
+                        api_error_max_trials - trials,
+                        api_error_cooldown_sec
                     );
 
-                    wait(*LNM_API_ERROR_COOLDOWN_SEC);
+                    wait(api_error_cooldown_sec);
 
                     continue;
                 }
@@ -67,11 +66,11 @@ async fn get_new_price_entries(
         }
     };
 
-    if price_entries.len() < *LNM_PRICE_HISTORY_LIMIT {
+    if price_entries.len() < api_history_max_entries {
         println!(
             "\nReceived only {} price entries with limit {}.",
             price_entries.len(),
-            *LNM_PRICE_HISTORY_LIMIT
+            api_history_max_entries
         );
     }
 
@@ -116,6 +115,10 @@ async fn get_new_price_entries(
 }
 
 async fn download_price_history(
+    api_cooldown_sec: u64,
+    api_error_cooldown_sec: u64,
+    api_error_max_trials: u32,
+    api_history_max_entries: usize,
     rest: &RestApiContext,
     db: &DbContext,
     limit: &DateTime<Utc>,
@@ -127,8 +130,16 @@ async fn download_price_history(
             None => println!("\nFetching latest price entries..."),
         }
 
-        let (new_price_entries, limit_check) =
-            get_new_price_entries(rest, limit, next_observed_time).await?;
+        let (new_price_entries, limit_check) = get_new_price_entries(
+            api_cooldown_sec,
+            api_error_cooldown_sec,
+            api_error_max_trials,
+            api_history_max_entries,
+            rest,
+            limit,
+            next_observed_time,
+        )
+        .await?;
 
         if new_price_entries.is_empty() {
             println!("\nNo new entries were received.");
@@ -184,155 +195,212 @@ async fn download_price_history(
     Ok(false)
 }
 
-pub async fn start(api: &ApiContext, db: &DbContext) -> Result<()> {
-    let limit = Utc::now() - Duration::weeks(*LNM_MIN_PRICE_HISTORY_WEEKS as i64);
+pub struct Sync {
+    api_cooldown_sec: u64,
+    api_error_cooldown_sec: u64,
+    api_error_max_trials: u32,
+    api_history_max_entries: usize,
+    sync_reach: DateTime<Utc>,
+}
 
-    println!(
-        "\nPrice history sync limit: {} weeks",
-        *LNM_MIN_PRICE_HISTORY_WEEKS
-    );
-    println!("Limit timestamp: {limit}");
+impl Sync {
+    pub fn new(
+        api_cooldown_sec: u64,
+        api_error_cooldown_sec: u64,
+        api_error_max_trials: u32,
+        api_history_max_entries: usize,
+        sync_history_reach_weeks: u64,
+    ) -> Self {
+        let sync_reach = Utc::now() - Duration::weeks(sync_history_reach_weeks as i64);
 
-    if let Some(earliest_price_entry_gap) = db.price_history.get_earliest_entry_gap().await? {
-        if earliest_price_entry_gap.time < limit {
-            // There is a price gap before `limit`. Since we shouldn't fetch
-            // entries before `limit`. Said gap can't be closed, and therefore
-            // the db can't be synced.
-            return Err(AppError::UnreachableDbGap {
-                earliest_gap: earliest_price_entry_gap.time,
-                limit,
-            });
+        println!("\nPrice history sync reach: {sync_history_reach_weeks} weeks",);
+        println!("Limit timestamp: {sync_reach}");
+
+        Self {
+            api_cooldown_sec,
+            api_error_cooldown_sec,
+            api_error_max_trials,
+            api_history_max_entries,
+            sync_reach,
         }
     }
 
-    if let Some(latest_price_entry) = db.price_history.get_latest_entry().await? {
-        while let Some(earliest_price_entry_gap) = db.price_history.get_earliest_entry_gap().await?
-        {
-            if earliest_price_entry_gap.time == latest_price_entry.time {
-                // Earliest price entry gap is the latest price entry
-                println!("\nNo history gaps before the latest entry were found.");
-                break;
+    pub async fn start(&self, api: &ApiContext, db: &DbContext) -> Result<()> {
+        if let Some(earliest_price_entry_gap) = db.price_history.get_earliest_entry_gap().await? {
+            if earliest_price_entry_gap.time < self.sync_reach {
+                // There is a price gap before `limit`. Since we shouldn't fetch
+                // entries before `limit`. Said gap can't be closed, and therefore
+                // the db can't be synced.
+                return Err(AppError::UnreachableDbGap {
+                    earliest_gap: earliest_price_entry_gap.time,
+                    limit: self.sync_reach,
+                });
             }
+        }
 
-            println!("\nGap after {} was found.", earliest_price_entry_gap.time);
+        if let Some(latest_price_entry) = db.price_history.get_latest_entry().await? {
+            while let Some(earliest_price_entry_gap) =
+                db.price_history.get_earliest_entry_gap().await?
+            {
+                if earliest_price_entry_gap.time == latest_price_entry.time {
+                    // Earliest price entry gap is the latest price entry
+                    println!("\nNo history gaps before the latest entry were found.");
+                    break;
+                }
 
-            let first_price_entry_after_gap = db
-                .price_history
-                .get_earliest_entry_after(earliest_price_entry_gap.time)
+                println!("\nGap after {} was found.", earliest_price_entry_gap.time);
+
+                let first_price_entry_after_gap = db
+                    .price_history
+                    .get_earliest_entry_after(earliest_price_entry_gap.time)
+                    .await?;
+                let first_price_entry_after_gap_time = first_price_entry_after_gap
+                    .expect("Gap entry is not latest entry.")
+                    .time;
+
+                println!(
+                    "\nEarliest price entry after gap has time {first_price_entry_after_gap_time}."
+                );
+
+                println!("\nDownloading entries from {first_price_entry_after_gap_time} backwards, until closing the gap...");
+
+                let overlap_reached = download_price_history(
+                    self.api_cooldown_sec,
+                    self.api_error_cooldown_sec,
+                    self.api_error_max_trials,
+                    self.api_history_max_entries,
+                    api.rest(),
+                    db,
+                    &earliest_price_entry_gap.time,
+                    Some(first_price_entry_after_gap_time),
+                )
                 .await?;
-            let first_price_entry_after_gap_time = first_price_entry_after_gap
-                .expect("Gap entry is not latest entry.")
-                .time;
 
-            println!(
-                "\nEarliest price entry after gap has time {first_price_entry_after_gap_time}."
-            );
+                if !overlap_reached {
+                    return Err(AppError::UnexpectedLNMPayload(format!(
+                        "entry gap time {} not received from server",
+                        earliest_price_entry_gap.time
+                    )));
+                }
+            }
+        }
 
-            println!("\nDownloading entries from {first_price_entry_after_gap_time} backwards, until closing the gap...");
-
-            let overlap_reached = download_price_history(
+        if let Some(earliest_price_entry) = db.price_history.get_earliest_entry().await? {
+            if earliest_price_entry.time > self.sync_reach {
+                println!(
+                    "\nDownloading price entries from the earliest ({}) in the DB backwards, until limit ({})...",
+                    earliest_price_entry.time,
+                    self.sync_reach
+                );
+                download_price_history(
+                    self.api_cooldown_sec,
+                    self.api_error_cooldown_sec,
+                    self.api_error_max_trials,
+                    self.api_history_max_entries,
+                    api.rest(),
+                    db,
+                    &self.sync_reach,
+                    Some(earliest_price_entry.time),
+                )
+                .await?;
+            }
+        } else {
+            println!("\nNo price entries in the DB. Downloading from latest to earliest...");
+            download_price_history(
+                self.api_cooldown_sec,
+                self.api_error_cooldown_sec,
+                self.api_error_max_trials,
+                self.api_history_max_entries,
                 api.rest(),
                 db,
-                &earliest_price_entry_gap.time,
-                Some(first_price_entry_after_gap_time),
+                &self.sync_reach,
+                None,
             )
             .await?;
-
-            if !overlap_reached {
-                return Err(AppError::UnexpectedLNMPayload(format!(
-                    "entry gap time {} not received from server",
-                    earliest_price_entry_gap.time
-                )));
-            }
-        }
-    }
-
-    if let Some(earliest_price_entry) = db.price_history.get_earliest_entry().await? {
-        if earliest_price_entry.time > limit {
-            println!(
-                "\nDownloading price entries from the earliest ({}) in the DB backwards, until limit ({})...",
-                earliest_price_entry.time,
-                limit
-            );
-            download_price_history(api.rest(), db, &limit, Some(earliest_price_entry.time)).await?;
-        }
-    } else {
-        println!("\nNo price entries in the DB. Downloading from latest to earliest...");
-        download_price_history(api.rest(), db, &limit, None).await?;
-    }
-
-    // We can assume that `limit` was reached, and the min history condition is
-    // satisfied.
-
-    let mut latest_price_entry = db
-        .price_history
-        .get_latest_entry()
-        .await?
-        .expect("db not empty");
-
-    loop {
-        println!(
-            "\nDownloading the latest price entries until reaching the latest ({}) in the DB...",
-            latest_price_entry.time
-        );
-
-        let additional_entries_observed =
-            download_price_history(api.rest(), db, &latest_price_entry.time, None).await?;
-
-        if !additional_entries_observed {
-            println!("\nNo new entries after {}", latest_price_entry.time);
-            break;
         }
 
-        latest_price_entry = db
+        // We can assume that `limit` was reached, and the min history condition is
+        // satisfied.
+
+        let mut latest_price_entry = db
             .price_history
             .get_latest_entry()
             .await?
             .expect("db not empty");
-    }
 
-    println!("\nInit WebSocket connection");
+        loop {
+            println!(
+                "\nDownloading the latest price entries until reaching the latest ({}) in the DB...",
+                latest_price_entry.time
+            );
 
-    let ws = api.connect_ws().await?;
+            let additional_entries_observed = download_price_history(
+                self.api_cooldown_sec,
+                self.api_error_cooldown_sec,
+                self.api_error_max_trials,
+                self.api_history_max_entries,
+                api.rest(),
+                db,
+                &latest_price_entry.time,
+                None,
+            )
+            .await?;
 
-    println!("\nWS running. Setting up receiver...");
+            if !additional_entries_observed {
+                println!("\nNo new entries after {}", latest_price_entry.time);
+                break;
+            }
 
-    let mut receiver = ws.receiver().await?;
+            latest_price_entry = db
+                .price_history
+                .get_latest_entry()
+                .await?
+                .expect("db not empty");
+        }
 
-    tokio::spawn(async move {
-        while let Ok(res) = receiver.recv().await {
-            match res {
-                WebSocketApiRes::PriceTick(tick) => {
-                    println!("Tick received {:?}", tick);
-                }
-                WebSocketApiRes::PriceIndex(index) => {
-                    println!("Index received {:?}", index);
-                }
-                WebSocketApiRes::ConnectionUpdate(new_state) => {
-                    println!("Connection update received {:?}", new_state);
+        println!("\nInit WebSocket connection");
+
+        let ws = api.connect_ws().await?;
+
+        println!("\nWS running. Setting up receiver...");
+
+        let mut receiver = ws.receiver().await?;
+
+        tokio::spawn(async move {
+            while let Ok(res) = receiver.recv().await {
+                match res {
+                    WebSocketApiRes::PriceTick(tick) => {
+                        println!("Tick received {:?}", tick);
+                    }
+                    WebSocketApiRes::PriceIndex(index) => {
+                        println!("Index received {:?}", index);
+                    }
+                    WebSocketApiRes::ConnectionUpdate(new_state) => {
+                        println!("Connection update received {:?}", new_state);
+                    }
                 }
             }
-        }
-        println!("Receiver closed");
-    });
+            println!("Receiver closed");
+        });
 
-    println!("\nReceiver running. Subscribing to prices and index...");
+        println!("\nReceiver running. Subscribing to prices and index...");
 
-    ws.subscribe(vec![
-        LnmWebSocketChannel::FuturesBtcUsdLastPrice,
-        LnmWebSocketChannel::FuturesBtcUsdIndex,
-    ])
-    .await?;
+        ws.subscribe(vec![
+            LnmWebSocketChannel::FuturesBtcUsdLastPrice,
+            LnmWebSocketChannel::FuturesBtcUsdIndex,
+        ])
+        .await?;
 
-    println!("\nSubscriptions {:?}", ws.subscriptions().await);
+        println!("\nSubscriptions {:?}", ws.subscriptions().await);
 
-    wait(10);
+        wait(10);
 
-    println!("\nShutdown");
+        println!("\nShutdown");
 
-    ws.shutdown().await?;
+        ws.shutdown().await?;
 
-    wait(5);
+        wait(5);
 
-    Ok(())
+        Ok(())
+    }
 }
