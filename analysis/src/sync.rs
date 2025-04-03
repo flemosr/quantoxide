@@ -1,9 +1,10 @@
 use chrono::{DateTime, Duration, Utc};
-use std::{collections::HashSet, sync::Arc, thread, time};
+use std::{collections::HashSet, sync::Arc};
+use tokio::time;
 
 use crate::{
     api::{
-        rest::{models::PriceEntryLNM, RestApiContext},
+        rest::models::PriceEntryLNM,
         websocket::models::{LnmWebSocketChannel, WebSocketApiRes},
         ApiContext,
     },
@@ -11,18 +12,14 @@ use crate::{
     error::{AppError, Result},
 };
 
-fn wait(secs: u64) {
-    thread::sleep(time::Duration::from_secs(secs));
-}
-
 enum LimitReached {
     No,
     Yes { overlap: bool },
 }
 
 pub struct Sync {
-    api_cooldown_sec: u64,
-    api_error_cooldown_sec: u64,
+    api_cooldown: time::Duration,
+    api_error_cooldown: time::Duration,
     api_error_max_trials: u32,
     api_history_max_entries: usize,
     sync_reach: DateTime<Utc>,
@@ -46,8 +43,8 @@ impl Sync {
         println!("Limit timestamp: {sync_reach}");
 
         Self {
-            api_cooldown_sec,
-            api_error_cooldown_sec,
+            api_cooldown: time::Duration::from_secs(api_cooldown_sec),
+            api_error_cooldown: time::Duration::from_secs(api_error_cooldown_sec),
             api_error_max_trials,
             api_history_max_entries,
             sync_reach,
@@ -65,7 +62,7 @@ impl Sync {
             let mut trials = 0;
             let rest_futures = &self.api.rest().futures;
             loop {
-                wait(self.api_cooldown_sec);
+                time::sleep(self.api_cooldown).await;
 
                 match rest_futures
                     .price_history(
@@ -88,12 +85,12 @@ impl Sync {
                         }
 
                         println!(
-                            "Remaining trials: {}. Waiting {} secs...",
+                            "Remaining trials: {}. Waiting {:?}...",
                             self.api_error_max_trials - trials,
-                            self.api_error_cooldown_sec
+                            self.api_error_cooldown
                         );
 
-                        wait(self.api_error_cooldown_sec);
+                        time::sleep(self.api_error_cooldown).await;
 
                         continue;
                     }
@@ -363,13 +360,13 @@ impl Sync {
 
         println!("\nSubscriptions {:?}", ws.subscriptions().await);
 
-        wait(10);
+        time::sleep(time::Duration::from_secs(10)).await;
 
         println!("\nShutdown");
 
         ws.shutdown().await?;
 
-        wait(5);
+        time::sleep(time::Duration::from_secs(5)).await;
 
         Ok(())
     }
