@@ -86,7 +86,7 @@ impl PriceHistoryRepository for PgPriceHistoryRepo {
 
     async fn add_entries(
         &self,
-        entries: &Vec<PriceEntryLNM>,
+        entries: &[PriceEntryLNM],
         next_observed_time: Option<&DateTime<Utc>>,
     ) -> Result<()> {
         if entries.is_empty() {
