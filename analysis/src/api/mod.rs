@@ -36,6 +36,6 @@ impl ApiContext {
             .get_or_try_init(|| async { websocket::new(api_domain).await })
             .await?;
 
-        Ok(&ws)
+        Ok(ws)
     }
 }
