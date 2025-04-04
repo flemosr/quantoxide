@@ -13,6 +13,8 @@ pub enum DbError {
     TransactionBegin(sqlx::Error),
     #[error("Transaction commit error: {0}")]
     TransactionCommit(sqlx::Error),
+    #[error("Db generic error: {0}")]
+    Generic(String),
 }
 
 pub type Result<T> = result::Result<T, DbError>;
