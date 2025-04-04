@@ -25,6 +25,8 @@ pub enum AppError {
         earliest_gap: DateTime<Utc>,
         limit: DateTime<Utc>,
     },
+    #[error("App generic error: {0}")]
+    Generic(String),
 }
 
 impl From<WebSocketApiError> for AppError {
