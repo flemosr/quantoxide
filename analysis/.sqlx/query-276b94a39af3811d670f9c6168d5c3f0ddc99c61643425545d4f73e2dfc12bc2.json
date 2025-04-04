@@ -1,0 +1,26 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                WITH gap_entries AS (\n                    SELECT time, next FROM price_history WHERE next IS NULL\n                ),\n                next_entries AS (\n                    SELECT ph.time, ph.next\n                    FROM price_history ph\n                    JOIN gap_entries ge ON ph.time = (\n                        SELECT MIN(time)\n                        FROM price_history\n                        WHERE time > ge.time\n                    )\n                )\n                SELECT time, next IS NULL as \"is_gap\" FROM gap_entries\n                UNION ALL\n                SELECT time, next IS NULL as \"is_gap\" FROM next_entries\n                ORDER BY time ASC\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "time",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 1,
+        "name": "is_gap",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      null,
+      null
+    ]
+  },
+  "hash": "276b94a39af3811d670f9c6168d5c3f0ddc99c61643425545d4f73e2dfc12bc2"
+}

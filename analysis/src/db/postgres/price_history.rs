@@ -38,6 +38,11 @@ impl PgPriceHistoryRepo {
     }
 }
 
+struct GapEntry {
+    time: Option<DateTime<Utc>>,
+    is_gap: Option<bool>,
+}
+
 #[async_trait]
 impl PriceHistoryRepository for PgPriceHistoryRepo {
     async fn get_earliest_entry_gap(&self) -> Result<Option<PriceHistoryEntry>> {
@@ -82,6 +87,51 @@ impl PriceHistoryRepository for PgPriceHistoryRepo {
         .fetch_optional(self.pool())
         .await
         .map_err(DbError::Query)
+    }
+
+    async fn get_gaps(&self) -> Result<Vec<(DateTime<Utc>, DateTime<Utc>)>> {
+        let entries = sqlx::query_as!(
+            GapEntry,
+            r#"
+                WITH gap_entries AS (
+                    SELECT time, next FROM price_history WHERE next IS NULL
+                ),
+                next_entries AS (
+                    SELECT ph.time, ph.next
+                    FROM price_history ph
+                    JOIN gap_entries ge ON ph.time = (
+                        SELECT MIN(time)
+                        FROM price_history
+                        WHERE time > ge.time
+                    )
+                )
+                SELECT time, next IS NULL as "is_gap" FROM gap_entries
+                UNION ALL
+                SELECT time, next IS NULL as "is_gap" FROM next_entries
+                ORDER BY time ASC
+            "#
+        )
+        .fetch_all(self.pool())
+        .await
+        .map_err(DbError::Query)?;
+
+        let mut gaps = Vec::new();
+
+        for (i, entry) in entries.iter().enumerate() {
+            let from = entry
+                .time
+                .ok_or(DbError::Generic("unexpected query result".into()))?;
+            if entry.is_gap.unwrap_or(false) {
+                if let Some(to) = entries.get(i + 1) {
+                    let to = to
+                        .time
+                        .ok_or(DbError::Generic("unexpected query result".into()))?;
+                    gaps.push((from, to))
+                }
+            }
+        }
+
+        Ok(gaps)
     }
 
     async fn add_entries(
