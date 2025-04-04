@@ -1,6 +1,6 @@
 use chrono::{DateTime, Duration, Utc};
 use std::{collections::HashSet, sync::Arc};
-use tokio::time;
+use tokio::{task::JoinHandle, time};
 
 use crate::{
     api::{
@@ -219,7 +219,7 @@ impl Sync {
         Ok(false)
     }
 
-    pub async fn run(&self) -> Result<()> {
+    async fn sync_price_history(&self) -> Result<()> {
         if let Some(earliest_price_entry_gap) =
             self.db.price_history.get_earliest_entry_gap().await?
         {
@@ -314,7 +314,7 @@ impl Sync {
 
             if !additional_entries_observed {
                 println!("\nNo new entries after {}", latest_price_entry.time);
-                break;
+                return Ok(());
             }
 
             latest_price_entry = self
@@ -324,7 +324,9 @@ impl Sync {
                 .await?
                 .expect("db not empty");
         }
+    }
 
+    async fn start_real_time_collection(&self) -> Result<JoinHandle<()>> {
         println!("\nInit WebSocket connection");
 
         let ws = self.api.connect_ws().await?;
@@ -333,7 +335,7 @@ impl Sync {
 
         let mut receiver = ws.receiver().await?;
 
-        tokio::spawn(async move {
+        let handle = tokio::spawn(async move {
             while let Ok(res) = receiver.recv().await {
                 match res {
                     WebSocketApiRes::PriceTick(tick) => {
@@ -352,21 +354,30 @@ impl Sync {
 
         println!("\nReceiver running. Subscribing to prices and index...");
 
-        ws.subscribe(vec![
-            LnmWebSocketChannel::FuturesBtcUsdLastPrice,
-            LnmWebSocketChannel::FuturesBtcUsdIndex,
-        ])
-        .await?;
+        ws.subscribe(vec![LnmWebSocketChannel::FuturesBtcUsdLastPrice])
+            .await?;
 
         println!("\nSubscriptions {:?}", ws.subscriptions().await);
 
-        time::sleep(time::Duration::from_secs(10)).await;
+        Ok(handle)
+    }
 
-        println!("\nShutdown");
+    pub async fn run(&self) -> Result<()> {
+        // Initial price history sync
+        self.sync_price_history().await?;
 
-        ws.shutdown().await?;
+        // Start to collect real-time data
+        let real_time_collection_handle = self.start_real_time_collection().await?;
 
-        time::sleep(time::Duration::from_secs(5)).await;
+        // Additional price history sync to ensure overlap with real-time data
+        self.sync_price_history().await?;
+
+        // Sync achieved
+        println!("\nSync achieved.\n");
+
+        real_time_collection_handle
+            .await
+            .map_err(|e| AppError::Generic(e.to_string()))?;
 
         Ok(())
     }
