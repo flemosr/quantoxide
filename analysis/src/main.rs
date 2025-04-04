@@ -1,12 +1,10 @@
-use std::sync::Arc;
-
 use analysis::{api::ApiContext, db::DbContext, error::Result, sync::Sync};
 
 mod env;
 
 use env::{
     LNM_API_COOLDOWN_SEC, LNM_API_DOMAIN, LNM_API_ERROR_COOLDOWN_SEC, LNM_API_ERROR_MAX_TRIALS,
-    LNM_PRICE_HISTORY_LIMIT, POSTGRES_DB_URL, SYNC_HISTORY_REACH_WEEKS,
+    LNM_PRICE_HISTORY_BATCH_ENTRIES, POSTGRES_DB_URL, SYNC_HISTORY_REACH_WEEKS,
 };
 
 #[tokio::main]
@@ -25,7 +23,7 @@ async fn main() -> Result<()> {
         *LNM_API_COOLDOWN_SEC,
         *LNM_API_ERROR_COOLDOWN_SEC,
         *LNM_API_ERROR_MAX_TRIALS,
-        *LNM_PRICE_HISTORY_LIMIT,
+        *LNM_PRICE_HISTORY_BATCH_ENTRIES,
         *SYNC_HISTORY_REACH_WEEKS,
         db.clone(),
         api.clone(),
