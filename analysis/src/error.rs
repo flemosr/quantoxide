@@ -20,10 +20,10 @@ pub enum AppError {
     },
     #[error("Unexpected LNM payload error: {0}")]
     UnexpectedLNMPayload(String),
-    #[error("Unreachable DB gap error. Earliest Gap: {earliest_gap}, Limit {limit}")]
+    #[error("Unreachable DB gap error. Earliest Gap: {gap}, Reach {reach}")]
     UnreachableDbGap {
-        earliest_gap: DateTime<Utc>,
-        limit: DateTime<Utc>,
+        gap: DateTime<Utc>,
+        reach: DateTime<Utc>,
     },
     #[error("App generic error: {0}")]
     Generic(String),
