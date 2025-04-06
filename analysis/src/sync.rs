@@ -226,10 +226,9 @@ impl Sync {
 
     async fn sync_price_history(&self) -> Result<()> {
         let mut history_state = PriceHistoryState::evaluate(&self.db, self.sync_reach).await?;
+        println!("{history_state}");
 
         loop {
-            time::sleep(self.api_cooldown).await;
-
             let (download_from, download_to) = history_state.next_download_bounds();
 
             let new_entries_received = self.partial_download(download_from, download_to).await?;
@@ -244,6 +243,7 @@ impl Sync {
             }
 
             history_state = PriceHistoryState::evaluate(&self.db, self.sync_reach).await?;
+            println!("{history_state}");
         }
 
         Ok(())
@@ -306,6 +306,7 @@ impl Sync {
     }
 }
 
+#[derive(Debug)]
 pub struct PriceHistoryState {
     reach: DateTime<Utc>,
     bounds: Option<(DateTime<Utc>, DateTime<Utc>)>,
@@ -387,5 +388,35 @@ impl PriceHistoryState {
         self.bounds.is_none()
             || self.reach < self.bounds.expect("not none").0
             || !self.entry_gaps.is_empty()
+    }
+}
+
+impl fmt::Display for PriceHistoryState {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "PriceHistoryState:")?;
+        writeln!(f, "  reach: {}", self.reach.to_rfc3339())?;
+
+        match &self.bounds {
+            Some((start, end)) => {
+                writeln!(f, "  bounds:")?;
+                writeln!(f, "    start: {}", start.to_rfc3339())?;
+                writeln!(f, "    end: {}", end.to_rfc3339())?;
+
+                // Only show gaps section if database is not empty
+                if self.entry_gaps.is_empty() {
+                    writeln!(f, "  gaps: no gaps")?;
+                } else {
+                    writeln!(f, "  gaps:")?;
+                    for (i, (gap_start, gap_end)) in self.entry_gaps.iter().enumerate() {
+                        writeln!(f, "    - gap {}:", i + 1)?;
+                        writeln!(f, "        from: {}", gap_start.to_rfc3339())?;
+                        writeln!(f, "        to: {}", gap_end.to_rfc3339())?;
+                    }
+                }
+            }
+            None => writeln!(f, "  bounds: database is empty")?,
+        }
+
+        Ok(())
     }
 }
