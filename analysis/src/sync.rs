@@ -1,5 +1,5 @@
 use chrono::{DateTime, Duration, Utc};
-use std::{collections::HashSet, sync::Arc};
+use std::{collections::HashSet, fmt, sync::Arc};
 use tokio::{task::JoinHandle, time};
 
 use crate::{
@@ -11,24 +11,6 @@ use crate::{
     db::DbContext,
     error::{AppError, Result},
 };
-
-enum Limit {
-    Reach(DateTime<Utc>),
-    Entry(DateTime<Utc>),
-}
-
-impl Limit {
-    fn time(&self) -> &DateTime<Utc> {
-        match self {
-            Limit::Entry(time) | Limit::Reach(time) => time,
-        }
-    }
-}
-
-enum LimitReached {
-    No,
-    Yes { overlap: bool },
-}
 
 pub struct Sync {
     api_cooldown: time::Duration,
@@ -51,9 +33,6 @@ impl Sync {
         api: Arc<ApiContext>,
     ) -> Self {
         let sync_reach = Utc::now() - Duration::weeks(sync_history_reach_weeks as i64);
-
-        println!("\nPrice history sync reach: {sync_history_reach_weeks} weeks",);
-        println!("Limit timestamp: {sync_reach}");
 
         Self {
             api_cooldown: time::Duration::from_secs(api_cooldown_sec),
@@ -83,8 +62,6 @@ impl Sync {
                 {
                     Ok(price_entries) => break price_entries,
                     Err(api_error) => {
-                        println!("\nError fetching price history {:?}", api_error);
-
                         trials += 1;
                         if trials >= self.api_error_max_trials {
                             return Err(AppError::ApiMaxTrialsReached {
@@ -93,27 +70,12 @@ impl Sync {
                             });
                         }
 
-                        println!(
-                            "Remaining trials: {}. Waiting {:?}...",
-                            self.api_error_max_trials - trials,
-                            self.api_error_cooldown
-                        );
-
                         time::sleep(self.api_error_cooldown).await;
-
                         continue;
                     }
                 };
             }
         };
-
-        if price_entries.len() < self.api_history_max_entries {
-            println!(
-                "\nReceived only {} price entries with limit {}.",
-                price_entries.len(),
-                self.api_history_max_entries
-            );
-        }
 
         // Remove entries with duplicated 'time'
         let mut seen = HashSet::new();
@@ -134,10 +96,6 @@ impl Sync {
                     "Price entries without overlap".to_string(),
                 ));
             }
-            println!(
-                "First received entry matches `before_observed_time` time {}. Overlap OK.",
-                observed_time
-            );
         }
 
         let from_observed_time_received = if let Some(time) = from_observed_time {
@@ -172,29 +130,15 @@ impl Sync {
         from_observed_time: Option<&DateTime<Utc>>,
         to_observed_time: Option<&DateTime<Utc>>,
     ) -> Result<bool> {
-        match to_observed_time {
-            Some(time) => println!("\nFetching price entries before {time}..."),
-            None => println!("\nFetching latest price entries..."),
-        }
-
         let (new_price_entries, from_observed_time_received) = self
             .get_new_price_entries(from_observed_time, to_observed_time)
             .await?;
 
-        if new_price_entries.is_empty() {
-            println!("\nNo new entries were received.");
-        } else {
-            let entries_len = new_price_entries.len();
-            let latest_new_entry_time = new_price_entries.first().expect("not empty").time();
-            let earliest_new_entry_time = new_price_entries.last().expect("not empty").time();
-            println!("\n{entries_len} new entries received, from {earliest_new_entry_time} to {latest_new_entry_time}");
-
+        if !new_price_entries.is_empty() {
             self.db
                 .price_history
                 .add_entries(&new_price_entries, to_observed_time)
                 .await?;
-
-            println!("\nEntries added to the db");
         }
 
         if from_observed_time_received {
@@ -203,13 +147,13 @@ impl Sync {
             let next_observed_time = if let Some(earliest_new_entry) = new_price_entries.last() {
                 Some(*earliest_new_entry.time())
             } else if let Some(time) = to_observed_time {
-                // If there is a `next_observed_time`, the first entry received
-                // from the server matched its time (upper overlap enforcement).
-                // From this, we can infer that there are no entries to be
-                // fetched between `limit` and `next_observed_time` (edge case).
+                // If there is a `next_observed_time`, the first entry received from the server
+                // matched its time (upper overlap enforcement).
+                // From this, we can infer that there are no entries to be fetched between
+                // `from_observed_time` and `next_observed_time` (edge case).
                 Some(*time)
             } else {
-                // No entries available after `limit`
+                // No entries available after `from_observed_time`
                 None
             };
 
@@ -318,6 +262,8 @@ impl PriceHistoryState {
         let earliest_entry = match db.price_history.get_earliest_entry().await? {
             Some(entry) => entry,
             None => {
+                // DB is empty
+
                 return Ok(Self {
                     reach,
                     bounds: None,
@@ -333,7 +279,8 @@ impl PriceHistoryState {
             .expect("db not empty");
 
         if earliest_entry.time == lastest_entry.time {
-            // Db has a single entry
+            // DB has a single entry
+
             if earliest_entry.time < reach {
                 return Err(AppError::UnreachableDbGap {
                     gap: earliest_entry.time,
@@ -353,7 +300,7 @@ impl PriceHistoryState {
         if let Some((from_time, _)) = entry_gaps.first() {
             if *from_time < reach {
                 // There is a price gap before `reach`. Since we shouldn't fetch entries
-                // before `reach`. Said gap can't be closed, and therefore the db can't
+                // before `reach`. Said gap can't be closed, and therefore the DB can't
                 // be synced.
                 return Err(AppError::UnreachableDbGap {
                     gap: *from_time,
