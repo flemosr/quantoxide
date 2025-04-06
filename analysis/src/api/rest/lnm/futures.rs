@@ -45,8 +45,8 @@ impl LnmFuturesRepository {
 impl FuturesRepository for LnmFuturesRepository {
     async fn price_history(
         &self,
-        from: Option<DateTime<Utc>>,
-        to: Option<DateTime<Utc>>,
+        from: Option<&DateTime<Utc>>,
+        to: Option<&DateTime<Utc>>,
         limit: Option<usize>,
     ) -> Result<Vec<PriceEntryLNM>> {
         let mut params = Vec::new();
