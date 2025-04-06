@@ -69,7 +69,7 @@ impl Sync {
     async fn get_new_price_entries(
         &self,
         from_observed_time: Option<&DateTime<Utc>>,
-        to_observed_time: Option<DateTime<Utc>>,
+        to_observed_time: Option<&DateTime<Utc>>,
     ) -> Result<(Vec<PriceEntryLNM>, bool)> {
         let mut price_entries = {
             let mut trials = 0;
@@ -129,7 +129,7 @@ impl Sync {
         // If `before_observed_time` is set, ensure that the first (latest) entry matches it
         if let Some(observed_time) = to_observed_time {
             let first_entry = price_entries.remove(0);
-            if *first_entry.time() != observed_time {
+            if first_entry.time() != observed_time {
                 return Err(AppError::UnexpectedLNMPayload(
                     "Price entries without overlap".to_string(),
                 ));
@@ -170,8 +170,8 @@ impl Sync {
     async fn partial_download(
         &self,
         from_observed_time: Option<&DateTime<Utc>>,
-        to_observed_time: Option<DateTime<Utc>>,
-    ) -> Result<usize> {
+        to_observed_time: Option<&DateTime<Utc>>,
+    ) -> Result<bool> {
         match to_observed_time {
             Some(time) => println!("\nFetching price entries before {time}..."),
             None => println!("\nFetching latest price entries..."),
@@ -191,7 +191,7 @@ impl Sync {
 
             self.db
                 .price_history
-                .add_entries(&new_price_entries, to_observed_time.as_ref())
+                .add_entries(&new_price_entries, to_observed_time)
                 .await?;
 
             println!("\nEntries added to the db");
@@ -207,7 +207,7 @@ impl Sync {
                 // from the server matched its time (upper overlap enforcement).
                 // From this, we can infer that there are no entries to be
                 // fetched between `limit` and `next_observed_time` (edge case).
-                Some(time)
+                Some(*time)
             } else {
                 // No entries available after `limit`
                 None
@@ -216,25 +216,34 @@ impl Sync {
             if let Some(next) = next_observed_time {
                 self.db
                     .price_history
-                    .update_entry_next(from_observed_time.unwrap(), &next)
+                    .update_entry_next(from_observed_time.expect("from received"), &next)
                     .await?;
             }
         }
 
-        Ok(new_price_entries.len())
+        Ok(!new_price_entries.is_empty())
     }
 
     async fn sync_price_history(&self) -> Result<()> {
-        let mut gaps = PriceHistoryGaps::evaluate(&self.db, &self.sync_reach).await?;
+        let mut history_state = PriceHistoryState::evaluate(&self.db, self.sync_reach).await?;
 
         loop {
-            let (download_from, download_to) = gaps.pick_download_bounds();
+            time::sleep(self.api_cooldown).await;
 
-            let new_entries_len = self
-                .partial_download(download_from.as_ref(), download_to)
-                .await?;
+            let (download_from, download_to) = history_state.next_download_bounds();
 
-            gaps = PriceHistoryGaps::evaluate(&self.db, &self.sync_reach).await?;
+            let new_entries_received = self.partial_download(download_from, download_to).await?;
+            if !new_entries_received {
+                if history_state.has_gaps() {
+                    return Err(AppError::Generic(
+                        "no entries received while gaps still exist".to_string(),
+                    ));
+                } else {
+                    break;
+                }
+            }
+
+            history_state = PriceHistoryState::evaluate(&self.db, self.sync_reach).await?;
         }
 
         Ok(())
@@ -297,85 +306,86 @@ impl Sync {
     }
 }
 
-pub struct PriceHistoryGaps {
-    lower_tail: Option<(DateTime<Utc>, DateTime<Utc>)>,
+pub struct PriceHistoryState {
+    reach: DateTime<Utc>,
+    bounds: Option<(DateTime<Utc>, DateTime<Utc>)>,
     entry_gaps: Vec<(DateTime<Utc>, DateTime<Utc>)>,
-    upper_bound: Option<DateTime<Utc>>,
 }
 
-impl PriceHistoryGaps {
-    pub async fn evaluate(db: &DbContext, reach: &DateTime<Utc>) -> Result<Self> {
-        let (earliest_entry, lastest_entry) = {
-            let earliest_entry = db.price_history.get_earliest_entry().await?;
-            let lastest_entry = db.price_history.get_latest_entry().await?;
-
-            if earliest_entry.is_none() {
-                // Db is empty
+impl PriceHistoryState {
+    pub async fn evaluate(db: &DbContext, reach: DateTime<Utc>) -> Result<Self> {
+        let earliest_entry = match db.price_history.get_earliest_entry().await? {
+            Some(entry) => entry,
+            None => {
                 return Ok(Self {
-                    lower_tail: None,
+                    reach,
+                    bounds: None,
                     entry_gaps: Vec::new(),
-                    upper_bound: None,
                 });
             }
-
-            (
-                earliest_entry.expect("db not empty"),
-                lastest_entry.expect("db not empty"),
-            )
         };
+
+        let lastest_entry = db
+            .price_history
+            .get_latest_entry()
+            .await?
+            .expect("db not empty");
 
         if earliest_entry.time == lastest_entry.time {
             // Db has a single entry
-            if earliest_entry.time < *reach {
+            if earliest_entry.time < reach {
                 return Err(AppError::UnreachableDbGap {
                     gap: earliest_entry.time,
-                    reach: *reach,
+                    reach,
                 });
             }
 
             return Ok(Self {
-                lower_tail: Some((*reach, earliest_entry.time)),
+                reach,
+                bounds: Some((earliest_entry.time, earliest_entry.time)),
                 entry_gaps: Vec::new(),
-                upper_bound: Some(earliest_entry.time),
             });
         }
-
-        let lower_tail = if *reach < earliest_entry.time {
-            Some((*reach, earliest_entry.time))
-        } else {
-            None
-        };
 
         let entry_gaps = db.price_history.get_gaps().await?;
 
         if let Some((from_time, _)) = entry_gaps.first() {
-            if from_time < reach {
+            if *from_time < reach {
                 // There is a price gap before `reach`. Since we shouldn't fetch entries
                 // before `reach`. Said gap can't be closed, and therefore the db can't
                 // be synced.
                 return Err(AppError::UnreachableDbGap {
                     gap: *from_time,
-                    reach: *reach,
+                    reach,
                 });
             }
         }
 
         Ok(Self {
-            lower_tail,
+            reach,
+            bounds: Some((earliest_entry.time, lastest_entry.time)),
             entry_gaps,
-            upper_bound: Some(lastest_entry.time),
         })
     }
 
-    pub fn pick_download_bounds(&self) -> (Option<DateTime<Utc>>, Option<DateTime<Utc>>) {
+    pub fn next_download_bounds(&self) -> (Option<&DateTime<Utc>>, Option<&DateTime<Utc>>) {
+        let history_bounds = match &self.bounds {
+            Some(bounds) => bounds,
+            None => return (None, None),
+        };
+
         if let Some((gap_from, gap_to)) = self.entry_gaps.first() {
-            return (Some(*gap_from), Some(*gap_to));
+            return (Some(gap_from), Some(gap_to));
         }
-        if let Some((_, earliest_entry_time)) = self.lower_tail {
-            return (None, Some(earliest_entry_time));
+        if history_bounds.0 > self.reach {
+            return (None, Some(&history_bounds.0));
         }
-        (self.upper_bound, None)
+        (Some(&history_bounds.1), None)
     }
 
-    pub fn has_gaps(&self) -> bool {}
+    pub fn has_gaps(&self) -> bool {
+        self.bounds.is_none()
+            || self.reach < self.bounds.expect("not none").0
+            || !self.entry_gaps.is_empty()
+    }
 }
