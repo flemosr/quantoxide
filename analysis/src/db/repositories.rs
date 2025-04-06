@@ -52,14 +52,14 @@ pub trait PriceHistoryRepository: Send + Sync {
     /// Retrieves gaps in price history data from the database.
     ///
     /// This method finds time periods where price history data is missing by:
-    /// 1. Identifying entries that have NULL in their 'next' field (indicating where data continuity breaks)
+    /// 1. Identifying entries that have `None` in their 'next' field (indicating where data continuity breaks)
     /// 2. Finding the next available entry after each gap
     /// 3. Combining this information to return a list of gaps as (start_time, end_time) tuples
     ///
     /// # Returns
     /// - `Result<Vec<(DateTime<Utc>, DateTime<Utc>)>>`: A vector of tuples where each tuple represents
     ///   a gap in price history data. The first element (`from`) is the timestamp of the entry at the start
-    ///   of the gap (where `nexy` is NULL), and the second element (`to`) is the timestamp of the next
+    ///   of the gap (where `next` is `None`), and the second element (`to`) is the timestamp of the next
     ///   entry after it (earliest entry with `time` > `from`).
     ///
     /// # Errors
