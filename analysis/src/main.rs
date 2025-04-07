@@ -1,4 +1,9 @@
-use analysis::{api::ApiContext, db::DbContext, error::Result, sync::Sync};
+use analysis::{
+    api::ApiContext,
+    db::DbContext,
+    error::Result,
+    sync::{Sync, SyncState},
+};
 
 mod env;
 
@@ -29,5 +34,29 @@ async fn main() -> Result<()> {
         api.clone(),
     );
 
-    sync.run().await
+    let mut receiver = sync.receiver();
+    tokio::spawn(async move {
+        while let Ok(res) = receiver.recv().await {
+            match res {
+                SyncState::NotInitiated => {
+                    println!("SyncState::NotInitiated");
+                }
+                SyncState::InProgress(price_history_state) => {
+                    println!("SyncState::InProgress");
+                    println!("{price_history_state}");
+                }
+                SyncState::Synced => {
+                    println!("SyncState::Synced");
+                }
+                SyncState::Failed => {
+                    println!("SyncState::Failed");
+                }
+            }
+        }
+        println!("Receiver closed");
+    });
+
+    sync.run().await?;
+
+    Ok(())
 }
