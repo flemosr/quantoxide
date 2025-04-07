@@ -1,6 +1,10 @@
 use chrono::{DateTime, Duration, Utc};
 use std::{collections::HashSet, fmt, sync::Arc};
-use tokio::{task::JoinHandle, time};
+use tokio::{
+    sync::{broadcast, Mutex},
+    task::JoinHandle,
+    time,
+};
 
 use crate::{
     api::{
@@ -12,7 +16,7 @@ use crate::{
     error::{AppError, Result},
 };
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PriceHistoryState {
     reach: DateTime<Utc>,
     bounds: Option<(DateTime<Utc>, DateTime<Utc>)>,
@@ -100,6 +104,15 @@ impl PriceHistoryState {
     }
 }
 
+fn eval_missing_hours(current: &DateTime<Utc>, target: &DateTime<Utc>) -> String {
+    let missing_hours = ((*current - *target).num_minutes() as f32 / 60. * 100.0).round() / 100.0;
+    if missing_hours <= 0. {
+        "Ok".to_string()
+    } else {
+        format!("missing {:.2} hours", missing_hours)
+    }
+}
+
 impl fmt::Display for PriceHistoryState {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "PriceHistoryState:")?;
@@ -107,9 +120,12 @@ impl fmt::Display for PriceHistoryState {
 
         match &self.bounds {
             Some((start, end)) => {
+                let start_eval = eval_missing_hours(start, &self.reach);
+                let end_val = eval_missing_hours(&Utc::now(), end);
+
                 writeln!(f, "  bounds:")?;
-                writeln!(f, "    start: {}", start.to_rfc3339())?;
-                writeln!(f, "    end: {}", end.to_rfc3339())?;
+                writeln!(f, "    start: {} ({start_eval})", start.to_rfc3339())?;
+                writeln!(f, "    end: {} ({end_val})", end.to_rfc3339())?;
 
                 // Only show gaps section if database is not empty
                 if self.entry_gaps.is_empty() {
@@ -117,7 +133,8 @@ impl fmt::Display for PriceHistoryState {
                 } else {
                     writeln!(f, "  gaps:")?;
                     for (i, (gap_start, gap_end)) in self.entry_gaps.iter().enumerate() {
-                        writeln!(f, "    - gap {}:", i + 1)?;
+                        let gap_hours = (*gap_end - *gap_start).num_minutes() as f32 / 60.;
+                        writeln!(f, "    - gap {} (missing {:.2} hours):", i + 1, gap_hours)?;
                         writeln!(f, "        from: {}", gap_start.to_rfc3339())?;
                         writeln!(f, "        to: {}", gap_end.to_rfc3339())?;
                     }
@@ -130,6 +147,17 @@ impl fmt::Display for PriceHistoryState {
     }
 }
 
+pub type SyncTransmiter = broadcast::Sender<SyncState>;
+pub type SyncReceiver = broadcast::Receiver<SyncState>;
+
+#[derive(Clone)]
+pub enum SyncState {
+    NotInitiated,
+    InProgress(PriceHistoryState),
+    Synced,
+    Failed,
+}
+
 pub struct Sync {
     api_cooldown: time::Duration,
     api_error_cooldown: time::Duration,
@@ -138,6 +166,8 @@ pub struct Sync {
     sync_reach: DateTime<Utc>,
     db: Arc<DbContext>,
     api: Arc<ApiContext>,
+    sync_state: Arc<Mutex<SyncState>>,
+    sync_tx: SyncTransmiter,
 }
 
 impl Sync {
@@ -150,7 +180,11 @@ impl Sync {
         db: Arc<DbContext>,
         api: Arc<ApiContext>,
     ) -> Self {
-        let sync_reach = Utc::now() - Duration::weeks(sync_history_reach_weeks as i64);
+        // let sync_reach = Utc::now() - Duration::weeks(sync_history_reach_weeks as i64);
+        let sync_reach = Utc::now() - Duration::days(2);
+
+        // External channel for sync updates
+        let (sync_tx, _) = broadcast::channel::<SyncState>(100);
 
         Self {
             api_cooldown: time::Duration::from_secs(api_cooldown_sec),
@@ -160,7 +194,24 @@ impl Sync {
             sync_reach,
             db,
             api,
+            sync_state: Arc::new(Mutex::new(SyncState::NotInitiated)),
+            sync_tx,
         }
+    }
+
+    pub fn receiver(&self) -> SyncReceiver {
+        self.sync_tx.subscribe()
+    }
+
+    async fn update_sync_state(&self, new_sync_state: SyncState) -> Result<()> {
+        let mut sync_state = self.sync_state.lock().await;
+        *sync_state = new_sync_state.clone();
+        if self.sync_tx.receiver_count() > 0 {
+            self.sync_tx
+                .send(new_sync_state)
+                .map_err(|_| AppError::Generic("couldn't send sync update".to_string()))?;
+        }
+        Ok(())
     }
 
     async fn get_new_price_entries(
@@ -288,7 +339,8 @@ impl Sync {
 
     async fn sync_price_history(&self) -> Result<()> {
         let mut history_state = PriceHistoryState::evaluate(&self.db, self.sync_reach).await?;
-        println!("{history_state}");
+        self.update_sync_state(SyncState::InProgress(history_state.clone()))
+            .await?;
 
         loop {
             let (download_from, download_to) = history_state.next_download_bounds();
@@ -305,7 +357,8 @@ impl Sync {
             }
 
             history_state = PriceHistoryState::evaluate(&self.db, self.sync_reach).await?;
-            println!("{history_state}");
+            self.update_sync_state(SyncState::InProgress(history_state.clone()))
+                .await?;
         }
 
         Ok(())
@@ -316,7 +369,7 @@ impl Sync {
 
         let ws = self.api.connect_ws().await?;
 
-        println!("\nWS running. Setting up receiver...");
+        // println!("\nWS running. Setting up receiver...");
 
         let mut receiver = ws.receiver().await?;
 
@@ -337,12 +390,12 @@ impl Sync {
             println!("Receiver closed");
         });
 
-        println!("\nReceiver running. Subscribing to prices and index...");
+        // println!("\nReceiver running. Subscribing to prices and index...");
 
         ws.subscribe(vec![LnmWebSocketChannel::FuturesBtcUsdLastPrice])
             .await?;
 
-        println!("\nSubscriptions {:?}", ws.subscriptions().await);
+        // println!("\nSubscriptions {:?}", ws.subscriptions().await);
 
         Ok(handle)
     }
@@ -352,17 +405,17 @@ impl Sync {
         self.sync_price_history().await?;
 
         // Start to collect real-time data
-        let real_time_collection_handle = self.start_real_time_collection().await?;
+        let _real_time_collection_handle = self.start_real_time_collection().await?;
 
         // Additional price history sync to ensure overlap with real-time data
         self.sync_price_history().await?;
 
         // Sync achieved
-        println!("\nSync achieved.\n");
+        self.update_sync_state(SyncState::Synced).await?;
 
-        real_time_collection_handle
-            .await
-            .map_err(|e| AppError::Generic(e.to_string()))?;
+        // real_time_collection_handle
+        //     .await
+        //     .map_err(|e| AppError::Generic(e.to_string()))?;
 
         Ok(())
     }
