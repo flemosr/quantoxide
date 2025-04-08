@@ -9,7 +9,7 @@ use tokio::{
 use crate::{
     api::{
         rest::models::PriceEntryLNM,
-        websocket::models::{LnmWebSocketChannel, WebSocketApiRes},
+        websocket::models::{ConnectionState, LnmWebSocketChannel, WebSocketApiRes},
         ApiContext,
     },
     db::DbContext,
@@ -203,13 +203,27 @@ impl Sync {
         self.sync_tx.subscribe()
     }
 
-    async fn update_sync_state(&self, new_sync_state: SyncState) -> Result<()> {
+    async fn handle_sync_state_update(&self, new_sync_state: SyncState) -> Result<()> {
         let mut sync_state = self.sync_state.lock().await;
-        *sync_state = new_sync_state.clone();
+        *sync_state = new_sync_state;
+
         if self.sync_tx.receiver_count() > 0 {
             self.sync_tx
-                .send(new_sync_state)
+                .send(sync_state.clone())
                 .map_err(|_| AppError::Generic("couldn't send sync update".to_string()))?;
+        }
+
+        Ok(())
+    }
+
+    async fn handle_price_history_update(
+        &self,
+        new_history_state: &PriceHistoryState,
+    ) -> Result<()> {
+        let sync_state = self.sync_state.lock().await;
+        if let SyncState::InProgress(_) = *sync_state {
+            let new_sync_state = SyncState::InProgress(new_history_state.clone());
+            self.handle_sync_state_update(new_sync_state).await?;
         }
         Ok(())
     }
@@ -339,8 +353,7 @@ impl Sync {
 
     async fn sync_price_history(&self) -> Result<()> {
         let mut history_state = PriceHistoryState::evaluate(&self.db, self.sync_reach).await?;
-        self.update_sync_state(SyncState::InProgress(history_state.clone()))
-            .await?;
+        self.handle_price_history_update(&history_state).await?;
 
         loop {
             let (download_from, download_to) = history_state.next_download_bounds();
@@ -357,65 +370,61 @@ impl Sync {
             }
 
             history_state = PriceHistoryState::evaluate(&self.db, self.sync_reach).await?;
-            self.update_sync_state(SyncState::InProgress(history_state.clone()))
-                .await?;
+            self.handle_price_history_update(&history_state).await?;
         }
 
         Ok(())
     }
 
     async fn start_real_time_collection(&self) -> Result<JoinHandle<()>> {
-        println!("\nInit WebSocket connection");
-
         let ws = self.api.connect_ws().await?;
-
-        // println!("\nWS running. Setting up receiver...");
 
         let mut receiver = ws.receiver().await?;
 
+        let sync_state = self.sync_state.clone();
+        let sync_tx = self.sync_tx.clone();
         let handle = tokio::spawn(async move {
             while let Ok(res) = receiver.recv().await {
                 match res {
-                    WebSocketApiRes::PriceTick(tick) => {
-                        println!("Tick received {:?}", tick);
+                    WebSocketApiRes::PriceTick(_tick) => {
+                        // TODO
                     }
-                    WebSocketApiRes::PriceIndex(index) => {
-                        println!("Index received {:?}", index);
-                    }
-                    WebSocketApiRes::ConnectionUpdate(new_state) => {
-                        println!("Connection update received {:?}", new_state);
-                    }
+                    WebSocketApiRes::PriceIndex(_index) => {}
+                    WebSocketApiRes::ConnectionUpdate(new_state) => match new_state {
+                        ConnectionState::Connected => {}
+                        ConnectionState::Disconnected => {}
+                        ConnectionState::Failed(_err) => {
+                            let mut sync_state = sync_state.lock().await;
+                            *sync_state = SyncState::Failed;
+
+                            if sync_tx.receiver_count() > 0 {
+                                let _ = sync_tx.send(sync_state.clone());
+                            }
+                        }
+                    },
                 }
             }
             println!("Receiver closed");
         });
 
-        // println!("\nReceiver running. Subscribing to prices and index...");
-
-        ws.subscribe(vec![LnmWebSocketChannel::FuturesBtcUsdLastPrice])
-            .await?;
-
-        // println!("\nSubscriptions {:?}", ws.subscriptions().await);
+        let channels = vec![LnmWebSocketChannel::FuturesBtcUsdLastPrice];
+        ws.subscribe(channels).await?;
 
         Ok(handle)
     }
 
-    pub async fn run(&self) -> Result<()> {
+    pub async fn start(&self) -> Result<()> {
         // Initial price history sync
         self.sync_price_history().await?;
 
         // Start to collect real-time data
-        let _real_time_collection_handle = self.start_real_time_collection().await?;
+        let _handle = self.start_real_time_collection().await?;
 
         // Additional price history sync to ensure overlap with real-time data
         self.sync_price_history().await?;
 
         // Sync achieved
-        self.update_sync_state(SyncState::Synced).await?;
-
-        // real_time_collection_handle
-        //     .await
-        //     .map_err(|e| AppError::Generic(e.to_string()))?;
+        self.handle_sync_state_update(SyncState::Synced).await?;
 
         Ok(())
     }

@@ -56,7 +56,7 @@ async fn main() -> Result<()> {
         println!("Receiver closed");
     });
 
-    sync.run().await?;
+    sync.start().await?;
 
     Ok(())
 }
