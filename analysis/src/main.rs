@@ -41,6 +41,9 @@ async fn main() -> Result<()> {
                 SyncState::NotInitiated => {
                     println!("SyncState::NotInitiated");
                 }
+                SyncState::Starting => {
+                    println!("SyncState::Starting");
+                }
                 SyncState::InProgress(price_history_state) => {
                     println!("SyncState::InProgress");
                     println!("{price_history_state}");
@@ -48,14 +51,26 @@ async fn main() -> Result<()> {
                 SyncState::Synced => {
                     println!("SyncState::Synced");
                 }
+                SyncState::Restarting => {
+                    println!("SyncState::Restarting");
+                }
                 SyncState::Failed => {
                     println!("SyncState::Failed");
-                    break;
                 }
             }
         }
         println!("Sync Receiver closed");
     });
 
-    sync.start().await
+    let sync_handle = sync.start();
+
+    // Wait for termination signal
+    tokio::signal::ctrl_c()
+        .await
+        .expect("failed to listen for event");
+
+    // Cleanly shut down
+    sync_handle.abort();
+
+    Ok(())
 }
