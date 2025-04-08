@@ -1,23 +1,22 @@
 use chrono::{DateTime, Duration, Utc};
+
 use std::sync::Arc;
 use tokio::{
     sync::{broadcast, mpsc::Receiver, Mutex},
-    task::JoinHandle,
     time,
 };
 
 use crate::{
-    api::{
-        websocket::models::{ConnectionState, LnmWebSocketChannel, WebSocketApiRes},
-        ApiContext,
-    },
+    api::ApiContext,
     db::DbContext,
     error::{AppError, Result},
 };
 
 mod price_history_task;
+mod real_time_collection_task;
 
 use price_history_task::{HistoryStateReceiver, PriceHistoryState, SyncPriceHistoryTask};
+use real_time_collection_task::RealTimeCollectionTask;
 
 pub type SyncTransmiter = broadcast::Sender<SyncState>;
 pub type SyncReceiver = broadcast::Receiver<SyncState>;
@@ -99,41 +98,8 @@ impl Sync {
         )
     }
 
-    async fn start_real_time_collection(&self) -> Result<JoinHandle<()>> {
-        let ws = self.api.connect_ws().await?;
-
-        let mut receiver = ws.receiver().await?;
-
-        let sync_state = self.sync_state.clone();
-        let sync_tx = self.sync_tx.clone();
-        let handle = tokio::spawn(async move {
-            while let Ok(res) = receiver.recv().await {
-                match res {
-                    WebSocketApiRes::PriceTick(_tick) => {
-                        // TODO
-                    }
-                    WebSocketApiRes::PriceIndex(_index) => {}
-                    WebSocketApiRes::ConnectionUpdate(new_state) => match new_state {
-                        ConnectionState::Connected => {}
-                        ConnectionState::Disconnected => {}
-                        ConnectionState::Failed(_err) => {
-                            let mut sync_state = sync_state.lock().await;
-                            *sync_state = SyncState::Failed;
-
-                            if sync_tx.receiver_count() > 0 {
-                                let _ = sync_tx.send(sync_state.clone());
-                            }
-                        }
-                    },
-                }
-            }
-            println!("Receiver closed");
-        });
-
-        let channels = vec![LnmWebSocketChannel::FuturesBtcUsdLastPrice];
-        ws.subscribe(channels).await?;
-
-        Ok(handle)
+    fn real_time_collection_task(&self) -> RealTimeCollectionTask {
+        RealTimeCollectionTask::new(self.db.clone(), self.api.clone())
     }
 
     fn handle_history_state_updates(&self, mut history_state_rx: Receiver<PriceHistoryState>) {
@@ -142,7 +108,7 @@ impl Sync {
         tokio::spawn(async move {
             while let Some(new_history_state) = history_state_rx.recv().await {
                 let mut sync_state = sync_state.lock().await;
-                if let SyncState::InProgress(_) = *sync_state {
+                if let SyncState::NotInitiated | SyncState::InProgress(_) = *sync_state {
                     let new_sync_state = SyncState::InProgress(new_history_state);
                     *sync_state = new_sync_state.clone();
                     if sync_tx.receiver_count() > 0 {
@@ -154,8 +120,10 @@ impl Sync {
             }
         });
     }
+
     pub async fn start(&self) -> Result<()> {
         // Initial price history sync
+
         let (sync_price_history_task, history_state_rx) = self.price_history_task();
 
         self.handle_history_state_updates(history_state_rx);
@@ -163,26 +131,45 @@ impl Sync {
         sync_price_history_task.run().await?;
 
         // Start to collect real-time data
-        let mut real_time_collection_handle = self.start_real_time_collection().await?;
+
+        let real_time_collection_task = self.real_time_collection_task();
+        let mut real_time_collection_task_handle = tokio::spawn(real_time_collection_task.run());
 
         // Additional price history sync to ensure overlap with real-time data
+
         let (sync_price_history_task, history_state_rx) = self.price_history_task();
 
         self.handle_history_state_updates(history_state_rx);
 
         sync_price_history_task.run().await?;
 
+        if real_time_collection_task_handle.is_finished() {
+            real_time_collection_task_handle
+                .await
+                .map_err(|e| AppError::Generic(format!("join error {}", e.to_string())))?
+                .map_err(|e| {
+                    AppError::Generic(format!("real-time collection error {}", e.to_string()))
+                })?;
+
+            return Err(AppError::Generic(
+                "unexpected real-time collection shutdown".to_string(),
+            ));
+        }
+
         // Sync achieved
+
         self.handle_sync_state_update(SyncState::Synced).await?;
 
         loop {
-            let (sync_price_history_task, _) = self.price_history_task();
-
             tokio::select! {
-                res = &mut real_time_collection_handle => {
+                res = &mut real_time_collection_task_handle => {
+                    res.map_err(|e| AppError::Generic(format!("join error {}", e.to_string())))?
+                        .map_err(|e| AppError::Generic(format!("real-time collection error {}", e.to_string())))?;
+                    return Err(AppError::Generic("unexpected real-time collection shutdown".to_string()));
 
                 }
-                _ = time::sleep(time::Duration::from_secs(60)) => {
+                _ = time::sleep(time::Duration::from_secs(30)) => {
+                    let (sync_price_history_task, _) = self.price_history_task();
                     sync_price_history_task.run().await?;
                     continue;
                 }
