@@ -1,6 +1,5 @@
 use std::sync::Arc;
-
-use tokio::sync::OnceCell;
+use tokio::sync::Mutex;
 
 pub mod error;
 pub mod rest;
@@ -13,7 +12,7 @@ use websocket::WebSocketApiContext;
 pub struct ApiContext {
     api_domain: String,
     rest: RestApiContext,
-    ws: OnceCell<WebSocketApiContext>,
+    ws: Mutex<Option<Arc<WebSocketApiContext>>>,
 }
 
 impl ApiContext {
@@ -23,7 +22,7 @@ impl ApiContext {
         Arc::new(Self {
             api_domain,
             rest,
-            ws: OnceCell::new(),
+            ws: Mutex::new(None),
         })
     }
 
@@ -31,13 +30,20 @@ impl ApiContext {
         &self.rest
     }
 
-    pub async fn connect_ws(&self) -> Result<&WebSocketApiContext> {
-        let api_domain = self.api_domain.clone();
-        let ws = self
-            .ws
-            .get_or_try_init(|| async { websocket::new(api_domain).await })
-            .await?;
+    pub async fn connect_ws(&self) -> Result<Arc<WebSocketApiContext>> {
+        let mut ws_guard = self.ws.lock().await;
 
-        Ok(ws)
+        if let Some(ws) = ws_guard.as_ref() {
+            if ws.is_connected() {
+                return Ok(ws.clone());
+            }
+        }
+
+        let api_domain = self.api_domain.clone();
+        let new_ws = Arc::new(websocket::new(api_domain).await?);
+
+        *ws_guard = Some(new_ws.clone());
+
+        Ok(new_ws)
     }
 }
