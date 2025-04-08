@@ -34,9 +34,9 @@ async fn main() -> Result<()> {
         api.clone(),
     );
 
-    let mut receiver = sync.receiver();
+    let mut sync_rx = sync.receiver();
     tokio::spawn(async move {
-        while let Ok(res) = receiver.recv().await {
+        while let Ok(res) = sync_rx.recv().await {
             match res {
                 SyncState::NotInitiated => {
                     println!("SyncState::NotInitiated");
@@ -50,13 +50,12 @@ async fn main() -> Result<()> {
                 }
                 SyncState::Failed => {
                     println!("SyncState::Failed");
+                    break;
                 }
             }
         }
-        println!("Receiver closed");
+        println!("Sync Receiver closed");
     });
 
-    sync.start().await?;
-
-    Ok(())
+    sync.start().await
 }
