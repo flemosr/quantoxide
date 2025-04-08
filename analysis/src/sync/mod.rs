@@ -418,7 +418,7 @@ impl Sync {
         self.sync_price_history().await?;
 
         // Start to collect real-time data
-        let _handle = self.start_real_time_collection().await?;
+        let _real_time_collection_handle = self.start_real_time_collection().await?;
 
         // Additional price history sync to ensure overlap with real-time data
         self.sync_price_history().await?;
