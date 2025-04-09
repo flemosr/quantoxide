@@ -32,6 +32,50 @@ pub enum SyncState {
 }
 
 #[derive(Clone)]
+pub struct SyncStateManager {
+    state: Arc<Mutex<SyncState>>,
+    state_tx: SyncTransmiter,
+}
+
+impl SyncStateManager {
+    pub fn new() -> Self {
+        let state = Arc::new(Mutex::new(SyncState::NotInitiated));
+        let (state_tx, _) = broadcast::channel::<SyncState>(100);
+        Self { state, state_tx }
+    }
+
+    pub fn receiver(&self) -> SyncReceiver {
+        self.state_tx.subscribe()
+    }
+
+    pub async fn update(&self, new_state: SyncState) -> Result<()> {
+        let mut state = self.state.lock().await;
+        *state = new_state.clone();
+        if self.state_tx.receiver_count() > 0 {
+            let _ = self
+                .state_tx
+                .send(new_state)
+                .map_err(|_| AppError::Generic("couldn't send state update".to_string()));
+        }
+        Ok(())
+    }
+
+    pub async fn handle_history_state_updates(
+        self,
+        mut history_state_rx: Receiver<PriceHistoryState>,
+    ) -> Result<()> {
+        while let Some(new_history_state) = history_state_rx.recv().await {
+            let sync_state = self.state.lock().await;
+            if let SyncState::Starting | SyncState::InProgress(_) = *sync_state {
+                let new_sync_state = SyncState::InProgress(new_history_state);
+                self.update(new_sync_state).await?;
+            }
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone)]
 pub struct SyncProcess {
     api_cooldown: time::Duration,
     api_error_cooldown: time::Duration,
@@ -40,8 +84,7 @@ pub struct SyncProcess {
     sync_reach: DateTime<Utc>,
     db: Arc<DbContext>,
     api: Arc<ApiContext>,
-    sync_state: Arc<Mutex<SyncState>>,
-    sync_tx: SyncTransmiter,
+    state_manager: SyncStateManager,
 }
 
 impl SyncProcess {
@@ -53,8 +96,7 @@ impl SyncProcess {
         sync_history_reach_weeks: u64,
         db: Arc<DbContext>,
         api: Arc<ApiContext>,
-        sync_state: Arc<Mutex<SyncState>>,
-        sync_tx: SyncTransmiter,
+        state_manager: SyncStateManager,
     ) -> Self {
         let sync_reach = Utc::now() - Duration::hours(4 as i64);
         Self {
@@ -65,22 +107,8 @@ impl SyncProcess {
             sync_reach,
             db,
             api,
-            sync_state,
-            sync_tx,
+            state_manager,
         }
-    }
-
-    async fn handle_sync_state_update(&self, new_sync_state: SyncState) -> Result<()> {
-        let mut sync_state = self.sync_state.lock().await;
-        *sync_state = new_sync_state;
-
-        if self.sync_tx.receiver_count() > 0 {
-            self.sync_tx
-                .send(sync_state.clone())
-                .map_err(|_| AppError::Generic("couldn't send sync update".to_string()))?;
-        }
-
-        Ok(())
     }
 
     fn price_history_task(&self) -> (SyncPriceHistoryTask, HistoryStateReceiver) {
@@ -99,31 +127,14 @@ impl SyncProcess {
         RealTimeCollectionTask::new(self.db.clone(), self.api.clone())
     }
 
-    fn handle_history_state_updates(&self, mut history_state_rx: Receiver<PriceHistoryState>) {
-        let sync_state = self.sync_state.clone();
-        let sync_tx = self.sync_tx.clone();
-        tokio::spawn(async move {
-            while let Some(new_history_state) = history_state_rx.recv().await {
-                let mut sync_state = sync_state.lock().await;
-                if let SyncState::Starting | SyncState::InProgress(_) = *sync_state {
-                    let new_sync_state = SyncState::InProgress(new_history_state);
-                    *sync_state = new_sync_state.clone();
-                    if sync_tx.receiver_count() > 0 {
-                        let _ = sync_tx.send(new_sync_state).map_err(|_| {
-                            AppError::Generic("couldn't send sync update".to_string())
-                        });
-                    }
-                }
-            }
-        });
-    }
-
     pub async fn run(&self) -> Result<()> {
         // Initial price history sync
 
         let (sync_price_history_task, history_state_rx) = self.price_history_task();
 
-        self.handle_history_state_updates(history_state_rx);
+        let state_manager = self.state_manager.clone();
+        tokio::spawn(state_manager.handle_history_state_updates(history_state_rx));
+
         sync_price_history_task.run().await?;
 
         // Start to collect real-time data
@@ -135,7 +146,9 @@ impl SyncProcess {
 
         let (sync_price_history_task, history_state_rx) = self.price_history_task();
 
-        self.handle_history_state_updates(history_state_rx);
+        let state_manager = self.state_manager.clone();
+        tokio::spawn(state_manager.handle_history_state_updates(history_state_rx));
+
         sync_price_history_task.run().await?;
 
         if real_time_collection_task_handle.is_finished() {
@@ -153,7 +166,7 @@ impl SyncProcess {
 
         // Sync achieved
 
-        self.handle_sync_state_update(SyncState::Synced).await?;
+        self.state_manager.update(SyncState::Synced).await?;
 
         loop {
             tokio::select! {
@@ -172,9 +185,9 @@ impl SyncProcess {
     }
 }
 
+#[derive(Clone)]
 pub struct Sync {
-    sync_state: Arc<Mutex<SyncState>>,
-    sync_tx: SyncTransmiter,
+    state_manager: SyncStateManager,
     process: SyncProcess,
 }
 
@@ -188,8 +201,7 @@ impl Sync {
         db: Arc<DbContext>,
         api: Arc<ApiContext>,
     ) -> Self {
-        let sync_state = Arc::new(Mutex::new(SyncState::NotInitiated));
-        let (sync_tx, _) = broadcast::channel::<SyncState>(100);
+        let state_manager = SyncStateManager::new();
 
         let process = SyncProcess::new(
             api_cooldown_sec,
@@ -199,48 +211,37 @@ impl Sync {
             sync_history_reach_weeks,
             db,
             api,
-            sync_state.clone(),
-            sync_tx.clone(),
+            state_manager.clone(),
         );
 
         Self {
-            sync_state,
-            sync_tx,
+            state_manager,
             process,
         }
     }
 
     pub fn receiver(&self) -> SyncReceiver {
-        self.sync_tx.subscribe()
+        self.state_manager.receiver()
     }
 
-    pub fn start(&self) -> tokio::task::JoinHandle<()> {
-        let sync_state = self.sync_state.clone();
-        let sync_tx = self.sync_tx.clone();
-        let sync_process = self.process.clone();
+    async fn start_inner(state_manager: SyncStateManager, process: SyncProcess) -> Result<()> {
+        loop {
+            state_manager.update(SyncState::Starting).await?;
 
-        tokio::spawn(async move {
-            let update_state = |new_sync_state: SyncState| async {
-                let mut sync_state = sync_state.lock().await;
-                *sync_state = new_sync_state.clone();
-                if sync_tx.receiver_count() > 0 {
-                    let _ = sync_tx
-                        .send(new_sync_state)
-                        .map_err(|_| AppError::Generic("couldn't send sync update".to_string()));
-                }
-            };
-
-            loop {
-                update_state(SyncState::Starting).await;
-
-                match sync_process.run().await {
-                    Ok(_) => {}
-                    Err(_) => update_state(SyncState::Failed).await,
-                }
-
-                update_state(SyncState::Restarting).await;
-                time::sleep(time::Duration::from_secs(10)).await;
+            match process.run().await {
+                Ok(_) => {}
+                Err(_) => state_manager.update(SyncState::Failed).await?,
             }
-        })
+
+            state_manager.update(SyncState::Restarting).await?;
+            time::sleep(time::Duration::from_secs(10)).await;
+        }
+    }
+
+    pub fn start(&self) -> tokio::task::JoinHandle<Result<()>> {
+        let state_manager = self.state_manager.clone();
+        let process = self.process.clone();
+
+        tokio::spawn(Self::start_inner(state_manager, process))
     }
 }
