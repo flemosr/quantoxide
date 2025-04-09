@@ -11,8 +11,7 @@ use crate::{
 mod price_history_state;
 pub use price_history_state::PriceHistoryState;
 
-pub type HistoryStateTransmiter = mpsc::Sender<PriceHistoryState>;
-pub type HistoryStateReceiver = mpsc::Receiver<PriceHistoryState>;
+pub type PriceHistoryStateTransmiter = mpsc::Sender<PriceHistoryState>;
 
 #[derive(Clone)]
 pub struct SyncPriceHistoryTask {
@@ -23,7 +22,7 @@ pub struct SyncPriceHistoryTask {
     sync_reach: DateTime<Utc>,
     db: Arc<DbContext>,
     api: Arc<ApiContext>,
-    history_state_tx: HistoryStateTransmiter,
+    history_state_tx: Option<PriceHistoryStateTransmiter>,
 }
 
 impl SyncPriceHistoryTask {
@@ -35,10 +34,8 @@ impl SyncPriceHistoryTask {
         sync_reach: DateTime<Utc>,
         db: Arc<DbContext>,
         api: Arc<ApiContext>,
-    ) -> (Self, HistoryStateReceiver) {
-        // External channel for sync updates
-        let (history_state_tx, history_state_rx) = mpsc::channel::<PriceHistoryState>(100);
-
+        history_state_tx: Option<PriceHistoryStateTransmiter>,
+    ) -> Self {
         let task = Self {
             api_cooldown,
             api_error_cooldown,
@@ -50,7 +47,7 @@ impl SyncPriceHistoryTask {
             history_state_tx,
         };
 
-        (task, history_state_rx)
+        task
     }
 
     async fn get_new_price_entries(
@@ -177,11 +174,15 @@ impl SyncPriceHistoryTask {
     }
 
     async fn handle_history_update(&self, new_history_state: &PriceHistoryState) -> Result<()> {
-        if !self.history_state_tx.is_closed() {
-            self.history_state_tx
-                .send(new_history_state.clone())
-                .await
-                .map_err(|_| AppError::Generic("couldn't send price history update".to_string()))?;
+        if let Some(history_state_tx) = self.history_state_tx.as_ref() {
+            if !history_state_tx.is_closed() {
+                history_state_tx
+                    .send(new_history_state.clone())
+                    .await
+                    .map_err(|_| {
+                        AppError::Generic("couldn't send price history update".to_string())
+                    })?;
+            }
         }
 
         Ok(())
