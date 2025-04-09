@@ -38,12 +38,12 @@ lazy_static! {
             .parse::<u64>()
             .expect("LNM_API_ERROR_COOLDOWN_SEC must be a valid number")
     };
-    pub static ref SYNC_HISTORY_REACH_WEEKS: u64 = {
-        let num = env::var("SYNC_HISTORY_REACH_WEEKS")
-            .expect("SYNC_HISTORY_REACH_WEEKS must be set")
+    pub static ref SYNC_HISTORY_REACH_HOURS: u64 = {
+        let num = env::var("SYNC_HISTORY_REACH_HOURS")
+            .expect("SYNC_HISTORY_REACH_HOURS must be set")
             .parse::<u64>()
-            .expect("SYNC_HISTORY_REACH_WEEKS must be a valid number");
-        assert!(num >= 1, "SYNC_HISTORY_REACH_WEEKS must be at least 1");
+            .expect("SYNC_HISTORY_REACH_HOURS must be a valid number");
+        assert!(num >= 1, "SYNC_HISTORY_REACH_HOURS must be at least 1");
         num
     };
     pub static ref POSTGRES_DB_URL: String =
