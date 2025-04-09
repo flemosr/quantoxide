@@ -104,12 +104,12 @@ impl SyncProcess {
         api_error_cooldown_sec: u64,
         api_error_max_trials: u32,
         api_history_max_entries: usize,
-        sync_history_reach_weeks: u64,
+        sync_history_reach_hours: u64,
         db: Arc<DbContext>,
         api: Arc<ApiContext>,
         state_manager: SyncStateManager,
     ) -> Self {
-        let sync_reach = Utc::now() - Duration::hours(4 as i64);
+        let sync_reach = Utc::now() - Duration::hours(sync_history_reach_hours as i64);
         Self {
             api_cooldown: time::Duration::from_secs(api_cooldown_sec),
             api_error_cooldown: time::Duration::from_secs(api_error_cooldown_sec),
@@ -209,7 +209,7 @@ impl Sync {
         api_error_cooldown_sec: u64,
         api_error_max_trials: u32,
         api_history_max_entries: usize,
-        sync_history_reach_weeks: u64,
+        sync_history_reach_hours: u64,
         db: Arc<DbContext>,
         api: Arc<ApiContext>,
     ) -> Self {
@@ -220,7 +220,7 @@ impl Sync {
             api_error_cooldown_sec,
             api_error_max_trials,
             api_history_max_entries,
-            sync_history_reach_weeks,
+            sync_history_reach_hours,
             db,
             api,
             state_manager.clone(),
