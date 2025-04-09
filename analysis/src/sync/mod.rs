@@ -2,7 +2,11 @@ use chrono::{DateTime, Duration, Utc};
 
 use std::sync::Arc;
 use tokio::{
-    sync::{broadcast, mpsc::Receiver, Mutex},
+    sync::{
+        broadcast,
+        mpsc::{self, Receiver},
+        Mutex,
+    },
     time,
 };
 
@@ -12,16 +16,18 @@ use crate::{
     error::{AppError, Result},
 };
 
-mod price_history_task;
 mod real_time_collection_task;
+mod sync_price_history_task;
 
-use price_history_task::{HistoryStateReceiver, PriceHistoryState, SyncPriceHistoryTask};
 use real_time_collection_task::RealTimeCollectionTask;
+use sync_price_history_task::{
+    PriceHistoryState, PriceHistoryStateTransmiter, SyncPriceHistoryTask,
+};
 
 pub type SyncTransmiter = broadcast::Sender<SyncState>;
 pub type SyncReceiver = broadcast::Receiver<SyncState>;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum SyncState {
     NotInitiated,
     Starting,
@@ -49,14 +55,16 @@ impl SyncStateManager {
     }
 
     pub async fn update(&self, new_state: SyncState) -> Result<()> {
-        let mut state = self.state.lock().await;
-        *state = new_state.clone();
+        let mut state_lock = self.state.lock().await;
+        *state_lock = new_state.clone();
+        drop(state_lock);
+
         if self.state_tx.receiver_count() > 0 {
-            let _ = self
-                .state_tx
+            self.state_tx
                 .send(new_state)
-                .map_err(|_| AppError::Generic("couldn't send state update".to_string()));
+                .map_err(|_| AppError::Generic("couldn't send state update".to_string()))?;
         }
+
         Ok(())
     }
 
@@ -65,12 +73,15 @@ impl SyncStateManager {
         mut history_state_rx: Receiver<PriceHistoryState>,
     ) -> Result<()> {
         while let Some(new_history_state) = history_state_rx.recv().await {
-            let sync_state = self.state.lock().await;
-            if let SyncState::Starting | SyncState::InProgress(_) = *sync_state {
+            let state_lock = self.state.lock().await;
+            if let SyncState::Starting | SyncState::InProgress(_) = *state_lock {
+                drop(state_lock);
+
                 let new_sync_state = SyncState::InProgress(new_history_state);
                 self.update(new_sync_state).await?;
             }
         }
+
         Ok(())
     }
 }
@@ -111,7 +122,10 @@ impl SyncProcess {
         }
     }
 
-    fn price_history_task(&self) -> (SyncPriceHistoryTask, HistoryStateReceiver) {
+    fn price_history_task(
+        &self,
+        history_state_tx: Option<PriceHistoryStateTransmiter>,
+    ) -> SyncPriceHistoryTask {
         SyncPriceHistoryTask::new(
             self.api_cooldown,
             self.api_error_cooldown,
@@ -120,6 +134,7 @@ impl SyncProcess {
             self.sync_reach,
             self.db.clone(),
             self.api.clone(),
+            history_state_tx,
         )
     }
 
@@ -130,11 +145,12 @@ impl SyncProcess {
     pub async fn run(&self) -> Result<()> {
         // Initial price history sync
 
-        let (sync_price_history_task, history_state_rx) = self.price_history_task();
+        let (history_state_tx, history_state_rx) = mpsc::channel::<PriceHistoryState>(100);
 
         let state_manager = self.state_manager.clone();
         tokio::spawn(state_manager.handle_history_state_updates(history_state_rx));
 
+        let sync_price_history_task = self.price_history_task(Some(history_state_tx));
         sync_price_history_task.run().await?;
 
         // Start to collect real-time data
@@ -144,11 +160,7 @@ impl SyncProcess {
 
         // Additional price history sync to ensure overlap with real-time data
 
-        let (sync_price_history_task, history_state_rx) = self.price_history_task();
-
-        let state_manager = self.state_manager.clone();
-        tokio::spawn(state_manager.handle_history_state_updates(history_state_rx));
-
+        let sync_price_history_task = self.price_history_task(None);
         sync_price_history_task.run().await?;
 
         if real_time_collection_task_handle.is_finished() {
@@ -176,7 +188,7 @@ impl SyncProcess {
                     return Err(AppError::Generic("unexpected real-time collection shutdown".to_string()));
                 }
                 _ = time::sleep(time::Duration::from_secs(30)) => {
-                    let (sync_price_history_task, _) = self.price_history_task();
+                    let sync_price_history_task = self.price_history_task(None);
                     sync_price_history_task.run().await?;
                     continue;
                 }
@@ -230,7 +242,7 @@ impl Sync {
 
             match process.run().await {
                 Ok(_) => {}
-                Err(_) => state_manager.update(SyncState::Failed).await?,
+                Err(e) => state_manager.update(SyncState::Failed).await?,
             }
 
             state_manager.update(SyncState::Restarting).await?;
