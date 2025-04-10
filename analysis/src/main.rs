@@ -34,7 +34,9 @@ async fn main() -> Result<()> {
         api.clone(),
     );
 
-    let mut sync_rx = sync.receiver();
+    let sync_controller = sync.start()?;
+
+    let mut sync_rx = sync_controller.receiver();
     tokio::spawn(async move {
         while let Ok(res) = sync_rx.recv().await {
             match res {
@@ -62,15 +64,13 @@ async fn main() -> Result<()> {
         println!("Sync Receiver closed");
     });
 
-    let sync_handle = sync.start();
-
     // Wait for termination signal
     tokio::signal::ctrl_c()
         .await
         .expect("failed to listen for event");
 
     // Cleanly shut down
-    sync_handle.abort();
+    sync_controller.abort();
 
     Ok(())
 }

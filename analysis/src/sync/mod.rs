@@ -7,6 +7,7 @@ use tokio::{
         mpsc::{self, Receiver},
         Mutex,
     },
+    task::JoinHandle,
     time,
 };
 
@@ -197,6 +198,33 @@ impl SyncProcess {
     }
 }
 
+pub struct SyncController {
+    state_manager: SyncStateManager,
+    handle: JoinHandle<Result<()>>,
+}
+
+impl SyncController {
+    fn new(state_manager: SyncStateManager, handle: JoinHandle<Result<()>>) -> Self {
+        Self {
+            state_manager,
+            handle,
+        }
+    }
+
+    pub fn receiver(&self) -> SyncReceiver {
+        self.state_manager.receiver()
+    }
+
+    pub async fn state(&self) -> Result<SyncState> {
+        let state = self.state_manager.state.lock().await.clone();
+        Ok(state)
+    }
+
+    pub fn abort(&self) -> () {
+        self.handle.abort();
+    }
+}
+
 #[derive(Clone)]
 pub struct Sync {
     state_manager: SyncStateManager,
@@ -232,28 +260,26 @@ impl Sync {
         }
     }
 
-    pub fn receiver(&self) -> SyncReceiver {
-        self.state_manager.receiver()
-    }
-
-    async fn start_inner(state_manager: SyncStateManager, process: SyncProcess) -> Result<()> {
+    async fn process_recovery_loop(self) -> Result<()> {
         loop {
-            state_manager.update(SyncState::Starting).await?;
+            self.state_manager.update(SyncState::Starting).await?;
 
-            match process.run().await {
+            match self.process.run().await {
                 Ok(_) => {}
-                Err(e) => state_manager.update(SyncState::Failed).await?,
+                Err(e) => self.state_manager.update(SyncState::Failed).await?,
             }
 
-            state_manager.update(SyncState::Restarting).await?;
+            self.state_manager.update(SyncState::Restarting).await?;
             time::sleep(time::Duration::from_secs(10)).await;
         }
     }
 
-    pub fn start(&self) -> tokio::task::JoinHandle<Result<()>> {
+    pub fn start(self) -> Result<SyncController> {
         let state_manager = self.state_manager.clone();
-        let process = self.process.clone();
+        let handle = tokio::spawn(self.process_recovery_loop());
 
-        tokio::spawn(Self::start_inner(state_manager, process))
+        let sync_controller = SyncController::new(state_manager, handle);
+
+        Ok(sync_controller)
     }
 }
