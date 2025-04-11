@@ -4,8 +4,11 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use reqwest::Url;
 
-use super::super::super::error::{ApiError, Result};
-use super::super::{models::PriceEntryLNM, repositories::FuturesRepository};
+use super::super::{
+    error::{RestApiError, Result},
+    models::PriceEntryLNM,
+    repositories::FuturesRepository,
+};
 
 const PRICE_HISTORY_PATH: &str = "/v2/futures/history/price";
 
@@ -35,7 +38,7 @@ impl LnmFuturesRepository {
             Some(params) => Url::parse_with_params(&base_endpoint_url, params),
             None => Url::parse(&base_endpoint_url),
         }
-        .map_err(|e| ApiError::UrlParse(e.to_string()))?;
+        .map_err(|e| RestApiError::UrlParse(e.to_string()))?;
 
         Ok(endpoint_url)
     }
@@ -61,12 +64,12 @@ impl FuturesRepository for LnmFuturesRepository {
         }
 
         let url = self.get_endpoint_url(PRICE_HISTORY_PATH, Some(params))?;
-        let res = reqwest::get(url).await.map_err(ApiError::Response)?;
+        let res = reqwest::get(url).await.map_err(RestApiError::Response)?;
 
         let price_history = res
             .json::<Vec<PriceEntryLNM>>()
             .await
-            .map_err(ApiError::UnexpectedSchema)?;
+            .map_err(RestApiError::UnexpectedSchema)?;
 
         Ok(price_history)
     }

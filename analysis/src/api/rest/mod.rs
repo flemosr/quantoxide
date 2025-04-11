@@ -1,3 +1,4 @@
+pub mod error;
 mod lnm;
 pub mod models;
 mod repositories;

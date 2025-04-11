@@ -1,9 +1,7 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 
-use super::super::error::Result;
-
-use super::models::PriceEntryLNM;
+use super::{error::Result, models::PriceEntryLNM};
 
 #[async_trait]
 pub trait FuturesRepository: Send + Sync {
