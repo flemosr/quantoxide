@@ -2,12 +2,12 @@ use chrono::{DateTime, Utc};
 use std::result;
 use thiserror::Error;
 
-use crate::{api::error::ApiError, db::error::DbError};
+use crate::{api::rest::error::RestApiError, db::error::DbError};
 
 #[derive(Error, Debug)]
 pub enum SyncPriceHistoryError {
-    #[error("ApiMaxTrialsReached error: api_error {api_error}, trials {trials}")]
-    ApiMaxTrialsReached { api_error: ApiError, trials: u32 },
+    #[error("RestApiMaxTrialsReached error: error {error}, trials {trials}")]
+    RestApiMaxTrialsReached { error: RestApiError, trials: u32 },
     #[error("PriceEntriesUnsorted error")]
     PriceEntriesUnsorted,
     #[error("PriceEntriesWithoutOverlap error")]

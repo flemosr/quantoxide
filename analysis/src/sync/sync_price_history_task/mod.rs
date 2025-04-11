@@ -68,11 +68,11 @@ impl SyncPriceHistoryTask {
                     .await
                 {
                     Ok(price_entries) => break price_entries,
-                    Err(api_error) => {
+                    Err(error) => {
                         trials += 1;
                         if trials >= self.api_error_max_trials {
-                            return Err(SyncPriceHistoryError::ApiMaxTrialsReached {
-                                api_error,
+                            return Err(SyncPriceHistoryError::RestApiMaxTrialsReached {
+                                error,
                                 trials: self.api_error_max_trials,
                             });
                         }
