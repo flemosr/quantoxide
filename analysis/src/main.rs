@@ -56,8 +56,8 @@ async fn main() -> Result<()> {
                 SyncState::Restarting => {
                     println!("SyncState::Restarting");
                 }
-                SyncState::Failed => {
-                    println!("SyncState::Failed");
+                SyncState::Failed(err) => {
+                    println!("SyncState::Failed with error {err}");
                 }
             }
         }

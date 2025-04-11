@@ -31,7 +31,7 @@ pub enum SyncState {
     Starting,
     InProgress(PriceHistoryState),
     Synced,
-    Failed,
+    Failed(String),
     Restarting,
 }
 
@@ -255,9 +255,10 @@ impl Sync {
         loop {
             self.state_manager.update(SyncState::Starting).await?;
 
-            match self.process.run().await {
-                Ok(_) => {}
-                Err(e) => self.state_manager.update(SyncState::Failed).await?,
+            if let Err(e) = self.process.run().await {
+                self.state_manager
+                    .update(SyncState::Failed(e.to_string()))
+                    .await?
             }
 
             self.state_manager.update(SyncState::Restarting).await?;
