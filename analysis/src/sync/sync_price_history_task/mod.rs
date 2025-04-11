@@ -5,11 +5,13 @@ use tokio::{sync::mpsc, time};
 use crate::{
     api::{rest::models::PriceEntryLNM, ApiContext},
     db::DbContext,
-    error::{AppError, Result},
 };
 
 mod price_history_state;
 pub use price_history_state::PriceHistoryState;
+pub mod error;
+
+use error::{Result, SyncPriceHistoryError};
 
 pub type PriceHistoryStateTransmiter = mpsc::Sender<PriceHistoryState>;
 
@@ -69,9 +71,9 @@ impl SyncPriceHistoryTask {
                     Err(api_error) => {
                         trials += 1;
                         if trials >= self.api_error_max_trials {
-                            return Err(AppError::ApiMaxTrialsReached {
+                            return Err(SyncPriceHistoryError::ApiMaxTrialsReached {
                                 api_error,
-                                max_trials: self.api_error_max_trials,
+                                trials: self.api_error_max_trials,
                             });
                         }
 
@@ -88,18 +90,14 @@ impl SyncPriceHistoryTask {
 
         let is_sorted_time_desc = price_entries.is_sorted_by(|a, b| a.time() > b.time());
         if !is_sorted_time_desc {
-            return Err(AppError::UnexpectedLNMPayload(
-                "Price entries unsorted by time desc".to_string(),
-            ));
+            return Err(SyncPriceHistoryError::PriceEntriesUnsorted);
         }
 
         // If `before_observed_time` is set, ensure that the first (latest) entry matches it
         if let Some(observed_time) = to_observed_time {
             let first_entry = price_entries.remove(0);
             if first_entry.time() != observed_time {
-                return Err(AppError::UnexpectedLNMPayload(
-                    "Price entries without overlap".to_string(),
-                ));
+                return Err(SyncPriceHistoryError::PriceEntriesWithoutOverlap);
             }
         }
 
@@ -113,10 +111,7 @@ impl SyncPriceHistoryTask {
                 let overlap = before_limit.first().expect("not empty").time() == time;
 
                 if !overlap {
-                    return Err(AppError::UnexpectedLNMPayload(format!(
-                        "limit entry time {} not received from server",
-                        time
-                    )));
+                    return Err(SyncPriceHistoryError::FromObservedTimeNotReceived(*time));
                 }
 
                 true
@@ -179,9 +174,7 @@ impl SyncPriceHistoryTask {
                 history_state_tx
                     .send(new_history_state.clone())
                     .await
-                    .map_err(|_| {
-                        AppError::Generic("couldn't send price history update".to_string())
-                    })?;
+                    .map_err(|_| SyncPriceHistoryError::HistoryUpdateHandlerFailed)?;
             }
         }
 
@@ -198,9 +191,7 @@ impl SyncPriceHistoryTask {
             let new_entries_received = self.partial_download(download_from, download_to).await?;
             if !new_entries_received {
                 if history_state.has_gaps() {
-                    return Err(AppError::Generic(
-                        "no entries received while gaps still exist".to_string(),
-                    ));
+                    return Err(SyncPriceHistoryError::NoGapEntriesReceived);
                 } else {
                     return Ok(());
                 }

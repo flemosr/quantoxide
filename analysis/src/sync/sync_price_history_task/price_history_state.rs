@@ -1,10 +1,9 @@
 use chrono::{DateTime, Utc};
 use std::fmt;
 
-use crate::{
-    db::DbContext,
-    error::{AppError, Result},
-};
+use crate::db::DbContext;
+
+use super::error::{Result, SyncPriceHistoryError};
 
 #[derive(Debug, Clone)]
 pub struct PriceHistoryState {
@@ -38,7 +37,7 @@ impl PriceHistoryState {
             // DB has a single entry
 
             if earliest_entry.time < reach {
-                return Err(AppError::UnreachableDbGap {
+                return Err(SyncPriceHistoryError::UnreachableDbGap {
                     gap: earliest_entry.time,
                     reach,
                 });
@@ -58,7 +57,7 @@ impl PriceHistoryState {
                 // There is a price gap before `reach`. Since we shouldn't fetch entries
                 // before `reach`. Said gap can't be closed, and therefore the DB can't
                 // be synced.
-                return Err(AppError::UnreachableDbGap {
+                return Err(SyncPriceHistoryError::UnreachableDbGap {
                     gap: *from_time,
                     reach,
                 });
