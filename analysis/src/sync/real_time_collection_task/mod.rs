@@ -6,8 +6,11 @@ use crate::{
         ApiContext,
     },
     db::DbContext,
-    error::{AppError, Result},
 };
+
+pub mod error;
+
+use error::{RealTimeCollectionError, Result};
 
 pub struct RealTimeCollectionTask {
     db: Arc<DbContext>,
@@ -38,11 +41,11 @@ impl RealTimeCollectionTask {
                         ConnectionState::Connected => {}
                         ConnectionState::Disconnected => {}
                         ConnectionState::Failed(err) => {
-                            return Err(AppError::Generic(err.to_string()))
+                            return Err(RealTimeCollectionError::Generic(err.to_string()))
                         }
                     },
                 },
-                Err(err) => return Err(AppError::Generic(err.to_string())),
+                Err(err) => return Err(RealTimeCollectionError::Generic(err.to_string())),
             }
         }
     }
