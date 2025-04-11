@@ -91,6 +91,7 @@ struct SyncProcess {
     api_error_max_trials: u32,
     api_history_max_entries: usize,
     sync_reach: DateTime<Utc>,
+    re_sync_history_interval: time::Duration,
     db: Arc<DbContext>,
     api: Arc<ApiContext>,
     state_manager: SyncStateManager,
@@ -103,6 +104,7 @@ impl SyncProcess {
         api_error_max_trials: u32,
         api_history_max_entries: usize,
         sync_history_reach_hours: u64,
+        re_sync_history_interval_sec: u64,
         db: Arc<DbContext>,
         api: Arc<ApiContext>,
         state_manager: SyncStateManager,
@@ -114,6 +116,7 @@ impl SyncProcess {
             api_error_max_trials,
             api_history_max_entries,
             sync_reach,
+            re_sync_history_interval: time::Duration::from_secs(re_sync_history_interval_sec),
             db,
             api,
             state_manager,
@@ -179,10 +182,9 @@ impl SyncProcess {
                     rt_res.map_err(|e| SyncError::TaskJoin(e.to_string()))??;
                     return Err(SyncError::UnexpectedRealTimeCollectionShutdown);
                 }
-                _ = time::sleep(time::Duration::from_secs(30)) => {
+                _ = time::sleep(self.re_sync_history_interval) => {
                     let sync_price_history_task = self.price_history_task(None);
                     sync_price_history_task.run().await?;
-                    continue;
                 }
             }
         }
@@ -220,6 +222,7 @@ impl SyncController {
 pub struct Sync {
     state_manager: SyncStateManager,
     process: SyncProcess,
+    restart_interval: time::Duration,
 }
 
 impl Sync {
@@ -229,6 +232,8 @@ impl Sync {
         api_error_max_trials: u32,
         api_history_max_entries: usize,
         sync_history_reach_hours: u64,
+        re_sync_history_interval_sec: u64,
+        restart_interval_sec: u64,
         db: Arc<DbContext>,
         api: Arc<ApiContext>,
     ) -> Self {
@@ -240,6 +245,7 @@ impl Sync {
             api_error_max_trials,
             api_history_max_entries,
             sync_history_reach_hours,
+            re_sync_history_interval_sec,
             db,
             api,
             state_manager.clone(),
@@ -248,6 +254,7 @@ impl Sync {
         Self {
             state_manager,
             process,
+            restart_interval: time::Duration::from_secs(restart_interval_sec),
         }
     }
 
@@ -262,7 +269,7 @@ impl Sync {
             }
 
             self.state_manager.update(SyncState::Restarting).await?;
-            time::sleep(time::Duration::from_secs(10)).await;
+            time::sleep(self.restart_interval).await;
         }
     }
 

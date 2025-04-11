@@ -30,6 +30,8 @@ async fn main() -> Result<()> {
         *LNM_API_ERROR_MAX_TRIALS,
         *LNM_PRICE_HISTORY_BATCH_ENTRIES,
         *SYNC_HISTORY_REACH_HOURS,
+        300,
+        10,
         db.clone(),
         api.clone(),
     );
