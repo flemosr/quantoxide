@@ -1,5 +1,4 @@
 use chrono::{DateTime, Duration, Utc};
-
 use std::sync::Arc;
 use tokio::{
     sync::{
@@ -11,15 +10,13 @@ use tokio::{
     time,
 };
 
-use crate::{
-    api::ApiContext,
-    db::DbContext,
-    error::{AppError, Result},
-};
+use crate::{api::ApiContext, db::DbContext};
 
+pub mod error;
 mod real_time_collection_task;
 mod sync_price_history_task;
 
+use error::{Result, SyncError};
 use real_time_collection_task::RealTimeCollectionTask;
 use sync_price_history_task::{
     PriceHistoryState, PriceHistoryStateTransmiter, SyncPriceHistoryTask,
@@ -39,7 +36,7 @@ pub enum SyncState {
 }
 
 #[derive(Clone)]
-pub struct SyncStateManager {
+struct SyncStateManager {
     state: Arc<Mutex<SyncState>>,
     state_tx: SyncTransmiter,
 }
@@ -63,7 +60,7 @@ impl SyncStateManager {
         if self.state_tx.receiver_count() > 0 {
             self.state_tx
                 .send(new_state)
-                .map_err(|_| AppError::Generic("couldn't send state update".to_string()))?;
+                .map_err(|e| SyncError::SyncTransmiterFailed(e.to_string()))?;
         }
 
         Ok(())
@@ -88,7 +85,7 @@ impl SyncStateManager {
 }
 
 #[derive(Clone)]
-pub struct SyncProcess {
+struct SyncProcess {
     api_cooldown: time::Duration,
     api_error_cooldown: time::Duration,
     api_error_max_trials: u32,
@@ -157,24 +154,19 @@ impl SyncProcess {
         // Start to collect real-time data
 
         let real_time_collection_task = self.real_time_collection_task();
-        let mut real_time_collection_task_handle = tokio::spawn(real_time_collection_task.run());
+        let mut real_time_handle = tokio::spawn(real_time_collection_task.run());
 
         // Additional price history sync to ensure overlap with real-time data
 
         let sync_price_history_task = self.price_history_task(None);
         sync_price_history_task.run().await?;
 
-        if real_time_collection_task_handle.is_finished() {
-            real_time_collection_task_handle
+        if real_time_handle.is_finished() {
+            real_time_handle
                 .await
-                .map_err(|e| AppError::Generic(format!("join error {}", e.to_string())))?
-                .map_err(|e| {
-                    AppError::Generic(format!("real-time collection error {}", e.to_string()))
-                })?;
+                .map_err(|e| SyncError::TaskJoin(e.to_string()))??;
 
-            return Err(AppError::Generic(
-                "unexpected real-time collection shutdown".to_string(),
-            ));
+            return Err(SyncError::UnexpectedRealTimeCollectionShutdown);
         }
 
         // Sync achieved
@@ -183,10 +175,9 @@ impl SyncProcess {
 
         loop {
             tokio::select! {
-                res = &mut real_time_collection_task_handle => {
-                    res.map_err(|e| AppError::Generic(format!("join error {}", e.to_string())))?
-                        .map_err(|e| AppError::Generic(format!("real-time collection error {}", e.to_string())))?;
-                    return Err(AppError::Generic("unexpected real-time collection shutdown".to_string()));
+                rt_res = &mut real_time_handle => {
+                    rt_res.map_err(|e| SyncError::TaskJoin(e.to_string()))??;
+                    return Err(SyncError::UnexpectedRealTimeCollectionShutdown);
                 }
                 _ = time::sleep(time::Duration::from_secs(30)) => {
                     let sync_price_history_task = self.price_history_task(None);
