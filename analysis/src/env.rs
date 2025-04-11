@@ -46,6 +46,22 @@ lazy_static! {
         assert!(num >= 1, "SYNC_HISTORY_REACH_HOURS must be at least 1");
         num
     };
+    pub static ref RE_SYNC_HISTORY_INTERVAL_SEC: u64 = {
+        let num = env::var("RE_SYNC_HISTORY_INTERVAL_SEC")
+            .expect("RE_SYNC_HISTORY_INTERVAL_SEC must be set")
+            .parse::<u64>()
+            .expect("RE_SYNC_HISTORY_INTERVAL_SEC must be a valid number");
+        assert!(num >= 5, "RE_SYNC_HISTORY_INTERVAL_SEC must be at least 5");
+        num
+    };
+    pub static ref RESTART_SYNC_INTERVAL_SEC: u64 = {
+        let num = env::var("RESTART_SYNC_INTERVAL_SEC")
+            .expect("RESTART_SYNC_INTERVAL_SEC must be set")
+            .parse::<u64>()
+            .expect("RESTART_SYNC_INTERVAL_SEC must be a valid number");
+        assert!(num >= 5, "RESTART_SYNC_INTERVAL_SEC must be at least 5");
+        num
+    };
     pub static ref POSTGRES_DB_URL: String =
         env::var("POSTGRES_DB_URL").expect("POSTGRES_DB_URL must be set");
 }
