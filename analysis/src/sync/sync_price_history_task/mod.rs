@@ -1,4 +1,4 @@
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Duration, Utc};
 use std::{collections::HashSet, sync::Arc};
 use tokio::{sync::mpsc, time};
 
@@ -21,7 +21,7 @@ pub struct SyncPriceHistoryTask {
     api_error_cooldown: time::Duration,
     api_error_max_trials: u32,
     api_history_max_entries: usize,
-    sync_reach: DateTime<Utc>,
+    sync_reach: Duration,
     db: Arc<DbContext>,
     api: Arc<ApiContext>,
     history_state_tx: Option<PriceHistoryStateTransmiter>,
@@ -33,7 +33,7 @@ impl SyncPriceHistoryTask {
         api_error_cooldown: time::Duration,
         api_error_max_trials: u32,
         api_history_max_entries: usize,
-        sync_reach: DateTime<Utc>,
+        sync_reach: Duration,
         db: Arc<DbContext>,
         api: Arc<ApiContext>,
         history_state_tx: Option<PriceHistoryStateTransmiter>,

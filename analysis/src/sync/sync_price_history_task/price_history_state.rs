@@ -1,4 +1,4 @@
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Duration, Utc};
 use std::fmt;
 
 use crate::db::DbContext;
@@ -7,20 +7,22 @@ use super::error::{Result, SyncPriceHistoryError};
 
 #[derive(Debug, Clone)]
 pub struct PriceHistoryState {
-    reach: DateTime<Utc>,
+    reach_time: DateTime<Utc>,
     bounds: Option<(DateTime<Utc>, DateTime<Utc>)>,
     entry_gaps: Vec<(DateTime<Utc>, DateTime<Utc>)>,
 }
 
 impl PriceHistoryState {
-    pub async fn evaluate(db: &DbContext, reach: DateTime<Utc>) -> Result<Self> {
+    pub async fn evaluate(db: &DbContext, reach: Duration) -> Result<Self> {
+        let reach_time = Utc::now() - reach;
+
         let earliest_entry = match db.price_history.get_earliest_entry().await? {
             Some(entry) => entry,
             None => {
                 // DB is empty
 
                 return Ok(Self {
-                    reach,
+                    reach_time,
                     bounds: None,
                     entry_gaps: Vec::new(),
                 });
@@ -36,15 +38,15 @@ impl PriceHistoryState {
         if earliest_entry.time == lastest_entry.time {
             // DB has a single entry
 
-            if earliest_entry.time < reach {
+            if earliest_entry.time < reach_time {
                 return Err(SyncPriceHistoryError::UnreachableDbGap {
                     gap: earliest_entry.time,
-                    reach,
+                    reach: reach_time,
                 });
             }
 
             return Ok(Self {
-                reach,
+                reach_time,
                 bounds: Some((earliest_entry.time, earliest_entry.time)),
                 entry_gaps: Vec::new(),
             });
@@ -53,19 +55,19 @@ impl PriceHistoryState {
         let entry_gaps = db.price_history.get_gaps().await?;
 
         if let Some((from_time, _)) = entry_gaps.first() {
-            if *from_time < reach {
+            if *from_time < reach_time {
                 // There is a price gap before `reach`. Since we shouldn't fetch entries
                 // before `reach`. Said gap can't be closed, and therefore the DB can't
                 // be synced.
                 return Err(SyncPriceHistoryError::UnreachableDbGap {
                     gap: *from_time,
-                    reach,
+                    reach: reach_time,
                 });
             }
         }
 
         Ok(Self {
-            reach,
+            reach_time,
             bounds: Some((earliest_entry.time, lastest_entry.time)),
             entry_gaps,
         })
@@ -80,7 +82,7 @@ impl PriceHistoryState {
         if let Some((gap_from, gap_to)) = self.entry_gaps.first() {
             return (Some(gap_from), Some(gap_to));
         }
-        if history_bounds.0 > self.reach {
+        if history_bounds.0 > self.reach_time {
             return (None, Some(&history_bounds.0));
         }
         (Some(&history_bounds.1), None)
@@ -88,7 +90,7 @@ impl PriceHistoryState {
 
     pub fn has_gaps(&self) -> bool {
         self.bounds.is_none()
-            || self.reach < self.bounds.expect("not none").0
+            || self.reach_time < self.bounds.expect("not none").0
             || !self.entry_gaps.is_empty()
     }
 }
@@ -105,11 +107,11 @@ fn eval_missing_hours(current: &DateTime<Utc>, target: &DateTime<Utc>) -> String
 impl fmt::Display for PriceHistoryState {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "PriceHistoryState:")?;
-        writeln!(f, "  reach: {}", self.reach.to_rfc3339())?;
+        writeln!(f, "  reach: {}", self.reach_time.to_rfc3339())?;
 
         match &self.bounds {
             Some((start, end)) => {
-                let start_eval = eval_missing_hours(start, &self.reach);
+                let start_eval = eval_missing_hours(start, &self.reach_time);
                 let end_val = eval_missing_hours(&Utc::now(), end);
 
                 writeln!(f, "  bounds:")?;

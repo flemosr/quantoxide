@@ -90,7 +90,7 @@ struct SyncProcess {
     api_error_cooldown: time::Duration,
     api_error_max_trials: u32,
     api_history_max_entries: usize,
-    sync_reach: DateTime<Utc>,
+    sync_reach: Duration,
     re_sync_history_interval: time::Duration,
     db: Arc<DbContext>,
     api: Arc<ApiContext>,
@@ -109,13 +109,12 @@ impl SyncProcess {
         api: Arc<ApiContext>,
         state_manager: SyncStateManager,
     ) -> Self {
-        let sync_reach = Utc::now() - Duration::hours(sync_history_reach_hours as i64);
         Self {
             api_cooldown: time::Duration::from_secs(api_cooldown_sec),
             api_error_cooldown: time::Duration::from_secs(api_error_cooldown_sec),
             api_error_max_trials,
             api_history_max_entries,
-            sync_reach,
+            sync_reach: Duration::hours(sync_history_reach_hours as i64),
             re_sync_history_interval: time::Duration::from_secs(re_sync_history_interval_sec),
             db,
             api,
