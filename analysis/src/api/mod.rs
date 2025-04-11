@@ -5,9 +5,8 @@ pub mod error;
 pub mod rest;
 pub mod websocket;
 
-use error::Result;
 use rest::RestApiContext;
-use websocket::WebSocketApiContext;
+use websocket::{error::Result, WebSocketApiContext};
 
 pub struct ApiContext {
     api_domain: String,
