@@ -1,7 +1,6 @@
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-pub mod error;
 pub mod rest;
 pub mod websocket;
 
