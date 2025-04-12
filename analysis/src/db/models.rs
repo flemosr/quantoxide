@@ -17,3 +17,10 @@ pub struct PriceHistoryEntryLOCF {
     pub ma_60: Option<f64>,
     pub ma_300: Option<f64>,
 }
+
+#[derive(Debug, FromRow)]
+pub struct PriceTick {
+    pub time: DateTime<Utc>,
+    pub last_price: f64,
+    pub created_at: DateTime<Utc>,
+}
