@@ -38,7 +38,7 @@ impl SyncPriceHistoryTask {
         api: Arc<ApiContext>,
         history_state_tx: Option<PriceHistoryStateTransmiter>,
     ) -> Self {
-        let task = Self {
+        Self {
             api_cooldown,
             api_error_cooldown,
             api_error_max_trials,
@@ -47,9 +47,7 @@ impl SyncPriceHistoryTask {
             db,
             api,
             history_state_tx,
-        };
-
-        task
+        }
     }
 
     async fn get_new_price_entries(
@@ -144,20 +142,16 @@ impl SyncPriceHistoryTask {
         if from_observed_time_received {
             // `next` property of `from_observed_time` entry needs to be updated
 
-            let next_observed_time = if let Some(earliest_new_entry) = new_price_entries.last() {
-                Some(*earliest_new_entry.time())
-            } else if let Some(time) = to_observed_time {
-                // If there is a `next_observed_time`, the first entry received from the server
-                // matched its time (upper overlap enforcement).
-                // From this, we can infer that there are no entries to be fetched between
-                // `from_observed_time` and `next_observed_time` (edge case).
-                Some(*time)
-            } else {
-                // No entries available after `from_observed_time`
-                None
-            };
+            // If there is a `to_observed_time`, the first entry received from the server matched
+            // its time (upper overlap enforcement).
+            // From this we can infer that, if no new entries were received, there are no entries
+            // to be fetched between `from_observed_time` and `to_observed_time` (edge case).
+            let next_from_observed_time = new_price_entries
+                .last()
+                .map(|earliest_new_entry| *earliest_new_entry.time())
+                .or_else(|| to_observed_time.copied());
 
-            if let Some(next) = next_observed_time {
+            if let Some(next) = next_from_observed_time {
                 self.db
                     .price_history
                     .update_entry_next(from_observed_time.expect("from received"), &next)

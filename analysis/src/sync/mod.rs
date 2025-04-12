@@ -1,4 +1,4 @@
-use chrono::{DateTime, Duration, Utc};
+use chrono::Duration;
 use std::sync::Arc;
 use tokio::{
     sync::{
@@ -212,7 +212,7 @@ impl SyncController {
         Ok(state)
     }
 
-    pub fn abort(&self) -> () {
+    pub fn abort(&self) {
         self.handle.abort();
     }
 }
