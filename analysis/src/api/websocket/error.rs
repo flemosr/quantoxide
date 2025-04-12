@@ -7,7 +7,9 @@ use tokio_rustls::rustls::pki_types::InvalidDnsNameError;
 
 use super::{
     lnm::ChannelStatus,
-    models::{ConnectionState, LnmJsonRpcRequest, LnmWebSocketChannel, WebSocketApiRes},
+    models::{
+        ConnectionState, JsonRpcResponse, LnmJsonRpcRequest, LnmWebSocketChannel, WebSocketApiRes,
+    },
 };
 
 #[derive(Error, Debug)]
@@ -69,8 +71,10 @@ pub enum WebSocketApiError {
     ReceiveUnsubscriptionConfirmation(oneshot::error::RecvError),
     #[error("SendShutdownRequest error, {0}")]
     SendShutdownRequest(mpsc::error::SendError<()>),
-    #[error("WebSocket generic error: {0}")]
-    Generic(String),
+    #[error("UnexpectedJsonRpcResponse error, {0:?}")]
+    UnexpectedJsonRpcResponse(JsonRpcResponse),
+    #[error("UnknownChannel error, {0:?}")]
+    UnknownChannel(String),
 }
 
 pub type Result<T> = result::Result<T, WebSocketApiError>;
