@@ -51,9 +51,7 @@ impl TryFrom<&str> for LnmWebSocketChannel {
         match value {
             "futures:btc_usd:index" => Ok(LnmWebSocketChannel::FuturesBtcUsdIndex),
             "futures:btc_usd:last-price" => Ok(LnmWebSocketChannel::FuturesBtcUsdLastPrice),
-            _ => Err(WebSocketApiError::Generic(format!(
-                "Unknown channel: {value}",
-            ))),
+            _ => Err(WebSocketApiError::UnknownChannel(value.to_string())),
         }
     }
 }
@@ -146,7 +144,7 @@ impl From<LnmJsonRpcRequest> for JsonRpcRequest {
 }
 
 #[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
-struct JsonRpcResponse {
+pub struct JsonRpcResponse {
     jsonrpc: String,
     id: Option<String>,
     method: Option<String>,
@@ -197,75 +195,67 @@ impl TryFrom<JsonRpcResponse> for LnmJsonRpcResponse {
     type Error = WebSocketApiError;
 
     fn try_from(response: JsonRpcResponse) -> Result<Self> {
-        if let Some(id) = response.id {
-            let result = response.result.ok_or_else(|| {
-                WebSocketApiError::Generic("Missing result in confirmation".to_string())
-            })?;
+        if let Some(id) = &response.id {
+            let try_parse_confirmation_data = || -> Option<(String, Vec<LnmWebSocketChannel>)> {
+                let result = response.result.as_ref()?;
 
-            let result_array = result.as_array().ok_or_else(|| {
-                WebSocketApiError::Generic("Result is not an array in confirmation".to_string())
-            })?;
+                let result_array = result.as_array()?;
 
-            let result_array_len = result_array.len();
-            let channels: Vec<LnmWebSocketChannel> = result_array
-                .iter()
-                .filter_map(|channel| LnmWebSocketChannel::try_from(channel.as_str()?).ok())
-                .collect();
+                let channels: Vec<LnmWebSocketChannel> = result_array
+                    .iter()
+                    .filter_map(|channel| LnmWebSocketChannel::try_from(channel.as_str()?).ok())
+                    .collect();
 
-            if channels.len() != result_array_len {
-                return Err(WebSocketApiError::Generic(
-                    "Received unknown channel in result array".to_string(),
-                ));
+                if channels.len() != result_array.len() {
+                    return None;
+                }
+
+                Some((id.clone(), channels))
+            };
+
+            if let Some((id, channels)) = try_parse_confirmation_data() {
+                return Ok(Self::Confirmation { id, channels });
             }
 
-            return Ok(Self::Confirmation { id, channels });
+            return Err(WebSocketApiError::UnexpectedJsonRpcResponse(response));
         }
 
         if response.method.as_deref() == Some("subscription") {
-            let params = response.params.ok_or_else(|| {
-                WebSocketApiError::Generic("Missing params in subscription".to_string())
-            })?;
+            let try_parse_subscription_data = || -> Option<SubscriptionData> {
+                let params = response.params.as_ref()?;
 
-            let params_obj = params
-                .as_object()
-                .ok_or_else(|| WebSocketApiError::Generic("Params is not an object".to_string()))?;
+                let params_obj = params.as_object()?;
 
-            let channel: LnmWebSocketChannel = params_obj
-                .get("channel")
-                .and_then(|v| v.as_str())
-                .ok_or_else(|| WebSocketApiError::Generic("Missing channel in params".to_string()))?
-                .try_into()?;
+                let channel: LnmWebSocketChannel = params_obj
+                    .get("channel")
+                    .and_then(|v| v.as_str())?
+                    .try_into()
+                    .ok()?;
 
-            let data = params_obj
-                .get("data")
-                .ok_or_else(|| WebSocketApiError::Generic("Missing data in params".to_string()))?;
+                let data = params_obj.get("data")?.clone();
 
-            let data = match channel {
-                LnmWebSocketChannel::FuturesBtcUsdLastPrice => {
-                    let price_tick: PriceTickLNM =
-                        serde_json::from_value(data.clone()).map_err(|e| {
-                            WebSocketApiError::Generic(format!("Failed to parse price tick: {}", e))
-                        })?;
-                    SubscriptionData::PriceTick(price_tick)
-                }
-                LnmWebSocketChannel::FuturesBtcUsdIndex => {
-                    let price_index: PriceIndexLNM =
-                        serde_json::from_value(data.clone()).map_err(|e| {
-                            WebSocketApiError::Generic(format!(
-                                "Failed to parse price index: {}",
-                                e
-                            ))
-                        })?;
-                    SubscriptionData::PriceIndex(price_index)
-                }
+                let data = match channel {
+                    LnmWebSocketChannel::FuturesBtcUsdLastPrice => {
+                        let price_tick: PriceTickLNM = serde_json::from_value(data).ok()?;
+                        SubscriptionData::PriceTick(price_tick)
+                    }
+                    LnmWebSocketChannel::FuturesBtcUsdIndex => {
+                        let price_index: PriceIndexLNM = serde_json::from_value(data).ok()?;
+                        SubscriptionData::PriceIndex(price_index)
+                    }
+                };
+
+                Some(data)
             };
 
-            return Ok(Self::Subscription(data));
+            if let Some(data) = try_parse_subscription_data() {
+                return Ok(Self::Subscription(data));
+            }
+
+            return Err(WebSocketApiError::UnexpectedJsonRpcResponse(response));
         }
 
-        Err(WebSocketApiError::Generic(
-            "Unknown JSON RPC response".to_string(),
-        ))
+        Err(WebSocketApiError::UnexpectedJsonRpcResponse(response))
     }
 }
 
