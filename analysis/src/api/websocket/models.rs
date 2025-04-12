@@ -23,8 +23,7 @@ struct JsonRpcRequest {
 
 impl JsonRpcRequest {
     pub fn try_to_bytes(&self) -> Result<Vec<u8>> {
-        let request_json =
-            serde_json::to_string(&self).map_err(|e| WebSocketApiError::Generic(e.to_string()))?;
+        let request_json = serde_json::to_string(&self).map_err(WebSocketApiError::EncodeJson)?;
         let bytes = request_json.into_bytes();
         Ok(bytes)
     }
