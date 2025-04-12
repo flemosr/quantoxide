@@ -33,8 +33,8 @@ impl RealTimeCollectionTask {
         loop {
             match receiver.recv().await {
                 Ok(res) => match res {
-                    WebSocketApiRes::PriceTick(_tick) => {
-                        // TODO
+                    WebSocketApiRes::PriceTick(tick) => {
+                        self.db.price_ticks.add_tick(&tick).await?;
                     }
                     WebSocketApiRes::PriceIndex(_index) => {}
                     WebSocketApiRes::ConnectionUpdate(new_state) => match new_state.as_ref() {
