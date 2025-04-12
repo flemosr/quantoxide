@@ -271,22 +271,6 @@ impl PriceHistoryRepository for PgPriceHistoryRepo {
         Ok(())
     }
 
-    // pub async fn get_price_entry_locf(
-    //     &self,
-    //     time: &DateTime<Utc>,
-    // ) -> Result<PriceEntryLOCF, sqlx::Error> {
-    //     let locf_sec = Self::get_locf_sec(time);
-
-    //     let pool = self.get_pool();
-    //     let price_entry_locf =
-    //         sqlx::query_as::<_, PriceEntryLOCF>("SELECT * FROM price_history_locf WHERE time = $1")
-    //             .bind(locf_sec)
-    //             .fetch_one(pool)
-    //             .await?;
-
-    //     Ok(price_entry_locf)
-    // }
-
     async fn eval_entries_locf(
         &self,
         time: &DateTime<Utc>,
@@ -337,15 +321,31 @@ impl PriceHistoryRepository for PgPriceHistoryRepo {
             PriceHistoryEntryLOCF,
             r#"
                 WITH price_data AS (
-                    SELECT s.time, t.value
+                    SELECT
+                        s.time,
+                        CASE
+                            WHEN pt.last_price IS NOT NULL AND ph.value IS NOT NULL THEN
+                                CASE
+                                    WHEN ph_time < pt_time THEN pt.last_price
+                                    ELSE ph.value
+                                END
+                            ELSE COALESCE(pt.last_price, ph.value)
+                        END AS value
                     FROM generate_series($1, $2, '1 second'::interval) AS s(time)
                     LEFT JOIN LATERAL (
-                        SELECT value
+                        SELECT time AS ph_time, value
                         FROM price_history
                         WHERE time <= s.time
                         ORDER BY time DESC
                         LIMIT 1
-                    ) t ON true
+                    ) ph ON true
+                    LEFT JOIN LATERAL (
+                        SELECT time AS pt_time, last_price
+                        FROM price_ticks
+                        WHERE time <= s.time
+                        ORDER BY time DESC
+                        LIMIT 1
+                    ) pt ON true
                     ORDER BY time ASC
                 ),
                 eval_indicators AS (
