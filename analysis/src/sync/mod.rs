@@ -203,7 +203,7 @@ pub struct SyncConfig {
     api_cooldown: time::Duration,
     api_error_cooldown: time::Duration,
     api_error_max_trials: u32,
-    api_history_max_entries: usize,
+    api_history_batch_size: usize,
     sync_history_reach: Duration,
     re_sync_history_interval: time::Duration,
     restart_interval: time::Duration,
@@ -215,7 +215,7 @@ impl Default for SyncConfig {
             api_cooldown: time::Duration::from_secs(60),
             api_error_cooldown: time::Duration::from_secs(300),
             api_error_max_trials: 3,
-            api_history_max_entries: 1000,
+            api_history_batch_size: 1000,
             sync_history_reach: Duration::hours(24),
             re_sync_history_interval: time::Duration::from_secs(3000),
             restart_interval: time::Duration::from_secs(10),
@@ -239,8 +239,8 @@ impl SyncConfig {
         self
     }
 
-    pub fn set_api_history_max_entries(mut self, max_entries: usize) -> Self {
-        self.api_history_max_entries = max_entries;
+    pub fn set_api_history_batch_size(mut self, size: usize) -> Self {
+        self.api_history_batch_size = size;
         self
     }
 

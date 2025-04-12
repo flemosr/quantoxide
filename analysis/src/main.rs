@@ -9,7 +9,7 @@ mod env;
 
 use env::{
     LNM_API_COOLDOWN_SEC, LNM_API_DOMAIN, LNM_API_ERROR_COOLDOWN_SEC, LNM_API_ERROR_MAX_TRIALS,
-    LNM_PRICE_HISTORY_BATCH_ENTRIES, POSTGRES_DB_URL, RESTART_SYNC_INTERVAL_SEC,
+    LNM_PRICE_HISTORY_BATCH_SIZE, POSTGRES_DB_URL, RESTART_SYNC_INTERVAL_SEC,
     RE_SYNC_HISTORY_INTERVAL_SEC, SYNC_HISTORY_REACH_HOURS,
 };
 
@@ -29,7 +29,7 @@ async fn main() -> Result<()> {
         .set_api_cooldown(*LNM_API_COOLDOWN_SEC)
         .set_api_error_cooldown(*LNM_API_ERROR_COOLDOWN_SEC)
         .set_api_error_max_trials(*LNM_API_ERROR_MAX_TRIALS)
-        .set_api_history_max_entries(*LNM_PRICE_HISTORY_BATCH_ENTRIES)
+        .set_api_history_batch_size(*LNM_PRICE_HISTORY_BATCH_SIZE)
         .set_sync_history_reach(*SYNC_HISTORY_REACH_HOURS)
         .set_re_sync_history_interval(*RE_SYNC_HISTORY_INTERVAL_SEC)
         .set_restart_interval(*RESTART_SYNC_INTERVAL_SEC);

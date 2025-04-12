@@ -55,7 +55,7 @@ impl SyncPriceHistoryTask {
                     .price_history(
                         None,
                         to_observed_time,
-                        Some(self.config.api_history_max_entries),
+                        Some(self.config.api_history_batch_size),
                     )
                     .await
                 {
