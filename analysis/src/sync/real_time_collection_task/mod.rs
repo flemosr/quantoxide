@@ -37,11 +37,10 @@ impl RealTimeCollectionTask {
                         // TODO
                     }
                     WebSocketApiRes::PriceIndex(_index) => {}
-                    WebSocketApiRes::ConnectionUpdate(new_state) => match new_state {
+                    WebSocketApiRes::ConnectionUpdate(new_state) => match new_state.as_ref() {
                         ConnectionState::Connected => {}
-                        ConnectionState::Disconnected => {}
-                        ConnectionState::Failed(err) => {
-                            return Err(RealTimeCollectionError::Generic(err.to_string()))
+                        ConnectionState::Disconnected | ConnectionState::Failed(_) => {
+                            return Err(RealTimeCollectionError::BadConnectionUpdate(new_state));
                         }
                     },
                 },
