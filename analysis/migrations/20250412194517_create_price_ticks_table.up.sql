@@ -1,0 +1,6 @@
+CREATE TABLE price_ticks (
+    time TIMESTAMPTZ NOT NULL UNIQUE,
+    last_price DOUBLE PRECISION NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW (),
+    PRIMARY KEY (time)
+);
