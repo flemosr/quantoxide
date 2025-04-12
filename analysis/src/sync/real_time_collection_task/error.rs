@@ -7,7 +7,7 @@ use crate::api::websocket::{error::WebSocketApiError, models::ConnectionState};
 pub enum RealTimeCollectionError {
     #[error("WebSocketApiError error")]
     WebSocketApi(#[from] WebSocketApiError),
-    #[error("BadConnectionUpdate error")]
+    #[error("BadConnectionUpdate error, {0:?}")]
     BadConnectionUpdate(Arc<ConnectionState>),
     #[error("RealTimeCollection generic error: {0}")]
     Generic(String),
