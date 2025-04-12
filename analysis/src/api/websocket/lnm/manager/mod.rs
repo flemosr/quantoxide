@@ -114,7 +114,7 @@ impl ManagerTask {
 
                                                 oneshot_tx
                                                     .send(is_success)
-                                                    .map_err(|_| WebSocketApiError::SubscriptionConfirmation)?;
+                                                    .map_err(|_| WebSocketApiError::SendSubscriptionConfirmation)?;
                                             }
 
                                             // Ignore unknown ids
@@ -127,7 +127,7 @@ impl ManagerTask {
 
                                             responses_tx
                                                 .send(data.into())
-                                                .map_err(WebSocketApiError::SubscriptionMessage)?;
+                                                .map_err(WebSocketApiError::SendSubscriptionMessage)?;
                                         }
                                     }
                                 }
@@ -156,12 +156,12 @@ impl ManagerTask {
                         _ = &mut heartbeat_timer => {
                             if shutdown_initiated {
                                 // No shutdown confirmation after a heartbeat, timeout
-                                return Err(WebSocketApiError::NoShutdownConfirmation);
+                                return Err(WebSocketApiError::NoServerShutdownConfirmation);
                             }
 
                             if waiting_for_pong {
                                 // No pong received after ping and a heartbeat, timeout
-                                return Err(WebSocketApiError::NoPong);
+                                return Err(WebSocketApiError::NoServerPong);
                             }
 
                             // No messages received for a heartbeat, send a ping
@@ -190,7 +190,7 @@ impl ManagerTask {
         if self.responses_tx.receiver_count() > 0 {
             self.responses_tx
                 .send(connection_update)
-                .map_err(WebSocketApiError::ConnectionUpdate)?;
+                .map_err(WebSocketApiError::SendConnectionUpdate)?;
         }
 
         Ok(())
