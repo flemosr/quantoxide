@@ -7,11 +7,12 @@ mod postgres;
 mod repositories;
 
 use error::{DbError, Result};
-use postgres::price_history::PgPriceHistoryRepo;
-use repositories::PriceHistoryRepository;
+use postgres::{price_history::PgPriceHistoryRepo, price_ticks::PgPriceTicksRepo};
+use repositories::{PriceHistoryRepository, PriceTicksRepository};
 
 pub struct DbContext {
     pub price_history: Box<dyn PriceHistoryRepository>,
+    pub price_ticks: Box<dyn PriceTicksRepository>,
 }
 
 impl DbContext {
@@ -43,8 +44,12 @@ impl DbContext {
         println!("Database check successful");
 
         let pool = Arc::new(pool);
-        let price_history = Box::new(PgPriceHistoryRepo::new(pool));
+        let price_history = Box::new(PgPriceHistoryRepo::new(pool.clone()));
+        let price_ticks = Box::new(PgPriceTicksRepo::new(pool));
 
-        Ok(Arc::new(Self { price_history }))
+        Ok(Arc::new(Self {
+            price_history,
+            price_ticks,
+        }))
     }
 }
