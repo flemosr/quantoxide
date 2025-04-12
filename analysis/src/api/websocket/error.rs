@@ -2,10 +2,13 @@ use fastwebsockets::{OpCode, WebSocketError};
 use hyper::http;
 use std::{io, result, string::FromUtf8Error, sync::Arc};
 use thiserror::Error;
-use tokio::sync::broadcast::error::SendError;
+use tokio::sync::{broadcast, mpsc, oneshot};
 use tokio_rustls::rustls::pki_types::InvalidDnsNameError;
 
-use super::models::{ConnectionState, WebSocketApiRes};
+use super::{
+    lnm::ChannelStatus,
+    models::{ConnectionState, LnmJsonRpcRequest, LnmWebSocketChannel, WebSocketApiRes},
+};
 
 #[derive(Error, Debug)]
 pub enum WebSocketApiError {
@@ -33,18 +36,39 @@ pub enum WebSocketApiError {
     DecodeJson(serde_json::Error),
     #[error("UnhandledOpCode error, {0:?}")]
     UnhandledOpCode(OpCode),
-    #[error("SubscriptionConfirmation error")]
-    SubscriptionConfirmation,
-    #[error("SubscriptionMessage error")]
-    SubscriptionMessage(SendError<WebSocketApiRes>),
+    #[error("SendSubscriptionConfirmation error")]
+    SendSubscriptionConfirmation,
+    #[error("SendSubscriptionMessage error")]
+    SendSubscriptionMessage(broadcast::error::SendError<WebSocketApiRes>),
     #[error("ServerRequestedShutdown error")]
     ServerRequestedShutdown,
-    #[error("NoShutdownConfirmation error")]
-    NoShutdownConfirmation,
-    #[error("NoPong error")]
-    NoPong,
-    #[error("ConnectionUpdate error")]
-    ConnectionUpdate(SendError<WebSocketApiRes>),
+    #[error("NoServerShutdownConfirmation error")]
+    NoServerShutdownConfirmation,
+    #[error("NoServerPong error")]
+    NoServerPong,
+    #[error("SendConnectionUpdate error")]
+    SendConnectionUpdate(broadcast::error::SendError<WebSocketApiRes>),
+    #[error("SubscribeWithUnsubscriptionPending error, {0}")]
+    SubscribeWithUnsubscriptionPending(LnmWebSocketChannel),
+    #[error("SendSubscriptionRequest error, {0}")]
+    SendSubscriptionRequest(mpsc::error::SendError<(LnmJsonRpcRequest, oneshot::Sender<bool>)>),
+    #[error("ReceiveSubscriptionConfirmation error")]
+    ReceiveSubscriptionConfirmation(oneshot::error::RecvError),
+    #[error("InvalidSubscriptionsStateChannelNotFound error")]
+    InvalidSubscriptionsChannelNotFound(LnmWebSocketChannel),
+    #[error("InvalidSubscriptionsStateChannelNotPending error")]
+    InvalidSubscriptionsChannelStatus {
+        channel: LnmWebSocketChannel,
+        status: ChannelStatus,
+    },
+    #[error("UnsubscribeWithSubscriptionPending error, {0}")]
+    UnsubscribeWithSubscriptionPending(LnmWebSocketChannel),
+    #[error("SendUnubscriptionRequest error, {0}")]
+    SendUnubscriptionRequest(mpsc::error::SendError<(LnmJsonRpcRequest, oneshot::Sender<bool>)>),
+    #[error("ReceiveUnsubscriptionConfirmation error")]
+    ReceiveUnsubscriptionConfirmation(oneshot::error::RecvError),
+    #[error("SendShutdownRequest error, {0}")]
+    SendShutdownRequest(mpsc::error::SendError<()>),
     #[error("WebSocket generic error: {0}")]
     Generic(String),
 }
