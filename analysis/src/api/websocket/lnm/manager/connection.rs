@@ -57,15 +57,15 @@ impl WebSocketApiConnection {
         let api_uri = format!("wss://{api_domain}/");
 
         let api_domain = ServerName::try_from(api_domain.to_string())
-            .map_err(|e| WebSocketApiError::Generic(e.to_string()))?;
+            .map_err(WebSocketApiError::InvalidDnsName)?;
         let tls_connector = tls_connector()?;
         let tcp_stream = TcpStream::connect(&api_addr)
             .await
-            .map_err(|e| WebSocketApiError::Generic(e.to_string()))?;
+            .map_err(WebSocketApiError::CreateTcpStream)?;
         let tls_stream = tls_connector
             .connect(api_domain, tcp_stream)
             .await
-            .map_err(|e| WebSocketApiError::Generic(e.to_string()))?;
+            .map_err(WebSocketApiError::ConnectTcpStream)?;
 
         let req = Request::builder()
             .method("GET")
@@ -76,11 +76,11 @@ impl WebSocketApiConnection {
             .header("Sec-WebSocket-Key", handshake::generate_key())
             .header("Sec-WebSocket-Version", "13")
             .body(Empty::<Bytes>::new())
-            .map_err(|e| WebSocketApiError::Generic(e.to_string()))?;
+            .map_err(WebSocketApiError::HttpUpgradeRequest)?;
 
         let (ws, _) = handshake::client(&SpawnExecutor, req, tls_stream)
             .await
-            .map_err(|e| WebSocketApiError::Generic(e.to_string()))?;
+            .map_err(WebSocketApiError::Handshake)?;
         let ws = FragmentCollector::new(ws);
 
         Ok(Self(ws))
@@ -90,15 +90,12 @@ impl WebSocketApiConnection {
         self.0
             .write_frame(frame)
             .await
-            .map_err(|e| WebSocketApiError::Generic(e.to_string()))
+            .map_err(WebSocketApiError::WriteFrame)
     }
 
     pub async fn send_json_rpc(&mut self, req: LnmJsonRpcRequest) -> Result<()> {
-        let request_bytes = req
-            .try_into_bytes()
-            .map_err(|e| WebSocketApiError::Generic(e.to_string()))?;
-
-        let frame = Frame::text(request_bytes.into());
+        let payload = req.try_into_bytes()?.into();
+        let frame = Frame::text(payload);
         self.send_frame(frame).await
     }
 
@@ -122,25 +119,22 @@ impl WebSocketApiConnection {
             Ok(frame) => frame,
             // Expect scenario where connection is closed before shutdown confirmation response
             Err(WebSocketError::ConnectionClosed) => return Ok(LnmWebSocketResponse::Close),
-            Err(err) => return Err(WebSocketApiError::Generic(format!("frame error {:?}", err))),
+            Err(e) => return Err(WebSocketApiError::ReadFrame(e)),
         };
 
         let res = match frame.opcode {
             OpCode::Text => {
                 let text = String::from_utf8(frame.payload.to_vec())
-                    .map_err(|e| WebSocketApiError::Generic(e.to_string()))?;
+                    .map_err(WebSocketApiError::DecodeText)?;
                 let json_rpc_res = serde_json::from_str::<LnmJsonRpcResponse>(&text)
-                    .map_err(|e| WebSocketApiError::Generic(e.to_string()))?;
+                    .map_err(WebSocketApiError::DecodeJson)?;
                 LnmWebSocketResponse::JsonRpc(json_rpc_res)
             }
             OpCode::Close => LnmWebSocketResponse::Close,
             OpCode::Ping => LnmWebSocketResponse::Ping(frame.payload.to_vec()),
             OpCode::Pong => LnmWebSocketResponse::Pong,
             unhandled_opcode => {
-                return Err(WebSocketApiError::Generic(format!(
-                    "unhandled opcode {:?}",
-                    unhandled_opcode
-                )));
+                return Err(WebSocketApiError::UnhandledOpCode(unhandled_opcode));
             }
         };
 
