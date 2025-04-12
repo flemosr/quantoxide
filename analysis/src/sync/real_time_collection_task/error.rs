@@ -1,7 +1,10 @@
 use std::{result, sync::Arc};
 use thiserror::Error;
 
-use crate::api::websocket::{error::WebSocketApiError, models::ConnectionState};
+use crate::{
+    api::websocket::{error::WebSocketApiError, models::ConnectionState},
+    db::error::DbError,
+};
 
 #[derive(Error, Debug)]
 pub enum RealTimeCollectionError {
@@ -9,6 +12,8 @@ pub enum RealTimeCollectionError {
     WebSocketApi(#[from] WebSocketApiError),
     #[error("BadConnectionUpdate error, {0:?}")]
     BadConnectionUpdate(Arc<ConnectionState>),
+    #[error("Database error: {0}")]
+    Db(#[from] DbError),
     #[error("RealTimeCollection generic error: {0}")]
     Generic(String),
 }
