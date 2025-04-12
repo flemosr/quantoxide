@@ -9,15 +9,12 @@ lazy_static! {
         env::var("LNM_API_SECRET").expect("LNM_API_SECRET must be set");
     pub static ref LNM_API_PASSPHRASE: String =
         env::var("LNM_API_PASSPHRASE").expect("LNM_API_PASSPHRASE must be set");
-    pub static ref LNM_PRICE_HISTORY_BATCH_ENTRIES: usize = {
-        let num = env::var("LNM_PRICE_HISTORY_BATCH_ENTRIES")
-            .expect("LNM_PRICE_HISTORY_BATCH_ENTRIES must be set")
+    pub static ref LNM_PRICE_HISTORY_BATCH_SIZE: usize = {
+        let num = env::var("LNM_PRICE_HISTORY_BATCH_SIZE")
+            .expect("LNM_PRICE_HISTORY_BATCH_SIZE must be set")
             .parse::<usize>()
-            .expect("LNM_PRICE_HISTORY_BATCH_ENTRIES must be a valid number");
-        assert!(
-            num >= 2,
-            "LNM_PRICE_HISTORY_BATCH_ENTRIES must be at least 2"
-        );
+            .expect("LNM_PRICE_HISTORY_BATCH_SIZE must be a valid number");
+        assert!(num >= 2, "LNM_PRICE_HISTORY_BATCH_SIZE must be at least 2");
         num
     };
     pub static ref LNM_API_COOLDOWN_SEC: u64 = {
