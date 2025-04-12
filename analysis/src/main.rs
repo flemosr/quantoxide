@@ -2,7 +2,7 @@ use analysis::{
     api::ApiContext,
     db::DbContext,
     error::Result,
-    sync::{Sync, SyncState},
+    sync::{Sync, SyncConfig, SyncState},
 };
 
 mod env;
@@ -25,17 +25,16 @@ async fn main() -> Result<()> {
 
     println!("`api` is ready. Starting `sync`...");
 
-    let sync = Sync::new(
-        *LNM_API_COOLDOWN_SEC,
-        *LNM_API_ERROR_COOLDOWN_SEC,
-        *LNM_API_ERROR_MAX_TRIALS,
-        *LNM_PRICE_HISTORY_BATCH_ENTRIES,
-        *SYNC_HISTORY_REACH_HOURS,
-        *RE_SYNC_HISTORY_INTERVAL_SEC,
-        *RESTART_SYNC_INTERVAL_SEC,
-        db.clone(),
-        api.clone(),
-    );
+    let config = SyncConfig::default()
+        .set_api_cooldown(*LNM_API_COOLDOWN_SEC)
+        .set_api_error_cooldown(*LNM_API_ERROR_COOLDOWN_SEC)
+        .set_api_error_max_trials(*LNM_API_ERROR_MAX_TRIALS)
+        .set_api_history_max_entries(*LNM_PRICE_HISTORY_BATCH_ENTRIES)
+        .set_sync_history_reach(*SYNC_HISTORY_REACH_HOURS)
+        .set_re_sync_history_interval(*RE_SYNC_HISTORY_INTERVAL_SEC)
+        .set_restart_interval(*RESTART_SYNC_INTERVAL_SEC);
+
+    let sync = Sync::new(config, db.clone(), api.clone());
 
     let sync_controller = sync.start()?;
 
