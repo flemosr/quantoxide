@@ -1,4 +1,4 @@
-use chrono::{DateTime, Duration, Utc};
+use chrono::{DateTime, Utc};
 use std::{collections::HashSet, sync::Arc};
 use tokio::{sync::mpsc, time};
 
@@ -13,15 +13,13 @@ pub mod error;
 
 use error::{Result, SyncPriceHistoryError};
 
+use super::SyncConfig;
+
 pub type PriceHistoryStateTransmiter = mpsc::Sender<PriceHistoryState>;
 
 #[derive(Clone)]
 pub struct SyncPriceHistoryTask {
-    api_cooldown: time::Duration,
-    api_error_cooldown: time::Duration,
-    api_error_max_trials: u32,
-    api_history_max_entries: usize,
-    sync_reach: Duration,
+    config: SyncConfig,
     db: Arc<DbContext>,
     api: Arc<ApiContext>,
     history_state_tx: Option<PriceHistoryStateTransmiter>,
@@ -29,21 +27,13 @@ pub struct SyncPriceHistoryTask {
 
 impl SyncPriceHistoryTask {
     pub fn new(
-        api_cooldown: time::Duration,
-        api_error_cooldown: time::Duration,
-        api_error_max_trials: u32,
-        api_history_max_entries: usize,
-        sync_reach: Duration,
+        config: SyncConfig,
         db: Arc<DbContext>,
         api: Arc<ApiContext>,
         history_state_tx: Option<PriceHistoryStateTransmiter>,
     ) -> Self {
         Self {
-            api_cooldown,
-            api_error_cooldown,
-            api_error_max_trials,
-            api_history_max_entries,
-            sync_reach,
+            config,
             db,
             api,
             history_state_tx,
@@ -59,23 +49,27 @@ impl SyncPriceHistoryTask {
             let mut trials = 0;
             let rest_futures = &self.api.rest().futures;
             loop {
-                time::sleep(self.api_cooldown).await;
+                time::sleep(self.config.api_cooldown).await;
 
                 match rest_futures
-                    .price_history(None, to_observed_time, Some(self.api_history_max_entries))
+                    .price_history(
+                        None,
+                        to_observed_time,
+                        Some(self.config.api_history_max_entries),
+                    )
                     .await
                 {
                     Ok(price_entries) => break price_entries,
                     Err(error) => {
                         trials += 1;
-                        if trials >= self.api_error_max_trials {
+                        if trials >= self.config.api_error_max_trials {
                             return Err(SyncPriceHistoryError::RestApiMaxTrialsReached {
                                 error,
-                                trials: self.api_error_max_trials,
+                                trials: self.config.api_error_max_trials,
                             });
                         }
 
-                        time::sleep(self.api_error_cooldown).await;
+                        time::sleep(self.config.api_error_cooldown).await;
                         continue;
                     }
                 };
@@ -176,7 +170,8 @@ impl SyncPriceHistoryTask {
     }
 
     pub async fn run(self) -> Result<()> {
-        let mut history_state = PriceHistoryState::evaluate(&self.db, self.sync_reach).await?;
+        let mut history_state =
+            PriceHistoryState::evaluate(&self.db, self.config.sync_history_reach).await?;
         self.handle_history_update(&history_state).await?;
 
         loop {
@@ -191,7 +186,8 @@ impl SyncPriceHistoryTask {
                 }
             }
 
-            history_state = PriceHistoryState::evaluate(&self.db, self.sync_reach).await?;
+            history_state =
+                PriceHistoryState::evaluate(&self.db, self.config.sync_history_reach).await?;
             self.handle_history_update(&history_state).await?;
         }
     }

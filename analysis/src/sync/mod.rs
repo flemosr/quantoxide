@@ -86,12 +86,7 @@ impl SyncStateManager {
 
 #[derive(Clone)]
 struct SyncProcess {
-    api_cooldown: time::Duration,
-    api_error_cooldown: time::Duration,
-    api_error_max_trials: u32,
-    api_history_max_entries: usize,
-    sync_reach: Duration,
-    re_sync_history_interval: time::Duration,
+    config: SyncConfig,
     db: Arc<DbContext>,
     api: Arc<ApiContext>,
     state_manager: SyncStateManager,
@@ -99,23 +94,13 @@ struct SyncProcess {
 
 impl SyncProcess {
     pub fn new(
-        api_cooldown_sec: u64,
-        api_error_cooldown_sec: u64,
-        api_error_max_trials: u32,
-        api_history_max_entries: usize,
-        sync_history_reach_hours: u64,
-        re_sync_history_interval_sec: u64,
+        config: SyncConfig,
         db: Arc<DbContext>,
         api: Arc<ApiContext>,
         state_manager: SyncStateManager,
     ) -> Self {
         Self {
-            api_cooldown: time::Duration::from_secs(api_cooldown_sec),
-            api_error_cooldown: time::Duration::from_secs(api_error_cooldown_sec),
-            api_error_max_trials,
-            api_history_max_entries,
-            sync_reach: Duration::hours(sync_history_reach_hours as i64),
-            re_sync_history_interval: time::Duration::from_secs(re_sync_history_interval_sec),
+            config,
             db,
             api,
             state_manager,
@@ -127,11 +112,7 @@ impl SyncProcess {
         history_state_tx: Option<PriceHistoryStateTransmiter>,
     ) -> SyncPriceHistoryTask {
         SyncPriceHistoryTask::new(
-            self.api_cooldown,
-            self.api_error_cooldown,
-            self.api_error_max_trials,
-            self.api_history_max_entries,
-            self.sync_reach,
+            self.config.clone(),
             self.db.clone(),
             self.api.clone(),
             history_state_tx,
@@ -181,7 +162,7 @@ impl SyncProcess {
                     rt_res.map_err(|e| SyncError::TaskJoin(e.to_string()))??;
                     return Err(SyncError::UnexpectedRealTimeCollectionShutdown);
                 }
-                _ = time::sleep(self.re_sync_history_interval) => {
+                _ = time::sleep(self.config.re_sync_history_interval) => {
                     let sync_price_history_task = self.price_history_task(None);
                     sync_price_history_task.run().await?;
                 }
@@ -217,6 +198,68 @@ impl SyncController {
     }
 }
 
+#[derive(Clone, Debug)]
+pub struct SyncConfig {
+    api_cooldown: time::Duration,
+    api_error_cooldown: time::Duration,
+    api_error_max_trials: u32,
+    api_history_max_entries: usize,
+    sync_history_reach: Duration,
+    re_sync_history_interval: time::Duration,
+    restart_interval: time::Duration,
+}
+
+impl Default for SyncConfig {
+    fn default() -> Self {
+        Self {
+            api_cooldown: time::Duration::from_secs(60),
+            api_error_cooldown: time::Duration::from_secs(300),
+            api_error_max_trials: 3,
+            api_history_max_entries: 1000,
+            sync_history_reach: Duration::hours(24),
+            re_sync_history_interval: time::Duration::from_secs(3000),
+            restart_interval: time::Duration::from_secs(10),
+        }
+    }
+}
+
+impl SyncConfig {
+    pub fn set_api_cooldown(mut self, secs: u64) -> Self {
+        self.api_cooldown = time::Duration::from_secs(secs);
+        self
+    }
+
+    pub fn set_api_error_cooldown(mut self, secs: u64) -> Self {
+        self.api_error_cooldown = time::Duration::from_secs(secs);
+        self
+    }
+
+    pub fn set_api_error_max_trials(mut self, max_trials: u32) -> Self {
+        self.api_error_max_trials = max_trials;
+        self
+    }
+
+    pub fn set_api_history_max_entries(mut self, max_entries: usize) -> Self {
+        self.api_history_max_entries = max_entries;
+        self
+    }
+
+    pub fn set_sync_history_reach(mut self, hours: u64) -> Self {
+        self.sync_history_reach = Duration::hours(hours as i64);
+        self
+    }
+
+    pub fn set_re_sync_history_interval(mut self, secs: u64) -> Self {
+        self.re_sync_history_interval = time::Duration::from_secs(secs);
+        self
+    }
+
+    pub fn set_restart_interval(mut self, secs: u64) -> Self {
+        self.restart_interval = time::Duration::from_secs(secs);
+        self
+    }
+}
+
 #[derive(Clone)]
 pub struct Sync {
     state_manager: SyncStateManager,
@@ -225,35 +268,16 @@ pub struct Sync {
 }
 
 impl Sync {
-    pub fn new(
-        api_cooldown_sec: u64,
-        api_error_cooldown_sec: u64,
-        api_error_max_trials: u32,
-        api_history_max_entries: usize,
-        sync_history_reach_hours: u64,
-        re_sync_history_interval_sec: u64,
-        restart_interval_sec: u64,
-        db: Arc<DbContext>,
-        api: Arc<ApiContext>,
-    ) -> Self {
+    pub fn new(config: SyncConfig, db: Arc<DbContext>, api: Arc<ApiContext>) -> Self {
         let state_manager = SyncStateManager::new();
+        let restart_interval = config.restart_interval;
 
-        let process = SyncProcess::new(
-            api_cooldown_sec,
-            api_error_cooldown_sec,
-            api_error_max_trials,
-            api_history_max_entries,
-            sync_history_reach_hours,
-            re_sync_history_interval_sec,
-            db,
-            api,
-            state_manager.clone(),
-        );
+        let process = SyncProcess::new(config, db, api, state_manager.clone());
 
         Self {
             state_manager,
             process,
-            restart_interval: time::Duration::from_secs(restart_interval_sec),
+            restart_interval,
         }
     }
 
