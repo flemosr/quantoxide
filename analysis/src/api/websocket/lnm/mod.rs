@@ -22,7 +22,7 @@ use manager::{
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-enum ChannelStatus {
+pub enum ChannelStatus {
     SubscriptionPending,
     Subscribed,
     UnsubscriptionPending,
@@ -94,9 +94,9 @@ impl WebSocketRepository for LnmWebSocketRepo {
                     continue;
                 }
                 Some(ChannelStatus::UnsubscriptionPending) => {
-                    return Err(WebSocketApiError::Generic(format!(
-                        "Channel {channel} is pending unsubscription"
-                    )));
+                    return Err(WebSocketApiError::SubscribeWithUnsubscriptionPending(
+                        channel,
+                    ));
                 }
                 None => {
                     channels_to_subscribe.push(channel.clone());
@@ -122,24 +122,25 @@ impl WebSocketRepository for LnmWebSocketRepo {
         self.requests_tx
             .send((req, oneshot_tx))
             .await
-            .map_err(|e| WebSocketApiError::Generic(e.to_string()))?;
+            .map_err(WebSocketApiError::SendSubscriptionRequest)?;
 
         // Wait for confirmation
         let success = oneshot_rx
             .await
-            .map_err(|e| WebSocketApiError::Generic(e.to_string()))?;
+            .map_err(WebSocketApiError::ReceiveSubscriptionConfirmation)?;
 
         let mut subscriptions_lock = self.subscriptions.lock().await;
 
         for channel in channels_to_subscribe {
             let channel_status = subscriptions_lock.get(&channel).ok_or_else(|| {
-                WebSocketApiError::Generic("Invalid subscriptions state".to_string())
+                WebSocketApiError::InvalidSubscriptionsChannelNotFound(channel.clone())
             })?;
 
             if *channel_status != ChannelStatus::SubscriptionPending {
-                return Err(WebSocketApiError::Generic(
-                    "Invalid subscriptions state".to_string(),
-                ));
+                return Err(WebSocketApiError::InvalidSubscriptionsChannelStatus {
+                    channel: channel.clone(),
+                    status: channel_status.clone(),
+                });
             }
 
             if success {
@@ -170,9 +171,9 @@ impl WebSocketRepository for LnmWebSocketRepo {
                     subscriptions_lock.insert(channel, ChannelStatus::UnsubscriptionPending);
                 }
                 Some(ChannelStatus::SubscriptionPending) => {
-                    return Err(WebSocketApiError::Generic(format!(
-                        "Channel {channel} is pending subscription"
-                    )));
+                    return Err(WebSocketApiError::UnsubscribeWithSubscriptionPending(
+                        channel,
+                    ));
                 }
                 Some(ChannelStatus::UnsubscriptionPending) | None => {
                     continue;
@@ -197,24 +198,25 @@ impl WebSocketRepository for LnmWebSocketRepo {
         self.requests_tx
             .send((req, oneshot_tx))
             .await
-            .map_err(|e| WebSocketApiError::Generic(e.to_string()))?;
+            .map_err(WebSocketApiError::SendUnubscriptionRequest)?;
 
         // Wait for confirmation
         let success = oneshot_rx
             .await
-            .map_err(|e| WebSocketApiError::Generic(e.to_string()))?;
+            .map_err(WebSocketApiError::ReceiveUnsubscriptionConfirmation)?;
 
         let mut subscriptions_lock = self.subscriptions.lock().await;
 
         for channel in channels_to_unsubscribe {
             let channel_status = subscriptions_lock.get(&channel).ok_or_else(|| {
-                WebSocketApiError::Generic("Invalid subscriptions state".to_string())
+                WebSocketApiError::InvalidSubscriptionsChannelNotFound(channel.clone())
             })?;
 
             if *channel_status != ChannelStatus::UnsubscriptionPending {
-                return Err(WebSocketApiError::Generic(
-                    "Invalid subscriptions state".to_string(),
-                ));
+                return Err(WebSocketApiError::InvalidSubscriptionsChannelStatus {
+                    channel: channel.clone(),
+                    status: channel_status.clone(),
+                });
             }
 
             if success {
@@ -256,7 +258,8 @@ impl WebSocketRepository for LnmWebSocketRepo {
         self.shutdown_tx
             .send(())
             .await
-            .map_err(|e| WebSocketApiError::Generic(e.to_string()))?;
+            .map_err(WebSocketApiError::SendShutdownRequest)?;
+
         Ok(())
     }
 }
