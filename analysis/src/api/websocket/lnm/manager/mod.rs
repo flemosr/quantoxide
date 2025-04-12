@@ -1,6 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 use tokio::{
-    sync::{broadcast, mpsc, oneshot, Mutex},
+    sync::{broadcast, mpsc, oneshot},
     time,
 };
 
@@ -114,7 +114,7 @@ impl ManagerTask {
 
                                                 oneshot_tx
                                                     .send(is_success)
-                                                    .map_err(|e| WebSocketApiError::Generic(e.to_string()))?;
+                                                    .map_err(|_| WebSocketApiError::SubscriptionConfirmation)?;
                                             }
 
                                             // Ignore unknown ids
@@ -127,7 +127,7 @@ impl ManagerTask {
 
                                             responses_tx
                                                 .send(data.into())
-                                                .map_err(|e| WebSocketApiError::Generic(e.to_string()))?;
+                                                .map_err(WebSocketApiError::SubscriptionMessage)?;
                                         }
                                     }
                                 }
@@ -147,7 +147,7 @@ impl ManagerTask {
                                     // will be returned bellow.
                                     let _ = ws.send_close().await;
 
-                                    return Err(WebSocketApiError::Generic("server requested shutdown".to_string()));
+                                    return Err(WebSocketApiError::ServerRequestedShutdown);
                                 }
                                 // Pongs can be ignored since heartbeat mechanism is reset after any message
                                 LnmWebSocketResponse::Pong => {}
@@ -156,14 +156,12 @@ impl ManagerTask {
                         _ = &mut heartbeat_timer => {
                             if shutdown_initiated {
                                 // No shutdown confirmation after a heartbeat, timeout
-                                return Err(WebSocketApiError::Generic("shutdown timeout reached".to_string()));
+                                return Err(WebSocketApiError::NoShutdownConfirmation);
                             }
 
                             if waiting_for_pong {
                                 // No pong received after ping and a heartbeat, timeout
-                                return Err(WebSocketApiError::Generic(
-                                    "pong response timeout, connection may be dead".to_string(),
-                                ));
+                                return Err(WebSocketApiError::NoPong);
                             }
 
                             // No messages received for a heartbeat, send a ping
@@ -190,9 +188,9 @@ impl ManagerTask {
         let connection_update = WebSocketApiRes::from(self.connection_state);
 
         if self.responses_tx.receiver_count() > 0 {
-            self.responses_tx.send(connection_update).map_err(|e| {
-                WebSocketApiError::Generic(format!("Failed to send connection update {:?}", e))
-            })?;
+            self.responses_tx
+                .send(connection_update)
+                .map_err(WebSocketApiError::ConnectionUpdate)?;
         }
 
         Ok(())
