@@ -1,8 +1,12 @@
-use std::result;
+use std::{result, sync::Arc};
 use thiserror::Error;
 
-#[derive(Error, Debug, Clone)]
+use super::models::ConnectionState;
+
+#[derive(Error, Debug)]
 pub enum WebSocketApiError {
+    #[error("BadConnectionState error")]
+    BadConnectionState(Arc<ConnectionState>),
     #[error("WebSocket generic error: {0}")]
     Generic(String),
 }

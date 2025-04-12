@@ -33,7 +33,7 @@ pub struct LnmWebSocketRepo {
     shutdown_tx: ShutdownTransmiter,
     requests_tx: RequestTransmiter,
     responses_tx: ResponseTransmiter,
-    connection_state: Arc<Mutex<ConnectionState>>,
+    connection_state: Arc<ConnectionState>,
     subscriptions: Arc<Mutex<HashMap<LnmWebSocketChannel, ChannelStatus>>>,
 }
 
@@ -57,15 +57,12 @@ impl LnmWebSocketRepo {
     }
 
     async fn evaluate_manager_status(&self) -> Result<()> {
-        let err = match self.connection_state().await {
-            ConnectionState::Connected => return Ok(()),
-            ConnectionState::Failed(err) => err,
-            ConnectionState::Disconnected => {
-                WebSocketApiError::Generic("WebSocket manager is finished".to_string())
-            }
-        };
-
-        Err(err)
+        match self.connection_state.as_ref() {
+            ConnectionState::Connected => Ok(()),
+            ConnectionState::Failed(_) | ConnectionState::Disconnected => Err(
+                WebSocketApiError::BadConnectionState(self.connection_state()),
+            ),
+        }
     }
 }
 
@@ -75,8 +72,8 @@ impl WebSocketRepository for LnmWebSocketRepo {
         !self.manager_task_handle.is_finished()
     }
 
-    async fn connection_state(&self) -> ConnectionState {
-        self.connection_state.lock().await.clone()
+    fn connection_state(&self) -> Arc<ConnectionState> {
+        self.connection_state.clone()
     }
 
     async fn subscribe(&self, channels: Vec<LnmWebSocketChannel>) -> Result<()> {

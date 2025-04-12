@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use std::collections::HashSet;
+use std::{collections::HashSet, sync::Arc};
 use tokio::sync::broadcast::Receiver;
 
 use super::{
@@ -11,7 +11,7 @@ use super::{
 pub trait WebSocketRepository: Send + Sync {
     fn is_connected(&self) -> bool;
 
-    async fn connection_state(&self) -> ConnectionState;
+    fn connection_state(&self) -> Arc<ConnectionState>;
 
     async fn subscribe(&self, channels: Vec<LnmWebSocketChannel>) -> Result<()>;
 

@@ -29,7 +29,7 @@ pub struct ManagerTask {
     shutdown_rx: ShutdownReceiver,
     request_rx: RequestReceiver,
     responses_tx: ResponseTransmiter,
-    connection_state: Arc<Mutex<ConnectionState>>,
+    connection_state: Arc<ConnectionState>,
 }
 
 impl ManagerTask {
@@ -40,7 +40,7 @@ impl ManagerTask {
         ShutdownTransmiter,
         RequestTransmiter,
         ResponseTransmiter,
-        Arc<Mutex<ConnectionState>>,
+        Arc<ConnectionState>,
     )> {
         let ws = WebSocketApiConnection::new(api_domain).await?;
 
@@ -54,7 +54,7 @@ impl ManagerTask {
         // External channel for API responses
         let (responses_tx, _) = broadcast::channel::<WebSocketApiRes>(100);
 
-        let connection_state = Arc::new(Mutex::new(ConnectionState::Connected));
+        let connection_state = Arc::new(ConnectionState::Connected);
 
         let manager = Self {
             ws,
@@ -139,7 +139,7 @@ impl ManagerTask {
                                 LnmWebSocketResponse::Close => {
                                     if shutdown_initiated {
                                         // Shutdown confirmation response received
-                                        return Ok(true);
+                                        return Ok(());
                                     }
 
                                     // Server requested shutdown. Attempt to send close confirmation response
@@ -177,20 +177,17 @@ impl ManagerTask {
             }
         };
 
-        let handler_res = handler().await;
+        self.connection_state = match handler().await {
+            Ok(_) => Arc::new(ConnectionState::Disconnected),
+            Err(err) => Arc::new(ConnectionState::Failed(err)),
+        };
 
         // Notify all pending RPC requests of failure on shutdown
         for (_, (_, oneshot_tx)) in pending {
             let _ = oneshot_tx.send(false);
         }
 
-        let mut connection_state_guard = self.connection_state.lock().await;
-        *connection_state_guard = match handler_res {
-            Err(err) => ConnectionState::Failed(err),
-            Ok(_) => ConnectionState::Disconnected,
-        };
-
-        let connection_update = WebSocketApiRes::from(&*connection_state_guard);
+        let connection_update = WebSocketApiRes::from(self.connection_state);
 
         if self.responses_tx.receiver_count() > 0 {
             self.responses_tx.send(connection_update).map_err(|e| {

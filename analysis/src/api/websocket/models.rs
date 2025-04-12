@@ -2,11 +2,11 @@ use chrono::{DateTime, Utc};
 use rand::Rng;
 use serde::{de, Deserialize, Deserializer, Serialize};
 use serde_json::Value;
-use std::{collections::HashSet, fmt};
+use std::{collections::HashSet, fmt, sync::Arc};
 
 use super::error::{Result, WebSocketApiError};
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub enum ConnectionState {
     Connected,
     Disconnected,
@@ -286,12 +286,12 @@ impl<'de> Deserialize<'de> for LnmJsonRpcResponse {
 pub enum WebSocketApiRes {
     PriceTick(PriceTickLNM),
     PriceIndex(PriceIndexLNM),
-    ConnectionUpdate(ConnectionState),
+    ConnectionUpdate(Arc<ConnectionState>),
 }
 
-impl From<&ConnectionState> for WebSocketApiRes {
-    fn from(value: &ConnectionState) -> Self {
-        Self::ConnectionUpdate(value.clone())
+impl From<Arc<ConnectionState>> for WebSocketApiRes {
+    fn from(value: Arc<ConnectionState>) -> Self {
+        Self::ConnectionUpdate(value)
     }
 }
 
