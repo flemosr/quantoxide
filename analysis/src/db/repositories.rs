@@ -2,6 +2,7 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 
 use crate::api::rest::models::PriceEntryLNM;
+use crate::api::websocket::models::PriceTickLNM;
 
 use super::{
     error::Result,
@@ -119,4 +120,9 @@ pub trait PriceHistoryRepository: Send + Sync {
         entry_time: &DateTime<Utc>,
         next: &DateTime<Utc>,
     ) -> Result<bool>;
+}
+
+#[async_trait]
+pub trait PriceTicksRepository: Send + Sync {
+    async fn add_tick(&self, tick: &PriceTickLNM) -> Result<()>;
 }
