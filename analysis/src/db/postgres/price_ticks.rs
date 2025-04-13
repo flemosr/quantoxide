@@ -27,6 +27,7 @@ impl PriceTicksRepository for PgPriceTicksRepo {
             r#"
                 INSERT INTO price_ticks (time, last_price)
                 VALUES ($1, $2)
+                ON CONFLICT DO NOTHING
             "#,
             tick.time(),
             tick.last_price(),
