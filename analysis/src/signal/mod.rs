@@ -2,6 +2,7 @@ use chrono::Utc;
 use std::sync::Arc;
 use tokio::{
     sync::{broadcast, Mutex},
+    task::JoinHandle,
     time,
 };
 
@@ -129,6 +130,32 @@ impl SignalProcess {
     }
 }
 
+pub struct SignalJobController {
+    state_manager: SignalJobStateManager,
+    handle: JoinHandle<Result<()>>,
+}
+
+impl SignalJobController {
+    fn new(state_manager: SignalJobStateManager, handle: JoinHandle<Result<()>>) -> Self {
+        Self {
+            state_manager,
+            handle,
+        }
+    }
+
+    pub fn receiver(&self) -> SignalJobReceiver {
+        self.state_manager.receiver()
+    }
+
+    pub async fn state_snapshot(&self) -> Arc<SignalJobState> {
+        self.state_manager.state_snapshopt().await
+    }
+
+    pub fn abort(&self) {
+        self.handle.abort();
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct SignalJobConfig {
     eval_interval: time::Duration,
@@ -194,7 +221,12 @@ impl SignalJob {
         }
     }
 
-    pub fn start(self) {
-        let _ = tokio::spawn(self.process_recovery_loop());
+    pub fn start(self) -> Result<Arc<SignalJobController>> {
+        let state_manager = self.state_manager.clone();
+        let handle = tokio::spawn(self.process_recovery_loop());
+
+        let signal_controller = SignalJobController::new(state_manager, handle);
+
+        Ok(Arc::new(signal_controller))
     }
 }
