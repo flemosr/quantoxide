@@ -3,22 +3,13 @@ use chrono::{DateTime, Duration, SubsecRound, Utc};
 use sqlx::{Pool, Postgres, Transaction};
 use std::sync::Arc;
 
-use crate::api::rest::models::PriceEntryLNM;
+use crate::{api::rest::models::PriceEntryLNM, util::CeilSec};
 
 use super::super::{
     error::{DbError, Result},
     models::{PriceHistoryEntry, PriceHistoryEntryLOCF},
     repositories::PriceHistoryRepository,
 };
-
-fn get_locf_sec(time: &DateTime<Utc>) -> DateTime<Utc> {
-    let trunc_time_sec = time.trunc_subsecs(0);
-    if trunc_time_sec == *time {
-        trunc_time_sec
-    } else {
-        trunc_time_sec + Duration::seconds(1)
-    }
-}
 
 pub struct PgPriceHistoryRepo {
     pool: Arc<Pool<Postgres>>,
@@ -175,7 +166,7 @@ impl PriceHistoryRepository for PgPriceHistoryRepo {
         // carrying the corresponding locf value forward.
 
         let earliest_entry_time = entries.last().expect("not empty").time();
-        let start_locf_sec = get_locf_sec(earliest_entry_time);
+        let start_locf_sec = earliest_entry_time.ceil_sec();
 
         let prev_locf_sec = sqlx::query_scalar!(
             "SELECT max(time) FROM price_history_locf WHERE time <= $1",
@@ -189,7 +180,7 @@ impl PriceHistoryRepository for PgPriceHistoryRepo {
 
         let latest_batch_time = entries.first().expect("not empty").time();
         let latest_ob_time_after_batch = next_observed_time.unwrap_or(latest_batch_time);
-        let end_locf_sec = get_locf_sec(latest_ob_time_after_batch);
+        let end_locf_sec = latest_ob_time_after_batch.ceil_sec();
 
         sqlx::query!(
             r#"
