@@ -296,12 +296,12 @@ impl Sync {
         }
     }
 
-    pub fn start(self) -> Result<SyncController> {
+    pub fn start(self) -> Result<Arc<SyncController>> {
         let state_manager = self.state_manager.clone();
         let handle = tokio::spawn(self.process_recovery_loop());
 
         let sync_controller = SyncController::new(state_manager, handle);
 
-        Ok(sync_controller)
+        Ok(Arc::new(sync_controller))
     }
 }
