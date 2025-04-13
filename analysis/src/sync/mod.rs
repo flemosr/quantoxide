@@ -22,48 +22,59 @@ use sync_price_history_task::{
     PriceHistoryState, PriceHistoryStateTransmiter, SyncPriceHistoryTask,
 };
 
-pub type SyncTransmiter = broadcast::Sender<SyncState>;
-pub type SyncReceiver = broadcast::Receiver<SyncState>;
+pub type SyncTransmiter = broadcast::Sender<Arc<SyncState>>;
+pub type SyncReceiver = broadcast::Receiver<Arc<SyncState>>;
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum SyncState {
     NotInitiated,
     Starting,
     InProgress(PriceHistoryState),
     Synced,
-    Failed(String),
+    Failed(SyncError),
     Restarting,
 }
 
 #[derive(Clone)]
 struct SyncStateManager {
-    state: Arc<Mutex<SyncState>>,
+    state: Arc<Mutex<Arc<SyncState>>>,
     state_tx: SyncTransmiter,
 }
 
 impl SyncStateManager {
     pub fn new() -> Self {
-        let state = Arc::new(Mutex::new(SyncState::NotInitiated));
-        let (state_tx, _) = broadcast::channel::<SyncState>(100);
+        let state = Arc::new(Mutex::new(Arc::new(SyncState::NotInitiated)));
+        let (state_tx, _) = broadcast::channel::<Arc<SyncState>>(100);
+
         Self { state, state_tx }
+    }
+
+    pub async fn state_snapshopt(&self) -> Arc<SyncState> {
+        self.state.lock().await.clone()
     }
 
     pub fn receiver(&self) -> SyncReceiver {
         self.state_tx.subscribe()
     }
 
-    pub async fn update(&self, new_state: SyncState) -> Result<()> {
-        let mut state_lock = self.state.lock().await;
-        *state_lock = new_state.clone();
-        drop(state_lock);
-
+    async fn try_send_state_update(&self, new_state: Arc<SyncState>) -> Result<()> {
         if self.state_tx.receiver_count() > 0 {
             self.state_tx
                 .send(new_state)
-                .map_err(|e| SyncError::SyncTransmiterFailed(e.to_string()))?;
+                .map_err(SyncError::SyncTransmiterFailed)?;
         }
 
         Ok(())
+    }
+
+    pub async fn update(&self, new_state: SyncState) -> Result<()> {
+        let new_state = Arc::new(new_state);
+
+        let mut state_guard = self.state.lock().await;
+        *state_guard = new_state.clone();
+        drop(state_guard);
+
+        self.try_send_state_update(new_state).await
     }
 
     pub async fn handle_history_state_updates(
@@ -71,12 +82,14 @@ impl SyncStateManager {
         mut history_state_rx: Receiver<PriceHistoryState>,
     ) -> Result<()> {
         while let Some(new_history_state) = history_state_rx.recv().await {
-            let state_lock = self.state.lock().await;
-            if let SyncState::Starting | SyncState::InProgress(_) = *state_lock {
-                drop(state_lock);
+            let mut state_guard = self.state.lock().await;
+            if let SyncState::Starting | SyncState::InProgress(_) = **state_guard {
+                let new_state = Arc::new(SyncState::InProgress(new_history_state));
 
-                let new_sync_state = SyncState::InProgress(new_history_state);
-                self.update(new_sync_state).await?;
+                *state_guard = new_state.clone();
+                drop(state_guard);
+
+                self.try_send_state_update(new_state).await?;
             }
         }
 
@@ -145,9 +158,7 @@ impl SyncProcess {
         sync_price_history_task.run().await?;
 
         if real_time_handle.is_finished() {
-            real_time_handle
-                .await
-                .map_err(|e| SyncError::TaskJoin(e.to_string()))??;
+            real_time_handle.await.map_err(SyncError::TaskJoin)??;
 
             return Err(SyncError::UnexpectedRealTimeCollectionShutdown);
         }
@@ -159,7 +170,7 @@ impl SyncProcess {
         loop {
             tokio::select! {
                 rt_res = &mut real_time_handle => {
-                    rt_res.map_err(|e| SyncError::TaskJoin(e.to_string()))??;
+                    rt_res.map_err(SyncError::TaskJoin)??;
                     return Err(SyncError::UnexpectedRealTimeCollectionShutdown);
                 }
                 _ = time::sleep(self.config.re_sync_history_interval) => {
@@ -188,9 +199,8 @@ impl SyncController {
         self.state_manager.receiver()
     }
 
-    pub async fn state(&self) -> Result<SyncState> {
-        let state = self.state_manager.state.lock().await.clone();
-        Ok(state)
+    pub async fn state_snapshot(&self) -> Arc<SyncState> {
+        self.state_manager.state_snapshopt().await
     }
 
     pub fn abort(&self) {
@@ -286,9 +296,7 @@ impl Sync {
             self.state_manager.update(SyncState::Starting).await?;
 
             if let Err(e) = self.process.run().await {
-                self.state_manager
-                    .update(SyncState::Failed(e.to_string()))
-                    .await?
+                self.state_manager.update(SyncState::Failed(e)).await?
             }
 
             self.state_manager.update(SyncState::Restarting).await?;
