@@ -5,7 +5,7 @@ use crate::db::DbContext;
 
 use super::error::{Result, SyncPriceHistoryError};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PriceHistoryState {
     reach_time: DateTime<Utc>,
     bounds: Option<(DateTime<Utc>, DateTime<Utc>)>,
