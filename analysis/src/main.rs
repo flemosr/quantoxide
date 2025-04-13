@@ -44,7 +44,7 @@ async fn main() -> Result<()> {
     println!("`sync` started");
 
     while let Ok(res) = sync_controller.receiver().recv().await {
-        match res {
+        match res.as_ref() {
             SyncState::NotInitiated => {
                 println!("SyncState::NotInitiated");
             }
