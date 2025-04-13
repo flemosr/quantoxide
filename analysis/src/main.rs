@@ -2,7 +2,7 @@ use analysis::{
     api::ApiContext,
     db::DbContext,
     error::Result,
-    signal::SignalJob,
+    signal::{SignalJob, SignalJobConfig},
     sync::{Sync, SyncConfig, SyncState},
 };
 
@@ -70,7 +70,8 @@ async fn main() -> Result<()> {
 
     println!("sync state achieved. Starting `signal` job...");
 
-    let signal_job = SignalJob::new(db, sync_controller.clone());
+    let config = SignalJobConfig::default();
+    let signal_job = SignalJob::new(config, db, sync_controller.clone());
 
     signal_job.start();
 
