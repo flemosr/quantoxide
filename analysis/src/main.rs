@@ -2,6 +2,7 @@ use analysis::{
     api::ApiContext,
     db::DbContext,
     error::Result,
+    signal::SignalJob,
     sync::{Sync, SyncConfig, SyncState},
 };
 
@@ -34,44 +35,50 @@ async fn main() -> Result<()> {
         .set_re_sync_history_interval(*RE_SYNC_HISTORY_INTERVAL_SEC)
         .set_restart_interval(*RESTART_SYNC_INTERVAL_SEC);
 
-    let sync = Sync::new(config, db.clone(), api.clone());
+    let sync = Sync::new(config, db.clone(), api);
 
     let sync_controller = sync.start()?;
 
-    let mut sync_rx = sync_controller.receiver();
-    tokio::spawn(async move {
-        while let Ok(res) = sync_rx.recv().await {
-            match res {
-                SyncState::NotInitiated => {
-                    println!("SyncState::NotInitiated");
-                }
-                SyncState::Starting => {
-                    println!("SyncState::Starting");
-                }
-                SyncState::InProgress(price_history_state) => {
-                    println!("SyncState::InProgress");
-                    println!("{price_history_state}");
-                }
-                SyncState::Synced => {
-                    println!("SyncState::Synced");
-                }
-                SyncState::Restarting => {
-                    println!("SyncState::Restarting");
-                }
-                SyncState::Failed(err) => {
-                    println!("SyncState::Failed with error {err}");
-                }
+    // let mut sync_rx = sync_controller.receiver();
+
+    println!("`sync` started");
+
+    while let Ok(res) = sync_controller.receiver().recv().await {
+        match res {
+            SyncState::NotInitiated => {
+                println!("SyncState::NotInitiated");
+            }
+            SyncState::Starting => {
+                println!("SyncState::Starting");
+            }
+            SyncState::InProgress(price_history_state) => {
+                println!("SyncState::InProgress");
+                println!("{price_history_state}");
+            }
+            SyncState::Synced => {
+                println!("SyncState::Synced");
+                break;
+            }
+            SyncState::Restarting => {
+                println!("SyncState::Restarting");
+            }
+            SyncState::Failed(err) => {
+                println!("SyncState::Failed with error {err}");
             }
         }
-        println!("Sync Receiver closed");
-    });
+    }
+
+    println!("sync state achieved. Starting `signal` job...");
+
+    let signal_job = SignalJob::new(db, sync_controller.clone());
+
+    signal_job.start();
 
     // Wait for termination signal
     tokio::signal::ctrl_c()
         .await
         .expect("failed to listen for event");
 
-    // Cleanly shut down
     sync_controller.abort();
 
     Ok(())
