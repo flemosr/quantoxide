@@ -35,13 +35,9 @@ impl SignalProcess {
         loop {
             time::sleep(self.config.eval_interval).await;
 
-            let sync_state = self
-                .sync_controller
-                .state()
-                .await
-                .map_err(|_| SignalError::Generic("couldn't get sync state".to_string()))?;
+            let sync_state = self.sync_controller.state_snapshot().await;
 
-            if sync_state != SyncState::Synced {
+            if *sync_state != SyncState::Synced {
                 println!("\nNot synced. Skipping signal eval.");
                 continue;
             }
