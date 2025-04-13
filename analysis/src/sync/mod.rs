@@ -25,7 +25,7 @@ use sync_price_history_task::{
 pub type SyncTransmiter = broadcast::Sender<SyncState>;
 pub type SyncReceiver = broadcast::Receiver<SyncState>;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SyncState {
     NotInitiated,
     Starting,
