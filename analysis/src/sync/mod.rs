@@ -22,9 +22,6 @@ use sync_price_history_task::{
     PriceHistoryState, PriceHistoryStateTransmiter, SyncPriceHistoryTask,
 };
 
-pub type SyncTransmiter = broadcast::Sender<Arc<SyncState>>;
-pub type SyncReceiver = broadcast::Receiver<Arc<SyncState>>;
-
 #[derive(Debug, PartialEq, Eq)]
 pub enum SyncState {
     NotInitiated,
@@ -34,6 +31,9 @@ pub enum SyncState {
     Failed(SyncError),
     Restarting,
 }
+
+pub type SyncTransmiter = broadcast::Sender<Arc<SyncState>>;
+pub type SyncReceiver = broadcast::Receiver<Arc<SyncState>>;
 
 #[derive(Clone)]
 struct SyncStateManager {
