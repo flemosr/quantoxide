@@ -1,6 +1,9 @@
 use chrono::Utc;
 use std::sync::Arc;
-use tokio::time;
+use tokio::{
+    sync::{broadcast, Mutex},
+    time,
+};
 
 use crate::{
     db::DbContext,
@@ -12,10 +15,71 @@ mod error;
 
 use error::{Result, SignalError};
 
+#[derive(Debug, PartialEq, Eq)]
+pub enum SignalJobState {
+    NotInitiated,
+    Starting,
+    Running,
+    WaitingForSync,
+    Failed(SignalError),
+    Restarting,
+}
+
+pub type SignalJobTransmiter = broadcast::Sender<Arc<SignalJobState>>;
+pub type SignalJobReceiver = broadcast::Receiver<Arc<SignalJobState>>;
+
+#[derive(Clone)]
+struct SignalJobStateManager {
+    state: Arc<Mutex<Arc<SignalJobState>>>,
+    state_tx: SignalJobTransmiter,
+}
+
+impl SignalJobStateManager {
+    pub fn new() -> Self {
+        let state = Arc::new(Mutex::new(Arc::new(SignalJobState::NotInitiated)));
+        let (state_tx, _) = broadcast::channel::<Arc<SignalJobState>>(100);
+
+        Self { state, state_tx }
+    }
+
+    pub async fn state_snapshopt(&self) -> Arc<SignalJobState> {
+        self.state.lock().await.clone()
+    }
+
+    pub fn receiver(&self) -> SignalJobReceiver {
+        self.state_tx.subscribe()
+    }
+
+    async fn try_send_state_update(&self, new_state: Arc<SignalJobState>) -> Result<()> {
+        if self.state_tx.receiver_count() > 0 {
+            self.state_tx
+                .send(new_state)
+                .map_err(SignalError::SignalTransmiterFailed)?;
+        }
+
+        Ok(())
+    }
+
+    pub async fn update(&self, new_state: SignalJobState) -> Result<()> {
+        let new_state = Arc::new(new_state);
+
+        let mut state_guard = self.state.lock().await;
+        if **state_guard == *new_state {
+            return Ok(());
+        }
+
+        *state_guard = new_state.clone();
+        drop(state_guard);
+
+        self.try_send_state_update(new_state).await
+    }
+}
+
 struct SignalProcess {
     config: SignalJobConfig,
     db: Arc<DbContext>,
     sync_controller: Arc<SyncController>,
+    state_manager: SignalJobStateManager,
 }
 
 impl SignalProcess {
@@ -23,11 +87,13 @@ impl SignalProcess {
         config: SignalJobConfig,
         db: Arc<DbContext>,
         sync_controller: Arc<SyncController>,
+        state_manager: SignalJobStateManager,
     ) -> Self {
         Self {
             config,
             db,
             sync_controller,
+            state_manager,
         }
     }
 
@@ -37,8 +103,13 @@ impl SignalProcess {
 
             let sync_state = self.sync_controller.state_snapshot().await;
 
-            if *sync_state != SyncState::Synced {
-                println!("\nNot synced. Skipping signal eval.");
+            if *sync_state == SyncState::Synced {
+                self.state_manager.update(SignalJobState::Running).await?;
+            } else {
+                self.state_manager
+                    .update(SignalJobState::WaitingForSync)
+                    .await?;
+
                 continue;
             }
 
@@ -67,7 +138,7 @@ pub struct SignalJobConfig {
 impl Default for SignalJobConfig {
     fn default() -> Self {
         Self {
-            eval_interval: time::Duration::from_secs(60),
+            eval_interval: time::Duration::from_secs(1),
             restart_interval: time::Duration::from_secs(10),
         }
     }
@@ -86,6 +157,7 @@ impl SignalJobConfig {
 }
 
 pub struct SignalJob {
+    state_manager: SignalJobStateManager,
     process: SignalProcess,
     restart_interval: time::Duration,
 }
@@ -96,10 +168,12 @@ impl SignalJob {
         db: Arc<DbContext>,
         sync_controller: Arc<SyncController>,
     ) -> Self {
+        let state_manager = SignalJobStateManager::new();
         let restart_interval = config.restart_interval;
-        let process = SignalProcess::new(config, db, sync_controller);
+        let process = SignalProcess::new(config, db, sync_controller, state_manager.clone());
 
         Self {
+            state_manager,
             process,
             restart_interval,
         }
@@ -107,15 +181,15 @@ impl SignalJob {
 
     async fn process_recovery_loop(self) -> Result<()> {
         loop {
-            // self.state_manager.update(SignalState::Starting).await?;
+            self.state_manager.update(SignalJobState::Starting).await?;
 
             if let Err(e) = self.process.run().await {
-                // self.state_manager
-                //     .update(SignalState::Failed(e.to_string()))
-                //     .await?
+                self.state_manager.update(SignalJobState::Failed(e)).await?
             }
 
-            // self.state_manager.update(SignalState::Restarting).await?;
+            self.state_manager
+                .update(SignalJobState::Restarting)
+                .await?;
             time::sleep(self.restart_interval).await;
         }
     }
