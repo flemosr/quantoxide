@@ -2,7 +2,9 @@ use chrono::{DateTime, Utc};
 use std::result;
 use thiserror::Error;
 
-use crate::{api::rest::error::RestApiError, db::error::DbError};
+use lnm_sdk::api::rest::error::RestApiError;
+
+use crate::db::error::DbError;
 
 #[derive(Error, Debug)]
 pub enum SyncPriceHistoryError {

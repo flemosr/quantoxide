@@ -1,12 +1,11 @@
 use std::sync::Arc;
 
-use crate::{
-    api::{
-        websocket::models::{ConnectionState, LnmWebSocketChannel, WebSocketApiRes},
-        ApiContext,
-    },
-    db::DbContext,
+use lnm_sdk::api::{
+    ApiContext,
+    websocket::models::{ConnectionState, LnmWebSocketChannel, WebSocketApiRes},
 };
+
+use crate::db::DbContext;
 
 pub mod error;
 

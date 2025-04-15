@@ -1,10 +1,9 @@
 use std::{result, sync::Arc};
 use thiserror::Error;
 
-use crate::{
-    api::websocket::{error::WebSocketApiError, models::ConnectionState},
-    db::error::DbError,
-};
+use lnm_sdk::api::websocket::{error::WebSocketApiError, models::ConnectionState};
+
+use crate::db::error::DbError;
 
 #[derive(Error, Debug)]
 pub enum RealTimeCollectionError {
