@@ -1,8 +1,7 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 
-use crate::api::rest::models::PriceEntryLNM;
-use crate::api::websocket::models::PriceTickLNM;
+use lnm_sdk::api::{rest::models::PriceEntryLNM, websocket::models::PriceTickLNM};
 
 use super::{
     error::Result,

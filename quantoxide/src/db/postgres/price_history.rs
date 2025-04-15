@@ -3,7 +3,9 @@ use chrono::{DateTime, Duration, SubsecRound, Utc};
 use sqlx::{Pool, Postgres, Transaction};
 use std::sync::Arc;
 
-use crate::{api::rest::models::PriceEntryLNM, util::CeilSec};
+use lnm_sdk::api::rest::models::PriceEntryLNM;
+
+use crate::util::CeilSec;
 
 use super::super::{
     error::{DbError, Result},

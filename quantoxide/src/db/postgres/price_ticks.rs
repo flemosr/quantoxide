@@ -2,7 +2,9 @@ use async_trait::async_trait;
 use sqlx::{Pool, Postgres};
 use std::sync::Arc;
 
-use crate::{api::websocket::models::PriceTickLNM, db::error::DbError};
+use lnm_sdk::api::websocket::models::PriceTickLNM;
+
+use crate::db::error::DbError;
 
 use super::super::{error::Result, repositories::PriceTicksRepository};
 
