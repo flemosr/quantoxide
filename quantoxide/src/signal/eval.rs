@@ -38,8 +38,8 @@ impl PartialEq for SignalName {
 
 impl Eq for SignalName {}
 
-#[derive(Debug, Clone)]
-pub enum Signal {
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SignalAction {
     Buy,
     Sell,
 }
@@ -53,5 +53,5 @@ pub trait SignalEvaluator: Send + Sync {
     async fn evaluate(
         &self,
         entries: &[PriceHistoryEntryLOCF],
-    ) -> std::result::Result<Option<Signal>, Box<dyn std::error::Error>>;
+    ) -> std::result::Result<Option<SignalAction>, Box<dyn std::error::Error>>;
 }
