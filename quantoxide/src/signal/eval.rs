@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use std::{error, fmt, result};
+use std::fmt;
 
 use crate::db::models::PriceHistoryEntryLOCF;
 
@@ -53,5 +53,5 @@ pub trait SignalEvaluator: Send + Sync {
     async fn evaluate(
         &self,
         entries: &[PriceHistoryEntryLOCF],
-    ) -> result::Result<Option<Signal>, Box<dyn error::Error>>;
+    ) -> std::result::Result<Option<Signal>, Box<dyn std::error::Error>>;
 }
