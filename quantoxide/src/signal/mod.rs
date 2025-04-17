@@ -1,7 +1,7 @@
 use chrono::Utc;
 use std::sync::Arc;
 use tokio::{
-    sync::{broadcast, Mutex},
+    sync::{Mutex, broadcast},
     task::JoinHandle,
     time,
 };
@@ -16,6 +16,7 @@ mod error;
 pub mod eval;
 
 use error::{Result, SignalError};
+use eval::SignalEvaluator;
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum SignalJobState {
@@ -82,6 +83,7 @@ struct SignalProcess {
     db: Arc<DbContext>,
     sync_controller: Arc<SyncController>,
     state_manager: SignalJobStateManager,
+    evaluators: Vec<Box<dyn SignalEvaluator>>,
 }
 
 impl SignalProcess {
@@ -90,13 +92,19 @@ impl SignalProcess {
         db: Arc<DbContext>,
         sync_controller: Arc<SyncController>,
         state_manager: SignalJobStateManager,
-    ) -> Self {
-        Self {
+        evaluators: Vec<Box<dyn SignalEvaluator>>,
+    ) -> Result<Self> {
+        if evaluators.is_empty() {
+            return Err(SignalError::Generic("empty `evaluators`".to_string()));
+        }
+
+        Ok(Self {
             config,
             db,
             sync_controller,
             state_manager,
-        }
+            evaluators,
+        })
     }
 
     async fn run(&self) -> Result<()> {
@@ -116,17 +124,29 @@ impl SignalProcess {
             }
 
             let now = Utc::now().ceil_sec();
+
+            let max_context_window = self
+                .evaluators
+                .iter()
+                .map(|evaluator| evaluator.context_window_secs())
+                .max()
+                .expect("evaluators can't be empty");
+
             let entries = self
                 .db
                 .price_history
-                .eval_entries_locf(&now, 10)
+                .eval_entries_locf(&now, max_context_window)
                 .await
                 .map_err(|_| SignalError::Generic("db error".to_string()))?;
-            let curr_locf = entries
-                .first()
-                .ok_or(SignalError::Generic("db inconsistency error".to_string()))?;
 
-            println!("\n{curr_locf}");
+            for evaluator in self.evaluators.iter() {
+                let context = &entries[0..evaluator.context_window_secs()];
+                let signal = evaluator.evaluate(context).await.map_err(|e| {
+                    SignalError::Generic(format!("signal evaluator error: {}", e.to_string()))
+                })?;
+
+                println!("\nsignal {:?}", signal);
+            }
         }
     }
 }
@@ -195,16 +215,23 @@ impl SignalJob {
         config: SignalJobConfig,
         db: Arc<DbContext>,
         sync_controller: Arc<SyncController>,
-    ) -> Self {
+        evaluators: Vec<Box<dyn SignalEvaluator>>,
+    ) -> Result<Self> {
         let state_manager = SignalJobStateManager::new();
         let restart_interval = config.restart_interval;
-        let process = SignalProcess::new(config, db, sync_controller, state_manager.clone());
+        let process = SignalProcess::new(
+            config,
+            db,
+            sync_controller,
+            state_manager.clone(),
+            evaluators,
+        )?;
 
-        Self {
+        Ok(Self {
             state_manager,
             process,
             restart_interval,
-        }
+        })
     }
 
     async fn process_recovery_loop(self) -> Result<()> {
