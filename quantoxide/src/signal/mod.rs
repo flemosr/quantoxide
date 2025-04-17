@@ -140,7 +140,14 @@ impl SignalProcess {
                 .map_err(|_| SignalError::Generic("db error".to_string()))?;
 
             for evaluator in self.evaluators.iter() {
-                let context = &entries[0..evaluator.context_window_secs()];
+                let context_size = evaluator.context_window_secs();
+                if entries.len() < context_size {
+                    return Err(SignalError::Generic(
+                        "evaluator with inconsistent window size".to_string(),
+                    ));
+                }
+                let start_idx = entries.len() - context_size;
+                let context = &entries[start_idx..];
                 let signal = evaluator.evaluate(context).await.map_err(|e| {
                     SignalError::Generic(format!("signal evaluator error: {}", e.to_string()))
                 })?;
