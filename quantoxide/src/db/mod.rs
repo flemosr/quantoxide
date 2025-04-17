@@ -2,7 +2,7 @@ use sqlx::postgres::PgPoolOptions;
 use std::sync::Arc;
 
 pub mod error;
-mod models;
+pub mod models;
 mod postgres;
 mod repositories;
 
