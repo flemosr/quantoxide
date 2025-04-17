@@ -38,10 +38,11 @@ impl PartialEq for SignalName {
 
 impl Eq for SignalName {}
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum SignalAction {
-    Buy,
-    Sell,
+    Long { min_price: f64, max_price: f64 },
+    Neutral,
+    Short { min_price: f64, max_price: f64 },
 }
 
 #[async_trait]

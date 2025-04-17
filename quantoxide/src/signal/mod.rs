@@ -23,8 +23,6 @@ pub struct Signal {
     time: DateTime<Utc>,
     name: SignalName,
     action: SignalAction,
-    min_price: f64,
-    max_price: f64,
 }
 
 #[derive(Debug, PartialEq)]
@@ -169,8 +167,6 @@ impl SignalProcess {
                         time: last_entry.time,
                         name: evaluator.name().clone(),
                         action: signal_action,
-                        min_price: last_entry.value,
-                        max_price: last_entry.value,
                     };
 
                     self.state_manager
