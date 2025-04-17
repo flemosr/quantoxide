@@ -1,4 +1,4 @@
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use std::sync::Arc;
 use tokio::{
     sync::{Mutex, broadcast},
@@ -16,13 +16,22 @@ pub mod error;
 pub mod eval;
 
 use error::{Result, SignalError};
-use eval::SignalEvaluator;
+use eval::{SignalAction, SignalEvaluator, SignalName};
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq)]
+pub struct Signal {
+    time: DateTime<Utc>,
+    name: SignalName,
+    action: SignalAction,
+    min_price: f64,
+    max_price: f64,
+}
+
+#[derive(Debug, PartialEq)]
 pub enum SignalJobState {
     NotInitiated,
     Starting,
-    Running,
+    Running { last_signal: Option<Signal> },
     WaitingForSync,
     Failed(SignalError),
     Restarting,
@@ -114,7 +123,9 @@ impl SignalProcess {
             let sync_state = self.sync_controller.state_snapshot().await;
 
             if *sync_state == SyncState::Synced {
-                self.state_manager.update(SignalJobState::Running).await?;
+                self.state_manager
+                    .update(SignalJobState::Running { last_signal: None })
+                    .await?;
             } else {
                 self.state_manager
                     .update(SignalJobState::WaitingForSync)
@@ -148,11 +159,26 @@ impl SignalProcess {
                 }
                 let start_idx = entries.len() - context_size;
                 let context = &entries[start_idx..];
-                let signal = evaluator.evaluate(context).await.map_err(|e| {
+                let signal_action_opt = evaluator.evaluate(context).await.map_err(|e| {
                     SignalError::Generic(format!("signal evaluator error: {}", e.to_string()))
                 })?;
 
-                println!("\nsignal {:?}", signal);
+                if let Some(signal_action) = signal_action_opt {
+                    let last_entry = context.last().expect("not empty");
+                    let signal = Signal {
+                        time: last_entry.time,
+                        name: evaluator.name().clone(),
+                        action: signal_action,
+                        min_price: last_entry.value,
+                        max_price: last_entry.value,
+                    };
+
+                    self.state_manager
+                        .update(SignalJobState::Running {
+                            last_signal: Some(signal),
+                        })
+                        .await?;
+                }
             }
         }
     }
