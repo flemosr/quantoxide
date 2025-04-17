@@ -13,6 +13,7 @@ use crate::{
 };
 
 mod error;
+pub mod eval;
 
 use error::{Result, SignalError};
 
