@@ -12,7 +12,7 @@ use crate::{
     util::CeilSec,
 };
 
-mod error;
+pub mod error;
 pub mod eval;
 
 use error::{Result, SignalError};
