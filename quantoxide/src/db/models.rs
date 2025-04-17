@@ -10,7 +10,7 @@ pub struct PriceHistoryEntry {
     pub next: Option<DateTime<Utc>>,
 }
 
-#[derive(Debug, FromRow)]
+#[derive(Debug, FromRow, Clone)]
 pub struct PriceHistoryEntryLOCF {
     pub time: DateTime<Utc>,
     pub value: f64,
