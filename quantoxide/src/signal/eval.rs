@@ -55,5 +55,5 @@ pub trait SignalEvaluator: Send + Sync {
     async fn evaluate(
         &self,
         entries: &[PriceHistoryEntryLOCF],
-    ) -> std::result::Result<Option<SignalAction>, Box<dyn std::error::Error>>;
+    ) -> std::result::Result<SignalAction, Box<dyn std::error::Error>>;
 }
