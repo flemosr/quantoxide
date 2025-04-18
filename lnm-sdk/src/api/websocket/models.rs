@@ -155,7 +155,7 @@ pub struct JsonRpcResponse {
 
 #[derive(Debug, Deserialize, Clone, Copy)]
 #[allow(clippy::enum_variant_names)]
-enum LastTickDirection {
+pub enum LastTickDirection {
     MinusTick,
     ZeroMinusTick,
     PlusTick,
@@ -186,8 +186,18 @@ impl PriceTickLNM {
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct PriceIndexLNM {
-    index: f64,
     time: DateTime<Utc>,
+    index: f64,
+}
+
+impl PriceIndexLNM {
+    pub fn time(&self) -> DateTime<Utc> {
+        self.time
+    }
+
+    pub fn index(&self) -> f64 {
+        self.index
+    }
 }
 
 #[derive(Debug, Clone)]
