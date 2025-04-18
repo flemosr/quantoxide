@@ -29,7 +29,7 @@ pub struct Signal {
 pub enum SignalJobState {
     NotInitiated,
     Starting,
-    Running { last_signal: Option<Signal> },
+    Running(Signal),
     WaitingForSync,
     Failed(SignalError),
     Restarting,
@@ -120,11 +120,7 @@ impl SignalProcess {
 
             let sync_state = self.sync_controller.state_snapshot().await;
 
-            if *sync_state == SyncState::Synced {
-                self.state_manager
-                    .update(SignalJobState::Running { last_signal: None })
-                    .await?;
-            } else {
+            if *sync_state != SyncState::Synced {
                 self.state_manager
                     .update(SignalJobState::WaitingForSync)
                     .await?;
@@ -175,9 +171,7 @@ impl SignalProcess {
                 };
 
                 self.state_manager
-                    .update(SignalJobState::Running {
-                        last_signal: Some(signal),
-                    })
+                    .update(SignalJobState::Running(signal))
                     .await?;
             }
         }
