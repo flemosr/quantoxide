@@ -116,7 +116,15 @@ impl SignalProcess {
 
     async fn run(&self) -> Result<()> {
         loop {
-            time::sleep(self.config.eval_interval).await;
+            let now = {
+                let now = Utc::now();
+                let now_ceil_sec = now.ceil_sec();
+                let wait_duration = (now_ceil_sec - now).to_std().expect("valid duration");
+
+                time::sleep(wait_duration).await;
+
+                now_ceil_sec
+            };
 
             let sync_state = self.sync_controller.state_snapshot().await;
 
@@ -127,8 +135,6 @@ impl SignalProcess {
 
                 continue;
             }
-
-            let now = Utc::now().ceil_sec();
 
             let max_ctx_window = self
                 .evaluators
