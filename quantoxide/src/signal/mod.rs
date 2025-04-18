@@ -141,14 +141,14 @@ impl SignalProcess {
                 .max()
                 .expect("evaluators can't be empty");
 
-            let ctx_entries = self
+            let all_ctx_entries = self
                 .db
                 .price_history
                 .eval_entries_locf(&now, max_ctx_window)
                 .await
                 .map_err(|_| SignalError::Generic("db error".to_string()))?;
 
-            let last_ctx_entry = ctx_entries
+            let last_ctx_entry = all_ctx_entries
                 .last()
                 .ok_or(SignalError::Generic("empty context".to_string()))?;
             if now != last_ctx_entry.time {
@@ -157,30 +157,28 @@ impl SignalProcess {
 
             for evaluator in self.evaluators.iter() {
                 let ctx_size = evaluator.context_window_secs();
-                if ctx_entries.len() < ctx_size {
+                if all_ctx_entries.len() < ctx_size {
                     return Err(SignalError::Generic(
                         "evaluator with inconsistent window size".to_string(),
                     ));
                 }
-                let start_idx = ctx_entries.len() - ctx_size;
-                let context = &ctx_entries[start_idx..];
-                let signal_action_opt = evaluator.evaluate(context).await.map_err(|e| {
+                let start_idx = all_ctx_entries.len() - ctx_size;
+                let signal_ctx_entries = &all_ctx_entries[start_idx..];
+                let signal_action = evaluator.evaluate(signal_ctx_entries).await.map_err(|e| {
                     SignalError::Generic(format!("signal evaluator error: {}", e.to_string()))
                 })?;
 
-                if let Some(signal_action) = signal_action_opt {
-                    let signal = Signal {
-                        time: now,
-                        name: evaluator.name().clone(),
-                        action: signal_action,
-                    };
+                let signal = Signal {
+                    time: now,
+                    name: evaluator.name().clone(),
+                    action: signal_action,
+                };
 
-                    self.state_manager
-                        .update(SignalJobState::Running {
-                            last_signal: Some(signal),
-                        })
-                        .await?;
-                }
+                self.state_manager
+                    .update(SignalJobState::Running {
+                        last_signal: Some(signal),
+                    })
+                    .await?;
             }
         }
     }
