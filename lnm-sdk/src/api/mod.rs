@@ -8,17 +8,22 @@ use rest::RestApiContext;
 use websocket::{WebSocketApiContext, error::Result};
 
 pub struct ApiContext {
-    api_domain: String,
+    domain: String,
     rest: RestApiContext,
     ws: Mutex<Option<Arc<WebSocketApiContext>>>,
 }
 
 impl ApiContext {
-    pub fn new(api_domain: String, api_secret: String) -> rest::error::Result<Arc<Self>> {
-        let rest = RestApiContext::new(api_domain.clone(), api_secret)?;
+    pub fn new(
+        domain: String,
+        key: String,
+        secret: String,
+        passphrase: String,
+    ) -> rest::error::Result<Arc<Self>> {
+        let rest = RestApiContext::new(domain.clone(), key, secret, passphrase)?;
 
         Ok(Arc::new(Self {
-            api_domain,
+            domain,
             rest,
             ws: Mutex::new(None),
         }))
@@ -37,8 +42,8 @@ impl ApiContext {
             }
         }
 
-        let api_domain = self.api_domain.clone();
-        let new_ws = Arc::new(websocket::new(api_domain).await?);
+        let domain = self.domain.clone();
+        let new_ws = Arc::new(websocket::new(domain).await?);
 
         *ws_guard = Some(new_ws.clone());
 

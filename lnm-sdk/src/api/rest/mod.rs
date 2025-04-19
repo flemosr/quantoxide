@@ -12,8 +12,8 @@ pub struct RestApiContext {
 }
 
 impl RestApiContext {
-    pub fn new(api_domain: String, api_secret: String) -> Result<Self> {
-        let futures = Box::new(LnmFuturesRepository::new(api_domain, api_secret)?);
+    pub fn new(domain: String, key: String, secret: String, passphrase: String) -> Result<Self> {
+        let futures = Box::new(LnmFuturesRepository::new(domain, key, secret, passphrase)?);
         Ok(Self { futures })
     }
 }
