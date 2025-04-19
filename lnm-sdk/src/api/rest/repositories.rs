@@ -1,7 +1,10 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 
-use super::{error::Result, models::PriceEntryLNM};
+use super::{
+    error::Result,
+    models::{PriceEntryLNM, Trade, TradeSide},
+};
 
 #[async_trait]
 pub trait FuturesRepository: Send + Sync {
@@ -11,4 +14,14 @@ pub trait FuturesRepository: Send + Sync {
         to: Option<&DateTime<Utc>>,
         limit: Option<usize>,
     ) -> Result<Vec<PriceEntryLNM>>;
+
+    async fn create_new_trade_margin_limit(
+        &self,
+        side: TradeSide,
+        margin: u64,
+        leverage: f64,
+        price: f64,
+        stoploss: Option<f64>,
+        takeprofit: Option<f64>,
+    ) -> Result<Trade>;
 }
