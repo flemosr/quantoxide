@@ -9,6 +9,8 @@ pub enum RestApiError {
     Response(reqwest::Error),
     #[error("Unexpected schema error: {0}")]
     UnexpectedSchema(reqwest::Error),
+    #[error("RestApi generic error: {0}")]
+    Generic(String),
 }
 
 pub type Result<T> = result::Result<T, RestApiError>;

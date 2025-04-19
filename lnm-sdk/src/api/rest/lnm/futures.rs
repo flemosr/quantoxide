@@ -1,24 +1,45 @@
 use std::borrow::Borrow;
+use std::time::Duration;
 
 use async_trait::async_trait;
+use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
 use chrono::{DateTime, Utc};
-use reqwest::Url;
+use hmac::{Hmac, Mac};
+use reqwest::{
+    self, Client, Method, Url,
+    header::{HeaderMap, HeaderName, HeaderValue},
+};
+use serde::de::DeserializeOwned;
+use serde_json::Value;
+use sha2::Sha256;
 
 use super::super::{
     error::{RestApiError, Result},
-    models::PriceEntryLNM,
+    models::{PriceEntryLNM, Trade, TradeSide, TradeType},
     repositories::FuturesRepository,
 };
 
 const PRICE_HISTORY_PATH: &str = "/v2/futures/history/price";
+const CREATE_NEW_TRADE_PATH: &str = "/v2/futures";
 
 pub struct LnmFuturesRepository {
     api_domain: String,
+    api_secret: String,
+    client: Client,
 }
 
 impl LnmFuturesRepository {
-    pub fn new(api_domain: String) -> Self {
-        Self { api_domain }
+    pub fn new(api_domain: String, api_secret: String) -> Result<Self> {
+        let client = Client::builder()
+            .timeout(Duration::from_secs(30))
+            .build()
+            .map_err(|e| RestApiError::Generic(e.to_string()))?;
+
+        Ok(Self {
+            api_domain,
+            api_secret,
+            client,
+        })
     }
 
     fn api_domain(&self) -> &String {
@@ -41,6 +62,111 @@ impl LnmFuturesRepository {
         .map_err(|e| RestApiError::UrlParse(e.to_string()))?;
 
         Ok(endpoint_url)
+    }
+
+    fn generate_signature(
+        &self,
+        timestamp_str: &str,
+        method: &Method,
+        path: impl AsRef<str>,
+        body: Option<&Value>,
+        params: Option<Vec<(String, String)>>,
+    ) -> Result<String> {
+        let params_str = match (method, &params, &body) {
+            (&Method::GET, Some(p), _) | (&Method::DELETE, Some(p), _) => p
+                .iter()
+                .map(|(k, v)| format!("{}={}", k, v))
+                .collect::<Vec<String>>()
+                .join("&"),
+            (&Method::POST, _, Some(b)) | (&Method::PUT, _, Some(b)) => {
+                serde_json::to_string(b).map_err(|e| RestApiError::Generic(e.to_string()))?
+            }
+            _ => String::new(),
+        };
+
+        let prehash = format!(
+            "{}{}{}{}",
+            timestamp_str,
+            method.as_str(),
+            path.as_ref(),
+            params_str
+        );
+
+        let mut mac = Hmac::<Sha256>::new_from_slice(self.api_secret.as_bytes())
+            .map_err(|_| RestApiError::Generic("HMAC error".to_string()))?;
+        mac.update(prehash.as_bytes());
+        let mac = mac.finalize().into_bytes();
+
+        let signature = BASE64.encode(mac);
+
+        Ok(signature)
+    }
+
+    async fn make_request<T>(
+        &self,
+        method: Method,
+        path: impl AsRef<str>,
+        params: Option<Vec<(String, String)>>,
+        body: Option<Value>,
+        authenticated: bool,
+    ) -> Result<T>
+    where
+        T: DeserializeOwned,
+    {
+        let endpoint_url = self.get_endpoint_url(path.as_ref(), params.as_ref())?;
+
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            HeaderName::from_static("content-type"),
+            HeaderValue::from_static("application/json"),
+        );
+
+        if authenticated {
+            let timestamp = Utc::now().timestamp_millis().to_string();
+
+            let signature =
+                self.generate_signature(&timestamp, &method, path, body.as_ref(), params)?;
+
+            headers.insert(
+                HeaderName::from_static("lnm-access-timestamp"),
+                HeaderValue::from_str(&timestamp)
+                    .map_err(|e| RestApiError::Generic(e.to_string()))?,
+            );
+            headers.insert(
+                HeaderName::from_static("lnm-access-signature"),
+                HeaderValue::from_str(&signature)
+                    .map_err(|e| RestApiError::Generic(e.to_string()))?,
+            );
+        }
+
+        let mut req_builder = self.client.request(method, endpoint_url);
+        req_builder = req_builder.headers(headers);
+
+        if let Some(b) = body {
+            req_builder = req_builder.json(&b);
+        }
+
+        let response = req_builder
+            .send()
+            .await
+            .map_err(|e| RestApiError::Generic(e.to_string()))?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let error_text = response
+                .text()
+                .await
+                .map_err(|e| RestApiError::Generic(format!("{:?}, {}", e, status)))?;
+
+            return Err(RestApiError::Generic(error_text));
+        }
+
+        let response_data = response
+            .json::<T>()
+            .await
+            .map_err(|e| RestApiError::Generic(e.to_string()))?;
+
+        Ok(response_data)
     }
 }
 
@@ -72,5 +198,31 @@ impl FuturesRepository for LnmFuturesRepository {
             .map_err(RestApiError::UnexpectedSchema)?;
 
         Ok(price_history)
+    }
+
+    async fn create_new_trade_margin_limit(
+        &self,
+        side: TradeSide,
+        margin: u64,
+        leverage: f64,
+        price: f64,
+        stoploss: Option<f64>,
+        takeprofit: Option<f64>,
+    ) -> Result<Trade> {
+        let body = serde_json::json!({
+            "side": side.as_str(),
+            "margin": margin,
+            "leverage": leverage,
+            "type": TradeType::L.as_str(),
+            "price": price,
+            "stoploss": stoploss,
+            "takeprofit": takeprofit
+        });
+
+        let created_trade = self
+            .make_request::<Trade>(Method::POST, CREATE_NEW_TRADE_PATH, None, Some(body), true)
+            .await?;
+
+        Ok(created_trade)
     }
 }
