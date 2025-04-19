@@ -23,27 +23,27 @@ const PRICE_HISTORY_PATH: &str = "/v2/futures/history/price";
 const CREATE_NEW_TRADE_PATH: &str = "/v2/futures";
 
 pub struct LnmFuturesRepository {
-    api_domain: String,
-    api_secret: String,
+    domain: String,
+    key: String,
+    secret: String,
+    passphrase: String,
     client: Client,
 }
 
 impl LnmFuturesRepository {
-    pub fn new(api_domain: String, api_secret: String) -> Result<Self> {
+    pub fn new(domain: String, key: String, secret: String, passphrase: String) -> Result<Self> {
         let client = Client::builder()
             .timeout(Duration::from_secs(30))
             .build()
             .map_err(|e| RestApiError::Generic(e.to_string()))?;
 
         Ok(Self {
-            api_domain,
-            api_secret,
+            domain,
+            key,
+            secret,
+            passphrase,
             client,
         })
-    }
-
-    fn api_domain(&self) -> &String {
-        &self.api_domain
     }
 
     fn get_endpoint_url<I, K, V>(&self, path: impl AsRef<str>, params: Option<I>) -> Result<Url>
@@ -53,7 +53,7 @@ impl LnmFuturesRepository {
         K: AsRef<str>,
         V: AsRef<str>,
     {
-        let base_endpoint_url = format!("https://{}{}", self.api_domain(), path.as_ref());
+        let base_endpoint_url = format!("https://{}{}", self.domain, path.as_ref());
 
         let endpoint_url = match params {
             Some(params) => Url::parse_with_params(&base_endpoint_url, params),
@@ -92,7 +92,7 @@ impl LnmFuturesRepository {
             params_str
         );
 
-        let mut mac = Hmac::<Sha256>::new_from_slice(self.api_secret.as_bytes())
+        let mut mac = Hmac::<Sha256>::new_from_slice(self.secret.as_bytes())
             .map_err(|_| RestApiError::Generic("HMAC error".to_string()))?;
         mac.update(prehash.as_bytes());
         let mac = mac.finalize().into_bytes();
@@ -116,10 +116,13 @@ impl LnmFuturesRepository {
         let endpoint_url = self.get_endpoint_url(path.as_ref(), params.as_ref())?;
 
         let mut headers = HeaderMap::new();
-        headers.insert(
-            HeaderName::from_static("content-type"),
-            HeaderValue::from_static("application/json"),
-        );
+
+        if method == Method::POST || method == Method::PUT {
+            headers.insert(
+                HeaderName::from_static("content-type"),
+                HeaderValue::from_static("application/json"),
+            );
+        }
 
         if authenticated {
             let timestamp = Utc::now().timestamp_millis().to_string();
@@ -128,13 +131,23 @@ impl LnmFuturesRepository {
                 self.generate_signature(&timestamp, &method, path, body.as_ref(), params)?;
 
             headers.insert(
-                HeaderName::from_static("lnm-access-timestamp"),
-                HeaderValue::from_str(&timestamp)
+                HeaderName::from_static("lnm-access-key"),
+                HeaderValue::from_str(&self.key)
                     .map_err(|e| RestApiError::Generic(e.to_string()))?,
             );
             headers.insert(
                 HeaderName::from_static("lnm-access-signature"),
                 HeaderValue::from_str(&signature)
+                    .map_err(|e| RestApiError::Generic(e.to_string()))?,
+            );
+            headers.insert(
+                HeaderName::from_static("lnm-access-passphrase"),
+                HeaderValue::from_str(&self.passphrase)
+                    .map_err(|e| RestApiError::Generic(e.to_string()))?,
+            );
+            headers.insert(
+                HeaderName::from_static("lnm-access-timestamp"),
+                HeaderValue::from_str(&timestamp)
                     .map_err(|e| RestApiError::Generic(e.to_string()))?,
             );
         }
