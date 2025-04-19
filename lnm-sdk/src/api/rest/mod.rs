@@ -3,6 +3,7 @@ mod lnm;
 pub mod models;
 mod repositories;
 
+use error::Result;
 use lnm::futures::LnmFuturesRepository;
 use repositories::FuturesRepository;
 
@@ -11,8 +12,8 @@ pub struct RestApiContext {
 }
 
 impl RestApiContext {
-    pub fn new(api_domain: String) -> Self {
-        let futures = Box::new(LnmFuturesRepository::new(api_domain));
-        Self { futures }
+    pub fn new(api_domain: String, api_secret: String) -> Result<Self> {
+        let futures = Box::new(LnmFuturesRepository::new(api_domain, api_secret)?);
+        Ok(Self { futures })
     }
 }

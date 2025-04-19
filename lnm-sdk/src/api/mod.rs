@@ -5,7 +5,7 @@ pub mod rest;
 pub mod websocket;
 
 use rest::RestApiContext;
-use websocket::{error::Result, WebSocketApiContext};
+use websocket::{WebSocketApiContext, error::Result};
 
 pub struct ApiContext {
     api_domain: String,
@@ -14,14 +14,14 @@ pub struct ApiContext {
 }
 
 impl ApiContext {
-    pub fn new(api_domain: String) -> Arc<Self> {
-        let rest = RestApiContext::new(api_domain.clone());
+    pub fn new(api_domain: String, api_secret: String) -> rest::error::Result<Arc<Self>> {
+        let rest = RestApiContext::new(api_domain.clone(), api_secret)?;
 
-        Arc::new(Self {
+        Ok(Arc::new(Self {
             api_domain,
             rest,
             ws: Mutex::new(None),
-        })
+        }))
     }
 
     pub fn rest(&self) -> &RestApiContext {
