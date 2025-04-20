@@ -45,24 +45,6 @@ impl LnmFuturesRepository {
         })
     }
 
-    fn get_endpoint_url<I, K, V>(&self, path: impl AsRef<str>, params: Option<I>) -> Result<Url>
-    where
-        I: IntoIterator,
-        I::Item: Borrow<(K, V)>,
-        K: AsRef<str>,
-        V: AsRef<str>,
-    {
-        let base_endpoint_url = format!("https://{}{}", self.domain, path.as_ref());
-
-        let endpoint_url = match params {
-            Some(params) => Url::parse_with_params(&base_endpoint_url, params),
-            None => Url::parse(&base_endpoint_url),
-        }
-        .map_err(|e| RestApiError::UrlParse(e.to_string()))?;
-
-        Ok(endpoint_url)
-    }
-
     fn get_url(&self, path: impl AsRef<str>, query_params: Option<String>) -> Result<Url> {
         let query_str = query_params
             .map(|v| format!("?{v}"))
@@ -207,7 +189,7 @@ impl LnmFuturesRepository {
         &self,
         method: Method,
         path: impl AsRef<str>,
-        query: I,
+        query_params: I,
         authenticated: bool,
     ) -> Result<T>
     where
@@ -216,7 +198,7 @@ impl LnmFuturesRepository {
         V: AsRef<str>,
         T: DeserializeOwned,
     {
-        let query_str = query
+        let query_str = query_params
             .into_iter()
             .map(|(k, v)| format!("{}={}", k.as_ref(), v.as_ref()))
             .collect::<Vec<String>>()
