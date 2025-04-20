@@ -9,13 +9,12 @@ use reqwest::{
     self, Client, Method, Url,
     header::{HeaderMap, HeaderName, HeaderValue},
 };
-use serde::de::DeserializeOwned;
-use serde_json::Value;
+use serde::{Serialize, de::DeserializeOwned};
 use sha2::Sha256;
 
 use super::super::{
     error::{RestApiError, Result},
-    models::{PriceEntryLNM, Trade, TradeSide, TradeType},
+    models::{FuturesTradeRequest, PriceEntryLNM, Trade, TradeSide, TradeType},
     repositories::FuturesRepository,
 };
 
@@ -69,18 +68,16 @@ impl LnmFuturesRepository {
         timestamp_str: &str,
         method: &Method,
         path: impl AsRef<str>,
-        body: Option<&Value>,
+        body: Option<&String>,
         params: Option<Vec<(String, String)>>,
     ) -> Result<String> {
-        let params_str = match (method, &params, &body) {
+        let params_str = match (method, &params, body) {
             (&Method::GET, Some(p), _) | (&Method::DELETE, Some(p), _) => p
                 .iter()
                 .map(|(k, v)| format!("{}={}", k, v))
                 .collect::<Vec<String>>()
                 .join("&"),
-            (&Method::POST, _, Some(b)) | (&Method::PUT, _, Some(b)) => {
-                serde_json::to_string(b).map_err(|e| RestApiError::Generic(e.to_string()))?
-            }
+            (&Method::POST, _, Some(b)) | (&Method::PUT, _, Some(b)) => b.clone(),
             _ => String::new(),
         };
 
@@ -102,17 +99,21 @@ impl LnmFuturesRepository {
         Ok(signature)
     }
 
-    async fn make_request<T>(
+    async fn make_request<T, B>(
         &self,
         method: Method,
         path: impl AsRef<str>,
         params: Option<Vec<(String, String)>>,
-        body: Option<Value>,
+        body: Option<B>,
         authenticated: bool,
     ) -> Result<T>
     where
         T: DeserializeOwned,
+        B: Serialize,
     {
+        let body = body
+            .map(|b| serde_json::to_string(&b).map_err(|e| RestApiError::Generic(e.to_string())))
+            .transpose()?;
         let endpoint_url = self.get_endpoint_url(path.as_ref(), params.as_ref())?;
 
         let mut headers = HeaderMap::new();
@@ -156,7 +157,7 @@ impl LnmFuturesRepository {
         req_builder = req_builder.headers(headers);
 
         if let Some(b) = body {
-            req_builder = req_builder.json(&b);
+            req_builder = req_builder.body(b);
         }
 
         let response = req_builder
@@ -222,18 +223,18 @@ impl FuturesRepository for LnmFuturesRepository {
         stoploss: Option<f64>,
         takeprofit: Option<f64>,
     ) -> Result<Trade> {
-        let body = serde_json::json!({
-            "side": side.as_str(),
-            "margin": margin,
-            "leverage": leverage,
-            "type": TradeType::L.as_str(),
-            "price": price,
-            "stoploss": stoploss,
-            "takeprofit": takeprofit
-        });
+        let req = FuturesTradeRequest {
+            side,
+            trade_type: TradeType::L,
+            margin,
+            leverage,
+            price,
+            stoploss,
+            takeprofit,
+        };
 
-        let created_trade = self
-            .make_request::<Trade>(Method::POST, CREATE_NEW_TRADE_PATH, None, Some(body), true)
+        let created_trade: Trade = self
+            .make_request(Method::POST, CREATE_NEW_TRADE_PATH, None, Some(req), true)
             .await?;
 
         Ok(created_trade)
