@@ -2,7 +2,7 @@ use chrono::{
     DateTime, Utc,
     serde::{ts_milliseconds, ts_milliseconds_option},
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 #[derive(Debug, Deserialize)]
@@ -20,6 +20,58 @@ impl PriceEntryLNM {
     pub fn value(&self) -> f64 {
         self.value
     }
+}
+
+mod float_without_decimal {
+    use serde::{self, Serializer};
+
+    pub fn serialize<S>(value: &f64, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        if value.fract() == 0.0 {
+            serializer.serialize_i64(*value as i64)
+        } else {
+            serializer.serialize_f64(*value)
+        }
+    }
+}
+
+mod option_float_without_decimal {
+    use super::float_without_decimal;
+    use serde::{self, Serializer};
+
+    pub fn serialize<S>(value: &Option<f64>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match value {
+            Some(v) => float_without_decimal::serialize(v, serializer),
+            None => serializer.serialize_none(),
+        }
+    }
+}
+
+#[derive(Serialize)]
+pub struct FuturesTradeRequest {
+    pub side: TradeSide,
+    pub margin: u64,
+    #[serde(with = "float_without_decimal")]
+    pub leverage: f64,
+    #[serde(rename = "type")]
+    pub trade_type: TradeType,
+    #[serde(with = "float_without_decimal")]
+    pub price: f64,
+    #[serde(
+        with = "option_float_without_decimal",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub stoploss: Option<f64>,
+    #[serde(
+        with = "option_float_without_decimal",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub takeprofit: Option<f64>,
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -55,7 +107,7 @@ pub struct Trade {
     sum_carry_fees: i64,
 }
 
-#[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum TradeType {
     M, // Market order
@@ -71,7 +123,7 @@ impl TradeType {
     }
 }
 
-#[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum TradeSide {
     B, // Buy
