@@ -53,7 +53,7 @@ mod option_float_without_decimal {
 }
 
 #[derive(Serialize)]
-pub struct FuturesTradeRequest {
+pub struct FuturesTradeRequestBody {
     pub side: TradeSide,
     pub margin: u64,
     #[serde(with = "float_without_decimal")]

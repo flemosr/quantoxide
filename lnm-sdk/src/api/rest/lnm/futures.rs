@@ -14,7 +14,7 @@ use sha2::Sha256;
 
 use super::super::{
     error::{RestApiError, Result},
-    models::{FuturesTradeRequest, PriceEntryLNM, Trade, TradeSide, TradeType},
+    models::{FuturesTradeRequestBody, PriceEntryLNM, Trade, TradeSide, TradeType},
     repositories::FuturesRepository,
 };
 
@@ -63,23 +63,25 @@ impl LnmFuturesRepository {
         Ok(endpoint_url)
     }
 
+    fn get_url(&self, path: impl AsRef<str>, query_params: Option<String>) -> Result<Url> {
+        let query_str = query_params
+            .map(|v| format!("?{v}"))
+            .unwrap_or("".to_string());
+
+        let url_str = format!("https://{}{}{}", self.domain, path.as_ref(), query_str);
+        let url = Url::parse(&url_str).map_err(|e| RestApiError::UrlParse(e.to_string()))?;
+
+        Ok(url)
+    }
+
     fn generate_signature(
         &self,
         timestamp_str: &str,
         method: &Method,
         path: impl AsRef<str>,
-        body: Option<&String>,
-        params: Option<Vec<(String, String)>>,
+        params_str: Option<impl AsRef<str>>,
     ) -> Result<String> {
-        let params_str = match (method, &params, body) {
-            (&Method::GET, Some(p), _) | (&Method::DELETE, Some(p), _) => p
-                .iter()
-                .map(|(k, v)| format!("{}={}", k, v))
-                .collect::<Vec<String>>()
-                .join("&"),
-            (&Method::POST, _, Some(b)) | (&Method::PUT, _, Some(b)) => b.clone(),
-            _ => String::new(),
-        };
+        let params_str = params_str.as_ref().map(|v| v.as_ref()).unwrap_or("");
 
         let prehash = format!(
             "{}{}{}{}",
@@ -99,37 +101,24 @@ impl LnmFuturesRepository {
         Ok(signature)
     }
 
-    async fn make_request<T, B>(
+    async fn make_request<T>(
         &self,
         method: Method,
         path: impl AsRef<str>,
-        params: Option<Vec<(String, String)>>,
-        body: Option<B>,
+        params_str: Option<String>,
         authenticated: bool,
     ) -> Result<T>
     where
         T: DeserializeOwned,
         B: Serialize,
     {
-        let body = body
-            .map(|b| serde_json::to_string(&b).map_err(|e| RestApiError::Generic(e.to_string())))
-            .transpose()?;
-        let endpoint_url = self.get_endpoint_url(path.as_ref(), params.as_ref())?;
-
         let mut headers = HeaderMap::new();
-
-        if method == Method::POST || method == Method::PUT {
-            headers.insert(
-                HeaderName::from_static("content-type"),
-                HeaderValue::from_static("application/json"),
-            );
-        }
 
         if authenticated {
             let timestamp = Utc::now().timestamp_millis().to_string();
 
             let signature =
-                self.generate_signature(&timestamp, &method, path, body.as_ref(), params)?;
+                self.generate_signature(&timestamp, &method, &path, params_str.clone())?;
 
             headers.insert(
                 HeaderName::from_static("lnm-access-key"),
@@ -153,14 +142,28 @@ impl LnmFuturesRepository {
             );
         }
 
-        let mut req_builder = self.client.request(method, endpoint_url);
-        req_builder = req_builder.headers(headers);
+        let req = match method {
+            Method::POST | Method::PUT => {
+                headers.insert(
+                    HeaderName::from_static("content-type"),
+                    HeaderValue::from_static("application/json"),
+                );
 
-        if let Some(b) = body {
-            req_builder = req_builder.body(b);
-        }
+                let url = self.get_url(path.as_ref(), None)?;
+                let mut req = self.client.request(method, url).headers(headers);
+                if let Some(body) = params_str {
+                    req = req.body(body);
+                }
+                req
+            }
+            Method::GET | Method::DELETE => {
+                let url = self.get_url(path, params_str)?;
+                self.client.request(method, url).headers(headers)
+            }
+            _ => return Err(RestApiError::Generic("invalid method".to_string())),
+        };
 
-        let response = req_builder
+        let response = req
             .send()
             .await
             .map_err(|e| RestApiError::Generic(e.to_string()))?;
@@ -181,6 +184,24 @@ impl LnmFuturesRepository {
             .map_err(|e| RestApiError::Generic(e.to_string()))?;
 
         Ok(response_data)
+    }
+
+    async fn make_request_with_body<T, B>(
+        &self,
+        method: Method,
+        path: impl AsRef<str>,
+        body: B,
+        authenticated: bool,
+    ) -> Result<T>
+    where
+        T: DeserializeOwned,
+        B: Serialize,
+    {
+        let body =
+            serde_json::to_string(&body).map_err(|e| RestApiError::Generic(e.to_string()))?;
+
+        self.make_request(method, path, Some(body), authenticated)
+            .await
     }
 }
 
@@ -223,7 +244,7 @@ impl FuturesRepository for LnmFuturesRepository {
         stoploss: Option<f64>,
         takeprofit: Option<f64>,
     ) -> Result<Trade> {
-        let req = FuturesTradeRequest {
+        let body = FuturesTradeRequestBody {
             side,
             trade_type: TradeType::L,
             margin,
@@ -234,7 +255,7 @@ impl FuturesRepository for LnmFuturesRepository {
         };
 
         let created_trade: Trade = self
-            .make_request(Method::POST, CREATE_NEW_TRADE_PATH, None, Some(req), true)
+            .make_request_with_body(Method::POST, CREATE_NEW_TRADE_PATH, Some(body), true)
             .await?;
 
         Ok(created_trade)
