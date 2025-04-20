@@ -108,33 +108,17 @@ pub struct Trade {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
-#[serde(rename_all = "lowercase")]
 pub enum TradeType {
-    M, // Market order
-    L, // Limit order
-}
-
-impl TradeType {
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            TradeType::M => "m",
-            TradeType::L => "l",
-        }
-    }
+    #[serde(rename = "m")]
+    Market,
+    #[serde(rename = "l")]
+    Limit,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
-#[serde(rename_all = "lowercase")]
 pub enum TradeSide {
-    B, // Buy
-    S, // Sell
-}
-
-impl TradeSide {
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            TradeSide::B => "b",
-            TradeSide::S => "s",
-        }
-    }
+    #[serde(rename = "b")]
+    Buy,
+    #[serde(rename = "s")]
+    Sell,
 }

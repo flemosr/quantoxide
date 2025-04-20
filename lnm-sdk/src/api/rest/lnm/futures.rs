@@ -246,7 +246,7 @@ impl FuturesRepository for LnmFuturesRepository {
     ) -> Result<Trade> {
         let body = FuturesTradeRequestBody {
             side,
-            trade_type: TradeType::L,
+            trade_type: TradeType::Limit,
             margin,
             leverage,
             price,
