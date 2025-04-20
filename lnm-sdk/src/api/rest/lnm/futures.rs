@@ -110,7 +110,6 @@ impl LnmFuturesRepository {
     ) -> Result<T>
     where
         T: DeserializeOwned,
-        B: Serialize,
     {
         let mut headers = HeaderMap::new();
 
@@ -118,7 +117,7 @@ impl LnmFuturesRepository {
             let timestamp = Utc::now().timestamp_millis().to_string();
 
             let signature =
-                self.generate_signature(&timestamp, &method, &path, params_str.clone())?;
+                self.generate_signature(&timestamp, &method, &path, params_str.as_ref())?;
 
             headers.insert(
                 HeaderName::from_static("lnm-access-key"),
@@ -203,6 +202,29 @@ impl LnmFuturesRepository {
         self.make_request(method, path, Some(body), authenticated)
             .await
     }
+
+    async fn make_request_with_query_params<I, K, V, T>(
+        &self,
+        method: Method,
+        path: impl AsRef<str>,
+        query: I,
+        authenticated: bool,
+    ) -> Result<T>
+    where
+        I: IntoIterator<Item = (K, V)>,
+        K: AsRef<str>,
+        V: AsRef<str>,
+        T: DeserializeOwned,
+    {
+        let query_str = query
+            .into_iter()
+            .map(|(k, v)| format!("{}={}", k.as_ref(), v.as_ref()))
+            .collect::<Vec<String>>()
+            .join("&");
+
+        self.make_request(method, path, Some(query_str), authenticated)
+            .await
+    }
 }
 
 #[async_trait]
@@ -213,24 +235,20 @@ impl FuturesRepository for LnmFuturesRepository {
         to: Option<&DateTime<Utc>>,
         limit: Option<usize>,
     ) -> Result<Vec<PriceEntryLNM>> {
-        let mut params = Vec::new();
+        let mut query_params = Vec::new();
         if let Some(from) = from {
-            params.push(("from", from.timestamp_millis().to_string()));
+            query_params.push(("from", from.timestamp_millis().to_string()));
         }
         if let Some(to) = to {
-            params.push(("to", to.timestamp_millis().to_string()));
+            query_params.push(("to", to.timestamp_millis().to_string()));
         }
         if let Some(limit) = limit {
-            params.push(("limit", limit.to_string()));
+            query_params.push(("limit", limit.to_string()));
         }
 
-        let url = self.get_endpoint_url(PRICE_HISTORY_PATH, Some(params))?;
-        let res = reqwest::get(url).await.map_err(RestApiError::Response)?;
-
-        let price_history = res
-            .json::<Vec<PriceEntryLNM>>()
-            .await
-            .map_err(RestApiError::UnexpectedSchema)?;
+        let price_history: Vec<PriceEntryLNM> = self
+            .make_request_with_query_params(Method::GET, PRICE_HISTORY_PATH, query_params, false)
+            .await?;
 
         Ok(price_history)
     }
