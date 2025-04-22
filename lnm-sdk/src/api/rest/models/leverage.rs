@@ -1,7 +1,7 @@
 use serde::Serialize;
 use std::{cmp::Ordering, convert::TryFrom};
 
-use super::{error::LeverageValidationError, utils::float_without_decimal};
+use super::{error::LeverageValidationError, utils};
 
 #[derive(Debug, Clone, Copy)]
 pub struct Leverage(f64);
@@ -114,6 +114,6 @@ impl Serialize for Leverage {
     where
         S: serde::Serializer,
     {
-        float_without_decimal::serialize(&self.0, serializer)
+        utils::float_without_decimal::serialize(&self.0, serializer)
     }
 }
