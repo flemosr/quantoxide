@@ -660,6 +660,12 @@ pub enum FuturesTradeRequestValidationError {
 
     #[error("Implied quantity must be valid")]
     InvalidImpliedQuantity(#[from] QuantityValidationError),
+
+    #[error("Stop loss must be lower than the entry price")]
+    StopLossHigherThanPrice,
+
+    #[error("Take profit must be higher than the entry price")]
+    TakeProfitLowerThanPrice,
 }
 
 #[derive(Serialize)]
@@ -671,7 +677,9 @@ pub struct FuturesTradeRequestBody {
     takeprofit: Option<FuturePrice>,
     side: TradeSide,
 
+    #[serde(skip_serializing_if = "Option::is_none")]
     quantity: Option<Quantity>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     margin: Option<Margin>,
 
     #[serde(rename = "type")]
@@ -717,6 +725,20 @@ impl FuturesTradeRequestBody {
             }
             _ => {}
         };
+
+        if let Some(price_val) = price {
+            if let Some(stoploss_val) = stoploss {
+                if stoploss_val >= price_val {
+                    return Err(FuturesTradeRequestValidationError::StopLossHigherThanPrice);
+                }
+            }
+
+            if let Some(takeprofit_val) = takeprofit {
+                if takeprofit_val <= price_val {
+                    return Err(FuturesTradeRequestValidationError::TakeProfitLowerThanPrice);
+                }
+            }
+        }
 
         Ok(FuturesTradeRequestBody {
             leverage,
