@@ -7,8 +7,14 @@ use super::{error::PriceValidationError, utils};
 pub struct Price(f64);
 
 impl Price {
-    pub fn to_f64(&self) -> f64 {
-        self.0
+    pub fn into_f64(self) -> f64 {
+        f64::from(self)
+    }
+}
+
+impl From<Price> for f64 {
+    fn from(value: Price) -> f64 {
+        value.0
     }
 }
 
