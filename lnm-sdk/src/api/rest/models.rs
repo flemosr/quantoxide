@@ -323,6 +323,15 @@ impl Quantity {
     pub fn to_u64(&self) -> u64 {
         self.0
     }
+
+    pub fn try_calculate(
+        margin: Margin,
+        price: FuturePrice,
+        leverage: Leverage,
+    ) -> Result<Self, QuantityValidationError> {
+        let qtd = margin.to_u64() as f64 / 100000000. * price.to_f64() * leverage.to_f64();
+        Self::try_from(qtd)
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -635,22 +644,91 @@ impl Serialize for Margin {
     }
 }
 
+#[derive(Debug, thiserror::Error)]
+pub enum FuturesTradeRequestValidationError {
+    #[error("Either quantity or margin must be provided")]
+    MissingQuantityAndMargin,
+
+    #[error("Cannot provide both quantity and margin")]
+    BothQuantityAndMarginProvided,
+
+    #[error("Price cannot be set for market orders")]
+    PriceSetForMarketOrder,
+
+    #[error("Price must be set for limit orders")]
+    MissingPriceForLimitOrder,
+
+    #[error("Implied quantity must be valid")]
+    InvalidImpliedQuantity(#[from] QuantityValidationError),
+}
+
 #[derive(Serialize)]
 pub struct FuturesTradeRequestBody {
-    pub leverage: Leverage,
+    leverage: Leverage,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub stoploss: Option<FuturePrice>,
+    stoploss: Option<FuturePrice>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub takeprofit: Option<FuturePrice>,
-    pub side: TradeSide,
+    takeprofit: Option<FuturePrice>,
+    side: TradeSide,
 
-    pub quantity: Option<Quantity>,
-    pub margin: Option<Margin>,
+    quantity: Option<Quantity>,
+    margin: Option<Margin>,
 
     #[serde(rename = "type")]
-    pub trade_type: TradeType,
+    trade_type: TradeType,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub price: Option<FuturePrice>,
+    price: Option<FuturePrice>,
+}
+
+impl FuturesTradeRequestBody {
+    pub fn new(
+        leverage: Leverage,
+        stoploss: Option<FuturePrice>,
+        takeprofit: Option<FuturePrice>,
+        side: TradeSide,
+        quantity: Option<Quantity>,
+        margin: Option<Margin>,
+        trade_type: TradeType,
+        price: Option<FuturePrice>,
+    ) -> Result<Self, FuturesTradeRequestValidationError> {
+        match (quantity, margin) {
+            (None, None) => {
+                return Err(FuturesTradeRequestValidationError::MissingQuantityAndMargin);
+            }
+            (Some(_), Some(_)) => {
+                return Err(FuturesTradeRequestValidationError::BothQuantityAndMarginProvided);
+            }
+            _ => {}
+        }
+
+        match (&trade_type, price) {
+            (TradeType::Market, Some(_)) => {
+                return Err(FuturesTradeRequestValidationError::PriceSetForMarketOrder);
+            }
+            (TradeType::Limit, None) => {
+                return Err(FuturesTradeRequestValidationError::MissingPriceForLimitOrder);
+            }
+            _ => {}
+        }
+
+        match (margin, price) {
+            (Some(margin), Some(price)) => {
+                let _ = Quantity::try_calculate(margin, price, leverage)?;
+            }
+            _ => {}
+        };
+
+        Ok(FuturesTradeRequestBody {
+            leverage,
+            stoploss,
+            takeprofit,
+            side,
+            quantity,
+            margin,
+            trade_type,
+            price,
+        })
+    }
 }
 
 #[derive(Deserialize, Debug, Clone)]
