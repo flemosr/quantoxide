@@ -41,6 +41,12 @@ mod float_without_decimal {
 #[derive(Debug, Clone, Copy)]
 pub struct FuturePrice(f64);
 
+impl FuturePrice {
+    pub fn to_f64(&self) -> f64 {
+        self.0
+    }
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum PriceValidationError {
     #[error("Price must be positive")]
@@ -78,12 +84,6 @@ impl TryFrom<i32> for FuturePrice {
 
     fn try_from(price: i32) -> Result<Self, Self::Error> {
         Self::try_from(price as f64)
-    }
-}
-
-impl FuturePrice {
-    pub fn to_f64(&self) -> f64 {
-        self.0
     }
 }
 
@@ -192,6 +192,12 @@ impl Serialize for FuturePrice {
 #[derive(Debug, Clone, Copy)]
 pub struct Leverage(f64);
 
+impl Leverage {
+    pub fn to_f64(&self) -> f64 {
+        self.0
+    }
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum LeverageValidationError {
     #[error("Leverage must be at least 1")]
@@ -229,12 +235,6 @@ impl TryFrom<i32> for Leverage {
 
     fn try_from(leverage: i32) -> Result<Self, Self::Error> {
         Self::try_from(leverage as f64)
-    }
-}
-
-impl Leverage {
-    pub fn to_f64(&self) -> f64 {
-        self.0
     }
 }
 
@@ -319,6 +319,12 @@ impl Serialize for Leverage {
 #[derive(Debug, Clone, Copy)]
 pub struct Quantity(u64);
 
+impl Quantity {
+    pub fn to_u64(&self) -> u64 {
+        self.0
+    }
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum QuantityValidationError {
     #[error("Quantity must be positive")]
@@ -377,12 +383,6 @@ impl TryFrom<f64> for Quantity {
         let quantity_u64 = quantity as u64;
 
         Self::try_from(quantity_u64)
-    }
-}
-
-impl Quantity {
-    pub fn to_u64(&self) -> u64 {
-        self.0
     }
 }
 
@@ -482,6 +482,12 @@ impl Serialize for Quantity {
 #[derive(Debug, Clone, Copy)]
 pub struct Margin(u64);
 
+impl Margin {
+    pub fn to_u64(&self) -> u64 {
+        self.0
+    }
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum MarginValidationError {
     #[error("Margin must be positive")]
@@ -533,12 +539,6 @@ impl TryFrom<f64> for Margin {
         }
 
         Ok(Margin(margin as u64))
-    }
-}
-
-impl Margin {
-    pub fn to_u64(&self) -> u64 {
-        self.0
     }
 }
 
