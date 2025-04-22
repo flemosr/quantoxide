@@ -7,8 +7,14 @@ use super::{error::LeverageValidationError, utils};
 pub struct Leverage(f64);
 
 impl Leverage {
-    pub fn to_f64(&self) -> f64 {
+    pub fn into_f64(self) -> f64 {
         self.0
+    }
+}
+
+impl From<Leverage> for f64 {
+    fn from(value: Leverage) -> f64 {
+        value.0
     }
 }
 
