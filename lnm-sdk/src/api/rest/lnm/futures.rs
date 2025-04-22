@@ -6,7 +6,7 @@ use std::sync::Arc;
 use crate::api::rest::models::{FuturePrice, Leverage, Margin};
 
 use super::super::{
-    error::Result,
+    error::{RestApiError, Result},
     models::{FuturesTradeRequestBody, PriceEntryLNM, Trade, TradeSide, TradeType},
     repositories::FuturesRepository,
 };
@@ -63,10 +63,15 @@ impl FuturesRepository for LnmFuturesRepository {
     ) -> Result<Trade> {
         let body = FuturesTradeRequestBody::new(
             leverage,
-            price: Some(price),
             stoploss,
             takeprofit,
-        };
+            side,
+            None,
+            Some(margin),
+            TradeType::Limit,
+            Some(price),
+        )
+        .map_err(|e| RestApiError::Generic(e.to_string()))?;
 
         let created_trade: Trade = self
             .base
