@@ -7,11 +7,13 @@ use std::{cmp::Ordering, convert::TryFrom};
 use uuid::Uuid;
 
 mod error;
+mod utils;
 
 use error::{
     FuturesTradeRequestValidationError, LeverageValidationError, MarginValidationError,
     PriceValidationError, QuantityValidationError,
 };
+use utils::float_without_decimal;
 
 #[derive(Debug, Deserialize)]
 pub struct PriceEntryLNM {
@@ -27,21 +29,6 @@ impl PriceEntryLNM {
 
     pub fn value(&self) -> f64 {
         self.value
-    }
-}
-
-mod float_without_decimal {
-    use serde::{self, Serializer};
-
-    pub fn serialize<S>(value: &f64, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        if value.fract() == 0.0 {
-            serializer.serialize_i64(*value as i64)
-        } else {
-            serializer.serialize_f64(*value)
-        }
     }
 }
 
