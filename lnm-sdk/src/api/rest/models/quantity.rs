@@ -7,8 +7,8 @@ use super::{Leverage, Margin, Price, error::QuantityValidationError};
 pub struct Quantity(u64);
 
 impl Quantity {
-    pub fn to_u64(&self) -> u64 {
-        self.0
+    pub fn into_u64(self) -> u64 {
+        u64::from(self)
     }
 
     pub fn try_calculate(
@@ -16,8 +16,14 @@ impl Quantity {
         price: Price,
         leverage: Leverage,
     ) -> Result<Self, QuantityValidationError> {
-        let qtd = margin.to_u64() as f64 / 100000000. * price.to_f64() * leverage.to_f64();
+        let qtd = margin.into_u64() as f64 / 100000000. * price.into_f64() * leverage.into_f64();
         Self::try_from(qtd)
+    }
+}
+
+impl From<Quantity> for u64 {
+    fn from(value: Quantity) -> Self {
+        value.0
     }
 }
 
