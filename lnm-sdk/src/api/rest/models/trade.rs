@@ -5,7 +5,7 @@ use chrono::{
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use super::{Leverage, Margin, Price, Quantity, error::FuturesTradeRequestValidationError};
+use super::{Leverage, Margin, Price, Quantity, error::FuturesTradeRequestValidationError, utils};
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub enum TradeType {
@@ -121,11 +121,14 @@ pub struct Trade {
     quantity: u64,
     margin: u64,
     leverage: f64,
-    price: f64,
-    liquidation: f64,
-    stoploss: f64,
-    takeprofit: f64,
-    exit_price: Option<f64>,
+    price: Price,
+    liquidation: Price,
+    #[serde(with = "utils::price_option")]
+    stoploss: Option<Price>,
+    #[serde(with = "utils::price_option")]
+    takeprofit: Option<Price>,
+    #[serde(with = "utils::price_option")]
+    exit_price: Option<Price>,
     pl: u64,
     #[serde(with = "ts_milliseconds")]
     creation_ts: DateTime<Utc>,
@@ -133,7 +136,8 @@ pub struct Trade {
     market_filled_ts: Option<DateTime<Utc>>,
     #[serde(with = "ts_milliseconds_option")]
     closed_ts: Option<DateTime<Utc>>,
-    entry_price: Option<f64>,
+    #[serde(with = "utils::price_option")]
+    entry_price: Option<Price>,
     entry_margin: Option<u64>,
     open: bool,
     running: bool,
