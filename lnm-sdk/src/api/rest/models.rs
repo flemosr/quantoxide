@@ -3,6 +3,7 @@ use chrono::{
     serde::{ts_milliseconds, ts_milliseconds_option},
 };
 use serde::{Deserialize, Serialize};
+use std::{cmp::Ordering, convert::TryFrom};
 use uuid::Uuid;
 
 #[derive(Debug, Deserialize)]
@@ -37,18 +38,154 @@ mod float_without_decimal {
     }
 }
 
-mod option_float_without_decimal {
-    use super::float_without_decimal;
-    use serde::{self, Serializer};
+#[derive(Debug, Clone, Copy)]
+pub struct FuturePrice(f64);
 
-    pub fn serialize<S>(value: &Option<f64>, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        match value {
-            Some(v) => float_without_decimal::serialize(v, serializer),
-            None => serializer.serialize_none(),
+#[derive(Debug, thiserror::Error)]
+pub enum PriceValidationError {
+    #[error("Price must be positive")]
+    NotPositive,
+
+    #[error("Price must be a multiple of 0.5")]
+    NotMultipleOfTick,
+
+    #[error("Price must be a finite number")]
+    NotFinite,
+}
+
+impl TryFrom<f64> for FuturePrice {
+    type Error = PriceValidationError;
+
+    fn try_from(price: f64) -> Result<Self, Self::Error> {
+        if !price.is_finite() {
+            return Err(PriceValidationError::NotFinite);
         }
+
+        if price <= 0.0 {
+            return Err(PriceValidationError::NotPositive);
+        }
+
+        if (price * 2.0).round() != price * 2.0 {
+            return Err(PriceValidationError::NotMultipleOfTick);
+        }
+
+        Ok(FuturePrice(price))
+    }
+}
+
+impl TryFrom<i32> for FuturePrice {
+    type Error = PriceValidationError;
+
+    fn try_from(price: i32) -> Result<Self, Self::Error> {
+        Self::try_from(price as f64)
+    }
+}
+
+impl FuturePrice {
+    pub fn to_f64(&self) -> f64 {
+        self.0
+    }
+}
+
+impl PartialEq for FuturePrice {
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
+
+impl Eq for FuturePrice {}
+
+impl PartialOrd for FuturePrice {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        self.0.partial_cmp(&other.0)
+    }
+}
+
+impl Ord for FuturePrice {
+    fn cmp(&self, other: &Self) -> Ordering {
+        // Since we guarantee the values are finite, we can use partial_cmp and unwrap
+        self.partial_cmp(other).unwrap()
+    }
+}
+
+impl PartialEq<f64> for FuturePrice {
+    fn eq(&self, other: &f64) -> bool {
+        self.0 == *other
+    }
+}
+
+impl PartialOrd<f64> for FuturePrice {
+    fn partial_cmp(&self, other: &f64) -> Option<Ordering> {
+        self.0.partial_cmp(other)
+    }
+}
+
+impl PartialEq<FuturePrice> for f64 {
+    fn eq(&self, other: &FuturePrice) -> bool {
+        *self == other.0
+    }
+}
+
+impl PartialOrd<FuturePrice> for f64 {
+    fn partial_cmp(&self, other: &FuturePrice) -> Option<Ordering> {
+        self.partial_cmp(&other.0)
+    }
+}
+
+impl PartialEq<i32> for FuturePrice {
+    fn eq(&self, other: &i32) -> bool {
+        self.0 == *other as f64
+    }
+}
+
+impl PartialOrd<i32> for FuturePrice {
+    fn partial_cmp(&self, other: &i32) -> Option<Ordering> {
+        self.0.partial_cmp(&(*other as f64))
+    }
+}
+
+impl PartialEq<FuturePrice> for i32 {
+    fn eq(&self, other: &FuturePrice) -> bool {
+        *self as f64 == other.0
+    }
+}
+
+impl PartialOrd<FuturePrice> for i32 {
+    fn partial_cmp(&self, other: &FuturePrice) -> Option<Ordering> {
+        (*self as f64).partial_cmp(&other.0)
+    }
+}
+
+impl PartialEq<u32> for FuturePrice {
+    fn eq(&self, other: &u32) -> bool {
+        self.0 == *other as f64
+    }
+}
+
+impl PartialOrd<u32> for FuturePrice {
+    fn partial_cmp(&self, other: &u32) -> Option<Ordering> {
+        self.0.partial_cmp(&(*other as f64))
+    }
+}
+
+impl PartialEq<FuturePrice> for u32 {
+    fn eq(&self, other: &FuturePrice) -> bool {
+        *self as f64 == other.0
+    }
+}
+
+impl PartialOrd<FuturePrice> for u32 {
+    fn partial_cmp(&self, other: &FuturePrice) -> Option<Ordering> {
+        (*self as f64).partial_cmp(&other.0)
+    }
+}
+
+impl Serialize for FuturePrice {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        float_without_decimal::serialize(&self.0, serializer)
     }
 }
 
@@ -60,18 +197,12 @@ pub struct FuturesTradeRequestBody {
     pub leverage: f64,
     #[serde(rename = "type")]
     pub trade_type: TradeType,
-    #[serde(with = "float_without_decimal")]
-    pub price: f64,
-    #[serde(
-        with = "option_float_without_decimal",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub stoploss: Option<f64>,
-    #[serde(
-        with = "option_float_without_decimal",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub takeprofit: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub price: Option<FuturePrice>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stoploss: Option<FuturePrice>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub takeprofit: Option<FuturePrice>,
 }
 
 #[derive(Deserialize, Debug, Clone)]
