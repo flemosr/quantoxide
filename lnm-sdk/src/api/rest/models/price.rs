@@ -1,7 +1,7 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize, de};
 use std::{cmp::Ordering, convert::TryFrom};
 
-use super::{error::PriceValidationError, utils::float_without_decimal};
+use super::{error::PriceValidationError, utils};
 
 #[derive(Debug, Clone, Copy)]
 pub struct Price(f64);
@@ -138,6 +138,16 @@ impl Serialize for Price {
     where
         S: serde::Serializer,
     {
-        float_without_decimal::serialize(&self.0, serializer)
+        utils::float_without_decimal::serialize(&self.0, serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for Price {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let price_f64 = f64::deserialize(deserializer)?;
+        Price::try_from(price_f64).map_err(|e| de::Error::custom(e.to_string()))
     }
 }
