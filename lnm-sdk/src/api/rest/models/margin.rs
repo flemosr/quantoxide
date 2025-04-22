@@ -1,4 +1,4 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize, de};
 use std::{cmp::Ordering, convert::TryFrom};
 
 use super::error::MarginValidationError;
@@ -142,5 +142,15 @@ impl Serialize for Margin {
         S: serde::Serializer,
     {
         serializer.serialize_u64(self.0)
+    }
+}
+
+impl<'de> Deserialize<'de> for Margin {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let margin_u64 = u64::deserialize(deserializer)?;
+        Margin::try_from(margin_u64).map_err(|e| de::Error::custom(e.to_string()))
     }
 }
