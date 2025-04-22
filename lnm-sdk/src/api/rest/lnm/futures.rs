@@ -3,7 +3,7 @@ use chrono::{DateTime, Utc};
 use reqwest::{self, Method};
 use std::sync::Arc;
 
-use crate::api::rest::models::{FuturePrice, Leverage, Margin};
+use crate::api::rest::models::{Leverage, Margin, Price};
 
 use super::super::{
     error::{RestApiError, Result},
@@ -57,9 +57,9 @@ impl FuturesRepository for LnmFuturesRepository {
         side: TradeSide,
         margin: Margin,
         leverage: Leverage,
-        price: FuturePrice,
-        stoploss: Option<FuturePrice>,
-        takeprofit: Option<FuturePrice>,
+        price: Price,
+        stoploss: Option<Price>,
+        takeprofit: Option<Price>,
     ) -> Result<Trade> {
         let body = FuturesTradeRequestBody::new(
             leverage,
