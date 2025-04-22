@@ -7,8 +7,14 @@ use super::error::MarginValidationError;
 pub struct Margin(u64);
 
 impl Margin {
-    pub fn to_u64(&self) -> u64 {
-        self.0
+    pub fn into_u64(self) -> u64 {
+        u64::from(self)
+    }
+}
+
+impl From<Margin> for u64 {
+    fn from(value: Margin) -> Self {
+        value.0
     }
 }
 
