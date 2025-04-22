@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 use super::{Leverage, Margin, Price, Quantity, error::FuturesTradeRequestValidationError, utils};
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Copy)]
 pub enum TradeType {
     #[serde(rename = "m")]
     Market,
@@ -15,7 +15,7 @@ pub enum TradeType {
     Limit,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Copy)]
 pub enum TradeSide {
     #[serde(rename = "b")]
     Buy,
@@ -144,4 +144,110 @@ pub struct Trade {
     canceled: bool,
     closed: bool,
     sum_carry_fees: u64,
+}
+
+impl Trade {
+    pub fn id(&self) -> Uuid {
+        self.id
+    }
+
+    pub fn uid(&self) -> Uuid {
+        self.uid
+    }
+
+    pub fn trade_type(&self) -> TradeType {
+        self.trade_type
+    }
+
+    pub fn side(&self) -> TradeSide {
+        self.side
+    }
+
+    pub fn opening_fee(&self) -> u64 {
+        self.opening_fee
+    }
+
+    pub fn closing_fee(&self) -> u64 {
+        self.closing_fee
+    }
+
+    pub fn maintenance_margin(&self) -> Margin {
+        self.maintenance_margin
+    }
+
+    pub fn quantity(&self) -> Quantity {
+        self.quantity
+    }
+
+    pub fn margin(&self) -> Margin {
+        self.margin
+    }
+
+    pub fn leverage(&self) -> Leverage {
+        self.leverage
+    }
+
+    pub fn price(&self) -> Price {
+        self.price
+    }
+
+    pub fn liquidation(&self) -> Price {
+        self.liquidation
+    }
+
+    pub fn stoploss(&self) -> Option<Price> {
+        self.stoploss
+    }
+
+    pub fn takeprofit(&self) -> Option<Price> {
+        self.takeprofit
+    }
+
+    pub fn exit_price(&self) -> Option<Price> {
+        self.exit_price
+    }
+
+    pub fn pl(&self) -> u64 {
+        self.pl
+    }
+
+    pub fn creation_ts(&self) -> DateTime<Utc> {
+        self.creation_ts
+    }
+
+    pub fn market_filled_ts(&self) -> Option<DateTime<Utc>> {
+        self.market_filled_ts
+    }
+
+    pub fn closed_ts(&self) -> Option<DateTime<Utc>> {
+        self.closed_ts
+    }
+
+    pub fn entry_price(&self) -> Option<Price> {
+        self.entry_price
+    }
+
+    pub fn entry_margin(&self) -> Option<Margin> {
+        self.entry_margin
+    }
+
+    pub fn open(&self) -> bool {
+        self.open
+    }
+
+    pub fn running(&self) -> bool {
+        self.running
+    }
+
+    pub fn canceled(&self) -> bool {
+        self.canceled
+    }
+
+    pub fn closed(&self) -> bool {
+        self.closed
+    }
+
+    pub fn sum_carry_fees(&self) -> u64 {
+        self.sum_carry_fees
+    }
 }
