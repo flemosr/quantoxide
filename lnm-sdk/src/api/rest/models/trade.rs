@@ -120,7 +120,7 @@ pub struct Trade {
     maintenance_margin: u64,
     quantity: u64,
     margin: u64,
-    leverage: f64,
+    leverage: Leverage,
     price: Price,
     liquidation: Price,
     #[serde(with = "utils::price_option")]
