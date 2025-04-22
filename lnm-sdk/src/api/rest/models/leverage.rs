@@ -1,4 +1,4 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize, de};
 use std::{cmp::Ordering, convert::TryFrom};
 
 use super::{error::LeverageValidationError, utils};
@@ -115,5 +115,15 @@ impl Serialize for Leverage {
         S: serde::Serializer,
     {
         utils::float_without_decimal::serialize(&self.0, serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for Leverage {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let leverage_f64 = f64::deserialize(deserializer)?;
+        Leverage::try_from(leverage_f64).map_err(|e| de::Error::custom(e.to_string()))
     }
 }
