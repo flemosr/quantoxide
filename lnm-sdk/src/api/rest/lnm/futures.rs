@@ -61,10 +61,7 @@ impl FuturesRepository for LnmFuturesRepository {
         stoploss: Option<FuturePrice>,
         takeprofit: Option<FuturePrice>,
     ) -> Result<Trade> {
-        let body = FuturesTradeRequestBody {
-            side,
-            trade_type: TradeType::Limit,
-            margin,
+        let body = FuturesTradeRequestBody::new(
             leverage,
             price: Some(price),
             stoploss,
