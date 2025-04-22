@@ -3,7 +3,7 @@ use chrono::{DateTime, Utc};
 use reqwest::{self, Method};
 use std::sync::Arc;
 
-use crate::api::rest::models::{FuturePrice, Leverage};
+use crate::api::rest::models::{FuturePrice, Leverage, Margin};
 
 use super::super::{
     error::Result,
@@ -55,7 +55,7 @@ impl FuturesRepository for LnmFuturesRepository {
     async fn create_new_trade_margin_limit(
         &self,
         side: TradeSide,
-        margin: u64,
+        margin: Margin,
         leverage: Leverage,
         price: FuturePrice,
         stoploss: Option<FuturePrice>,

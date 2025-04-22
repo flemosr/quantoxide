@@ -3,7 +3,7 @@ use chrono::{DateTime, Utc};
 
 use super::{
     error::Result,
-    models::{FuturePrice, Leverage, PriceEntryLNM, Trade, TradeSide},
+    models::{FuturePrice, Leverage, Margin, PriceEntryLNM, Trade, TradeSide},
 };
 
 #[async_trait]
@@ -18,7 +18,7 @@ pub trait FuturesRepository: Send + Sync {
     async fn create_new_trade_margin_limit(
         &self,
         side: TradeSide,
-        margin: u64,
+        margin: Margin,
         leverage: Leverage,
         price: FuturePrice,
         stoploss: Option<FuturePrice>,
