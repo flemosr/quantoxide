@@ -147,7 +147,7 @@ impl PriceHistoryRepository for PgPriceHistoryRepo {
                     VALUES ($1, $2, $3)
                 "#,
                 entry.time(),
-                entry.value(),
+                entry.value().into_f64(),
                 next_entry_time
             )
             .execute(&mut *tx)
