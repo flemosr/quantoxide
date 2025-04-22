@@ -1,11 +1,13 @@
 use chrono::{DateTime, Utc, serde::ts_milliseconds};
 use serde::Deserialize;
 
+use super::Price;
+
 #[derive(Debug, Deserialize)]
 pub struct PriceEntryLNM {
     #[serde(with = "ts_milliseconds")]
     time: DateTime<Utc>,
-    value: f64,
+    value: Price,
 }
 
 impl PriceEntryLNM {
@@ -13,7 +15,7 @@ impl PriceEntryLNM {
         &self.time
     }
 
-    pub fn value(&self) -> f64 {
+    pub fn value(&self) -> Price {
         self.value
     }
 }
