@@ -3,7 +3,7 @@ use chrono::{DateTime, Utc};
 
 use super::{
     error::Result,
-    models::{FuturePrice, PriceEntryLNM, Trade, TradeSide},
+    models::{FuturePrice, Leverage, PriceEntryLNM, Trade, TradeSide},
 };
 
 #[async_trait]
@@ -19,7 +19,7 @@ pub trait FuturesRepository: Send + Sync {
         &self,
         side: TradeSide,
         margin: u64,
-        leverage: f64,
+        leverage: Leverage,
         price: FuturePrice,
         stoploss: Option<FuturePrice>,
         takeprofit: Option<FuturePrice>,
