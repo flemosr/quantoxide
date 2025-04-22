@@ -6,6 +6,13 @@ use serde::{Deserialize, Serialize};
 use std::{cmp::Ordering, convert::TryFrom};
 use uuid::Uuid;
 
+mod error;
+
+use error::{
+    FuturesTradeRequestValidationError, LeverageValidationError, MarginValidationError,
+    PriceValidationError, QuantityValidationError,
+};
+
 #[derive(Debug, Deserialize)]
 pub struct PriceEntryLNM {
     #[serde(with = "ts_milliseconds")]
@@ -39,27 +46,15 @@ mod float_without_decimal {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct FuturePrice(f64);
+pub struct Price(f64);
 
-impl FuturePrice {
+impl Price {
     pub fn to_f64(&self) -> f64 {
         self.0
     }
 }
 
-#[derive(Debug, thiserror::Error)]
-pub enum PriceValidationError {
-    #[error("Price must be positive")]
-    NotPositive,
-
-    #[error("Price must be a multiple of 0.5")]
-    NotMultipleOfTick,
-
-    #[error("Price must be a finite number")]
-    NotFinite,
-}
-
-impl TryFrom<f64> for FuturePrice {
+impl TryFrom<f64> for Price {
     type Error = PriceValidationError;
 
     fn try_from(price: f64) -> Result<Self, Self::Error> {
@@ -75,11 +70,11 @@ impl TryFrom<f64> for FuturePrice {
             return Err(PriceValidationError::NotMultipleOfTick);
         }
 
-        Ok(FuturePrice(price))
+        Ok(Price(price))
     }
 }
 
-impl TryFrom<i32> for FuturePrice {
+impl TryFrom<i32> for Price {
     type Error = PriceValidationError;
 
     fn try_from(price: i32) -> Result<Self, Self::Error> {
@@ -87,100 +82,100 @@ impl TryFrom<i32> for FuturePrice {
     }
 }
 
-impl PartialEq for FuturePrice {
+impl PartialEq for Price {
     fn eq(&self, other: &Self) -> bool {
         self.0 == other.0
     }
 }
 
-impl Eq for FuturePrice {}
+impl Eq for Price {}
 
-impl PartialOrd for FuturePrice {
+impl PartialOrd for Price {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         self.0.partial_cmp(&other.0)
     }
 }
 
-impl Ord for FuturePrice {
+impl Ord for Price {
     fn cmp(&self, other: &Self) -> Ordering {
         // Since we guarantee the values are finite, we can use partial_cmp and unwrap
         self.partial_cmp(other).unwrap()
     }
 }
 
-impl PartialEq<f64> for FuturePrice {
+impl PartialEq<f64> for Price {
     fn eq(&self, other: &f64) -> bool {
         self.0 == *other
     }
 }
 
-impl PartialOrd<f64> for FuturePrice {
+impl PartialOrd<f64> for Price {
     fn partial_cmp(&self, other: &f64) -> Option<Ordering> {
         self.0.partial_cmp(other)
     }
 }
 
-impl PartialEq<FuturePrice> for f64 {
-    fn eq(&self, other: &FuturePrice) -> bool {
+impl PartialEq<Price> for f64 {
+    fn eq(&self, other: &Price) -> bool {
         *self == other.0
     }
 }
 
-impl PartialOrd<FuturePrice> for f64 {
-    fn partial_cmp(&self, other: &FuturePrice) -> Option<Ordering> {
+impl PartialOrd<Price> for f64 {
+    fn partial_cmp(&self, other: &Price) -> Option<Ordering> {
         self.partial_cmp(&other.0)
     }
 }
 
-impl PartialEq<i32> for FuturePrice {
+impl PartialEq<i32> for Price {
     fn eq(&self, other: &i32) -> bool {
         self.0 == *other as f64
     }
 }
 
-impl PartialOrd<i32> for FuturePrice {
+impl PartialOrd<i32> for Price {
     fn partial_cmp(&self, other: &i32) -> Option<Ordering> {
         self.0.partial_cmp(&(*other as f64))
     }
 }
 
-impl PartialEq<FuturePrice> for i32 {
-    fn eq(&self, other: &FuturePrice) -> bool {
+impl PartialEq<Price> for i32 {
+    fn eq(&self, other: &Price) -> bool {
         *self as f64 == other.0
     }
 }
 
-impl PartialOrd<FuturePrice> for i32 {
-    fn partial_cmp(&self, other: &FuturePrice) -> Option<Ordering> {
+impl PartialOrd<Price> for i32 {
+    fn partial_cmp(&self, other: &Price) -> Option<Ordering> {
         (*self as f64).partial_cmp(&other.0)
     }
 }
 
-impl PartialEq<u32> for FuturePrice {
+impl PartialEq<u32> for Price {
     fn eq(&self, other: &u32) -> bool {
         self.0 == *other as f64
     }
 }
 
-impl PartialOrd<u32> for FuturePrice {
+impl PartialOrd<u32> for Price {
     fn partial_cmp(&self, other: &u32) -> Option<Ordering> {
         self.0.partial_cmp(&(*other as f64))
     }
 }
 
-impl PartialEq<FuturePrice> for u32 {
-    fn eq(&self, other: &FuturePrice) -> bool {
+impl PartialEq<Price> for u32 {
+    fn eq(&self, other: &Price) -> bool {
         *self as f64 == other.0
     }
 }
 
-impl PartialOrd<FuturePrice> for u32 {
-    fn partial_cmp(&self, other: &FuturePrice) -> Option<Ordering> {
+impl PartialOrd<Price> for u32 {
+    fn partial_cmp(&self, other: &Price) -> Option<Ordering> {
         (*self as f64).partial_cmp(&other.0)
     }
 }
 
-impl Serialize for FuturePrice {
+impl Serialize for Price {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
@@ -196,18 +191,6 @@ impl Leverage {
     pub fn to_f64(&self) -> f64 {
         self.0
     }
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum LeverageValidationError {
-    #[error("Leverage must be at least 1")]
-    TooLow,
-
-    #[error("Leverage must be at most 100")]
-    TooHigh,
-
-    #[error("Leverage must be a finite number")]
-    NotFinite,
 }
 
 impl TryFrom<f64> for Leverage {
@@ -326,27 +309,12 @@ impl Quantity {
 
     pub fn try_calculate(
         margin: Margin,
-        price: FuturePrice,
+        price: Price,
         leverage: Leverage,
     ) -> Result<Self, QuantityValidationError> {
         let qtd = margin.to_u64() as f64 / 100000000. * price.to_f64() * leverage.to_f64();
         Self::try_from(qtd)
     }
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum QuantityValidationError {
-    #[error("Quantity must be positive")]
-    NotPositive,
-
-    #[error("Quantity must be at least 1")]
-    TooLow,
-
-    #[error("Quantity must be less than or equal to 500,000")]
-    TooHigh,
-
-    #[error("Quantity must be a finite number")]
-    NotFinite,
 }
 
 impl TryFrom<u64> for Quantity {
@@ -497,20 +465,6 @@ impl Margin {
     }
 }
 
-#[derive(Debug, thiserror::Error)]
-pub enum MarginValidationError {
-    #[error("Margin must be positive")]
-    NotPositive,
-
-    #[error("Margin must be at least 1")]
-    TooLow,
-
-    // #[error("Margin must be less than or equal to 1,000,000,000")]
-    // TooHigh,
-    #[error("Margin must be a finite number")]
-    NotFinite,
-}
-
 impl TryFrom<u64> for Margin {
     type Error = MarginValidationError;
 
@@ -644,37 +598,13 @@ impl Serialize for Margin {
     }
 }
 
-#[derive(Debug, thiserror::Error)]
-pub enum FuturesTradeRequestValidationError {
-    #[error("Either quantity or margin must be provided")]
-    MissingQuantityAndMargin,
-
-    #[error("Cannot provide both quantity and margin")]
-    BothQuantityAndMarginProvided,
-
-    #[error("Price cannot be set for market orders")]
-    PriceSetForMarketOrder,
-
-    #[error("Price must be set for limit orders")]
-    MissingPriceForLimitOrder,
-
-    #[error("Implied quantity must be valid")]
-    InvalidImpliedQuantity(#[from] QuantityValidationError),
-
-    #[error("Stop loss must be lower than the entry price")]
-    StopLossHigherThanPrice,
-
-    #[error("Take profit must be higher than the entry price")]
-    TakeProfitLowerThanPrice,
-}
-
 #[derive(Serialize)]
 pub struct FuturesTradeRequestBody {
     leverage: Leverage,
     #[serde(skip_serializing_if = "Option::is_none")]
-    stoploss: Option<FuturePrice>,
+    stoploss: Option<Price>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    takeprofit: Option<FuturePrice>,
+    takeprofit: Option<Price>,
     side: TradeSide,
 
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -685,19 +615,19 @@ pub struct FuturesTradeRequestBody {
     #[serde(rename = "type")]
     trade_type: TradeType,
     #[serde(skip_serializing_if = "Option::is_none")]
-    price: Option<FuturePrice>,
+    price: Option<Price>,
 }
 
 impl FuturesTradeRequestBody {
     pub fn new(
         leverage: Leverage,
-        stoploss: Option<FuturePrice>,
-        takeprofit: Option<FuturePrice>,
+        stoploss: Option<Price>,
+        takeprofit: Option<Price>,
         side: TradeSide,
         quantity: Option<Quantity>,
         margin: Option<Margin>,
         trade_type: TradeType,
-        price: Option<FuturePrice>,
+        price: Option<Price>,
     ) -> Result<Self, FuturesTradeRequestValidationError> {
         match (quantity, margin) {
             (None, None) => {
