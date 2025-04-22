@@ -118,7 +118,7 @@ pub struct Trade {
     opening_fee: u64,
     closing_fee: u64,
     maintenance_margin: Margin,
-    quantity: u64,
+    quantity: Quantity,
     margin: Margin,
     leverage: Leverage,
     price: Price,
