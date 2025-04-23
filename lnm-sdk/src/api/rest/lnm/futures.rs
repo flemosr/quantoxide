@@ -3,11 +3,11 @@ use chrono::{DateTime, Utc};
 use reqwest::{self, Method};
 use std::sync::Arc;
 
-use crate::api::rest::models::{Leverage, Margin, Price, Quantity};
+use crate::api::rest::models::{Leverage, Margin, Price, Quantity, TradeExecution};
 
 use super::super::{
     error::{RestApiError, Result},
-    models::{FuturesTradeRequestBody, PriceEntryLNM, Trade, TradeSide, TradeType},
+    models::{FuturesTradeRequestBody, PriceEntryLNM, Trade, TradeSide},
     repositories::FuturesRepository,
 };
 use super::base::LnmApiBase;
@@ -67,8 +67,7 @@ impl FuturesRepository for LnmFuturesRepository {
             takeprofit,
             side,
             quantity.into(),
-            TradeType::Limit,
-            Some(price),
+            price.into(),
         )
         .map_err(|e| RestApiError::Generic(e.to_string()))?;
 
@@ -94,8 +93,7 @@ impl FuturesRepository for LnmFuturesRepository {
             takeprofit,
             side,
             quantity.into(),
-            TradeType::Market,
-            None,
+            TradeExecution::Market,
         )
         .map_err(|e| RestApiError::Generic(e.to_string()))?;
 
@@ -122,8 +120,7 @@ impl FuturesRepository for LnmFuturesRepository {
             takeprofit,
             side,
             margin.into(),
-            TradeType::Limit,
-            Some(price),
+            price.into(),
         )
         .map_err(|e| RestApiError::Generic(e.to_string()))?;
 
@@ -149,8 +146,7 @@ impl FuturesRepository for LnmFuturesRepository {
             takeprofit,
             side,
             margin.into(),
-            TradeType::Market,
-            None,
+            TradeExecution::Market,
         )
         .map_err(|e| RestApiError::Generic(e.to_string()))?;
 
