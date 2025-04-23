@@ -118,6 +118,26 @@ impl FuturesTradeRequestBody {
     }
 }
 
+pub enum TradeStatus {
+    Open,
+    Running,
+    Closed,
+}
+
+impl TradeStatus {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            TradeStatus::Open => "open",
+            TradeStatus::Running => "running",
+            TradeStatus::Closed => "closed",
+        }
+    }
+
+    pub fn to_string(&self) -> String {
+        self.as_str().to_string()
+    }
+}
+
 #[derive(Deserialize, Debug, Clone)]
 pub struct Trade {
     id: Uuid,

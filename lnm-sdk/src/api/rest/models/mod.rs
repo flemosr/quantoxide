@@ -14,4 +14,5 @@ pub use price_history::PriceEntryLNM;
 pub use quantity::Quantity;
 pub use trade::{
     FuturesTradeRequestBody, Trade, TradeExecution, TradeExecutionType, TradeSide, TradeSize,
+    TradeStatus,
 };
