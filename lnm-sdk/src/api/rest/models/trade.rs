@@ -65,7 +65,7 @@ pub struct FuturesTradeRequestBody {
     side: TradeSide,
 
     #[serde(flatten)]
-    trade_size: TradeSize,
+    size: TradeSize,
 
     #[serde(rename = "type")]
     trade_type: TradeExecutionType,
@@ -79,11 +79,12 @@ impl FuturesTradeRequestBody {
         stoploss: Option<Price>,
         takeprofit: Option<Price>,
         side: TradeSide,
-        trade_size: TradeSize,
+        size: TradeSize,
         trade_execution: TradeExecution,
     ) -> Result<Self, FuturesTradeRequestValidationError> {
         if let TradeExecution::Limit(price) = trade_execution {
-            if let TradeSize::Margin(margin) = &trade_size {
+            if let TradeSize::Margin(margin) = &size {
+                // Implied `Quantity` must be valid
                 let _ = Quantity::try_calculate(*margin, price, leverage)?;
             }
 
@@ -110,7 +111,7 @@ impl FuturesTradeRequestBody {
             stoploss,
             takeprofit,
             side,
-            trade_size,
+            size,
             trade_type,
             price,
         })
