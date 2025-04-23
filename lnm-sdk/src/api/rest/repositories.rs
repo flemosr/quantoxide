@@ -25,6 +25,15 @@ pub trait FuturesRepository: Send + Sync {
         takeprofit: Option<Price>,
     ) -> Result<Trade>;
 
+    async fn create_new_trade_quantity_market(
+        &self,
+        side: TradeSide,
+        quantity: Quantity,
+        leverage: Leverage,
+        stoploss: Option<Price>,
+        takeprofit: Option<Price>,
+    ) -> Result<Trade>;
+
     async fn create_new_trade_margin_limit(
         &self,
         side: TradeSide,
