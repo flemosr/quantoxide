@@ -3,7 +3,7 @@ use chrono::{DateTime, Utc};
 use reqwest::{self, Method};
 use std::sync::Arc;
 
-use crate::api::rest::models::{Leverage, Price, TradeExecution, TradeSize};
+use crate::api::rest::models::{Leverage, Price, TradeExecution, TradeSize, TradeStatus};
 
 use super::super::{
     error::{RestApiError, Result},
@@ -27,6 +27,35 @@ impl LnmFuturesRepository {
 
 #[async_trait]
 impl FuturesRepository for LnmFuturesRepository {
+    async fn get_trades(
+        &self,
+        status: TradeStatus,
+        from: Option<&DateTime<Utc>>,
+        to: Option<&DateTime<Utc>>,
+        limit: Option<usize>,
+    ) -> Result<Vec<Trade>> {
+        let mut query_params = Vec::new();
+
+        query_params.push(("type", status.to_string()));
+
+        if let Some(from) = from {
+            query_params.push(("from", from.timestamp_millis().to_string()));
+        }
+        if let Some(to) = to {
+            query_params.push(("to", to.timestamp_millis().to_string()));
+        }
+        if let Some(limit) = limit {
+            query_params.push(("limit", limit.to_string()));
+        }
+
+        let trades: Vec<Trade> = self
+            .base
+            .make_request_with_query_params(Method::GET, CREATE_NEW_TRADE_PATH, query_params, true)
+            .await?;
+
+        Ok(trades)
+    }
+
     async fn price_history(
         &self,
         from: Option<&DateTime<Utc>>,
