@@ -3,7 +3,7 @@ use chrono::{DateTime, Utc};
 use reqwest::{self, Method};
 use std::sync::Arc;
 
-use crate::api::rest::models::{Leverage, Margin, Price};
+use crate::api::rest::models::{Leverage, Margin, Price, Quantity};
 
 use super::super::{
     error::{RestApiError, Result},
@@ -50,6 +50,35 @@ impl FuturesRepository for LnmFuturesRepository {
             .await?;
 
         Ok(price_history)
+    }
+
+    async fn create_new_trade_quantity_limit(
+        &self,
+        side: TradeSide,
+        quantity: Quantity,
+        leverage: Leverage,
+        price: Price,
+        stoploss: Option<Price>,
+        takeprofit: Option<Price>,
+    ) -> Result<Trade> {
+        let body = FuturesTradeRequestBody::new(
+            leverage,
+            stoploss,
+            takeprofit,
+            side,
+            Some(quantity),
+            None,
+            TradeType::Limit,
+            Some(price),
+        )
+        .map_err(|e| RestApiError::Generic(e.to_string()))?;
+
+        let created_trade: Trade = self
+            .base
+            .make_request_with_body(Method::POST, CREATE_NEW_TRADE_PATH, Some(body), true)
+            .await?;
+
+        Ok(created_trade)
     }
 
     async fn create_new_trade_margin_limit(
