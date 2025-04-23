@@ -80,18 +80,12 @@ impl FuturesTradeRequestBody {
         takeprofit: Option<Price>,
         side: TradeSide,
         trade_size: TradeSize,
-        trade_type: TradeType,
-        price: Option<Price>,
+        trade_execution: TradeExecution,
     ) -> Result<Self, FuturesTradeRequestValidationError> {
-        match (&trade_type, price) {
-            (TradeType::Market, Some(_)) => {
-                return Err(FuturesTradeRequestValidationError::PriceSetForMarketOrder);
-            }
-            (TradeType::Limit, None) => {
-                return Err(FuturesTradeRequestValidationError::MissingPriceForLimitOrder);
-            }
-            _ => {}
-        }
+        let (trade_type, price) = match trade_execution {
+            TradeExecution::Market => (TradeType::Market, None),
+            TradeExecution::Limit(price) => (TradeType::Limit, Some(price)),
+        };
 
         match (&trade_size, price) {
             (TradeSize::Margin(margin), Some(price)) => {
