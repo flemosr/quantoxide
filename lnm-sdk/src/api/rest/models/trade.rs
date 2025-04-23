@@ -23,9 +23,11 @@ pub enum TradeSide {
     Sell,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Copy)]
+#[derive(Serialize, Debug, Clone, PartialEq, Eq, Copy)]
 pub enum TradeSize {
+    #[serde(rename = "quantity")]
     Quantity(Quantity),
+    #[serde(rename = "margin")]
     Margin(Margin),
 }
 
@@ -50,10 +52,8 @@ pub struct FuturesTradeRequestBody {
     takeprofit: Option<Price>,
     side: TradeSide,
 
-    #[serde(skip_serializing_if = "Option::is_none")]
-    quantity: Option<Quantity>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    margin: Option<Margin>,
+    #[serde(flatten)]
+    trade_size: TradeSize,
 
     #[serde(rename = "type")]
     trade_type: TradeType,
@@ -67,21 +67,10 @@ impl FuturesTradeRequestBody {
         stoploss: Option<Price>,
         takeprofit: Option<Price>,
         side: TradeSide,
-        quantity: Option<Quantity>,
-        margin: Option<Margin>,
+        trade_size: TradeSize,
         trade_type: TradeType,
         price: Option<Price>,
     ) -> Result<Self, FuturesTradeRequestValidationError> {
-        match (quantity, margin) {
-            (None, None) => {
-                return Err(FuturesTradeRequestValidationError::MissingQuantityAndMargin);
-            }
-            (Some(_), Some(_)) => {
-                return Err(FuturesTradeRequestValidationError::BothQuantityAndMarginProvided);
-            }
-            _ => {}
-        }
-
         match (&trade_type, price) {
             (TradeType::Market, Some(_)) => {
                 return Err(FuturesTradeRequestValidationError::PriceSetForMarketOrder);
@@ -92,9 +81,9 @@ impl FuturesTradeRequestBody {
             _ => {}
         }
 
-        match (margin, price) {
-            (Some(margin), Some(price)) => {
-                let _ = Quantity::try_calculate(margin, price, leverage)?;
+        match (&trade_size, price) {
+            (TradeSize::Margin(margin), Some(price)) => {
+                let _ = Quantity::try_calculate(*margin, price, leverage)?;
             }
             _ => {}
         };
@@ -118,8 +107,7 @@ impl FuturesTradeRequestBody {
             stoploss,
             takeprofit,
             side,
-            quantity,
-            margin,
+            trade_size,
             trade_type,
             price,
         })
