@@ -36,7 +36,7 @@ impl From<Margin> for TradeSize {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Copy)]
-pub enum TradeType {
+pub enum TradeExecutionType {
     #[serde(rename = "m")]
     Market,
     #[serde(rename = "l")]
@@ -68,7 +68,7 @@ pub struct FuturesTradeRequestBody {
     trade_size: TradeSize,
 
     #[serde(rename = "type")]
-    trade_type: TradeType,
+    trade_type: TradeExecutionType,
     #[serde(skip_serializing_if = "Option::is_none")]
     price: Option<Price>,
 }
@@ -82,31 +82,28 @@ impl FuturesTradeRequestBody {
         trade_size: TradeSize,
         trade_execution: TradeExecution,
     ) -> Result<Self, FuturesTradeRequestValidationError> {
-        let (trade_type, price) = match trade_execution {
-            TradeExecution::Market => (TradeType::Market, None),
-            TradeExecution::Limit(price) => (TradeType::Limit, Some(price)),
-        };
-
-        match (&trade_size, price) {
-            (TradeSize::Margin(margin), Some(price)) => {
+        if let TradeExecution::Limit(price) = trade_execution {
+            if let TradeSize::Margin(margin) = &trade_size {
                 let _ = Quantity::try_calculate(*margin, price, leverage)?;
             }
-            _ => {}
-        };
 
-        if let Some(price_val) = price {
-            if let Some(stoploss_val) = stoploss {
-                if stoploss_val >= price_val {
+            if let Some(stoploss) = stoploss {
+                if stoploss >= price {
                     return Err(FuturesTradeRequestValidationError::StopLossHigherThanPrice);
                 }
             }
 
-            if let Some(takeprofit_val) = takeprofit {
-                if takeprofit_val <= price_val {
+            if let Some(takeprofit) = takeprofit {
+                if takeprofit <= price {
                     return Err(FuturesTradeRequestValidationError::TakeProfitLowerThanPrice);
                 }
             }
         }
+
+        let (trade_type, price) = match trade_execution {
+            TradeExecution::Market => (TradeExecutionType::Market, None),
+            TradeExecution::Limit(price) => (TradeExecutionType::Limit, Some(price)),
+        };
 
         Ok(FuturesTradeRequestBody {
             leverage,
@@ -125,7 +122,7 @@ pub struct Trade {
     id: Uuid,
     uid: Uuid,
     #[serde(rename = "type")]
-    trade_type: TradeType,
+    trade_type: TradeExecutionType,
     side: TradeSide,
     opening_fee: u64,
     closing_fee: u64,
@@ -167,7 +164,7 @@ impl Trade {
         self.uid
     }
 
-    pub fn trade_type(&self) -> TradeType {
+    pub fn trade_type(&self) -> TradeExecutionType {
         self.trade_type
     }
 
