@@ -8,14 +8,6 @@ use uuid::Uuid;
 use super::{Leverage, Margin, Price, Quantity, error::FuturesTradeRequestValidationError, utils};
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Copy)]
-pub enum TradeType {
-    #[serde(rename = "m")]
-    Market,
-    #[serde(rename = "l")]
-    Limit,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Copy)]
 pub enum TradeSide {
     #[serde(rename = "b")]
     Buy,
@@ -40,6 +32,26 @@ impl From<Quantity> for TradeSize {
 impl From<Margin> for TradeSize {
     fn from(margin: Margin) -> Self {
         TradeSize::Margin(margin)
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Copy)]
+pub enum TradeType {
+    #[serde(rename = "m")]
+    Market,
+    #[serde(rename = "l")]
+    Limit,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Copy)]
+pub enum TradeExecution {
+    Market,
+    Limit(Price),
+}
+
+impl From<Price> for TradeExecution {
+    fn from(price: Price) -> Self {
+        Self::Limit(price)
     }
 }
 
