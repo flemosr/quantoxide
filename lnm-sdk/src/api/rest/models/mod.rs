@@ -12,4 +12,4 @@ pub use margin::Margin;
 pub use price::Price;
 pub use price_history::PriceEntryLNM;
 pub use quantity::Quantity;
-pub use trade::{FuturesTradeRequestBody, Trade, TradeSide, TradeType};
+pub use trade::{FuturesTradeRequestBody, Trade, TradeSide, TradeSize, TradeType};

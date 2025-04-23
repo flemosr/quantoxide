@@ -66,8 +66,7 @@ impl FuturesRepository for LnmFuturesRepository {
             stoploss,
             takeprofit,
             side,
-            Some(quantity),
-            None,
+            quantity.into(),
             TradeType::Limit,
             Some(price),
         )
@@ -94,8 +93,7 @@ impl FuturesRepository for LnmFuturesRepository {
             stoploss,
             takeprofit,
             side,
-            Some(quantity),
-            None,
+            quantity.into(),
             TradeType::Market,
             None,
         )
@@ -123,8 +121,7 @@ impl FuturesRepository for LnmFuturesRepository {
             stoploss,
             takeprofit,
             side,
-            None,
-            Some(margin),
+            margin.into(),
             TradeType::Limit,
             Some(price),
         )
@@ -151,8 +148,7 @@ impl FuturesRepository for LnmFuturesRepository {
             stoploss,
             takeprofit,
             side,
-            None,
-            Some(margin),
+            margin.into(),
             TradeType::Market,
             None,
         )
