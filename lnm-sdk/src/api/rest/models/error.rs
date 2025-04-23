@@ -51,12 +51,6 @@ pub enum MarginValidationError {
 
 #[derive(Debug, thiserror::Error)]
 pub enum FuturesTradeRequestValidationError {
-    #[error("Either quantity or margin must be provided")]
-    MissingQuantityAndMargin,
-
-    #[error("Cannot provide both quantity and margin")]
-    BothQuantityAndMarginProvided,
-
     #[error("Price cannot be set for market orders")]
     PriceSetForMarketOrder,
 
