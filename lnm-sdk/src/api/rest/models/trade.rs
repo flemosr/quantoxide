@@ -23,6 +23,24 @@ pub enum TradeSide {
     Sell,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Copy)]
+pub enum TradeSize {
+    Quantity(Quantity),
+    Margin(Margin),
+}
+
+impl From<Quantity> for TradeSize {
+    fn from(quantity: Quantity) -> Self {
+        TradeSize::Quantity(quantity)
+    }
+}
+
+impl From<Margin> for TradeSize {
+    fn from(margin: Margin) -> Self {
+        TradeSize::Margin(margin)
+    }
+}
+
 #[derive(Serialize)]
 pub struct FuturesTradeRequestBody {
     leverage: Leverage,
