@@ -3,7 +3,7 @@ use chrono::{DateTime, Utc};
 use reqwest::{self, Method};
 use std::sync::Arc;
 
-use crate::api::rest::models::{Leverage, Margin, Price, Quantity, TradeExecution};
+use crate::api::rest::models::{Leverage, Price, TradeExecution, TradeSize};
 
 use super::super::{
     error::{RestApiError, Result},
@@ -52,103 +52,18 @@ impl FuturesRepository for LnmFuturesRepository {
         Ok(price_history)
     }
 
-    async fn create_new_trade_quantity_limit(
+    async fn create_new_trade(
         &self,
         side: TradeSide,
-        quantity: Quantity,
+        size: TradeSize,
         leverage: Leverage,
-        price: Price,
+        execution: TradeExecution,
         stoploss: Option<Price>,
         takeprofit: Option<Price>,
     ) -> Result<Trade> {
-        let body = FuturesTradeRequestBody::new(
-            leverage,
-            stoploss,
-            takeprofit,
-            side,
-            quantity.into(),
-            price.into(),
-        )
-        .map_err(|e| RestApiError::Generic(e.to_string()))?;
-
-        let created_trade: Trade = self
-            .base
-            .make_request_with_body(Method::POST, CREATE_NEW_TRADE_PATH, Some(body), true)
-            .await?;
-
-        Ok(created_trade)
-    }
-
-    async fn create_new_trade_quantity_market(
-        &self,
-        side: TradeSide,
-        quantity: Quantity,
-        leverage: Leverage,
-        stoploss: Option<Price>,
-        takeprofit: Option<Price>,
-    ) -> Result<Trade> {
-        let body = FuturesTradeRequestBody::new(
-            leverage,
-            stoploss,
-            takeprofit,
-            side,
-            quantity.into(),
-            TradeExecution::Market,
-        )
-        .map_err(|e| RestApiError::Generic(e.to_string()))?;
-
-        let created_trade: Trade = self
-            .base
-            .make_request_with_body(Method::POST, CREATE_NEW_TRADE_PATH, Some(body), true)
-            .await?;
-
-        Ok(created_trade)
-    }
-
-    async fn create_new_trade_margin_limit(
-        &self,
-        side: TradeSide,
-        margin: Margin,
-        leverage: Leverage,
-        price: Price,
-        stoploss: Option<Price>,
-        takeprofit: Option<Price>,
-    ) -> Result<Trade> {
-        let body = FuturesTradeRequestBody::new(
-            leverage,
-            stoploss,
-            takeprofit,
-            side,
-            margin.into(),
-            price.into(),
-        )
-        .map_err(|e| RestApiError::Generic(e.to_string()))?;
-
-        let created_trade: Trade = self
-            .base
-            .make_request_with_body(Method::POST, CREATE_NEW_TRADE_PATH, Some(body), true)
-            .await?;
-
-        Ok(created_trade)
-    }
-
-    async fn create_new_trade_margin_market(
-        &self,
-        side: TradeSide,
-        margin: Margin,
-        leverage: Leverage,
-        stoploss: Option<Price>,
-        takeprofit: Option<Price>,
-    ) -> Result<Trade> {
-        let body = FuturesTradeRequestBody::new(
-            leverage,
-            stoploss,
-            takeprofit,
-            side,
-            margin.into(),
-            TradeExecution::Market,
-        )
-        .map_err(|e| RestApiError::Generic(e.to_string()))?;
+        let body =
+            FuturesTradeRequestBody::new(leverage, stoploss, takeprofit, side, size, execution)
+                .map_err(|e| RestApiError::Generic(e.to_string()))?;
 
         let created_trade: Trade = self
             .base
