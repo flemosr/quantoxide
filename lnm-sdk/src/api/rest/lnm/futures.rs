@@ -81,6 +81,34 @@ impl FuturesRepository for LnmFuturesRepository {
         Ok(created_trade)
     }
 
+    async fn create_new_trade_quantity_market(
+        &self,
+        side: TradeSide,
+        quantity: Quantity,
+        leverage: Leverage,
+        stoploss: Option<Price>,
+        takeprofit: Option<Price>,
+    ) -> Result<Trade> {
+        let body = FuturesTradeRequestBody::new(
+            leverage,
+            stoploss,
+            takeprofit,
+            side,
+            Some(quantity),
+            None,
+            TradeType::Market,
+            None,
+        )
+        .map_err(|e| RestApiError::Generic(e.to_string()))?;
+
+        let created_trade: Trade = self
+            .base
+            .make_request_with_body(Method::POST, CREATE_NEW_TRADE_PATH, Some(body), true)
+            .await?;
+
+        Ok(created_trade)
+    }
+
     async fn create_new_trade_margin_limit(
         &self,
         side: TradeSide,
