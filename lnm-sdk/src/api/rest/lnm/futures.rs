@@ -2,6 +2,7 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use reqwest::{self, Method};
 use std::sync::Arc;
+use uuid::Uuid;
 
 use crate::api::rest::models::{Leverage, Price, TradeExecution, TradeSize, TradeStatus};
 
@@ -13,7 +14,7 @@ use super::super::{
 use super::base::LnmApiBase;
 
 const PRICE_HISTORY_PATH: &str = "/v2/futures/history/price";
-const CREATE_NEW_TRADE_PATH: &str = "/v2/futures";
+const FUTURES_TRADE_PATH: &str = "/v2/futures";
 
 pub struct LnmFuturesRepository {
     base: Arc<LnmApiBase>,
@@ -50,7 +51,7 @@ impl FuturesRepository for LnmFuturesRepository {
 
         let trades: Vec<Trade> = self
             .base
-            .make_request_with_query_params(Method::GET, CREATE_NEW_TRADE_PATH, query_params, true)
+            .make_request_with_query_params(Method::GET, FUTURES_TRADE_PATH, query_params, true)
             .await?;
 
         Ok(trades)
@@ -96,9 +97,20 @@ impl FuturesRepository for LnmFuturesRepository {
 
         let created_trade: Trade = self
             .base
-            .make_request_with_body(Method::POST, CREATE_NEW_TRADE_PATH, Some(body), true)
+            .make_request_with_body(Method::POST, FUTURES_TRADE_PATH, body, true)
             .await?;
 
         Ok(created_trade)
+    }
+
+    async fn close_trade(&self, id: Uuid) -> Result<Trade> {
+        let query_params = vec![("id", id.to_string())];
+
+        let deleted_trade: Trade = self
+            .base
+            .make_request_with_query_params(Method::DELETE, FUTURES_TRADE_PATH, query_params, true)
+            .await?;
+
+        Ok(deleted_trade)
     }
 }
