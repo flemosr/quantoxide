@@ -1,5 +1,6 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
+use uuid::Uuid;
 
 use super::{
     error::Result,
@@ -34,4 +35,6 @@ pub trait FuturesRepository: Send + Sync {
         stoploss: Option<Price>,
         takeprofit: Option<Price>,
     ) -> Result<Trade>;
+
+    async fn close_trade(&self, id: Uuid) -> Result<Trade>;
 }
