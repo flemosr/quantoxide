@@ -159,7 +159,7 @@ pub struct Trade {
     takeprofit: Option<Price>,
     #[serde(with = "utils::price_option")]
     exit_price: Option<Price>,
-    pl: u64,
+    pl: i64,
     #[serde(with = "ts_milliseconds")]
     creation_ts: DateTime<Utc>,
     #[serde(with = "ts_milliseconds_option")]
@@ -237,7 +237,7 @@ impl Trade {
         self.exit_price
     }
 
-    pub fn pl(&self) -> u64 {
+    pub fn pl(&self) -> i64 {
         self.pl
     }
 
