@@ -161,6 +161,15 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_ticker() {
+        let repo = init_repository_from_env();
+
+        let ticker = repo.ticker().await.expect("must get ticker");
+
+        assert!(!ticker.exchanges_weights().is_empty());
+    }
+
+    #[tokio::test]
     async fn test_create_new_trade_quantity_limit() {
         let repo = init_repository_from_env();
 
@@ -289,9 +298,15 @@ mod tests {
     async fn test_create_new_trade_margin_market() {
         let repo = init_repository_from_env();
 
+        let est_min_price = {
+            let ticker = repo.ticker().await.expect("must get ticker");
+            ticker.ask_price().apply_change(-0.05).unwrap()
+        };
+
         let side = TradeSide::Buy;
-        let margin = Margin::try_from(1500).unwrap();
         let leverage = Leverage::try_from(1).unwrap();
+        let implied_quantity = Quantity::try_from(1).unwrap();
+        let margin = Margin::try_calculate(implied_quantity, est_min_price, leverage).unwrap();
         let stoploss = None;
         let takeprofit = None;
         let execution = TradeExecution::Market;
@@ -373,14 +388,5 @@ mod tests {
 
         assert_eq!(closed_trade.id(), created_trade.id());
         assert!(closed_trade.closed());
-    }
-
-    #[tokio::test]
-    async fn test_ticker() {
-        let repo = init_repository_from_env();
-
-        let ticker = repo.ticker().await.expect("must get ticker");
-
-        assert!(!ticker.exchanges_weights().is_empty());
     }
 }
