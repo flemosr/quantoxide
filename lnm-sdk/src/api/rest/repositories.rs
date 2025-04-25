@@ -5,7 +5,8 @@ use uuid::Uuid;
 use super::{
     error::Result,
     models::{
-        Leverage, Price, PriceEntryLNM, Trade, TradeExecution, TradeSide, TradeSize, TradeStatus,
+        Leverage, Price, PriceEntryLNM, Ticker, Trade, TradeExecution, TradeSide, TradeSize,
+        TradeStatus,
     },
 };
 
@@ -37,4 +38,6 @@ pub trait FuturesRepository: Send + Sync {
     ) -> Result<Trade>;
 
     async fn close_trade(&self, id: Uuid) -> Result<Trade>;
+
+    async fn ticker(&self) -> Result<Ticker>;
 }
