@@ -290,3 +290,8 @@ impl Trade {
         self.sum_carry_fees
     }
 }
+
+#[derive(Deserialize)]
+pub struct NestedTradesResponse {
+    pub trades: Vec<Trade>,
+}
