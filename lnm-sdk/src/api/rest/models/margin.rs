@@ -18,7 +18,7 @@ impl Margin {
     ) -> Result<Self, MarginValidationError> {
         let margin =
             quantity.into_u64() as f64 / (price.into_f64() * leverage.into_f64()) * 100000000.;
-        Self::try_from(margin)
+        Self::try_from(margin.ceil())
     }
 }
 
