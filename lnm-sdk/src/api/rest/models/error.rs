@@ -8,6 +8,9 @@ pub enum PriceValidationError {
 
     #[error("Price must be a finite number")]
     NotFinite,
+
+    #[error("Invalid percentage change")]
+    InvalidPercentage,
 }
 
 #[derive(Debug, thiserror::Error)]
