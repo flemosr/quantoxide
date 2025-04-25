@@ -26,3 +26,6 @@ tokio = { version = "1.44.2", features = ["full"] }
 tokio-rustls = "0.26.2"
 uuid = { version = "1.16.0", features = ["serde"] }
 webpki-roots = "0.26.8"
+
+[dev-dependencies]
+dotenv = "0.15.0"
