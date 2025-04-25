@@ -21,13 +21,14 @@ fn init_repository_from_env() -> LnmFuturesRepository {
     LnmFuturesRepository::new(base)
 }
 
-fn get_btc_out_of_market_price_from_env() -> Price {
-    env::var("BTC_OUT_OF_MARKET_PRICE")
-        .expect("BTC_OUT_OF_MARKET_PRICE environment variable must be set")
-        .parse::<f64>()
-        .expect("BTC_OUT_OF_MARKET_PRICE must be a valid number")
-        .try_into()
-        .expect("BTC_OUT_OF_MARKET_PRICE must be a valid `Price`")
+async fn get_ask_price(repo: &LnmFuturesRepository) -> Price {
+    let ticker = repo.ticker().await.expect("must get ticker");
+    ticker.ask_price()
+}
+
+async fn get_out_of_market_price(repo: &LnmFuturesRepository) -> Price {
+    let ask = get_ask_price(repo).await;
+    ask.apply_change(-0.3).unwrap()
 }
 
 #[tokio::test]
@@ -46,10 +47,10 @@ async fn test_create_new_trade_quantity_limit() {
     let side = TradeSide::Buy;
     let quantity = Quantity::try_from(1).unwrap();
     let leverage = Leverage::try_from(1).unwrap();
-    let price = get_btc_out_of_market_price_from_env();
-    let stoploss = Some(price.apply_change(-0.05).unwrap());
-    let takeprofit = Some(price.apply_change(0.05).unwrap());
-    let execution = price.into();
+    let out_of_mkt_price = get_out_of_market_price(&repo).await;
+    let stoploss = Some(out_of_mkt_price.apply_change(-0.05).unwrap());
+    let takeprofit = Some(out_of_mkt_price.apply_change(0.05).unwrap());
+    let execution = out_of_mkt_price.into();
 
     let created_trade = repo
         .create_new_trade(
@@ -67,7 +68,7 @@ async fn test_create_new_trade_quantity_limit() {
     assert_eq!(created_trade.side(), side);
     assert_eq!(created_trade.quantity(), quantity);
     assert_eq!(created_trade.leverage(), leverage);
-    assert_eq!(created_trade.price(), price);
+    assert_eq!(created_trade.price(), out_of_mkt_price);
     assert_eq!(created_trade.stoploss(), stoploss);
     assert_eq!(created_trade.takeprofit(), takeprofit);
 
@@ -127,12 +128,17 @@ async fn test_create_new_trade_margin_limit() {
 
     let side = TradeSide::Buy;
     let leverage = Leverage::try_from(1).unwrap();
-    let price = get_btc_out_of_market_price_from_env();
-    let implied_quantity = Quantity::try_from(1).unwrap();
-    let margin = Margin::try_calculate(implied_quantity, price, leverage).unwrap();
-    let stoploss = Some(price.apply_change(-0.05).unwrap());
+    let out_of_mkt_price = get_out_of_market_price(&repo).await;
+    let implied_qtd = Quantity::try_from(1).unwrap();
+    let margin = Margin::try_calculate(implied_qtd, out_of_mkt_price, leverage).unwrap();
+    let stoploss = Some(out_of_mkt_price.apply_change(-0.05).unwrap());
     let takeprofit = None;
-    let execution = price.into();
+    let execution = out_of_mkt_price.into();
+
+    println!(
+        "out_of_mkt_price {:?} margin {:?}",
+        out_of_mkt_price, margin
+    );
 
     let created_trade = repo
         .create_new_trade(
@@ -150,7 +156,7 @@ async fn test_create_new_trade_margin_limit() {
     assert_eq!(created_trade.side(), side);
     assert_eq!(created_trade.margin(), margin);
     assert_eq!(created_trade.leverage(), leverage);
-    assert_eq!(created_trade.price(), price);
+    assert_eq!(created_trade.price(), out_of_mkt_price);
     assert_eq!(created_trade.stoploss(), stoploss);
     assert_eq!(created_trade.takeprofit(), takeprofit);
 
@@ -168,15 +174,12 @@ async fn test_create_new_trade_margin_limit() {
 async fn test_create_new_trade_margin_market() {
     let repo = init_repository_from_env();
 
-    let est_min_price = {
-        let ticker = repo.ticker().await.expect("must get ticker");
-        ticker.ask_price().apply_change(-0.05).unwrap()
-    };
+    let est_min_price = get_ask_price(&repo).await.apply_change(-0.1).unwrap();
 
     let side = TradeSide::Buy;
     let leverage = Leverage::try_from(1).unwrap();
-    let implied_quantity = Quantity::try_from(1).unwrap();
-    let margin = Margin::try_calculate(implied_quantity, est_min_price, leverage).unwrap();
+    let implied_qtd = Quantity::try_from(1).unwrap();
+    let margin = Margin::try_calculate(implied_qtd, est_min_price, leverage).unwrap();
     let stoploss = None;
     let takeprofit = None;
     let execution = TradeExecution::Market;
@@ -228,7 +231,7 @@ async fn test_get_trades() {
 async fn test_cancel_trade() {
     let repo = init_repository_from_env();
 
-    let price = get_btc_out_of_market_price_from_env();
+    let price = get_out_of_market_price(&repo).await;
     let stoploss = Some(price.apply_change(-0.05).unwrap());
     let takeprofit = Some(price.apply_change(0.05).unwrap());
     let execution = price.into();
