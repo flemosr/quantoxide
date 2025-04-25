@@ -49,6 +49,15 @@ pub enum TradeExecution {
     Limit(Price),
 }
 
+impl TradeExecution {
+    pub fn to_type(&self) -> TradeExecutionType {
+        match self {
+            TradeExecution::Market => TradeExecutionType::Market,
+            TradeExecution::Limit(_) => TradeExecutionType::Limit,
+        }
+    }
+}
+
 impl From<Price> for TradeExecution {
     fn from(price: Price) -> Self {
         Self::Limit(price)
