@@ -9,22 +9,17 @@ use crate::api::rest::models::{
     Leverage, NestedTradesResponse, Price, Ticker, TradeExecution, TradeSize, TradeStatus,
 };
 
-use super::super::{
-    error::{RestApiError, Result},
-    models::{FuturesTradeRequestBody, PriceEntryLNM, Trade, TradeSide},
-    repositories::FuturesRepository,
+use super::{
+    super::{
+        error::{RestApiError, Result},
+        models::{FuturesTradeRequestBody, PriceEntryLNM, Trade, TradeSide},
+        repositories::FuturesRepository,
+    },
+    base::{ApiPath, LnmApiBase},
 };
-use super::base::LnmApiBase;
 
 #[cfg(test)]
 mod tests;
-
-const PRICE_HISTORY_PATH: &str = "/v2/futures/history/price";
-const FUTURES_TRADE_PATH: &str = "/v2/futures";
-const FUTURES_TICKER_PATH: &str = "/v2/futures/ticker";
-const FUTURES_CANCEL_TRADE_PATH: &str = "/v2/futures/cancel";
-const FUTURES_CANCEL_ALL_TRADES_PATH: &str = "/v2/futures/all/cancel";
-const FUTURES_CLOSE_ALL_TRADES_PATH: &str = "/v2/futures/all/close";
 
 pub struct LnmFuturesRepository {
     base: Arc<LnmApiBase>,
@@ -61,7 +56,7 @@ impl FuturesRepository for LnmFuturesRepository {
 
         let trades: Vec<Trade> = self
             .base
-            .make_request_with_query_params(Method::GET, FUTURES_TRADE_PATH, query_params, true)
+            .make_request_with_query_params(Method::GET, &ApiPath::FuturesTrade, query_params, true)
             .await?;
 
         Ok(trades)
@@ -86,7 +81,12 @@ impl FuturesRepository for LnmFuturesRepository {
 
         let price_history: Vec<PriceEntryLNM> = self
             .base
-            .make_request_with_query_params(Method::GET, PRICE_HISTORY_PATH, query_params, false)
+            .make_request_with_query_params(
+                Method::GET,
+                &ApiPath::FuturesPriceHistory,
+                query_params,
+                false,
+            )
             .await?;
 
         Ok(price_history)
@@ -107,7 +107,7 @@ impl FuturesRepository for LnmFuturesRepository {
 
         let created_trade: Trade = self
             .base
-            .make_request_with_body(Method::POST, FUTURES_TRADE_PATH, body, true)
+            .make_request_with_body(Method::POST, &ApiPath::FuturesTrade, body, true)
             .await?;
 
         Ok(created_trade)
@@ -118,7 +118,7 @@ impl FuturesRepository for LnmFuturesRepository {
 
         let canceled_trade: Trade = self
             .base
-            .make_request_with_body(Method::POST, FUTURES_CANCEL_TRADE_PATH, body, true)
+            .make_request_with_body(Method::POST, &ApiPath::FuturesCancelTrade, body, true)
             .await?;
 
         Ok(canceled_trade)
@@ -127,7 +127,7 @@ impl FuturesRepository for LnmFuturesRepository {
     async fn cancel_all_trades(&self) -> Result<Vec<Trade>> {
         let res: NestedTradesResponse = self
             .base
-            .make_request_without_params(Method::DELETE, FUTURES_CANCEL_ALL_TRADES_PATH, true)
+            .make_request_without_params(Method::DELETE, &ApiPath::FuturesCancelAllTrades, true)
             .await?;
 
         Ok(res.trades)
@@ -138,7 +138,12 @@ impl FuturesRepository for LnmFuturesRepository {
 
         let deleted_trade: Trade = self
             .base
-            .make_request_with_query_params(Method::DELETE, FUTURES_TRADE_PATH, query_params, true)
+            .make_request_with_query_params(
+                Method::DELETE,
+                &ApiPath::FuturesTrade,
+                query_params,
+                true,
+            )
             .await?;
 
         Ok(deleted_trade)
@@ -147,7 +152,7 @@ impl FuturesRepository for LnmFuturesRepository {
     async fn close_all_trades(&self) -> Result<Vec<Trade>> {
         let res: NestedTradesResponse = self
             .base
-            .make_request_without_params(Method::DELETE, FUTURES_CLOSE_ALL_TRADES_PATH, true)
+            .make_request_without_params(Method::DELETE, &ApiPath::FuturesCloseAllTrades, true)
             .await?;
 
         Ok(res.trades)
@@ -156,7 +161,7 @@ impl FuturesRepository for LnmFuturesRepository {
     async fn ticker(&self) -> Result<Ticker> {
         let ticker: Ticker = self
             .base
-            .make_request_without_params(Method::GET, FUTURES_TICKER_PATH, true)
+            .make_request_without_params(Method::GET, &ApiPath::FuturesTicker, true)
             .await?;
 
         Ok(ticker)
