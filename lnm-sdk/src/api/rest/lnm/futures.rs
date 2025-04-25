@@ -436,9 +436,9 @@ mod tests {
             .expect("must close trade");
 
         assert_eq!(closed_trade.id(), created_trade.id());
-        assert!(!created_trade.open());
-        assert!(!created_trade.running());
-        assert!(created_trade.closed());
-        assert!(!created_trade.canceled());
+        assert!(!closed_trade.open());
+        assert!(!closed_trade.running());
+        assert!(closed_trade.closed());
+        assert!(!closed_trade.canceled());
     }
 }
