@@ -5,7 +5,9 @@ use serde_json::json;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use crate::api::rest::models::{Leverage, Price, Ticker, TradeExecution, TradeSize, TradeStatus};
+use crate::api::rest::models::{
+    Leverage, NestedTradesResponse, Price, Ticker, TradeExecution, TradeSize, TradeStatus,
+};
 
 use super::super::{
     error::{RestApiError, Result},
@@ -21,6 +23,7 @@ const PRICE_HISTORY_PATH: &str = "/v2/futures/history/price";
 const FUTURES_TRADE_PATH: &str = "/v2/futures";
 const FUTURES_TICKER_PATH: &str = "/v2/futures/ticker";
 const FUTURES_CANCEL_TRADE_PATH: &str = "/v2/futures/cancel";
+const FUTURES_CANCEL_ALL_TRADES_PATH: &str = "/v2/futures/all/cancel";
 
 pub struct LnmFuturesRepository {
     base: Arc<LnmApiBase>,
@@ -118,6 +121,15 @@ impl FuturesRepository for LnmFuturesRepository {
             .await?;
 
         Ok(canceled_trade)
+    }
+
+    async fn cancel_all_trades(&self) -> Result<Vec<Trade>> {
+        let res: NestedTradesResponse = self
+            .base
+            .make_request_without_params(Method::DELETE, FUTURES_CANCEL_ALL_TRADES_PATH, true)
+            .await?;
+
+        Ok(res.trades)
     }
 
     async fn close_trade(&self, id: Uuid) -> Result<Trade> {

@@ -32,6 +32,15 @@ async fn get_out_of_market_price(repo: &LnmFuturesRepository) -> Price {
 }
 
 #[tokio::test]
+async fn test_cancel_all_trades() {
+    let repo = init_repository_from_env();
+
+    let trades = repo.cancel_all_trades().await.expect("must cancel trades");
+
+    assert!(trades.is_empty());
+}
+
+#[tokio::test]
 async fn test_ticker() {
     let repo = init_repository_from_env();
 
