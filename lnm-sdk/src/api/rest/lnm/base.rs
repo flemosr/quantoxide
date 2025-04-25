@@ -202,4 +202,16 @@ impl LnmApiBase {
         self.make_request(method, path, Some(query_str), authenticated)
             .await
     }
+
+    pub async fn make_request_without_params<T>(
+        &self,
+        method: Method,
+        path: impl AsRef<str>,
+        authenticated: bool,
+    ) -> Result<T>
+    where
+        T: DeserializeOwned,
+    {
+        self.make_request(method, path, None, authenticated).await
+    }
 }
