@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use reqwest::{self, Method};
+use serde_json::json;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -16,6 +17,7 @@ use super::base::LnmApiBase;
 const PRICE_HISTORY_PATH: &str = "/v2/futures/history/price";
 const FUTURES_TRADE_PATH: &str = "/v2/futures";
 const FUTURES_TICKER_PATH: &str = "/v2/futures/ticker";
+const FUTURES_CANCEL_TRADE_PATH: &str = "/v2/futures/cancel";
 
 pub struct LnmFuturesRepository {
     base: Arc<LnmApiBase>,
@@ -102,6 +104,17 @@ impl FuturesRepository for LnmFuturesRepository {
             .await?;
 
         Ok(created_trade)
+    }
+
+    async fn cancel_trade(&self, id: Uuid) -> Result<Trade> {
+        let body = json!({"id": id.to_string()});
+
+        let canceled_trade: Trade = self
+            .base
+            .make_request_with_body(Method::POST, FUTURES_CANCEL_TRADE_PATH, body, true)
+            .await?;
+
+        Ok(canceled_trade)
     }
 
     async fn close_trade(&self, id: Uuid) -> Result<Trade> {
@@ -352,6 +365,46 @@ mod tests {
             .get_trades(TradeStatus::Open, Some(&from), Some(&to), limit)
             .await
             .expect("must get trades");
+    }
+
+    #[tokio::test]
+    async fn test_cancel_trade() {
+        let repo = init_repository_from_env();
+
+        let price = get_btc_out_of_market_price_from_env();
+        let stoploss = Some(price.apply_change(-0.05).unwrap());
+        let takeprofit = Some(price.apply_change(0.05).unwrap());
+        let execution = price.into();
+
+        let created_trade = repo
+            .create_new_trade(
+                TradeSide::Buy,
+                Quantity::try_from(1).unwrap().into(),
+                Leverage::try_from(1).unwrap(),
+                execution,
+                stoploss,
+                takeprofit,
+            )
+            .await
+            .expect("must create trade");
+
+        assert!(created_trade.open());
+        assert!(!created_trade.running());
+        assert!(!created_trade.closed());
+        assert!(!created_trade.canceled());
+
+        sleep(Duration::from_secs(1)).await;
+
+        let canceled_trade = repo
+            .cancel_trade(created_trade.id())
+            .await
+            .expect("must cancel trade");
+
+        assert_eq!(canceled_trade.id(), created_trade.id());
+        assert!(!canceled_trade.open());
+        assert!(!canceled_trade.running());
+        assert!(!canceled_trade.closed());
+        assert!(canceled_trade.canceled());
     }
 
     #[tokio::test]
