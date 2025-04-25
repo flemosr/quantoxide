@@ -11,6 +11,28 @@ use std::{sync::Arc, time::Duration};
 
 use super::super::error::{RestApiError, Result};
 
+pub enum ApiPath {
+    FuturesPriceHistory,
+    FuturesTrade,
+    FuturesTicker,
+    FuturesCancelTrade,
+    FuturesCancelAllTrades,
+    FuturesCloseAllTrades,
+}
+
+impl ApiPath {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::FuturesPriceHistory => "/v2/futures/history/price",
+            Self::FuturesTrade => "/v2/futures",
+            Self::FuturesTicker => "/v2/futures/ticker",
+            Self::FuturesCancelTrade => "/v2/futures/cancel",
+            Self::FuturesCancelAllTrades => "/v2/futures/all/cancel",
+            Self::FuturesCloseAllTrades => "/v2/futures/all/close",
+        }
+    }
+}
+
 pub struct LnmApiBase {
     domain: String,
     key: String,
@@ -40,12 +62,12 @@ impl LnmApiBase {
         }))
     }
 
-    fn get_url(&self, path: impl AsRef<str>, query_params: Option<String>) -> Result<Url> {
+    fn get_url(&self, path: &ApiPath, query_params: Option<String>) -> Result<Url> {
         let query_str = query_params
             .map(|v| format!("?{v}"))
             .unwrap_or("".to_string());
 
-        let url_str = format!("https://{}{}{}", self.domain, path.as_ref(), query_str);
+        let url_str = format!("https://{}{}{}", self.domain, path.as_str(), query_str);
         let url = Url::parse(&url_str).map_err(|e| RestApiError::UrlParse(e.to_string()))?;
 
         Ok(url)
@@ -55,7 +77,7 @@ impl LnmApiBase {
         &self,
         timestamp_str: &str,
         method: &Method,
-        path: impl AsRef<str>,
+        path: &ApiPath,
         params_str: Option<impl AsRef<str>>,
     ) -> Result<String> {
         let params_str = params_str.as_ref().map(|v| v.as_ref()).unwrap_or("");
@@ -64,7 +86,7 @@ impl LnmApiBase {
             "{}{}{}{}",
             timestamp_str,
             method.as_str(),
-            path.as_ref(),
+            path.as_str(),
             params_str
         );
 
@@ -81,7 +103,7 @@ impl LnmApiBase {
     async fn make_request<T>(
         &self,
         method: Method,
-        path: impl AsRef<str>,
+        path: &ApiPath,
         params_str: Option<String>,
         authenticated: bool,
     ) -> Result<T>
@@ -94,7 +116,7 @@ impl LnmApiBase {
             let timestamp = Utc::now().timestamp_millis().to_string();
 
             let signature =
-                self.generate_signature(&timestamp, &method, &path, params_str.as_ref())?;
+                self.generate_signature(&timestamp, &method, path, params_str.as_ref())?;
 
             headers.insert(
                 HeaderName::from_static("lnm-access-key"),
@@ -125,7 +147,7 @@ impl LnmApiBase {
                     HeaderValue::from_static("application/json"),
                 );
 
-                let url = self.get_url(path.as_ref(), None)?;
+                let url = self.get_url(path, None)?;
                 let mut req = self.client.request(method, url).headers(headers);
                 if let Some(body) = params_str {
                     req = req.body(body);
@@ -165,7 +187,7 @@ impl LnmApiBase {
     pub async fn make_request_with_body<T, B>(
         &self,
         method: Method,
-        path: impl AsRef<str>,
+        path: &ApiPath,
         body: B,
         authenticated: bool,
     ) -> Result<T>
@@ -183,7 +205,7 @@ impl LnmApiBase {
     pub async fn make_request_with_query_params<I, K, V, T>(
         &self,
         method: Method,
-        path: impl AsRef<str>,
+        path: &ApiPath,
         query_params: I,
         authenticated: bool,
     ) -> Result<T>
@@ -206,7 +228,7 @@ impl LnmApiBase {
     pub async fn make_request_without_params<T>(
         &self,
         method: Method,
-        path: impl AsRef<str>,
+        path: &ApiPath,
         authenticated: bool,
     ) -> Result<T>
     where
