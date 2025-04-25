@@ -41,6 +41,15 @@ async fn test_cancel_all_trades() {
 }
 
 #[tokio::test]
+async fn test_close_all_trades() {
+    let repo = init_repository_from_env();
+
+    let trades = repo.close_all_trades().await.expect("must close trades");
+
+    assert!(trades.is_empty());
+}
+
+#[tokio::test]
 async fn test_ticker() {
     let repo = init_repository_from_env();
 

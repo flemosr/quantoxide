@@ -24,6 +24,7 @@ const FUTURES_TRADE_PATH: &str = "/v2/futures";
 const FUTURES_TICKER_PATH: &str = "/v2/futures/ticker";
 const FUTURES_CANCEL_TRADE_PATH: &str = "/v2/futures/cancel";
 const FUTURES_CANCEL_ALL_TRADES_PATH: &str = "/v2/futures/all/cancel";
+const FUTURES_CLOSE_ALL_TRADES_PATH: &str = "/v2/futures/all/close";
 
 pub struct LnmFuturesRepository {
     base: Arc<LnmApiBase>,
@@ -141,6 +142,15 @@ impl FuturesRepository for LnmFuturesRepository {
             .await?;
 
         Ok(deleted_trade)
+    }
+
+    async fn close_all_trades(&self) -> Result<Vec<Trade>> {
+        let res: NestedTradesResponse = self
+            .base
+            .make_request_without_params(Method::DELETE, FUTURES_CLOSE_ALL_TRADES_PATH, true)
+            .await?;
+
+        Ok(res.trades)
     }
 
     async fn ticker(&self) -> Result<Ticker> {
