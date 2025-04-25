@@ -4,7 +4,7 @@ use reqwest::{self, Method};
 use std::sync::Arc;
 use uuid::Uuid;
 
-use crate::api::rest::models::{Leverage, Price, TradeExecution, TradeSize, TradeStatus};
+use crate::api::rest::models::{Leverage, Price, Ticker, TradeExecution, TradeSize, TradeStatus};
 
 use super::super::{
     error::{RestApiError, Result},
@@ -15,6 +15,7 @@ use super::base::LnmApiBase;
 
 const PRICE_HISTORY_PATH: &str = "/v2/futures/history/price";
 const FUTURES_TRADE_PATH: &str = "/v2/futures";
+const FUTURES_TICKER_PATH: &str = "/v2/futures/ticker";
 
 pub struct LnmFuturesRepository {
     base: Arc<LnmApiBase>,
@@ -112,6 +113,15 @@ impl FuturesRepository for LnmFuturesRepository {
             .await?;
 
         Ok(deleted_trade)
+    }
+
+    async fn ticker(&self) -> Result<Ticker> {
+        let ticker: Ticker = self
+            .base
+            .make_request_without_params(Method::GET, FUTURES_TICKER_PATH, true)
+            .await?;
+
+        Ok(ticker)
     }
 }
 
@@ -363,5 +373,14 @@ mod tests {
 
         assert_eq!(closed_trade.id(), created_trade.id());
         assert!(closed_trade.closed());
+    }
+
+    #[tokio::test]
+    async fn test_ticker() {
+        let repo = init_repository_from_env();
+
+        let ticker = repo.ticker().await.expect("must get ticker");
+
+        assert!(!ticker.exchanges_weights().is_empty());
     }
 }
