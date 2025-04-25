@@ -358,28 +358,24 @@ mod tests {
     async fn test_close_trade() {
         let repo = init_repository_from_env();
 
-        let side = TradeSide::Buy;
-        let quantity = Quantity::try_from(1).unwrap();
-        let leverage = Leverage::try_from(1).unwrap();
-        let stoploss = None;
-        let takeprofit = None;
-        let execution = TradeExecution::Market;
-
         let created_trade = repo
             .create_new_trade(
-                side,
-                quantity.into(),
-                leverage,
-                execution,
-                stoploss,
-                takeprofit,
+                TradeSide::Buy,
+                Quantity::try_from(1).unwrap().into(),
+                Leverage::try_from(1).unwrap(),
+                TradeExecution::Market,
+                None,
+                None,
             )
             .await
             .expect("must create trade");
 
+        assert!(!created_trade.open());
         assert!(created_trade.running());
+        assert!(!created_trade.closed());
+        assert!(!created_trade.canceled());
 
-        sleep(Duration::from_secs(2)).await;
+        sleep(Duration::from_secs(1)).await;
 
         let closed_trade = repo
             .close_trade(created_trade.id())
@@ -387,6 +383,9 @@ mod tests {
             .expect("must close trade");
 
         assert_eq!(closed_trade.id(), created_trade.id());
-        assert!(closed_trade.closed());
+        assert!(!created_trade.open());
+        assert!(!created_trade.running());
+        assert!(created_trade.closed());
+        assert!(!created_trade.canceled());
     }
 }
