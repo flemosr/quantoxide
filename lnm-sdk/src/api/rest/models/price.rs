@@ -10,6 +10,29 @@ impl Price {
     pub fn into_f64(self) -> f64 {
         f64::from(self)
     }
+
+    /// Returns a new valid Price after applying a percentage change to the current price.
+    ///
+    /// The percentage should be provided as a decimal. For example:
+    /// - `-0.05` for a 5% discount (resulting in 0.95 * original price)
+    /// - `0.10` for a 10% increase (resulting in 1.10 * original price)
+    ///
+    /// # Parameters
+    /// - `percentage`: The percentage change to apply (must be > -1.0)
+    ///
+    /// # Returns
+    /// A Result containing either the new valid Price or a PriceValidationError
+    pub fn apply_change(&self, percentage: f64) -> Result<Self, PriceValidationError> {
+        if percentage <= -1.0 {
+            return Err(PriceValidationError::InvalidPercentage);
+        }
+
+        let target_price = self.0 * (1.0 + percentage);
+
+        let nearest_valid_price = (target_price * 2.0).round() / 2.0;
+
+        Price::try_from(nearest_valid_price)
+    }
 }
 
 impl From<Price> for f64 {
