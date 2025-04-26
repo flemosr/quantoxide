@@ -156,7 +156,7 @@ pub struct Trade {
     side: TradeSide,
     opening_fee: u64,
     closing_fee: u64,
-    maintenance_margin: Margin,
+    maintenance_margin: u64,
     quantity: Quantity,
     margin: Margin,
     leverage: Leverage,
@@ -210,7 +210,7 @@ impl Trade {
         self.closing_fee
     }
 
-    pub fn maintenance_margin(&self) -> Margin {
+    pub fn maintenance_margin(&self) -> u64 {
         self.maintenance_margin
     }
 
