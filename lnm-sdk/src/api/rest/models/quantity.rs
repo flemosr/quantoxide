@@ -8,7 +8,7 @@ pub struct Quantity(u64);
 
 impl Quantity {
     pub fn into_u64(self) -> u64 {
-        u64::from(self)
+        self.into()
     }
 
     pub fn try_calculate(
