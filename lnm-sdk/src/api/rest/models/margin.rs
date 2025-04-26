@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize, de};
-use std::{cmp::Ordering, convert::TryFrom};
+use std::{cmp::Ordering, convert::TryFrom, ops::Add};
 
 use super::{Leverage, Price, Quantity, error::MarginValidationError};
 
@@ -8,17 +8,21 @@ pub struct Margin(u64);
 
 impl Margin {
     pub fn into_u64(self) -> u64 {
-        u64::from(self)
+        self.into()
     }
 
-    pub fn try_calculate(
-        quantity: Quantity,
-        price: Price,
-        leverage: Leverage,
-    ) -> Result<Self, MarginValidationError> {
+    pub fn calculate(quantity: Quantity, price: Price, leverage: Leverage) -> Self {
         let margin =
             quantity.into_u64() as f64 / (price.into_f64() * leverage.into_f64()) * 100000000.;
-        Self::try_from(margin.ceil())
+        Self::from(margin.ceil() as u64)
+    }
+}
+
+impl Add for Margin {
+    type Output = Self;
+
+    fn add(self, other: Self) -> Self::Output {
+        Margin(self.0 + other.0)
     }
 }
 
@@ -28,43 +32,41 @@ impl From<Margin> for u64 {
     }
 }
 
-impl TryFrom<u64> for Margin {
-    type Error = MarginValidationError;
-
-    fn try_from(margin: u64) -> Result<Self, Self::Error> {
-        if margin < 1 {
-            return Err(MarginValidationError::TooLow);
-        }
-
-        Ok(Margin(margin))
+impl From<u64> for Margin {
+    fn from(value: u64) -> Self {
+        Self(value)
     }
 }
 
 impl TryFrom<i32> for Margin {
     type Error = MarginValidationError;
 
-    fn try_from(margin: i32) -> Result<Self, Self::Error> {
-        if margin < 0 {
-            return Err(MarginValidationError::NotPositive);
+    fn try_from(value: i32) -> Result<Self, Self::Error> {
+        if value < 0 {
+            return Err(MarginValidationError::Negative);
         }
 
-        Self::try_from(margin as u64)
+        Ok(Self::from(value as u64))
     }
 }
 
 impl TryFrom<f64> for Margin {
     type Error = MarginValidationError;
 
-    fn try_from(margin: f64) -> Result<Self, Self::Error> {
-        if !margin.is_finite() {
+    fn try_from(value: f64) -> Result<Self, Self::Error> {
+        if !value.is_finite() {
             return Err(MarginValidationError::NotFinite);
         }
 
-        if margin < 0. {
-            return Err(MarginValidationError::NotPositive);
+        if value < 0. {
+            return Err(MarginValidationError::Negative);
         }
 
-        Ok(Margin(margin as u64))
+        if value != value.trunc() {
+            return Err(MarginValidationError::NotInteger);
+        }
+
+        Ok(Margin(value as u64))
     }
 }
 

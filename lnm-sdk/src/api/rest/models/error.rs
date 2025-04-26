@@ -42,14 +42,14 @@ pub enum QuantityValidationError {
 
 #[derive(Debug, thiserror::Error)]
 pub enum MarginValidationError {
-    #[error("Margin must be positive")]
-    NotPositive,
-
-    #[error("Margin must be at least 1")]
-    TooLow,
+    #[error("Margin can't be negative")]
+    Negative,
 
     #[error("Margin must be a finite number")]
     NotFinite,
+
+    #[error("Margin must be an integer")]
+    NotInteger,
 }
 
 #[derive(Debug, thiserror::Error)]
