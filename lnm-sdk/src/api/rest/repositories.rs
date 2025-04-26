@@ -1,12 +1,13 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
+use std::num::NonZeroU64;
 use uuid::Uuid;
 
 use super::{
     error::Result,
     models::{
-        Leverage, Margin, Price, PriceEntryLNM, Ticker, Trade, TradeExecution, TradeSide,
-        TradeSize, TradeStatus,
+        Leverage, Price, PriceEntryLNM, Ticker, Trade, TradeExecution, TradeSide, TradeSize,
+        TradeStatus,
     },
 };
 
@@ -56,7 +57,13 @@ pub trait FuturesRepository: Send + Sync {
     /// The resulting `Leverage` (`Quantity` * 100000000 / (`Margin` * `Price`))
     /// must be valid (≥ 1) after the update.
     /// Beware of potential rounding issues when evaluating the new leverage.
-    async fn add_margin(&self, id: Uuid, margin: Margin) -> Result<Trade>;
+    async fn add_margin(&self, id: Uuid, amount: NonZeroU64) -> Result<Trade>;
 
-    async fn cash_in(&self, id: Uuid, amount: u64) -> Result<Trade>;
+    /// Removes funds from a trade, decreasing the collateral.
+    ///
+    /// Funds are first removed from the trade's PL (if any), then from the trade's margin.
+    /// The resulting `Leverage` (`Quantity` * 100000000 / (`Margin` * `Price`))
+    /// must be valid (≥ 1 and ≤ 100) after the update.
+    /// Beware of potential rounding issues when evaluating the new leverage.
+    async fn cash_in(&self, id: Uuid, amount: NonZeroU64) -> Result<Trade>;
 }
