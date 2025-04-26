@@ -36,8 +36,8 @@ async fn test_create_new_trade_quantity_limit(
     let quantity = Quantity::try_from(1).unwrap();
     let leverage = Leverage::try_from(1).unwrap();
     let out_of_mkt_price = ticker.ask_price().apply_change(-0.3).unwrap();
-    let stoploss = Some(out_of_mkt_price.apply_change(-0.05).unwrap());
-    let takeprofit = Some(out_of_mkt_price.apply_change(0.05).unwrap());
+    let stoploss = None;
+    let takeprofit = None;
     let execution = out_of_mkt_price.into();
 
     let created_trade = repo
@@ -72,12 +72,16 @@ async fn test_create_new_trade_quantity_limit(
     created_trade
 }
 
-async fn test_create_new_trade_quantity_market(repo: &LnmFuturesRepository) -> Trade {
+async fn test_create_new_trade_quantity_market(
+    repo: &LnmFuturesRepository,
+    ticker: &Ticker,
+) -> Trade {
     let side = TradeSide::Buy;
     let quantity = Quantity::try_from(1).unwrap();
     let leverage = Leverage::try_from(1).unwrap();
-    let stoploss = None;
-    let takeprofit = None;
+    let est_price = ticker.ask_price();
+    let stoploss = Some(est_price.apply_change(-0.1).unwrap());
+    let takeprofit = Some(est_price.apply_change(0.1).unwrap());
     let execution = TradeExecution::Market;
 
     let created_trade = repo
@@ -157,14 +161,15 @@ async fn test_create_new_trade_margin_market(
     repo: &LnmFuturesRepository,
     ticker: &Ticker,
 ) -> Trade {
-    let est_min_price = ticker.ask_price().apply_change(-0.1).unwrap();
+    let est_min_price = ticker.ask_price().apply_change(-0.05).unwrap();
 
     let side = TradeSide::Buy;
     let leverage = Leverage::try_from(1).unwrap();
     let implied_qtd = Quantity::try_from(1).unwrap();
     let margin = Margin::try_calculate(implied_qtd, est_min_price, leverage).unwrap();
-    let stoploss = None;
-    let takeprofit = None;
+    let est_price = ticker.ask_price();
+    let stoploss = Some(est_price.apply_change(-0.1).unwrap());
+    let takeprofit = Some(est_price.apply_change(0.1).unwrap());
     let execution = TradeExecution::Market;
 
     let created_trade = repo
@@ -312,7 +317,7 @@ async fn test_api() {
 
     test_get_trades_open(&repo, vec![&limit_trade_a, &limit_trade_b]).await;
 
-    let market_trade_a = test_create_new_trade_quantity_market(&repo).await;
+    let market_trade_a = test_create_new_trade_quantity_market(&repo, &ticker).await;
     let market_trade_b = test_create_new_trade_margin_market(&repo, &ticker).await;
 
     test_get_trades_running(&repo, vec![&market_trade_a, &market_trade_b]).await;
