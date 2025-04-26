@@ -15,6 +15,6 @@ pub use price_history::PriceEntryLNM;
 pub use quantity::Quantity;
 pub use ticker::Ticker;
 pub use trade::{
-    FuturesTradeRequestBody, NestedTradesResponse, Trade, TradeExecution, TradeExecutionType,
-    TradeSide, TradeSize, TradeStatus,
+    FuturesTradeRequestBody, FuturesUpdateTradeRequestBody, NestedTradesResponse, Trade,
+    TradeExecution, TradeExecutionType, TradeSide, TradeSize, TradeStatus, TradeUpdateType,
 };

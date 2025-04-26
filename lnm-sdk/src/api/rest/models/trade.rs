@@ -295,3 +295,37 @@ impl Trade {
 pub struct NestedTradesResponse {
     pub trades: Vec<Trade>,
 }
+
+#[derive(Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum TradeUpdateType {
+    Stoploss,
+    Takeprofit,
+}
+
+impl TradeUpdateType {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            TradeUpdateType::Stoploss => "stoploss",
+            TradeUpdateType::Takeprofit => "takeprofit",
+        }
+    }
+}
+
+#[derive(Serialize)]
+pub struct FuturesUpdateTradeRequestBody {
+    id: Uuid,
+    #[serde(rename = "type")]
+    update_type: TradeUpdateType,
+    value: Price,
+}
+
+impl FuturesUpdateTradeRequestBody {
+    pub fn new(id: Uuid, update_type: TradeUpdateType, value: Price) -> Self {
+        Self {
+            id,
+            update_type,
+            value,
+        }
+    }
+}
