@@ -5,8 +5,8 @@ use uuid::Uuid;
 use super::{
     error::Result,
     models::{
-        Leverage, Price, PriceEntryLNM, Ticker, Trade, TradeExecution, TradeSide, TradeSize,
-        TradeStatus,
+        Leverage, Margin, Price, PriceEntryLNM, Ticker, Trade, TradeExecution, TradeSide,
+        TradeSize, TradeStatus,
     },
 };
 
@@ -50,4 +50,11 @@ pub trait FuturesRepository: Send + Sync {
     async fn update_trade_stoploss(&self, id: Uuid, stoploss: Price) -> Result<Trade>;
 
     async fn update_trade_takeprofit(&self, id: Uuid, takeprofit: Price) -> Result<Trade>;
+
+    /// Adds margin to a trade, increasing the collateral.
+    ///
+    /// The resulting `Leverage` (`Quantity` * 100000000 / (`Margin` * `Price`))
+    /// must be valid (≥ 1) after the update.
+    /// Beware of potential rounding issues when evaluating the new leverage.
+    async fn add_margin(&self, id: Uuid, margin: Margin) -> Result<Trade>;
 }
