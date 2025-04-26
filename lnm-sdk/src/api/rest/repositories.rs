@@ -7,7 +7,7 @@ use super::{
     error::Result,
     models::{
         Leverage, Price, PriceEntryLNM, Ticker, Trade, TradeExecution, TradeSide, TradeSize,
-        TradeStatus,
+        TradeStatus, User,
     },
 };
 
@@ -66,4 +66,9 @@ pub trait FuturesRepository: Send + Sync {
     /// must be valid (≥ 1 and ≤ 100) after the update.
     /// Beware of potential rounding issues when evaluating the new leverage.
     async fn cash_in(&self, id: Uuid, amount: NonZeroU64) -> Result<Trade>;
+}
+
+#[async_trait]
+pub trait UserRepository: Send + Sync {
+    async fn get_user(&self) -> Result<User>;
 }
