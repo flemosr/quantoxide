@@ -36,9 +36,9 @@ async fn test_create_new_trade_quantity_limit(
     let quantity = Quantity::try_from(1).unwrap();
     let leverage = Leverage::try_from(1).unwrap();
     let out_of_mkt_price = ticker.ask_price().apply_change(-0.3).unwrap();
+    let execution = out_of_mkt_price.into();
     let stoploss = None;
     let takeprofit = None;
-    let execution = out_of_mkt_price.into();
 
     let created_trade = repo
         .create_new_trade(
@@ -302,22 +302,58 @@ async fn test_close_all_trades(repo: &LnmFuturesRepository, exp_running_trades: 
     }
 }
 
+async fn test_update_trade_stoploss(repo: &LnmFuturesRepository, id: Uuid, price: Price) {
+    let stoploss = price.apply_change(-0.05).unwrap();
+    let updated_trade = repo
+        .update_trade_stoploss(id, stoploss)
+        .await
+        .expect("must update trade");
+
+    assert_eq!(updated_trade.id(), id);
+    assert_eq!(updated_trade.stoploss(), Some(stoploss));
+}
+
+async fn test_update_trade_takeprofit(repo: &LnmFuturesRepository, id: Uuid, price: Price) {
+    let takeprofit = price.apply_change(0.05).unwrap();
+    let updated_trade = repo
+        .update_trade_takeprofit(id, takeprofit)
+        .await
+        .expect("must update trade");
+
+    assert_eq!(updated_trade.id(), id);
+    assert_eq!(updated_trade.takeprofit(), Some(takeprofit));
+}
+
 #[tokio::test]
 async fn test_api() {
     let repo = init_repository_from_env();
 
     // Initial clean-up
-    repo.cancel_all_trades().await.expect("must cancel trades");
-    repo.close_all_trades().await.expect("must close trades");
+
+    let _ = repo.cancel_all_trades().await.expect("must cancel trades");
+
+    let _ = repo.close_all_trades().await.expect("must close trades");
+
+    // Start tests
 
     let ticker = test_ticker(&repo).await;
 
     let limit_trade_a = test_create_new_trade_quantity_limit(&repo, &ticker).await;
+
     let limit_trade_b = test_create_new_trade_margin_limit(&repo, &ticker).await;
 
     test_get_trades_open(&repo, vec![&limit_trade_a, &limit_trade_b]).await;
 
+    test_update_trade_stoploss(&repo, limit_trade_a.id(), limit_trade_a.price()).await;
+
+    test_update_trade_takeprofit(&repo, limit_trade_a.id(), limit_trade_a.price()).await;
+
+    test_cancel_trade(&repo, limit_trade_a.id()).await;
+
+    test_cancel_all_trades(&repo, vec![&limit_trade_b]).await;
+
     let market_trade_a = test_create_new_trade_quantity_market(&repo, &ticker).await;
+
     let market_trade_b = test_create_new_trade_margin_market(&repo, &ticker).await;
 
     test_get_trades_running(&repo, vec![&market_trade_a, &market_trade_b]).await;
@@ -325,10 +361,6 @@ async fn test_api() {
     test_close_trade(&repo, market_trade_a.id()).await;
 
     test_close_all_trades(&repo, vec![&market_trade_b]).await;
-
-    test_cancel_trade(&repo, limit_trade_a.id()).await;
-
-    test_cancel_all_trades(&repo, vec![&limit_trade_b]).await;
 
     test_get_trades_closed(&repo, vec![&market_trade_a, &market_trade_b]).await;
 }
