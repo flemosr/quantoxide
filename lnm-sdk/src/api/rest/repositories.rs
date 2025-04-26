@@ -46,4 +46,8 @@ pub trait FuturesRepository: Send + Sync {
     async fn close_all_trades(&self) -> Result<Vec<Trade>>;
 
     async fn ticker(&self) -> Result<Ticker>;
+
+    async fn update_trade_stoploss(&self, id: Uuid, stoploss: Price) -> Result<Trade>;
+
+    async fn update_trade_takeprofit(&self, id: Uuid, takeprofit: Price) -> Result<Trade>;
 }
