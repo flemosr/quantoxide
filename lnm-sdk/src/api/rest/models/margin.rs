@@ -11,10 +11,14 @@ impl Margin {
         self.into()
     }
 
-    pub fn calculate(quantity: Quantity, price: Price, leverage: Leverage) -> Self {
+    pub fn try_calculate(
+        quantity: Quantity,
+        price: Price,
+        leverage: Leverage,
+    ) -> Result<Self, MarginValidationError> {
         let margin =
             quantity.into_u64() as f64 / (price.into_f64() * leverage.into_f64()) * 100000000.;
-        Self::from(margin.ceil() as u64)
+        Self::try_from(margin.ceil() as u64)
     }
 }
 
@@ -32,9 +36,15 @@ impl From<Margin> for u64 {
     }
 }
 
-impl From<u64> for Margin {
-    fn from(value: u64) -> Self {
-        Self(value)
+impl TryFrom<u64> for Margin {
+    type Error = MarginValidationError;
+
+    fn try_from(value: u64) -> Result<Self, Self::Error> {
+        if value == 0 {
+            return Err(MarginValidationError::Zero);
+        }
+
+        Ok(Self(value as u64))
     }
 }
 
@@ -46,7 +56,7 @@ impl TryFrom<i32> for Margin {
             return Err(MarginValidationError::Negative);
         }
 
-        Ok(Self::from(value as u64))
+        Self::try_from(value as u64)
     }
 }
 

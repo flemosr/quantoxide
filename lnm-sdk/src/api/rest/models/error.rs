@@ -45,6 +45,9 @@ pub enum MarginValidationError {
     #[error("Margin can't be negative")]
     Negative,
 
+    #[error("Margin can't be zero")]
+    Zero,
+
     #[error("Margin must be a finite number")]
     NotFinite,
 
