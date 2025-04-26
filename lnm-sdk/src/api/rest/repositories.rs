@@ -57,4 +57,6 @@ pub trait FuturesRepository: Send + Sync {
     /// must be valid (≥ 1) after the update.
     /// Beware of potential rounding issues when evaluating the new leverage.
     async fn add_margin(&self, id: Uuid, margin: Margin) -> Result<Trade>;
+
+    async fn cash_in(&self, id: Uuid, amount: u64) -> Result<Trade>;
 }
