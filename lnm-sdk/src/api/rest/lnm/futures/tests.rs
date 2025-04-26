@@ -120,7 +120,7 @@ async fn test_create_new_trade_margin_limit(repo: &LnmFuturesRepository, ticker:
     let leverage = Leverage::try_from(1).unwrap();
     let out_of_mkt_price = ticker.ask_price().apply_change(-0.3).unwrap();
     let implied_qtd = Quantity::try_from(1).unwrap();
-    let margin = Margin::calculate(implied_qtd, out_of_mkt_price, leverage);
+    let margin = Margin::try_calculate(implied_qtd, out_of_mkt_price, leverage).unwrap();
     let stoploss = Some(out_of_mkt_price.apply_change(-0.05).unwrap());
     let takeprofit = None;
     let execution = out_of_mkt_price.into();
@@ -166,7 +166,7 @@ async fn test_create_new_trade_margin_market(
     let side = TradeSide::Buy;
     let leverage = Leverage::try_from(1).unwrap();
     let implied_qtd = Quantity::try_from(1).unwrap();
-    let margin = Margin::calculate(implied_qtd, est_min_price, leverage);
+    let margin = Margin::try_calculate(implied_qtd, est_min_price, leverage).unwrap();
     let est_price = ticker.ask_price();
     let stoploss = Some(est_price.apply_change(-0.1).unwrap());
     let takeprofit = Some(est_price.apply_change(0.1).unwrap());
@@ -328,9 +328,10 @@ async fn test_add_margin(repo: &LnmFuturesRepository, trade: Trade) -> Trade {
     assert!(trade.leverage().into_f64() > 1.6);
 
     let target_leverage = Leverage::try_from(1.5).unwrap();
-    let target_margin = Margin::calculate(trade.quantity(), trade.price(), target_leverage);
+    let target_margin =
+        Margin::try_calculate(trade.quantity(), trade.price(), target_leverage).unwrap();
     let amount = target_margin.into_u64() - trade.margin().into_u64();
-    let amount = amount.into();
+    let amount = amount.try_into().unwrap();
 
     let updated_trade = repo
         .add_margin(trade.id(), amount)
@@ -347,8 +348,10 @@ async fn test_cash_in(repo: &LnmFuturesRepository, trade: Trade) -> Trade {
     assert!(trade.leverage().into_f64() < 1.9);
 
     let target_leverage = Leverage::try_from(2).unwrap();
-    let target_margin = Margin::calculate(trade.quantity(), trade.price(), target_leverage);
+    let target_margin =
+        Margin::try_calculate(trade.quantity(), trade.price(), target_leverage).unwrap();
     let amount = trade.margin().into_u64() - target_margin.into_u64() + trade.pl().max(0) as u64;
+    let amount = amount.try_into().unwrap();
 
     let updated_trade = repo
         .cash_in(trade.id(), amount)

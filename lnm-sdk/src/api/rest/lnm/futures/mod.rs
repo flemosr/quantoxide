@@ -2,12 +2,12 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use reqwest::{self, Method};
 use serde_json::json;
-use std::sync::Arc;
+use std::{num::NonZeroU64, sync::Arc};
 use uuid::Uuid;
 
 use crate::api::rest::models::{
-    FuturesUpdateTradeRequestBody, Leverage, Margin, NestedTradesResponse, Price, Ticker,
-    TradeExecution, TradeSize, TradeStatus, TradeUpdateType,
+    FuturesUpdateTradeRequestBody, Leverage, NestedTradesResponse, Price, Ticker, TradeExecution,
+    TradeSize, TradeStatus, TradeUpdateType,
 };
 
 use super::{
@@ -194,10 +194,10 @@ impl FuturesRepository for LnmFuturesRepository {
             .await
     }
 
-    async fn add_margin(&self, id: Uuid, amount: Margin) -> Result<Trade> {
+    async fn add_margin(&self, id: Uuid, amount: NonZeroU64) -> Result<Trade> {
         let body = json!({
             "id": id.to_string(),
-            "amount": amount.into_u64(),
+            "amount": amount.get(),
         });
 
         let updated_trade: Trade = self
@@ -208,7 +208,7 @@ impl FuturesRepository for LnmFuturesRepository {
         Ok(updated_trade)
     }
 
-    async fn cash_in(&self, id: Uuid, amount: u64) -> Result<Trade> {
+    async fn cash_in(&self, id: Uuid, amount: NonZeroU64) -> Result<Trade> {
         let body = json!({
             "id": id.to_string(),
             "amount": amount,
