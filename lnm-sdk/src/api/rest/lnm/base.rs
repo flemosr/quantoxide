@@ -18,6 +18,7 @@ pub enum ApiPath {
     FuturesCancelTrade,
     FuturesCancelAllTrades,
     FuturesCloseAllTrades,
+    FuturesAddMargin,
 }
 
 impl ApiPath {
@@ -29,6 +30,7 @@ impl ApiPath {
             Self::FuturesCancelTrade => "/v2/futures/cancel",
             Self::FuturesCancelAllTrades => "/v2/futures/all/cancel",
             Self::FuturesCloseAllTrades => "/v2/futures/all/close",
+            Self::FuturesAddMargin => "/v2/futures/add-margin",
         }
     }
 }
@@ -176,10 +178,14 @@ impl LnmApiBase {
             return Err(RestApiError::Generic(error_text));
         }
 
-        let response_data = response
-            .json::<T>()
+        let raw_response = response
+            .text()
             .await
-            .map_err(|e| RestApiError::Generic(e.to_string()))?;
+            .map_err(|e| RestApiError::Generic(format!("Failed to get response text: {}", e)))?;
+
+        let response_data = serde_json::from_str::<T>(&raw_response).map_err(|e| {
+            RestApiError::Generic(format!("err {}, res {raw_response}", e.to_string()))
+        })?;
 
         Ok(response_data)
     }

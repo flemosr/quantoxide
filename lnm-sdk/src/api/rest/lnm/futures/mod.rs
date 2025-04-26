@@ -6,8 +6,8 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::api::rest::models::{
-    FuturesUpdateTradeRequestBody, Leverage, NestedTradesResponse, Price, Ticker, TradeExecution,
-    TradeSize, TradeStatus, TradeUpdateType,
+    FuturesUpdateTradeRequestBody, Leverage, Margin, NestedTradesResponse, Price, Ticker,
+    TradeExecution, TradeSize, TradeStatus, TradeUpdateType,
 };
 
 use super::{
@@ -192,5 +192,19 @@ impl FuturesRepository for LnmFuturesRepository {
     async fn update_trade_takeprofit(&self, id: Uuid, takeprofit: Price) -> Result<Trade> {
         self.update_trade(id, TradeUpdateType::Takeprofit, takeprofit)
             .await
+    }
+
+    async fn add_margin(&self, id: Uuid, amount: Margin) -> Result<Trade> {
+        let body = json!({
+            "id": id.to_string(),
+            "amount": amount.into_u64(),
+        });
+
+        let updated_trade: Trade = self
+            .base
+            .make_request_with_body(Method::POST, &ApiPath::FuturesAddMargin, body, true)
+            .await?;
+
+        Ok(updated_trade)
     }
 }

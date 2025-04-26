@@ -78,7 +78,7 @@ async fn test_create_new_trade_quantity_market(
 ) -> Trade {
     let side = TradeSide::Buy;
     let quantity = Quantity::try_from(1).unwrap();
-    let leverage = Leverage::try_from(1).unwrap();
+    let leverage = Leverage::try_from(2).unwrap();
     let est_price = ticker.ask_price();
     let stoploss = Some(est_price.apply_change(-0.1).unwrap());
     let takeprofit = Some(est_price.apply_change(0.1).unwrap());
@@ -120,7 +120,7 @@ async fn test_create_new_trade_margin_limit(repo: &LnmFuturesRepository, ticker:
     let leverage = Leverage::try_from(1).unwrap();
     let out_of_mkt_price = ticker.ask_price().apply_change(-0.3).unwrap();
     let implied_qtd = Quantity::try_from(1).unwrap();
-    let margin = Margin::try_calculate(implied_qtd, out_of_mkt_price, leverage).unwrap();
+    let margin = Margin::calculate(implied_qtd, out_of_mkt_price, leverage);
     let stoploss = Some(out_of_mkt_price.apply_change(-0.05).unwrap());
     let takeprofit = None;
     let execution = out_of_mkt_price.into();
@@ -166,7 +166,7 @@ async fn test_create_new_trade_margin_market(
     let side = TradeSide::Buy;
     let leverage = Leverage::try_from(1).unwrap();
     let implied_qtd = Quantity::try_from(1).unwrap();
-    let margin = Margin::try_calculate(implied_qtd, est_min_price, leverage).unwrap();
+    let margin = Margin::calculate(implied_qtd, est_min_price, leverage);
     let est_price = ticker.ask_price();
     let stoploss = Some(est_price.apply_change(-0.1).unwrap());
     let takeprofit = Some(est_price.apply_change(0.1).unwrap());
@@ -324,6 +324,25 @@ async fn test_update_trade_takeprofit(repo: &LnmFuturesRepository, id: Uuid, pri
     assert_eq!(updated_trade.takeprofit(), Some(takeprofit));
 }
 
+async fn test_add_margin(repo: &LnmFuturesRepository, trade: Trade) -> Trade {
+    assert!(trade.leverage().into_f64() > 1.6);
+
+    let target_leverage = Leverage::try_from(1.5).unwrap();
+    let target_margin = Margin::calculate(trade.quantity(), trade.price(), target_leverage);
+    let amount = target_margin.into_u64() - trade.margin().into_u64();
+    let amount = amount.into();
+
+    let updated_trade = repo
+        .add_margin(trade.id(), amount)
+        .await
+        .expect("must add margin");
+
+    assert_eq!(updated_trade.id(), trade.id());
+    assert_eq!(updated_trade.margin(), target_margin);
+
+    updated_trade
+}
+
 #[tokio::test]
 async fn test_api() {
     let repo = init_repository_from_env();
@@ -353,6 +372,8 @@ async fn test_api() {
     test_cancel_all_trades(&repo, vec![&limit_trade_b]).await;
 
     let market_trade_a = test_create_new_trade_quantity_market(&repo, &ticker).await;
+
+    let market_trade_a = test_add_margin(&repo, market_trade_a).await;
 
     let market_trade_b = test_create_new_trade_margin_market(&repo, &ticker).await;
 
