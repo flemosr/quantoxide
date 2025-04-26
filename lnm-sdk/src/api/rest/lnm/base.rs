@@ -20,6 +20,7 @@ pub enum ApiPath {
     FuturesCloseAllTrades,
     FuturesAddMargin,
     FuturesCashIn,
+    UserGetUser,
 }
 
 impl ApiPath {
@@ -33,6 +34,7 @@ impl ApiPath {
             Self::FuturesCloseAllTrades => "/v2/futures/all/close",
             Self::FuturesAddMargin => "/v2/futures/add-margin",
             Self::FuturesCashIn => "/v2/futures/cash-in",
+            Self::UserGetUser => "/v2/user",
         }
     }
 }
