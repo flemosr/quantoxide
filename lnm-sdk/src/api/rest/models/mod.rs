@@ -6,6 +6,7 @@ mod price_history;
 mod quantity;
 mod ticker;
 mod trade;
+mod user;
 mod utils;
 
 pub use leverage::Leverage;
@@ -18,3 +19,4 @@ pub use trade::{
     FuturesTradeRequestBody, FuturesUpdateTradeRequestBody, NestedTradesResponse, Trade,
     TradeExecution, TradeExecutionType, TradeSide, TradeSize, TradeStatus, TradeUpdateType,
 };
+pub use user::{User, UserRole};
