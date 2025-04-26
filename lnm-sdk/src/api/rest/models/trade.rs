@@ -64,7 +64,7 @@ impl From<Price> for TradeExecution {
     }
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Debug)]
 pub struct FuturesTradeRequestBody {
     leverage: Leverage,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -296,7 +296,7 @@ pub struct NestedTradesResponse {
     pub trades: Vec<Trade>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Debug)]
 #[serde(rename_all = "lowercase")]
 pub enum TradeUpdateType {
     Stoploss,
@@ -312,7 +312,7 @@ impl TradeUpdateType {
     }
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Debug)]
 pub struct FuturesUpdateTradeRequestBody {
     id: Uuid,
     #[serde(rename = "type")]
