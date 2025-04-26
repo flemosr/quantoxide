@@ -343,6 +343,24 @@ async fn test_add_margin(repo: &LnmFuturesRepository, trade: Trade) -> Trade {
     updated_trade
 }
 
+async fn test_cash_in(repo: &LnmFuturesRepository, trade: Trade) -> Trade {
+    assert!(trade.leverage().into_f64() < 1.9);
+
+    let target_leverage = Leverage::try_from(2).unwrap();
+    let target_margin = Margin::calculate(trade.quantity(), trade.price(), target_leverage);
+    let amount = trade.margin().into_u64() - target_margin.into_u64() + trade.pl().max(0) as u64;
+
+    let updated_trade = repo
+        .cash_in(trade.id(), amount)
+        .await
+        .expect("must cash-in");
+
+    assert_eq!(updated_trade.id(), trade.id());
+    assert!(updated_trade.leverage() > trade.leverage());
+
+    updated_trade
+}
+
 #[tokio::test]
 async fn test_api() {
     let repo = init_repository_from_env();
@@ -374,6 +392,8 @@ async fn test_api() {
     let market_trade_a = test_create_new_trade_quantity_market(&repo, &ticker).await;
 
     let market_trade_a = test_add_margin(&repo, market_trade_a).await;
+
+    let market_trade_a = test_cash_in(&repo, market_trade_a).await;
 
     let market_trade_b = test_create_new_trade_margin_market(&repo, &ticker).await;
 

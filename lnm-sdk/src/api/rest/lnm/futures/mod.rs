@@ -207,4 +207,18 @@ impl FuturesRepository for LnmFuturesRepository {
 
         Ok(updated_trade)
     }
+
+    async fn cash_in(&self, id: Uuid, amount: u64) -> Result<Trade> {
+        let body = json!({
+            "id": id.to_string(),
+            "amount": amount,
+        });
+
+        let updated_trade: Trade = self
+            .base
+            .make_request_with_body(Method::POST, &ApiPath::FuturesCashIn, body, true)
+            .await?;
+
+        Ok(updated_trade)
+    }
 }
