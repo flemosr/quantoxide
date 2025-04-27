@@ -1,58 +1,75 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 
-use lnm_sdk::api::rest::models::Margin;
+use lnm_sdk::api::rest::models::{Leverage, Margin};
 
 mod error;
 
 use error::{Result, TradeError};
 
+/// Represents a percentage value that is constrained within a specific range.
+///
+/// This struct wraps an f32 value that must be:
+/// - Greater than or equal to 0.1%
+/// - Less than or equal to 99.9%
+///
+/// This bounded range makes it suitable for percentage calculations where both
+/// minimum and maximum limits are required.
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
-pub struct StoplossPerc(f32);
+pub struct BoundedPercentage(f32);
 
-impl TryFrom<f32> for StoplossPerc {
+impl TryFrom<f32> for BoundedPercentage {
     type Error = TradeError;
 
     fn try_from(value: f32) -> Result<Self> {
-        if value < 0.1 || value >= 99.9 {
+        if value < 0.1 || value > 99.9 {
             return Err(TradeError::Generic(format!(
-                "`StoplossPerc` must be gte 0.1 and lte 99.9, got {value}"
+                "`BoundedPercentage` must be gte 0.1 and lte 99.9, got {value}"
             )));
         }
         Ok(Self(value))
     }
 }
 
-impl From<StoplossPerc> for f32 {
-    fn from(perc: StoplossPerc) -> f32 {
+impl From<BoundedPercentage> for f32 {
+    fn from(perc: BoundedPercentage) -> f32 {
         perc.0
     }
 }
 
-impl Eq for StoplossPerc {}
+impl Eq for BoundedPercentage {}
 
-impl Ord for StoplossPerc {
+impl Ord for BoundedPercentage {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        // Since we guarantee the values are finite, we can use partial_cmp and unwrap
-        self.partial_cmp(other).unwrap()
+        self.partial_cmp(other)
+            .expect("`BoundedPercentage` must be finite")
     }
 }
 
+/// Represents a percentage value that is only constrained by a lower bound.
+///
+/// This struct wraps an f32 value that must be:
+/// - Greater than or equal to 0.1%
+/// - Finite (not infinity)
+///
+/// This type is suitable for percentage calculations where only a minimum
+/// threshold is needed, with no practical upper limit other than it must be a
+/// finite value.
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
-pub struct TakeprofitPerc(f32);
+pub struct LowerBoundedPercentage(f32);
 
-impl TryFrom<f32> for TakeprofitPerc {
+impl TryFrom<f32> for LowerBoundedPercentage {
     type Error = TradeError;
 
     fn try_from(value: f32) -> Result<Self> {
         if value < 0.1 {
             return Err(TradeError::Generic(format!(
-                "`TakeprofitPerc` must be gte 0.1, got {value}"
+                "`LowerBoundedPercentage` must be gte 0.1, got {value}"
             )));
         }
         if value == f32::INFINITY {
             return Err(TradeError::Generic(format!(
-                "`TakeprofitPerc` must be finite"
+                "`LowerBoundedPercentage` must be finite"
             )));
         }
 
@@ -60,31 +77,35 @@ impl TryFrom<f32> for TakeprofitPerc {
     }
 }
 
-impl From<TakeprofitPerc> for f32 {
-    fn from(perc: TakeprofitPerc) -> f32 {
+impl From<LowerBoundedPercentage> for f32 {
+    fn from(perc: LowerBoundedPercentage) -> f32 {
         perc.0
     }
 }
 
-impl Eq for TakeprofitPerc {}
+impl Eq for LowerBoundedPercentage {}
 
-impl Ord for TakeprofitPerc {
+impl Ord for LowerBoundedPercentage {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        // Since we guarantee the values are finite, we can use partial_cmp and unwrap
-        self.partial_cmp(other).unwrap()
+        self.partial_cmp(other)
+            .expect("`LowerBoundedPercentage` must be finite")
     }
 }
 
 pub enum TradeOrder {
     OpenLong {
         timestamp: DateTime<Utc>,
-        stoploss_perc: StoplossPerc,
-        takeprofit_perc: TakeprofitPerc,
+        stoploss_perc: BoundedPercentage,
+        takeprofit_perc: LowerBoundedPercentage,
+        balance_perc: BoundedPercentage,
+        leverage: Leverage,
     },
     OpenShort {
         timestamp: DateTime<Utc>,
-        stoploss_perc: StoplossPerc,
-        takeprofit_perc: TakeprofitPerc,
+        stoploss_perc: BoundedPercentage,
+        takeprofit_perc: LowerBoundedPercentage,
+        balance_perc: BoundedPercentage,
+        leverage: Leverage,
     },
     CloseLongs {
         timestamp: DateTime<Utc>,
@@ -100,25 +121,33 @@ pub enum TradeOrder {
 impl TradeOrder {
     pub fn open_long(
         timestamp: DateTime<Utc>,
-        stoploss_perc: StoplossPerc,
-        takeprofit_perc: TakeprofitPerc,
+        stoploss_perc: BoundedPercentage,
+        takeprofit_perc: LowerBoundedPercentage,
+        balance_perc: BoundedPercentage,
+        leverage: Leverage,
     ) -> Self {
         Self::OpenLong {
             timestamp,
             stoploss_perc,
             takeprofit_perc,
+            balance_perc,
+            leverage,
         }
     }
 
     pub fn open_short(
         timestamp: DateTime<Utc>,
-        stoploss_perc: StoplossPerc,
-        takeprofit_perc: TakeprofitPerc,
+        stoploss_perc: BoundedPercentage,
+        takeprofit_perc: LowerBoundedPercentage,
+        balance_perc: BoundedPercentage,
+        leverage: Leverage,
     ) -> Self {
         Self::OpenShort {
             timestamp,
             stoploss_perc,
             takeprofit_perc,
+            balance_perc,
+            leverage,
         }
     }
 
