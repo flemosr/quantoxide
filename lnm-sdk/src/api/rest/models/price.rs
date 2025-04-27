@@ -3,7 +3,7 @@ use std::{cmp::Ordering, convert::TryFrom};
 
 use super::{error::PriceValidationError, utils};
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 pub struct Price(f64);
 
 impl Price {
@@ -69,96 +69,12 @@ impl TryFrom<i32> for Price {
     }
 }
 
-impl PartialEq for Price {
-    fn eq(&self, other: &Self) -> bool {
-        self.0 == other.0
-    }
-}
-
 impl Eq for Price {}
-
-impl PartialOrd for Price {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        self.0.partial_cmp(&other.0)
-    }
-}
 
 impl Ord for Price {
     fn cmp(&self, other: &Self) -> Ordering {
         // Since we guarantee the values are finite, we can use partial_cmp and unwrap
         self.partial_cmp(other).unwrap()
-    }
-}
-
-impl PartialEq<f64> for Price {
-    fn eq(&self, other: &f64) -> bool {
-        self.0 == *other
-    }
-}
-
-impl PartialOrd<f64> for Price {
-    fn partial_cmp(&self, other: &f64) -> Option<Ordering> {
-        self.0.partial_cmp(other)
-    }
-}
-
-impl PartialEq<Price> for f64 {
-    fn eq(&self, other: &Price) -> bool {
-        *self == other.0
-    }
-}
-
-impl PartialOrd<Price> for f64 {
-    fn partial_cmp(&self, other: &Price) -> Option<Ordering> {
-        self.partial_cmp(&other.0)
-    }
-}
-
-impl PartialEq<i32> for Price {
-    fn eq(&self, other: &i32) -> bool {
-        self.0 == *other as f64
-    }
-}
-
-impl PartialOrd<i32> for Price {
-    fn partial_cmp(&self, other: &i32) -> Option<Ordering> {
-        self.0.partial_cmp(&(*other as f64))
-    }
-}
-
-impl PartialEq<Price> for i32 {
-    fn eq(&self, other: &Price) -> bool {
-        *self as f64 == other.0
-    }
-}
-
-impl PartialOrd<Price> for i32 {
-    fn partial_cmp(&self, other: &Price) -> Option<Ordering> {
-        (*self as f64).partial_cmp(&other.0)
-    }
-}
-
-impl PartialEq<u32> for Price {
-    fn eq(&self, other: &u32) -> bool {
-        self.0 == *other as f64
-    }
-}
-
-impl PartialOrd<u32> for Price {
-    fn partial_cmp(&self, other: &u32) -> Option<Ordering> {
-        self.0.partial_cmp(&(*other as f64))
-    }
-}
-
-impl PartialEq<Price> for u32 {
-    fn eq(&self, other: &Price) -> bool {
-        *self as f64 == other.0
-    }
-}
-
-impl PartialOrd<Price> for u32 {
-    fn partial_cmp(&self, other: &Price) -> Option<Ordering> {
-        (*self as f64).partial_cmp(&other.0)
     }
 }
 
