@@ -4,6 +4,7 @@ use chrono::{DateTime, Utc};
 use lnm_sdk::api::rest::models::{Leverage, Margin};
 
 mod error;
+mod simulated;
 
 use error::{Result, TradeError};
 
