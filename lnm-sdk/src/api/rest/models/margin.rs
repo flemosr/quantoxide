@@ -1,9 +1,9 @@
 use serde::{Deserialize, Serialize, de};
-use std::{cmp::Ordering, convert::TryFrom, ops::Add};
+use std::{convert::TryFrom, ops::Add};
 
 use super::{Leverage, Price, Quantity, error::MarginValidationError};
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Margin(u64);
 
 impl Margin {
@@ -80,89 +80,89 @@ impl TryFrom<f64> for Margin {
     }
 }
 
-impl PartialEq for Margin {
-    fn eq(&self, other: &Self) -> bool {
-        self.0 == other.0
-    }
-}
+// impl PartialEq for Margin {
+//     fn eq(&self, other: &Self) -> bool {
+//         self.0 == other.0
+//     }
+// }
 
-impl Eq for Margin {}
+// impl Eq for Margin {}
 
-impl PartialOrd for Margin {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
+// impl PartialOrd for Margin {
+//     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+//         Some(self.cmp(other))
+//     }
+// }
 
-impl Ord for Margin {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.0.cmp(&other.0)
-    }
-}
+// impl Ord for Margin {
+//     fn cmp(&self, other: &Self) -> Ordering {
+//         self.0.cmp(&other.0)
+//     }
+// }
 
-impl PartialEq<u64> for Margin {
-    fn eq(&self, other: &u64) -> bool {
-        self.0 == *other
-    }
-}
+// impl PartialEq<u64> for Margin {
+//     fn eq(&self, other: &u64) -> bool {
+//         self.0 == *other
+//     }
+// }
 
-impl PartialOrd<u64> for Margin {
-    fn partial_cmp(&self, other: &u64) -> Option<Ordering> {
-        Some(self.0.cmp(other))
-    }
-}
+// impl PartialOrd<u64> for Margin {
+//     fn partial_cmp(&self, other: &u64) -> Option<Ordering> {
+//         Some(self.0.cmp(other))
+//     }
+// }
 
-impl PartialEq<Margin> for u64 {
-    fn eq(&self, other: &Margin) -> bool {
-        *self == other.0
-    }
-}
+// impl PartialEq<Margin> for u64 {
+//     fn eq(&self, other: &Margin) -> bool {
+//         *self == other.0
+//     }
+// }
 
-impl PartialOrd<Margin> for u64 {
-    fn partial_cmp(&self, other: &Margin) -> Option<Ordering> {
-        Some(self.cmp(&other.0))
-    }
-}
+// impl PartialOrd<Margin> for u64 {
+//     fn partial_cmp(&self, other: &Margin) -> Option<Ordering> {
+//         Some(self.cmp(&other.0))
+//     }
+// }
 
-impl PartialEq<i32> for Margin {
-    fn eq(&self, other: &i32) -> bool {
-        if *other < 0 {
-            false
-        } else {
-            self.0 == *other as u64
-        }
-    }
-}
+// impl PartialEq<i32> for Margin {
+//     fn eq(&self, other: &i32) -> bool {
+//         if *other < 0 {
+//             false
+//         } else {
+//             self.0 == *other as u64
+//         }
+//     }
+// }
 
-impl PartialOrd<i32> for Margin {
-    fn partial_cmp(&self, other: &i32) -> Option<Ordering> {
-        if *other < 0 {
-            Some(Ordering::Greater)
-        } else {
-            Some(self.0.cmp(&(*other as u64)))
-        }
-    }
-}
+// impl PartialOrd<i32> for Margin {
+//     fn partial_cmp(&self, other: &i32) -> Option<Ordering> {
+//         if *other < 0 {
+//             Some(Ordering::Greater)
+//         } else {
+//             Some(self.0.cmp(&(*other as u64)))
+//         }
+//     }
+// }
 
-impl PartialEq<Margin> for i32 {
-    fn eq(&self, other: &Margin) -> bool {
-        if *self < 0 {
-            false
-        } else {
-            *self as u64 == other.0
-        }
-    }
-}
+// impl PartialEq<Margin> for i32 {
+//     fn eq(&self, other: &Margin) -> bool {
+//         if *self < 0 {
+//             false
+//         } else {
+//             *self as u64 == other.0
+//         }
+//     }
+// }
 
-impl PartialOrd<Margin> for i32 {
-    fn partial_cmp(&self, other: &Margin) -> Option<Ordering> {
-        if *self < 0 {
-            Some(Ordering::Less)
-        } else {
-            Some((*self as u64).cmp(&other.0))
-        }
-    }
-}
+// impl PartialOrd<Margin> for i32 {
+//     fn partial_cmp(&self, other: &Margin) -> Option<Ordering> {
+//         if *self < 0 {
+//             Some(Ordering::Less)
+//         } else {
+//             Some((*self as u64).cmp(&other.0))
+//         }
+//     }
+// }
 
 impl Serialize for Margin {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
