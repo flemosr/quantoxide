@@ -1,9 +1,9 @@
 use serde::{Deserialize, Serialize, de};
-use std::{cmp::Ordering, convert::TryFrom};
+use std::convert::TryFrom;
 
 use super::{Leverage, Margin, Price, error::QuantityValidationError};
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Quantity(u64);
 
 impl Quantity {
@@ -70,90 +70,6 @@ impl TryFrom<f64> for Quantity {
         let quantity_u64 = quantity as u64;
 
         Self::try_from(quantity_u64)
-    }
-}
-
-impl PartialEq for Quantity {
-    fn eq(&self, other: &Self) -> bool {
-        self.0 == other.0
-    }
-}
-
-impl Eq for Quantity {}
-
-impl PartialOrd for Quantity {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Ord for Quantity {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.0.cmp(&other.0)
-    }
-}
-
-impl PartialEq<u64> for Quantity {
-    fn eq(&self, other: &u64) -> bool {
-        self.0 == *other
-    }
-}
-
-impl PartialOrd<u64> for Quantity {
-    fn partial_cmp(&self, other: &u64) -> Option<Ordering> {
-        Some(self.0.cmp(other))
-    }
-}
-
-impl PartialEq<Quantity> for u64 {
-    fn eq(&self, other: &Quantity) -> bool {
-        *self == other.0
-    }
-}
-
-impl PartialOrd<Quantity> for u64 {
-    fn partial_cmp(&self, other: &Quantity) -> Option<Ordering> {
-        Some(self.cmp(&other.0))
-    }
-}
-
-impl PartialEq<i32> for Quantity {
-    fn eq(&self, other: &i32) -> bool {
-        if *other < 0 {
-            false
-        } else {
-            self.0 == *other as u64
-        }
-    }
-}
-
-impl PartialOrd<i32> for Quantity {
-    fn partial_cmp(&self, other: &i32) -> Option<Ordering> {
-        if *other < 0 {
-            Some(Ordering::Greater)
-        } else {
-            Some(self.0.cmp(&(*other as u64)))
-        }
-    }
-}
-
-impl PartialEq<Quantity> for i32 {
-    fn eq(&self, other: &Quantity) -> bool {
-        if *self < 0 {
-            false
-        } else {
-            *self as u64 == other.0
-        }
-    }
-}
-
-impl PartialOrd<Quantity> for i32 {
-    fn partial_cmp(&self, other: &Quantity) -> Option<Ordering> {
-        if *self < 0 {
-            Some(Ordering::Less)
-        } else {
-            Some((*self as u64).cmp(&other.0))
-        }
     }
 }
 
