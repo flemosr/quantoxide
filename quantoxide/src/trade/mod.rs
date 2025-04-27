@@ -1,10 +1,11 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 
+use lnm_sdk::api::rest::models::Margin;
+
 mod error;
 
 use error::{Result, TradeError};
-use lnm_sdk::api::rest::models::Margin;
 
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 pub struct StoplossPerc(f32);
@@ -153,6 +154,22 @@ pub struct TradesState {
 }
 
 impl TradesState {
+    fn new(
+        timestamp: DateTime<Utc>,
+        locked_margin_long: Margin,
+        locked_margin_short: Margin,
+        balance: u64,
+        pl: i64,
+    ) -> Self {
+        Self {
+            timestamp,
+            locked_margin_long,
+            locked_margin_short,
+            balance,
+            pl,
+        }
+    }
+
     /// Returns the timestamp of this trade state
     pub fn timestamp(&self) -> DateTime<Utc> {
         self.timestamp
