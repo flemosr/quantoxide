@@ -35,6 +35,20 @@ pub trait PriceHistoryRepository: Send + Sync {
     ///   - `Err` on database errors
     async fn get_earliest_entry(&self) -> Result<Option<PriceHistoryEntry>>;
 
+    /// Retrieves the latest price history entry at or before the specified time.
+    ///
+    /// Parameters:
+    ///   - `time`: The timestamp to find entries before
+    ///
+    /// Returns:
+    ///   - `Ok(Some(entry))` with the latest entry at or before the given time
+    ///   - `Ok(None)` if no entries exist  at or before the specified time
+    ///   - `Err` on database errors
+    async fn get_latest_entry_at_or_before(
+        &self,
+        time: DateTime<Utc>,
+    ) -> Result<Option<PriceHistoryEntry>>;
+
     /// Retrieves the first price history entry that occurs after the specified time.
     ///
     /// Parameters:
