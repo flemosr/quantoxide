@@ -1,7 +1,94 @@
 use serde::{Deserialize, Serialize, de};
 use std::{cmp::Ordering, convert::TryFrom};
 
-use super::{error::PriceValidationError, utils};
+use super::{
+    error::{BoundedPercentageValidationError, PriceValidationError},
+    utils,
+};
+
+/// Represents a percentage value that is constrained within a specific range.
+///
+/// This struct wraps an f32 value that must be:
+/// - Greater than or equal to 0.1%
+/// - Less than or equal to 99.9%
+///
+/// This bounded range makes it suitable for percentage calculations where both
+/// minimum and maximum limits are required.
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
+pub struct BoundedPercentage(f32);
+
+impl TryFrom<f32> for BoundedPercentage {
+    type Error = BoundedPercentageValidationError;
+
+    fn try_from(value: f32) -> Result<Self, Self::Error> {
+        if value < 0.1 {
+            return Err(BoundedPercentageValidationError::BelowMinimum);
+        }
+        if value > 99.9 {
+            return Err(BoundedPercentageValidationError::AboveMaximum);
+        }
+        if !value.is_finite() {
+            return Err(BoundedPercentageValidationError::NotFinite);
+        }
+        Ok(Self(value))
+    }
+}
+
+impl From<BoundedPercentage> for f32 {
+    fn from(perc: BoundedPercentage) -> f32 {
+        perc.0
+    }
+}
+
+impl Eq for BoundedPercentage {}
+
+impl Ord for BoundedPercentage {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.partial_cmp(other)
+            .expect("`BoundedPercentage` must be finite")
+    }
+}
+
+/// Represents a percentage value that is only constrained by a lower bound.
+///
+/// This struct wraps an f32 value that must be:
+/// - Greater than or equal to 0.1%
+/// - Finite (not infinity)
+///
+/// This type is suitable for percentage calculations where only a minimum
+/// threshold is needed, with no practical upper limit other than it must be a
+/// finite value.
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
+pub struct LowerBoundedPercentage(f32);
+
+impl TryFrom<f32> for LowerBoundedPercentage {
+    type Error = BoundedPercentageValidationError;
+
+    fn try_from(value: f32) -> Result<Self, Self::Error> {
+        if value < 0.1 {
+            return Err(BoundedPercentageValidationError::BelowMinimum);
+        }
+        if !value.is_finite() {
+            return Err(BoundedPercentageValidationError::NotFinite);
+        }
+        Ok(Self(value))
+    }
+}
+
+impl From<LowerBoundedPercentage> for f32 {
+    fn from(perc: LowerBoundedPercentage) -> f32 {
+        perc.0
+    }
+}
+
+impl Eq for LowerBoundedPercentage {}
+
+impl Ord for LowerBoundedPercentage {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.partial_cmp(other)
+            .expect("`LowerBoundedPercentage` must be finite")
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 pub struct Price(f64);

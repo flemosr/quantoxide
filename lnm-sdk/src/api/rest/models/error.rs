@@ -1,4 +1,16 @@
 #[derive(Debug, thiserror::Error)]
+pub enum BoundedPercentageValidationError {
+    #[error("Percentage must be at least 0.1%")]
+    BelowMinimum,
+
+    #[error("Percentage must be at most 99.9%")]
+    AboveMaximum,
+
+    #[error("Percentage must be a finite number")]
+    NotFinite,
+}
+
+#[derive(Debug, thiserror::Error)]
 pub enum PriceValidationError {
     #[error("Price must be positive")]
     NotPositive,
