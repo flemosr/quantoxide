@@ -179,6 +179,9 @@ pub struct TradesState {
     timestamp: DateTime<Utc>,
     locked_margin_long: Margin,
     locked_margin_short: Margin,
+    qtd_trades_long: usize,
+    qtd_trades_short: usize,
+    qtd_trades_closed: usize,
     balance: u64,
     pl: i64,
 }
@@ -188,6 +191,9 @@ impl TradesState {
         timestamp: DateTime<Utc>,
         locked_margin_long: Margin,
         locked_margin_short: Margin,
+        qtd_trades_long: usize,
+        qtd_trades_short: usize,
+        qtd_trades_closed: usize,
         balance: u64,
         pl: i64,
     ) -> Self {
@@ -195,6 +201,9 @@ impl TradesState {
             timestamp,
             locked_margin_long,
             locked_margin_short,
+            qtd_trades_long,
+            qtd_trades_short,
+            qtd_trades_closed,
             balance,
             pl,
         }
@@ -213,6 +222,21 @@ impl TradesState {
     /// Returns the locked margin for short positions
     pub fn locked_margin_short(&self) -> Margin {
         self.locked_margin_short
+    }
+
+    /// Returns the quantity of open long trades
+    pub fn qtd_trades_long(&self) -> usize {
+        self.qtd_trades_long
+    }
+
+    /// Returns the quantity of open short trades
+    pub fn qtd_trades_short(&self) -> usize {
+        self.qtd_trades_short
+    }
+
+    /// Returns the quantity of closed trades
+    pub fn qtd_trades_closed(&self) -> usize {
+        self.qtd_trades_closed
     }
 
     pub fn balance(&self) -> u64 {
