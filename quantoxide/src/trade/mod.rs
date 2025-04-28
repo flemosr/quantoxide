@@ -180,8 +180,8 @@ pub struct TradesState {
     qtd_trades_running_long: usize,
     qtd_trades_running_short: usize,
     qtd_trades_closed: usize,
-    locked_margin_long: Margin,
-    locked_margin_short: Margin,
+    locked_margin_long: Option<Margin>,
+    locked_margin_short: Option<Margin>,
     balance: u64,
     pl: i64,
 }
@@ -192,8 +192,8 @@ impl TradesState {
         qtd_trades_running_long: usize,
         qtd_trades_running_short: usize,
         qtd_trades_closed: usize,
-        locked_margin_long: Margin,
-        locked_margin_short: Margin,
+        locked_margin_long: Option<Margin>,
+        locked_margin_short: Option<Margin>,
         balance: u64,
         pl: i64,
     ) -> Self {
@@ -234,13 +234,13 @@ impl TradesState {
         self.qtd_trades_closed
     }
 
-    /// Returns the locked margin for long positions
-    pub fn locked_margin_long(&self) -> Margin {
+    /// Returns the locked margin for long positions, if available
+    pub fn locked_margin_long(&self) -> Option<Margin> {
         self.locked_margin_long
     }
 
-    /// Returns the locked margin for short positions
-    pub fn locked_margin_short(&self) -> Margin {
+    /// Returns the locked margin for short positions, if available
+    pub fn locked_margin_short(&self) -> Option<Margin> {
         self.locked_margin_short
     }
 
