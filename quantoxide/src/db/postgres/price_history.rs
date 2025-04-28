@@ -68,6 +68,20 @@ impl PriceHistoryRepository for PgPriceHistoryRepo {
         .map_err(DbError::Query)
     }
 
+    async fn get_latest_entry_at_or_before(
+        &self,
+        time: DateTime<Utc>,
+    ) -> Result<Option<PriceHistoryEntry>> {
+        sqlx::query_as!(
+            PriceHistoryEntry,
+            "SELECT * FROM price_history WHERE time <= $1 ORDER BY time DESC LIMIT 1",
+            time
+        )
+        .fetch_optional(self.pool())
+        .await
+        .map_err(DbError::Query)
+    }
+
     async fn get_earliest_entry_after(
         &self,
         time: DateTime<Utc>,
