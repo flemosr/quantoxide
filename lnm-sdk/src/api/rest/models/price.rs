@@ -8,19 +8,25 @@ use super::{
 
 /// Represents a percentage value that is constrained within a specific range.
 ///
-/// This struct wraps an f32 value that must be:
+/// This struct wraps an f64 value that must be:
 /// - Greater than or equal to 0.1%
 /// - Less than or equal to 99.9%
 ///
 /// This bounded range makes it suitable for percentage calculations where both
 /// minimum and maximum limits are required.
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
-pub struct BoundedPercentage(f32);
+pub struct BoundedPercentage(f64);
 
-impl TryFrom<f32> for BoundedPercentage {
+impl BoundedPercentage {
+    pub fn into_f64(self) -> f64 {
+        f64::from(self)
+    }
+}
+
+impl TryFrom<f64> for BoundedPercentage {
     type Error = BoundedPercentageValidationError;
 
-    fn try_from(value: f32) -> Result<Self, Self::Error> {
+    fn try_from(value: f64) -> Result<Self, Self::Error> {
         if value < 0.1 {
             return Err(BoundedPercentageValidationError::BelowMinimum);
         }
@@ -38,12 +44,12 @@ impl TryFrom<i32> for BoundedPercentage {
     type Error = BoundedPercentageValidationError;
 
     fn try_from(value: i32) -> Result<Self, Self::Error> {
-        Self::try_from(value as f32)
+        Self::try_from(value as f64)
     }
 }
 
-impl From<BoundedPercentage> for f32 {
-    fn from(perc: BoundedPercentage) -> f32 {
+impl From<BoundedPercentage> for f64 {
+    fn from(perc: BoundedPercentage) -> f64 {
         perc.0
     }
 }
@@ -59,7 +65,7 @@ impl Ord for BoundedPercentage {
 
 /// Represents a percentage value that is only constrained by a lower bound.
 ///
-/// This struct wraps an f32 value that must be:
+/// This struct wraps an f64 value that must be:
 /// - Greater than or equal to 0.1%
 /// - Finite (not infinity)
 ///
@@ -67,12 +73,18 @@ impl Ord for BoundedPercentage {
 /// threshold is needed, with no practical upper limit other than it must be a
 /// finite value.
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
-pub struct LowerBoundedPercentage(f32);
+pub struct LowerBoundedPercentage(f64);
 
-impl TryFrom<f32> for LowerBoundedPercentage {
+impl LowerBoundedPercentage {
+    pub fn into_f64(self) -> f64 {
+        f64::from(self)
+    }
+}
+
+impl TryFrom<f64> for LowerBoundedPercentage {
     type Error = BoundedPercentageValidationError;
 
-    fn try_from(value: f32) -> Result<Self, Self::Error> {
+    fn try_from(value: f64) -> Result<Self, Self::Error> {
         if value < 0.1 {
             return Err(BoundedPercentageValidationError::BelowMinimum);
         }
@@ -87,12 +99,12 @@ impl TryFrom<i32> for LowerBoundedPercentage {
     type Error = BoundedPercentageValidationError;
 
     fn try_from(value: i32) -> Result<Self, Self::Error> {
-        Self::try_from(value as f32)
+        Self::try_from(value as f64)
     }
 }
 
-impl From<LowerBoundedPercentage> for f32 {
-    fn from(perc: LowerBoundedPercentage) -> f32 {
+impl From<LowerBoundedPercentage> for f64 {
+    fn from(perc: LowerBoundedPercentage) -> f64 {
         perc.0
     }
 }
@@ -131,12 +143,12 @@ impl Price {
         &self,
         percentage: BoundedPercentage,
     ) -> Result<Self, PriceValidationError> {
-        let discount_factor = 1.0 - (f32::from(percentage) / 100.0) as f64;
+        let discount_factor = 1.0 - (f64::from(percentage) / 100.0);
         let target_price = self.0 * discount_factor;
 
-        let nearest_valid_price = (target_price * 2.0).round() / 2.0;
+        let nearest_rounded_price = (target_price * 2.0).round() / 2.0;
 
-        Price::try_from(nearest_valid_price)
+        Price::try_from(nearest_rounded_price)
     }
 
     /// Applies a gain percentage to the current price.
@@ -150,12 +162,12 @@ impl Price {
         &self,
         percentage: LowerBoundedPercentage,
     ) -> Result<Self, PriceValidationError> {
-        let gain_factor = 1.0 + (f32::from(percentage) / 100.0) as f64;
+        let gain_factor = 1.0 + (f64::from(percentage) / 100.0);
         let target_price = self.0 * gain_factor;
 
-        let nearest_valid_price = (target_price * 2.0).round() / 2.0;
+        let nearest_rounded_price = (target_price * 2.0).round() / 2.0;
 
-        Price::try_from(nearest_valid_price)
+        Price::try_from(nearest_rounded_price)
     }
 }
 
