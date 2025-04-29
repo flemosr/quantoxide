@@ -4,7 +4,7 @@ use std::{
     sync::Arc,
 };
 use tokio::{
-    sync::{oneshot, Mutex},
+    sync::{Mutex, oneshot},
     task::JoinHandle,
 };
 
@@ -33,7 +33,7 @@ pub struct LnmWebSocketRepo {
     shutdown_tx: ShutdownTransmiter,
     requests_tx: RequestTransmiter,
     responses_tx: ResponseTransmiter,
-    connection_state: Arc<ConnectionState>,
+    connection_state: Arc<Mutex<Arc<ConnectionState>>>,
     subscriptions: Arc<Mutex<HashMap<LnmWebSocketChannel, ChannelStatus>>>,
 }
 
@@ -57,11 +57,12 @@ impl LnmWebSocketRepo {
     }
 
     async fn evaluate_manager_status(&self) -> Result<()> {
-        match self.connection_state.as_ref() {
+        let connection_state = self.connection_state().await;
+        match connection_state.as_ref() {
             ConnectionState::Connected => Ok(()),
-            ConnectionState::Failed(_) | ConnectionState::Disconnected => Err(
-                WebSocketApiError::BadConnectionState(self.connection_state()),
-            ),
+            ConnectionState::Failed(_) | ConnectionState::Disconnected => {
+                Err(WebSocketApiError::BadConnectionState(connection_state))
+            }
         }
     }
 }
@@ -72,8 +73,9 @@ impl WebSocketRepository for LnmWebSocketRepo {
         !self.manager_task_handle.is_finished()
     }
 
-    fn connection_state(&self) -> Arc<ConnectionState> {
-        self.connection_state.clone()
+    async fn connection_state(&self) -> Arc<ConnectionState> {
+        let connection_state_guard = self.connection_state.lock().await;
+        (*connection_state_guard).clone()
     }
 
     async fn subscribe(&self, channels: Vec<LnmWebSocketChannel>) -> Result<()> {

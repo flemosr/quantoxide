@@ -11,7 +11,7 @@ use super::{
 pub trait WebSocketRepository: Send + Sync {
     fn is_connected(&self) -> bool;
 
-    fn connection_state(&self) -> Arc<ConnectionState>;
+    async fn connection_state(&self) -> Arc<ConnectionState>;
 
     async fn subscribe(&self, channels: Vec<LnmWebSocketChannel>) -> Result<()>;
 

@@ -1,6 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 use tokio::{
-    sync::{broadcast, mpsc, oneshot},
+    sync::{Mutex, broadcast, mpsc, oneshot},
     time,
 };
 
@@ -29,7 +29,7 @@ pub struct ManagerTask {
     shutdown_rx: ShutdownReceiver,
     request_rx: RequestReceiver,
     responses_tx: ResponseTransmiter,
-    connection_state: Arc<ConnectionState>,
+    connection_state: Arc<Mutex<Arc<ConnectionState>>>,
 }
 
 impl ManagerTask {
@@ -40,7 +40,7 @@ impl ManagerTask {
         ShutdownTransmiter,
         RequestTransmiter,
         ResponseTransmiter,
-        Arc<ConnectionState>,
+        Arc<Mutex<Arc<ConnectionState>>>,
     )> {
         let ws = WebSocketApiConnection::new(api_domain).await?;
 
@@ -54,7 +54,7 @@ impl ManagerTask {
         // External channel for API responses
         let (responses_tx, _) = broadcast::channel::<WebSocketApiRes>(100);
 
-        let connection_state = Arc::new(ConnectionState::Connected);
+        let connection_state = Arc::new(Mutex::new(Arc::new(ConnectionState::Connected)));
 
         let manager = Self {
             ws,
@@ -175,17 +175,21 @@ impl ManagerTask {
             }
         };
 
-        self.connection_state = match handler().await {
+        let new_connection_state = match handler().await {
             Ok(_) => Arc::new(ConnectionState::Disconnected),
             Err(err) => Arc::new(ConnectionState::Failed(err)),
         };
+
+        let mut connection_state_guard = self.connection_state.lock().await;
+        *connection_state_guard = new_connection_state.clone();
+        drop(connection_state_guard);
 
         // Notify all pending RPC requests of failure on shutdown
         for (_, (_, oneshot_tx)) in pending {
             let _ = oneshot_tx.send(false);
         }
 
-        let connection_update = WebSocketApiRes::from(self.connection_state);
+        let connection_update = WebSocketApiRes::from(new_connection_state);
 
         if self.responses_tx.receiver_count() > 0 {
             self.responses_tx
