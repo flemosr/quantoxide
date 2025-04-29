@@ -63,6 +63,14 @@ pub trait PriceHistoryRepository: Send + Sync {
         time: DateTime<Utc>,
     ) -> Result<Option<PriceHistoryEntry>>;
 
+    async fn get_first_entry_reaching_bounds(
+        &self,
+        start: DateTime<Utc>,
+        end: DateTime<Utc>,
+        min: f64,
+        max: f64,
+    ) -> Result<Option<PriceHistoryEntry>>;
+
     /// Retrieves gaps in price history data from the database.
     ///
     /// This method finds time periods where price history data is missing by:
