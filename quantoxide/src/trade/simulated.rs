@@ -112,14 +112,10 @@ impl TradesManager for SimulatedTradesManager {
                 };
 
                 // Evaluate `takeprofit`
-                let takeprofit = market_price
-                    .apply_change(takeprofit_perc.0 as f64 / 100.)
-                    .map_err(|e| TradeError::Generic(e.to_string()))?;
+                let takeprofit = market_price.apply_gain(takeprofit_perc);
 
                 // Evaluate `stoploss`
-                let stoploss = market_price
-                    .apply_change(-1. * stoploss_perc.0 as f64 / 100.)
-                    .map_err(|e| TradeError::Generic(e.to_string()))?;
+                let stoploss = market_price.apply_discount(stoploss_perc);
 
                 // Create `SimulatedTradeRunning` and add it to `self`
                 Ok(())
