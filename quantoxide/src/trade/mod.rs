@@ -19,7 +19,7 @@ pub enum TradeOrder {
     OpenShort {
         timestamp: DateTime<Utc>,
         stoploss_perc: BoundedPercentage,
-        takeprofit_perc: LowerBoundedPercentage,
+        takeprofit_perc: BoundedPercentage,
         balance_perc: BoundedPercentage,
         leverage: Leverage,
     },
@@ -54,7 +54,7 @@ impl TradeOrder {
     pub fn open_short(
         timestamp: DateTime<Utc>,
         stoploss_perc: BoundedPercentage,
-        takeprofit_perc: LowerBoundedPercentage,
+        takeprofit_perc: BoundedPercentage,
         balance_perc: BoundedPercentage,
         leverage: Leverage,
     ) -> Self {
