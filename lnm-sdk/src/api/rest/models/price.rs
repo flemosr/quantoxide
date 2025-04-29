@@ -34,6 +34,14 @@ impl TryFrom<f32> for BoundedPercentage {
     }
 }
 
+impl TryFrom<i32> for BoundedPercentage {
+    type Error = BoundedPercentageValidationError;
+
+    fn try_from(value: i32) -> Result<Self, Self::Error> {
+        Self::try_from(value as f32)
+    }
+}
+
 impl From<BoundedPercentage> for f32 {
     fn from(perc: BoundedPercentage) -> f32 {
         perc.0
@@ -75,6 +83,14 @@ impl TryFrom<f32> for LowerBoundedPercentage {
     }
 }
 
+impl TryFrom<i32> for LowerBoundedPercentage {
+    type Error = BoundedPercentageValidationError;
+
+    fn try_from(value: i32) -> Result<Self, Self::Error> {
+        Self::try_from(value as f32)
+    }
+}
+
 impl From<LowerBoundedPercentage> for f32 {
     fn from(perc: LowerBoundedPercentage) -> f32 {
         perc.0
@@ -90,6 +106,12 @@ impl Ord for LowerBoundedPercentage {
     }
 }
 
+impl From<BoundedPercentage> for LowerBoundedPercentage {
+    fn from(bounded: BoundedPercentage) -> Self {
+        LowerBoundedPercentage(bounded.0)
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 pub struct Price(f64);
 
@@ -98,23 +120,38 @@ impl Price {
         f64::from(self)
     }
 
-    /// Returns a new valid Price after applying a percentage change to the current price.
-    ///
-    /// The percentage should be provided as a decimal. For example:
-    /// - `-0.05` for a 5% discount (resulting in 0.95 * original price)
-    /// - `0.10` for a 10% increase (resulting in 1.10 * original price)
+    /// Applies a discount percentage to the current price.
     ///
     /// # Parameters
-    /// - `percentage`: The percentage change to apply (must be > -1.0)
+    /// - `percentage`: The discount percentage to apply (between 0.1% and 99.9%)
     ///
     /// # Returns
-    /// A Result containing either the new valid Price or a PriceValidationError
-    pub fn apply_change(&self, percentage: f64) -> Result<Self, PriceValidationError> {
-        if percentage <= -1.0 {
-            return Err(PriceValidationError::InvalidPercentage);
-        }
+    /// A Result containing either the new discounted Price or a PriceValidationError
+    pub fn apply_discount(
+        &self,
+        percentage: BoundedPercentage,
+    ) -> Result<Self, PriceValidationError> {
+        let discount_factor = 1.0 - (f32::from(percentage) / 100.0) as f64;
+        let target_price = self.0 * discount_factor;
 
-        let target_price = self.0 * (1.0 + percentage);
+        let nearest_valid_price = (target_price * 2.0).round() / 2.0;
+
+        Price::try_from(nearest_valid_price)
+    }
+
+    /// Applies a gain percentage to the current price.
+    ///
+    /// # Parameters
+    /// - `percentage`: The gain percentage to apply (minimum 0.1%, no upper bound)
+    ///
+    /// # Returns
+    /// A Result containing either the new increased Price or a PriceValidationError
+    pub fn apply_gain(
+        &self,
+        percentage: LowerBoundedPercentage,
+    ) -> Result<Self, PriceValidationError> {
+        let gain_factor = 1.0 + (f32::from(percentage) / 100.0) as f64;
+        let target_price = self.0 * gain_factor;
 
         let nearest_valid_price = (target_price * 2.0).round() / 2.0;
 
