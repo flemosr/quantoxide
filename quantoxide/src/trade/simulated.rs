@@ -1,8 +1,9 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use std::sync::Arc;
+use tokio::sync::Mutex;
 
-use lnm_sdk::api::rest::models::{Leverage, Price, Quantity};
+use lnm_sdk::api::rest::models::{Leverage, Margin, Price, Quantity};
 
 use crate::db::DbContext;
 
@@ -11,12 +12,18 @@ use super::{
     error::{Result, TradeError},
 };
 
+enum TradeSide {
+    Long,
+    Short,
+}
+
 struct SimulatedTradeRunning {
+    side: TradeSide,
     entry_time: DateTime<Utc>,
     entry_price: Price,
     stoploss: Price,
     takeprofit: Price,
-    quantity: Quantity,
+    margin: Margin,
     leverage: Leverage,
 }
 
@@ -25,7 +32,7 @@ struct SimulatedTradeClosed {
     entry_price: Price,
     stoploss: Price,
     takeprofit: Price,
-    quantity: Quantity,
+    margin: Margin,
     leverage: Leverage,
     close_time: DateTime<Utc>,
     close_price: Price,
@@ -35,11 +42,10 @@ pub struct SimulatedTradesManager {
     db: Arc<DbContext>,
     max_qtd_trades_running: usize,
     start_balance: u64,
-    balance: u64,
-    time: DateTime<Utc>,
-    long: Vec<SimulatedTradeRunning>,
-    short: Vec<SimulatedTradeRunning>,
-    closed: Vec<SimulatedTradeClosed>,
+    balance: Arc<Mutex<u64>>,
+    time: Arc<Mutex<DateTime<Utc>>>,
+    running: Arc<Mutex<Vec<SimulatedTradeRunning>>>,
+    closed: Arc<Mutex<Vec<SimulatedTradeClosed>>>,
 }
 
 impl SimulatedTradesManager {
@@ -53,16 +59,11 @@ impl SimulatedTradesManager {
             db,
             max_qtd_trades_running,
             start_balance,
-            balance: start_balance,
-            time: start_time,
-            long: Vec::new(),
-            short: Vec::new(),
-            closed: Vec::new(),
+            balance: Arc::new(Mutex::new(start_balance)),
+            time: Arc::new(Mutex::new(start_time)),
+            running: Arc::new(Mutex::new(Vec::new())),
+            closed: Arc::new(Mutex::new(Vec::new())),
         }
-    }
-
-    fn max_running_trades_reached(&self) -> bool {
-        (self.long.len() + self.short.len()) >= self.max_qtd_trades_running
     }
 }
 
@@ -77,17 +78,21 @@ impl TradesManager for SimulatedTradesManager {
                 balance_perc,
                 leverage,
             } => {
+                let mut timestamp_guard = self.time.lock().await;
+
                 // Validate `timestamp`, must be gt than `self.timestamp`
-                if timestamp <= self.time {
+                if timestamp <= *timestamp_guard {
                     return Err(TradeError::Generic(format!(
                         "received order with timestamp {timestamp} and current time is {}",
-                        self.time
+                        *timestamp_guard
                     )));
                 }
 
                 // Check `max_qtd_trades_running`
 
-                if self.max_running_trades_reached() {
+                let mut running_guard = self.running.lock().await;
+
+                if running_guard.len() >= self.max_qtd_trades_running {
                     return Err(TradeError::Generic(format!(
                         "received order but max qtd of running trades ({}) was reached",
                         self.max_qtd_trades_running
@@ -111,13 +116,43 @@ impl TradesManager for SimulatedTradesManager {
                         .map_err(|e| TradeError::Generic(e.to_string()))?
                 };
 
-                // Evaluate `takeprofit`
-                let takeprofit = market_price.apply_gain(takeprofit_perc);
+                let mut balance_guard = self.balance.lock().await;
+
+                // Evaluate trade `Margin`
+                let margin = {
+                    let margin = *balance_guard as f64 * balance_perc.into_f64() / 100.;
+                    let margin = Margin::try_from(margin.floor())
+                        .map_err(|e| TradeError::Generic(e.to_string()))?;
+                    let _ = Quantity::try_calculate(margin, market_price, leverage)
+                        .map_err(|e| TradeError::Generic(e.to_string()))?;
+                    margin
+                };
 
                 // Evaluate `stoploss`
-                let stoploss = market_price.apply_discount(stoploss_perc);
+                let stoploss = market_price
+                    .apply_discount(stoploss_perc)
+                    .map_err(|e| TradeError::Generic(e.to_string()))?;
+
+                // Evaluate `takeprofit`
+                let takeprofit = market_price
+                    .apply_gain(takeprofit_perc)
+                    .map_err(|e| TradeError::Generic(e.to_string()))?;
 
                 // Create `SimulatedTradeRunning` and add it to `self`
+                let trade = SimulatedTradeRunning {
+                    side: TradeSide::Long,
+                    entry_time: timestamp,
+                    entry_price: market_price,
+                    stoploss,
+                    takeprofit,
+                    margin,
+                    leverage,
+                };
+
+                *timestamp_guard = timestamp;
+                running_guard.push(trade);
+                *balance_guard -= margin.into_u64();
+
                 Ok(())
             }
             TradeOrder::OpenShort {
@@ -136,13 +171,13 @@ impl TradesManager for SimulatedTradesManager {
     async fn state(&self, timestamp: DateTime<Utc>) -> Result<TradesState> {
         let trades_state = TradesState::new(
             timestamp,
-            self.long.len(),
-            self.short.len(),
-            self.closed.len(),
+            0,
+            0,
+            0,
             None,
             None,
-            self.balance,
-            self.balance as i64 - self.start_balance as i64,
+            0,
+            0 - self.start_balance as i64,
         );
 
         Ok(trades_state)
