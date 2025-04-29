@@ -98,7 +98,8 @@ pub struct TradesState {
     locked_margin_long: Option<Margin>,
     locked_margin_short: Option<Margin>,
     balance: u64,
-    pl: i64,
+    running_pl: i64,
+    closed_pl: i64,
 }
 
 impl TradesState {
@@ -110,7 +111,8 @@ impl TradesState {
         locked_margin_long: Option<Margin>,
         locked_margin_short: Option<Margin>,
         balance: u64,
-        pl: i64,
+        running_pl: i64,
+        closed_pl: i64,
     ) -> Self {
         Self {
             timestamp,
@@ -120,7 +122,8 @@ impl TradesState {
             locked_margin_long,
             locked_margin_short,
             balance,
-            pl,
+            running_pl,
+            closed_pl,
         }
     }
 
@@ -163,9 +166,16 @@ impl TradesState {
         self.balance
     }
 
-    /// Returns the profit/loss
-    pub fn pl(&self) -> i64 {
-        self.pl
+    pub fn running_pl(&self) -> i64 {
+        self.running_pl
+    }
+
+    pub fn closed_pl(&self) -> i64 {
+        self.closed_pl
+    }
+
+    pub fn total_pl(&self) -> i64 {
+        self.running_pl + self.closed_pl
     }
 }
 
