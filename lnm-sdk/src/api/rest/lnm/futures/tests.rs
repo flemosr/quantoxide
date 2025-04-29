@@ -1,6 +1,8 @@
 use dotenv::dotenv;
 use std::env;
 
+use crate::api::rest::models::{BoundedPercentage, LowerBoundedPercentage};
+
 use super::super::super::models::{Margin, Quantity};
 use super::*;
 
@@ -35,7 +37,11 @@ async fn test_create_new_trade_quantity_limit(
     let side = TradeSide::Buy;
     let quantity = Quantity::try_from(1).unwrap();
     let leverage = Leverage::try_from(1).unwrap();
-    let out_of_mkt_price = ticker.ask_price().apply_change(-0.3).unwrap();
+    let discount_percentage = BoundedPercentage::try_from(30).unwrap();
+    let out_of_mkt_price = ticker
+        .ask_price()
+        .apply_discount(discount_percentage)
+        .unwrap();
     let execution = out_of_mkt_price.into();
     let stoploss = None;
     let takeprofit = None;
@@ -80,8 +86,9 @@ async fn test_create_new_trade_quantity_market(
     let quantity = Quantity::try_from(1).unwrap();
     let leverage = Leverage::try_from(2).unwrap();
     let est_price = ticker.ask_price();
-    let stoploss = Some(est_price.apply_change(-0.1).unwrap());
-    let takeprofit = Some(est_price.apply_change(0.1).unwrap());
+    let range_percentage = BoundedPercentage::try_from(10).unwrap();
+    let stoploss = Some(est_price.apply_discount(range_percentage).unwrap());
+    let takeprofit = Some(est_price.apply_gain(range_percentage.into()).unwrap());
     let execution = TradeExecution::Market;
 
     let created_trade = repo
@@ -118,10 +125,12 @@ async fn test_create_new_trade_quantity_market(
 async fn test_create_new_trade_margin_limit(repo: &LnmFuturesRepository, ticker: &Ticker) -> Trade {
     let side = TradeSide::Buy;
     let leverage = Leverage::try_from(1).unwrap();
-    let out_of_mkt_price = ticker.ask_price().apply_change(-0.3).unwrap();
+    let discount = BoundedPercentage::try_from(30).unwrap();
+    let out_of_mkt_price = ticker.ask_price().apply_discount(discount).unwrap();
     let implied_qtd = Quantity::try_from(1).unwrap();
     let margin = Margin::try_calculate(implied_qtd, out_of_mkt_price, leverage).unwrap();
-    let stoploss = Some(out_of_mkt_price.apply_change(-0.05).unwrap());
+    let discount = BoundedPercentage::try_from(5).unwrap();
+    let stoploss = Some(out_of_mkt_price.apply_discount(discount).unwrap());
     let takeprofit = None;
     let execution = out_of_mkt_price.into();
 
@@ -161,15 +170,17 @@ async fn test_create_new_trade_margin_market(
     repo: &LnmFuturesRepository,
     ticker: &Ticker,
 ) -> Trade {
-    let est_min_price = ticker.ask_price().apply_change(-0.05).unwrap();
+    let discount = BoundedPercentage::try_from(5).unwrap();
+    let est_min_price = ticker.ask_price().apply_discount(discount).unwrap();
 
     let side = TradeSide::Buy;
     let leverage = Leverage::try_from(1).unwrap();
     let implied_qtd = Quantity::try_from(1).unwrap();
     let margin = Margin::try_calculate(implied_qtd, est_min_price, leverage).unwrap();
     let est_price = ticker.ask_price();
-    let stoploss = Some(est_price.apply_change(-0.1).unwrap());
-    let takeprofit = Some(est_price.apply_change(0.1).unwrap());
+    let range = BoundedPercentage::try_from(10).unwrap();
+    let stoploss = Some(est_price.apply_discount(range).unwrap());
+    let takeprofit = Some(est_price.apply_gain(range.into()).unwrap());
     let execution = TradeExecution::Market;
 
     let created_trade = repo
@@ -303,7 +314,8 @@ async fn test_close_all_trades(repo: &LnmFuturesRepository, exp_running_trades: 
 }
 
 async fn test_update_trade_stoploss(repo: &LnmFuturesRepository, id: Uuid, price: Price) {
-    let stoploss = price.apply_change(-0.05).unwrap();
+    let discount = BoundedPercentage::try_from(5).unwrap();
+    let stoploss = price.apply_discount(discount).unwrap();
     let updated_trade = repo
         .update_trade_stoploss(id, stoploss)
         .await
@@ -314,7 +326,8 @@ async fn test_update_trade_stoploss(repo: &LnmFuturesRepository, id: Uuid, price
 }
 
 async fn test_update_trade_takeprofit(repo: &LnmFuturesRepository, id: Uuid, price: Price) {
-    let takeprofit = price.apply_change(0.05).unwrap();
+    let gain = LowerBoundedPercentage::try_from(5).unwrap();
+    let takeprofit = price.apply_gain(gain).unwrap();
     let updated_trade = repo
         .update_trade_takeprofit(id, takeprofit)
         .await
