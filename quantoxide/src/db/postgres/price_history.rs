@@ -96,6 +96,30 @@ impl PriceHistoryRepository for PgPriceHistoryRepo {
         .map_err(DbError::Query)
     }
 
+    async fn get_first_entry_reaching_bounds(
+        &self,
+        start: DateTime<Utc>,
+        end: DateTime<Utc>,
+        min: f64,
+        max: f64,
+    ) -> Result<Option<PriceHistoryEntry>> {
+        sqlx::query_as!(
+            PriceHistoryEntry,
+            "SELECT * FROM price_history
+             WHERE time >= $1 AND time <= $2
+             AND (value <= $3 OR value >= $4)
+             ORDER BY time ASC
+             LIMIT 1",
+            start,
+            end,
+            min,
+            max
+        )
+        .fetch_optional(self.pool())
+        .await
+        .map_err(DbError::Query)
+    }
+
     async fn get_gaps(&self) -> Result<Vec<(DateTime<Utc>, DateTime<Utc>)>> {
         let entries = sqlx::query_as!(
             GapEntry,
