@@ -114,17 +114,6 @@ struct SimulatedTradesState {
     closed: Vec<SimulatedTradeClosed>,
 }
 
-impl SimulatedTradesState {
-    fn new(start_time: DateTime<Utc>, start_balance: u64) -> Self {
-        Self {
-            time: start_time,
-            balance: start_balance,
-            running: Vec::new(),
-            closed: Vec::new(),
-        }
-    }
-}
-
 pub struct SimulatedTradesManager {
     db: Arc<DbContext>,
     max_qtd_trades_running: usize,
@@ -140,7 +129,13 @@ impl SimulatedTradesManager {
         start_time: DateTime<Utc>,
         start_balance: u64,
     ) -> Self {
-        let initial_state = SimulatedTradesState::new(start_time, start_balance);
+        let initial_state = SimulatedTradesState {
+            time: start_time,
+            balance: start_balance,
+            running: Vec::new(),
+            closed: Vec::new(),
+        };
+
         Self {
             db,
             max_qtd_trades_running,
@@ -178,10 +173,20 @@ impl SimulatedTradesManager {
             Price::try_from(price_entry.value).map_err(|e| TradeError::Generic(e.to_string()))?
         };
 
-        let previous_time = state_guard.time;
-        let mut remaining_running_trades = Vec::new();
         let mut new_closed_trades = Vec::new();
         let mut new_balance = state_guard.balance as i64;
+
+        let mut close_trade = |trade: SimulatedTradeRunning,
+                               close_time: DateTime<Utc>,
+                               close_price: Price| {
+            let closed_trade = SimulatedTradeClosed::from_running(trade, close_time, close_price);
+            let balance_diff = closed_trade.margin.into_u64() as i64 + closed_trade.pl();
+            new_balance += balance_diff;
+            new_closed_trades.push(closed_trade);
+        };
+
+        let previous_time = state_guard.time;
+        let mut remaining_running_trades = Vec::new();
 
         for trade in state_guard.running.drain(..) {
             // Check if price reached stoploss or takeprofit between
@@ -210,13 +215,7 @@ impl SimulatedTradesManager {
                     _ => return Err(TradeError::Generic("invalid".to_string())),
                 };
 
-                let closed_trade =
-                    SimulatedTradeClosed::from_running(trade, price_entry.time, close_price);
-
-                let balance_diff = closed_trade.margin.into_u64() as i64 + closed_trade.pl();
-
-                new_balance += balance_diff;
-                new_closed_trades.push(closed_trade);
+                close_trade(trade, price_entry.time, close_price);
             } else {
                 // Trade still running
 
@@ -227,13 +226,7 @@ impl SimulatedTradesManager {
                 };
 
                 if should_be_closed {
-                    let closed_trade =
-                        SimulatedTradeClosed::from_running(trade, new_time, market_price);
-
-                    let balance_diff = closed_trade.margin.into_u64() as i64 + closed_trade.pl();
-
-                    new_balance += balance_diff;
-                    new_closed_trades.push(closed_trade);
+                    close_trade(trade, new_time, market_price);
                 } else {
                     remaining_running_trades.push(trade);
                 }
