@@ -87,6 +87,10 @@ struct SimulatedTradesState {
     balance: u64,
     running: Vec<SimulatedTradeRunning>,
     closed: Vec<SimulatedTradeClosed>,
+    // locked_margin_long: Option<Margin>,
+    // locked_margin_short: Option<Margin>,
+    // running_pl: i64,
+    // closed_pl: i64,
 }
 
 impl SimulatedTradesState {
@@ -96,7 +100,70 @@ impl SimulatedTradesState {
             balance: start_balance,
             running: Vec::new(),
             closed: Vec::new(),
+            // locked_margin_long: None,
+            // locked_margin_short: None,
+            // running_pl: 0,
+            // closed_pl: 0,
         }
+    }
+
+    async fn update(&mut self, db: &DbContext, new_time: DateTime<Utc>) -> Result<()> {
+        if new_time <= self.time {
+            return Err(TradeError::Generic(format!(
+                "tried to update state with new_time {new_time} but current time is {}",
+                self.time
+            )));
+        }
+
+        let previous_time = self.time;
+        let mut remaining_running_trades = Vec::new();
+        let mut new_closed_trades = Vec::new();
+
+        for trade in self.running.drain(..) {
+            // Check if price reached stoploss or takeprofit between
+            // `current_time_guard` and `timestamp`.
+
+            let (min, max) = match trade.side {
+                TradeSide::Long => (trade.stoploss.into_f64(), trade.takeprofit.into_f64()),
+                TradeSide::Short => (trade.takeprofit.into_f64(), trade.stoploss.into_f64()),
+            };
+
+            let boundary_entry_opt = db
+                .price_history
+                .get_first_entry_reaching_bounds(previous_time, new_time, min, max)
+                .await
+                .map_err(|e| TradeError::Generic(e.to_string()))?;
+
+            if let Some(price_entry) = boundary_entry_opt {
+                // Trade closed
+
+                let close_price = match trade.side {
+                    TradeSide::Long if price_entry.value <= min => trade.stoploss,
+                    TradeSide::Long if price_entry.value >= max => trade.takeprofit,
+                    TradeSide::Short if price_entry.value <= min => trade.takeprofit,
+                    TradeSide::Short if price_entry.value >= max => trade.stoploss,
+                    _ => return Err(TradeError::Generic("invalid".to_string())),
+                };
+
+                let closed_trade =
+                    SimulatedTradeClosed::from_running(trade, price_entry.time, close_price);
+
+                let balance_diff = closed_trade.margin.into_u64() as i64 + closed_trade.pl();
+
+                self.balance = (self.balance as i64 + balance_diff).max(0) as u64;
+                new_closed_trades.push(closed_trade);
+            } else {
+                // Trade still running
+
+                remaining_running_trades.push(trade);
+            }
+        }
+
+        self.running = remaining_running_trades;
+        self.closed.append(&mut new_closed_trades);
+        self.time = new_time;
+
+        Ok(())
     }
 }
 
@@ -291,56 +358,7 @@ impl TradesManager for SimulatedTradesManager {
     async fn state(&self, timestamp: DateTime<Utc>) -> Result<TradesState> {
         let mut state_guard = self.state.lock().await;
 
-        if timestamp <= state_guard.time {
-            return Err(TradeError::Generic(format!(
-                "received state request with timestamp {timestamp} but current time is {}",
-                state_guard.time
-            )));
-        }
-
-        let previous_time = state_guard.time;
-        let mut remaining_running_trades = Vec::new();
-        let mut new_closed_trades = Vec::new();
-
-        for trade in state_guard.running.drain(..) {
-            // Check if price reached stoploss or takeprofit between
-            // `current_time_guard` and `timestamp`.
-
-            let (min, max) = match trade.side {
-                TradeSide::Long => (trade.stoploss.into_f64(), trade.takeprofit.into_f64()),
-                TradeSide::Short => (trade.takeprofit.into_f64(), trade.stoploss.into_f64()),
-            };
-
-            let boundary_entry_opt = self
-                .db
-                .price_history
-                .get_first_entry_reaching_bounds(previous_time, timestamp, min, max)
-                .await
-                .map_err(|e| TradeError::Generic(e.to_string()))?;
-
-            if let Some(price_entry) = boundary_entry_opt {
-                // Trade closed
-
-                let close_price = match trade.side {
-                    TradeSide::Long if price_entry.value <= min => trade.stoploss,
-                    TradeSide::Long if price_entry.value >= max => trade.takeprofit,
-                    TradeSide::Short if price_entry.value <= min => trade.takeprofit,
-                    TradeSide::Short if price_entry.value >= max => trade.stoploss,
-                    _ => return Err(TradeError::Generic("invalid".to_string())),
-                };
-
-                let closed_trade =
-                    SimulatedTradeClosed::from_running(trade, price_entry.time, close_price);
-                new_closed_trades.push(closed_trade);
-            } else {
-                // Trade still running
-
-                remaining_running_trades.push(trade);
-            }
-        }
-
-        state_guard.running = remaining_running_trades;
-        state_guard.closed.append(&mut new_closed_trades);
+        state_guard.update(self.db.as_ref(), timestamp).await?;
 
         let market_price = {
             let price_entry = self
@@ -381,18 +399,6 @@ impl TradesManager for SimulatedTradesManager {
             .iter()
             .map(|trade| trade.pl())
             .sum::<i64>();
-
-        let calc_balance =
-            self.start_balance as i64 - total_margin_long as i64 - total_margin_short as i64
-                + closed_pl;
-
-        state_guard.balance = if calc_balance < 0 {
-            0
-        } else {
-            calc_balance as u64
-        };
-
-        state_guard.time = timestamp;
 
         let locked_margin_long = (total_margin_long > 0)
             .then(|| Margin::try_from(total_margin_long))
