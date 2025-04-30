@@ -64,33 +64,46 @@ impl SimulatedTradeClosed {
     }
 }
 
+struct SimulatedTradesState {
+    time: DateTime<Utc>,
+    balance: u64,
+    running: Vec<SimulatedTradeRunning>,
+    closed: Vec<SimulatedTradeClosed>,
+}
+
+impl SimulatedTradesState {
+    fn new(start_time: DateTime<Utc>, start_balance: u64) -> Self {
+        Self {
+            time: start_time,
+            balance: start_balance,
+            running: Vec::new(),
+            closed: Vec::new(),
+        }
+    }
+}
+
 pub struct SimulatedTradesManager {
     db: Arc<DbContext>,
     max_qtd_trades_running: usize,
     start_time: DateTime<Utc>,
     start_balance: u64,
-    balance: Arc<Mutex<u64>>,
-    time: Arc<Mutex<DateTime<Utc>>>,
-    running: Arc<Mutex<Vec<SimulatedTradeRunning>>>,
-    closed: Arc<Mutex<Vec<SimulatedTradeClosed>>>,
+    state: Arc<Mutex<SimulatedTradesState>>,
 }
 
 impl SimulatedTradesManager {
     pub fn new(
         db: Arc<DbContext>,
         max_qtd_trades_running: usize,
-        start_balance: u64,
         start_time: DateTime<Utc>,
+        start_balance: u64,
     ) -> Self {
+        let initial_state = SimulatedTradesState::new(start_time, start_balance);
         Self {
             db,
             max_qtd_trades_running,
             start_time,
             start_balance,
-            balance: Arc::new(Mutex::new(start_balance)),
-            time: Arc::new(Mutex::new(start_time)),
-            running: Arc::new(Mutex::new(Vec::new())),
-            closed: Arc::new(Mutex::new(Vec::new())),
+            state: Arc::new(Mutex::new(initial_state)),
         }
     }
 }
@@ -106,18 +119,16 @@ impl TradesManager for SimulatedTradesManager {
                 balance_perc,
                 leverage,
             } => {
-                let mut timestamp_guard = self.time.lock().await;
+                let mut state_guard = self.state.lock().await;
 
-                if timestamp <= *timestamp_guard {
+                if timestamp <= state_guard.time {
                     return Err(TradeError::Generic(format!(
                         "received order with timestamp {timestamp} and current time is {}",
-                        *timestamp_guard
+                        state_guard.time
                     )));
                 }
 
-                let mut running_guard = self.running.lock().await;
-
-                if running_guard.len() >= self.max_qtd_trades_running {
+                if state_guard.running.len() >= self.max_qtd_trades_running {
                     return Err(TradeError::Generic(format!(
                         "received order but max qtd of running trades ({}) was reached",
                         self.max_qtd_trades_running
@@ -139,10 +150,8 @@ impl TradesManager for SimulatedTradesManager {
                         .map_err(|e| TradeError::Generic(e.to_string()))?
                 };
 
-                let mut balance_guard = self.balance.lock().await;
-
                 let margin = {
-                    let margin = *balance_guard as f64 * balance_perc.into_f64() / 100.;
+                    let margin = state_guard.balance as f64 * balance_perc.into_f64() / 100.;
                     let margin = Margin::try_from(margin.floor())
                         .map_err(|e| TradeError::Generic(e.to_string()))?;
                     let _ = Quantity::try_calculate(margin, market_price, leverage)
@@ -168,9 +177,9 @@ impl TradesManager for SimulatedTradesManager {
                     leverage,
                 };
 
-                *timestamp_guard = timestamp;
-                running_guard.push(trade);
-                *balance_guard -= margin.into_u64();
+                state_guard.time = timestamp;
+                state_guard.running.push(trade);
+                state_guard.balance -= margin.into_u64();
 
                 Ok(())
             }
@@ -181,18 +190,16 @@ impl TradesManager for SimulatedTradesManager {
                 balance_perc,
                 leverage,
             } => {
-                let mut timestamp_guard = self.time.lock().await;
+                let mut state_guard = self.state.lock().await;
 
-                if timestamp <= *timestamp_guard {
+                if timestamp <= state_guard.time {
                     return Err(TradeError::Generic(format!(
                         "received order with timestamp {timestamp} and current time is {}",
-                        *timestamp_guard
+                        state_guard.time
                     )));
                 }
 
-                let mut running_guard = self.running.lock().await;
-
-                if running_guard.len() >= self.max_qtd_trades_running {
+                if state_guard.running.len() >= self.max_qtd_trades_running {
                     return Err(TradeError::Generic(format!(
                         "received order but max qtd of running trades ({}) was reached",
                         self.max_qtd_trades_running
@@ -214,10 +221,8 @@ impl TradesManager for SimulatedTradesManager {
                         .map_err(|e| TradeError::Generic(e.to_string()))?
                 };
 
-                let mut balance_guard = self.balance.lock().await;
-
                 let margin = {
-                    let margin = *balance_guard as f64 * balance_perc.into_f64() / 100.;
+                    let margin = state_guard.balance as f64 * balance_perc.into_f64() / 100.;
                     let margin = Margin::try_from(margin.floor())
                         .map_err(|e| TradeError::Generic(e.to_string()))?;
                     let _ = Quantity::try_calculate(margin, market_price, leverage)
@@ -243,33 +248,43 @@ impl TradesManager for SimulatedTradesManager {
                     leverage,
                 };
 
-                *timestamp_guard = timestamp;
-                running_guard.push(trade);
-                *balance_guard -= margin.into_u64();
+                state_guard.time = timestamp;
+                state_guard.running.push(trade);
+                state_guard.balance -= margin.into_u64();
 
                 Ok(())
             }
-            TradeOrder::CloseLongs { timestamp } => Ok(()),
+            TradeOrder::CloseLongs { timestamp } => {
+                // Update the state in order to determine which trades are still
+                // running.
+
+                // Get the current market price
+
+                // Update the state, moving all running long trades to 'closed',
+                // assume they were closed at the current market price.
+
+                Ok(())
+            }
             TradeOrder::CloseShorts { timestamp } => Ok(()),
             TradeOrder::CloseAll { timestamp } => Ok(()),
         }
     }
 
     async fn state(&self, timestamp: DateTime<Utc>) -> Result<TradesState> {
-        // Check if timestamp is valid
-        let current_time_guard = *self.time.lock().await;
-        if timestamp <= current_time_guard {
+        let mut state_guard = self.state.lock().await;
+
+        if timestamp <= state_guard.time {
             return Err(TradeError::Generic(format!(
-                "received state request with timestamp {timestamp} but current time is {current_time_guard}"
+                "received state request with timestamp {timestamp} but current time is {}",
+                state_guard.time
             )));
         }
 
-        let mut running_guard = self.running.lock().await;
-        let mut closed_guard = self.closed.lock().await;
-
+        let previous_time = state_guard.time;
         let mut remaining_running_trades = Vec::new();
+        let mut new_closed_trades = Vec::new();
 
-        for trade in running_guard.drain(..) {
+        for trade in state_guard.running.drain(..) {
             // Check if price reached stoploss or takeprofit between
             // `current_time_guard` and `timestamp`.
 
@@ -281,7 +296,7 @@ impl TradesManager for SimulatedTradesManager {
             let boundary_entry_opt = self
                 .db
                 .price_history
-                .get_first_entry_reaching_bounds(current_time_guard, timestamp, min, max)
+                .get_first_entry_reaching_bounds(previous_time, timestamp, min, max)
                 .await
                 .map_err(|e| TradeError::Generic(e.to_string()))?;
 
@@ -296,7 +311,7 @@ impl TradesManager for SimulatedTradesManager {
                     _ => return Err(TradeError::Generic("invalid".to_string())),
                 };
 
-                closed_guard.push(SimulatedTradeClosed {
+                new_closed_trades.push(SimulatedTradeClosed {
                     side: trade.side,
                     entry_time: trade.entry_time,
                     entry_price: trade.entry_price,
@@ -314,7 +329,8 @@ impl TradesManager for SimulatedTradesManager {
             }
         }
 
-        *running_guard = remaining_running_trades;
+        state_guard.running = remaining_running_trades;
+        state_guard.closed.append(&mut new_closed_trades);
 
         let market_price = {
             let price_entry = self
@@ -336,7 +352,7 @@ impl TradesManager for SimulatedTradesManager {
         let mut qtd_trades_running_short: usize = 0;
         let mut running_pl: i64 = 0;
 
-        for trade in running_guard.iter() {
+        for trade in state_guard.running.iter() {
             match trade.side {
                 TradeSide::Long => {
                     total_margin_long += trade.margin.into_u64();
@@ -350,46 +366,42 @@ impl TradesManager for SimulatedTradesManager {
             running_pl += trade.pl(market_price);
         }
 
-        let closed_pl = closed_guard.iter().map(|trade| trade.pl()).sum::<i64>();
+        let closed_pl = state_guard
+            .closed
+            .iter()
+            .map(|trade| trade.pl())
+            .sum::<i64>();
 
         let calc_balance =
             self.start_balance as i64 - total_margin_long as i64 - total_margin_short as i64
                 + closed_pl;
 
-        let mut balance_guard = self.balance.lock().await;
-        *balance_guard = if calc_balance < 0 {
+        state_guard.balance = if calc_balance < 0 {
             0
         } else {
             calc_balance as u64
         };
 
-        let mut time_guard = self.time.lock().await;
-        *time_guard = timestamp;
+        state_guard.time = timestamp;
 
-        let locked_margin_long = if total_margin_long > 0 {
-            let margin = Margin::try_from(total_margin_long)
-                .map_err(|e| TradeError::Generic(e.to_string()))?;
-            Some(margin)
-        } else {
-            None
-        };
+        let locked_margin_long = (total_margin_long > 0)
+            .then(|| Margin::try_from(total_margin_long))
+            .transpose()
+            .map_err(|e| TradeError::Generic(e.to_string()))?;
 
-        let locked_margin_short = if total_margin_short > 0 {
-            let margin = Margin::try_from(total_margin_short)
-                .map_err(|e| TradeError::Generic(e.to_string()))?;
-            Some(margin)
-        } else {
-            None
-        };
+        let locked_margin_short = (total_margin_short > 0)
+            .then(|| Margin::try_from(total_margin_short))
+            .transpose()
+            .map_err(|e| TradeError::Generic(e.to_string()))?;
 
         let trades_state = TradesState::new(
             timestamp,
             qtd_trades_running_long,
             qtd_trades_running_short,
-            closed_guard.len(),
+            state_guard.closed.len(),
             locked_margin_long,
             locked_margin_short,
-            *balance_guard,
+            state_guard.balance,
             running_pl,
             closed_pl,
         );
