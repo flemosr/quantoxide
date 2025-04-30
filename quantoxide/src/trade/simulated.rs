@@ -3,7 +3,9 @@ use chrono::{DateTime, Utc};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-use lnm_sdk::api::rest::models::{Leverage, Margin, Price, Quantity};
+use lnm_sdk::api::rest::models::{
+    BoundedPercentage, Leverage, LowerBoundedPercentage, Margin, Price, Quantity,
+};
 
 use crate::db::DbContext;
 
@@ -83,14 +85,26 @@ impl SimulatedTradeClosed {
 }
 
 enum Close {
-    All,
+    None,
     Side(TradeSide),
+    All,
 }
 
 impl From<TradeSide> for Close {
     fn from(value: TradeSide) -> Self {
         Self::Side(value)
     }
+}
+
+enum CreateRunningSide {
+    Long {
+        stoploss_perc: BoundedPercentage,
+        takeprofit_perc: LowerBoundedPercentage,
+    },
+    Short {
+        stoploss_perc: BoundedPercentage,
+        takeprofit_perc: BoundedPercentage,
+    },
 }
 
 struct SimulatedTradesState {
@@ -114,7 +128,7 @@ impl SimulatedTradesState {
         &mut self,
         db: &DbContext,
         new_time: DateTime<Utc>,
-        close: Option<Close>,
+        close: Close,
     ) -> Result<()> {
         if new_time <= self.time {
             return Err(TradeError::Generic(format!(
@@ -176,14 +190,10 @@ impl SimulatedTradesState {
             } else {
                 // Trade still running
 
-                let should_be_closed = if let Some(close) = close.as_ref() {
-                    match close {
-                        Close::Side(side) if *side == trade.side => true,
-                        Close::All => true,
-                        _ => false,
-                    }
-                } else {
-                    false
+                let should_be_closed = match &close {
+                    Close::Side(side) if *side == trade.side => true,
+                    Close::All => true,
+                    _ => false,
                 };
 
                 if should_be_closed {
@@ -203,6 +213,80 @@ impl SimulatedTradesState {
         self.running = remaining_running_trades;
         self.closed.append(&mut new_closed_trades);
         self.time = new_time;
+
+        Ok(())
+    }
+
+    async fn create_running(
+        &mut self,
+        db: &DbContext,
+        timestamp: DateTime<Utc>,
+        balance_perc: BoundedPercentage,
+        leverage: Leverage,
+        side: CreateRunningSide,
+    ) -> Result<()> {
+        let market_price = {
+            let price_entry = db
+                .price_history
+                .get_latest_entry_at_or_before(timestamp)
+                .await
+                .map_err(|e| TradeError::Generic(e.to_string()))?
+                .ok_or(TradeError::Generic(format!(
+                    "no price history entry was found with time at or before {}",
+                    timestamp
+                )))?;
+            Price::try_from(price_entry.value).map_err(|e| TradeError::Generic(e.to_string()))?
+        };
+
+        let margin = {
+            let margin = self.balance as f64 * balance_perc.into_f64() / 100.;
+            let margin =
+                Margin::try_from(margin.floor()).map_err(|e| TradeError::Generic(e.to_string()))?;
+            let _ = Quantity::try_calculate(margin, market_price, leverage)
+                .map_err(|e| TradeError::Generic(e.to_string()))?;
+            margin
+        };
+
+        let (side, stoploss, takeprofit) = match side {
+            CreateRunningSide::Long {
+                stoploss_perc,
+                takeprofit_perc,
+            } => {
+                let stoploss = market_price
+                    .apply_discount(stoploss_perc)
+                    .map_err(|e| TradeError::Generic(e.to_string()))?;
+                let takeprofit = market_price
+                    .apply_gain(takeprofit_perc.into())
+                    .map_err(|e| TradeError::Generic(e.to_string()))?;
+                (TradeSide::Long, stoploss, takeprofit)
+            }
+            CreateRunningSide::Short {
+                stoploss_perc,
+                takeprofit_perc,
+            } => {
+                let stoploss = market_price
+                    .apply_gain(stoploss_perc.into())
+                    .map_err(|e| TradeError::Generic(e.to_string()))?;
+                let takeprofit = market_price
+                    .apply_discount(takeprofit_perc)
+                    .map_err(|e| TradeError::Generic(e.to_string()))?;
+                (TradeSide::Short, stoploss, takeprofit)
+            }
+        };
+
+        let trade = SimulatedTradeRunning {
+            side,
+            entry_time: timestamp,
+            entry_price: market_price,
+            stoploss,
+            takeprofit,
+            margin,
+            leverage,
+        };
+
+        self.time = timestamp;
+        self.running.push(trade);
+        self.balance -= margin.into_u64();
 
         Ok(())
     }
@@ -248,7 +332,7 @@ impl TradesManager for SimulatedTradesManager {
                 let mut state_guard = self.state.lock().await;
 
                 state_guard
-                    .update(self.db.as_ref(), timestamp, None)
+                    .update(self.db.as_ref(), timestamp, Close::None)
                     .await?;
 
                 if state_guard.running.len() >= self.max_qtd_trades_running {
@@ -258,51 +342,14 @@ impl TradesManager for SimulatedTradesManager {
                     )));
                 }
 
-                let market_price = {
-                    let price_entry = self
-                        .db
-                        .price_history
-                        .get_latest_entry_at_or_before(timestamp)
-                        .await
-                        .map_err(|e| TradeError::Generic(e.to_string()))?
-                        .ok_or(TradeError::Generic(format!(
-                            "no price history entry was found with time at or before {}",
-                            timestamp
-                        )))?;
-                    Price::try_from(price_entry.value)
-                        .map_err(|e| TradeError::Generic(e.to_string()))?
+                let side = CreateRunningSide::Long {
+                    stoploss_perc,
+                    takeprofit_perc,
                 };
 
-                let margin = {
-                    let margin = state_guard.balance as f64 * balance_perc.into_f64() / 100.;
-                    let margin = Margin::try_from(margin.floor())
-                        .map_err(|e| TradeError::Generic(e.to_string()))?;
-                    let _ = Quantity::try_calculate(margin, market_price, leverage)
-                        .map_err(|e| TradeError::Generic(e.to_string()))?;
-                    margin
-                };
-
-                let stoploss = market_price
-                    .apply_discount(stoploss_perc)
-                    .map_err(|e| TradeError::Generic(e.to_string()))?;
-
-                let takeprofit = market_price
-                    .apply_gain(takeprofit_perc)
-                    .map_err(|e| TradeError::Generic(e.to_string()))?;
-
-                let trade = SimulatedTradeRunning {
-                    side: TradeSide::Long,
-                    entry_time: timestamp,
-                    entry_price: market_price,
-                    stoploss,
-                    takeprofit,
-                    margin,
-                    leverage,
-                };
-
-                state_guard.time = timestamp;
-                state_guard.running.push(trade);
-                state_guard.balance -= margin.into_u64();
+                state_guard
+                    .create_running(self.db.as_ref(), timestamp, balance_perc, leverage, side)
+                    .await?;
 
                 Ok(())
             }
@@ -316,7 +363,7 @@ impl TradesManager for SimulatedTradesManager {
                 let mut state_guard = self.state.lock().await;
 
                 state_guard
-                    .update(self.db.as_ref(), timestamp, None)
+                    .update(self.db.as_ref(), timestamp, Close::None)
                     .await?;
 
                 if state_guard.running.len() >= self.max_qtd_trades_running {
@@ -326,51 +373,14 @@ impl TradesManager for SimulatedTradesManager {
                     )));
                 }
 
-                let market_price = {
-                    let price_entry = self
-                        .db
-                        .price_history
-                        .get_latest_entry_at_or_before(timestamp)
-                        .await
-                        .map_err(|e| TradeError::Generic(e.to_string()))?
-                        .ok_or(TradeError::Generic(format!(
-                            "no price history entry was found with time at or before {}",
-                            timestamp
-                        )))?;
-                    Price::try_from(price_entry.value)
-                        .map_err(|e| TradeError::Generic(e.to_string()))?
+                let side = CreateRunningSide::Short {
+                    stoploss_perc,
+                    takeprofit_perc,
                 };
 
-                let margin = {
-                    let margin = state_guard.balance as f64 * balance_perc.into_f64() / 100.;
-                    let margin = Margin::try_from(margin.floor())
-                        .map_err(|e| TradeError::Generic(e.to_string()))?;
-                    let _ = Quantity::try_calculate(margin, market_price, leverage)
-                        .map_err(|e| TradeError::Generic(e.to_string()))?;
-                    margin
-                };
-
-                let stoploss = market_price
-                    .apply_gain(stoploss_perc.into())
-                    .map_err(|e| TradeError::Generic(e.to_string()))?;
-
-                let takeprofit = market_price
-                    .apply_discount(takeprofit_perc)
-                    .map_err(|e| TradeError::Generic(e.to_string()))?;
-
-                let trade = SimulatedTradeRunning {
-                    side: TradeSide::Short,
-                    entry_time: timestamp,
-                    entry_price: market_price,
-                    stoploss,
-                    takeprofit,
-                    margin,
-                    leverage,
-                };
-
-                state_guard.time = timestamp;
-                state_guard.running.push(trade);
-                state_guard.balance -= margin.into_u64();
+                state_guard
+                    .create_running(self.db.as_ref(), timestamp, balance_perc, leverage, side)
+                    .await?;
 
                 Ok(())
             }
@@ -378,7 +388,7 @@ impl TradesManager for SimulatedTradesManager {
                 let mut state_guard = self.state.lock().await;
 
                 state_guard
-                    .update(self.db.as_ref(), timestamp, Some(TradeSide::Long.into()))
+                    .update(self.db.as_ref(), timestamp, TradeSide::Long.into())
                     .await?;
 
                 Ok(())
@@ -387,7 +397,7 @@ impl TradesManager for SimulatedTradesManager {
                 let mut state_guard = self.state.lock().await;
 
                 state_guard
-                    .update(self.db.as_ref(), timestamp, Some(TradeSide::Short.into()))
+                    .update(self.db.as_ref(), timestamp, TradeSide::Short.into())
                     .await?;
 
                 Ok(())
@@ -396,7 +406,7 @@ impl TradesManager for SimulatedTradesManager {
                 let mut state_guard = self.state.lock().await;
 
                 state_guard
-                    .update(self.db.as_ref(), timestamp, Some(Close::All))
+                    .update(self.db.as_ref(), timestamp, Close::All)
                     .await?;
 
                 Ok(())
@@ -408,7 +418,7 @@ impl TradesManager for SimulatedTradesManager {
         let mut state_guard = self.state.lock().await;
 
         state_guard
-            .update(self.db.as_ref(), timestamp, None)
+            .update(self.db.as_ref(), timestamp, Close::None)
             .await?;
 
         let market_price = {
