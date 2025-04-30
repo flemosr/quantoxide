@@ -96,7 +96,7 @@ impl From<TradeSide> for Close {
     }
 }
 
-enum CreateRunningSide {
+enum RiskParams {
     Long {
         stoploss_perc: BoundedPercentage,
         takeprofit_perc: LowerBoundedPercentage,
@@ -105,6 +105,37 @@ enum CreateRunningSide {
         stoploss_perc: BoundedPercentage,
         takeprofit_perc: BoundedPercentage,
     },
+}
+
+impl RiskParams {
+    fn into_trade_params(self, market_price: Price) -> Result<(TradeSide, Price, Price)> {
+        match self {
+            Self::Long {
+                stoploss_perc,
+                takeprofit_perc,
+            } => {
+                let stoploss = market_price
+                    .apply_discount(stoploss_perc)
+                    .map_err(|e| TradeError::Generic(e.to_string()))?;
+                let takeprofit = market_price
+                    .apply_gain(takeprofit_perc.into())
+                    .map_err(|e| TradeError::Generic(e.to_string()))?;
+                Ok((TradeSide::Long, stoploss, takeprofit))
+            }
+            RiskParams::Short {
+                stoploss_perc,
+                takeprofit_perc,
+            } => {
+                let stoploss = market_price
+                    .apply_gain(stoploss_perc.into())
+                    .map_err(|e| TradeError::Generic(e.to_string()))?;
+                let takeprofit = market_price
+                    .apply_discount(takeprofit_perc)
+                    .map_err(|e| TradeError::Generic(e.to_string()))?;
+                Ok((TradeSide::Short, stoploss, takeprofit))
+            }
+        }
+    }
 }
 
 struct SimulatedTradesState {
@@ -246,7 +277,7 @@ impl SimulatedTradesManager {
         timestamp: DateTime<Utc>,
         balance_perc: BoundedPercentage,
         leverage: Leverage,
-        side: CreateRunningSide,
+        risk_params: RiskParams,
     ) -> Result<()> {
         let (mut state_guard, market_price) = self.update_state(timestamp, Close::None).await?;
 
@@ -266,32 +297,7 @@ impl SimulatedTradesManager {
             margin
         };
 
-        let (side, stoploss, takeprofit) = match side {
-            CreateRunningSide::Long {
-                stoploss_perc,
-                takeprofit_perc,
-            } => {
-                let stoploss = market_price
-                    .apply_discount(stoploss_perc)
-                    .map_err(|e| TradeError::Generic(e.to_string()))?;
-                let takeprofit = market_price
-                    .apply_gain(takeprofit_perc.into())
-                    .map_err(|e| TradeError::Generic(e.to_string()))?;
-                (TradeSide::Long, stoploss, takeprofit)
-            }
-            CreateRunningSide::Short {
-                stoploss_perc,
-                takeprofit_perc,
-            } => {
-                let stoploss = market_price
-                    .apply_gain(stoploss_perc.into())
-                    .map_err(|e| TradeError::Generic(e.to_string()))?;
-                let takeprofit = market_price
-                    .apply_discount(takeprofit_perc)
-                    .map_err(|e| TradeError::Generic(e.to_string()))?;
-                (TradeSide::Short, stoploss, takeprofit)
-            }
-        };
+        let (side, stoploss, takeprofit) = risk_params.into_trade_params(market_price)?;
 
         let trade = SimulatedTradeRunning {
             side,
@@ -322,12 +328,12 @@ impl TradesManager for SimulatedTradesManager {
                 balance_perc,
                 leverage,
             } => {
-                let side = CreateRunningSide::Long {
+                let risk_params = RiskParams::Long {
                     stoploss_perc,
                     takeprofit_perc,
                 };
 
-                self.create_running(timestamp, balance_perc, leverage, side)
+                self.create_running(timestamp, balance_perc, leverage, risk_params)
                     .await?;
 
                 Ok(())
@@ -339,12 +345,12 @@ impl TradesManager for SimulatedTradesManager {
                 balance_perc,
                 leverage,
             } => {
-                let side = CreateRunningSide::Short {
+                let risk_params = RiskParams::Short {
                     stoploss_perc,
                     takeprofit_perc,
                 };
 
-                self.create_running(timestamp, balance_perc, leverage, side)
+                self.create_running(timestamp, balance_perc, leverage, risk_params)
                     .await?;
 
                 Ok(())
