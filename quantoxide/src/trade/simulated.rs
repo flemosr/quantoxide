@@ -154,7 +154,7 @@ impl SimulatedTradesManager {
         &self,
         new_time: DateTime<Utc>,
         close: Close,
-    ) -> Result<MutexGuard<SimulatedTradesState>> {
+    ) -> Result<(MutexGuard<SimulatedTradesState>, Price)> {
         let mut state_guard = self.state.lock().await;
 
         if new_time <= state_guard.time {
@@ -245,7 +245,7 @@ impl SimulatedTradesManager {
         state_guard.time = new_time;
         state_guard.balance = new_balance.max(0) as u64;
 
-        Ok(state_guard)
+        Ok((state_guard, market_price))
     }
 
     async fn create_running(
@@ -255,7 +255,7 @@ impl SimulatedTradesManager {
         leverage: Leverage,
         side: CreateRunningSide,
     ) -> Result<()> {
-        let mut state_guard = self.update_state(timestamp, Close::None).await?;
+        let (mut state_guard, market_price) = self.update_state(timestamp, Close::None).await?;
 
         if state_guard.running.len() >= self.max_qtd_trades_running {
             return Err(TradeError::Generic(format!(
@@ -263,20 +263,6 @@ impl SimulatedTradesManager {
                 self.max_qtd_trades_running
             )));
         }
-
-        let market_price = {
-            let price_entry = self
-                .db
-                .price_history
-                .get_latest_entry_at_or_before(timestamp)
-                .await
-                .map_err(|e| TradeError::Generic(e.to_string()))?
-                .ok_or(TradeError::Generic(format!(
-                    "no price history entry was found with time at or before {}",
-                    timestamp
-                )))?;
-            Price::try_from(price_entry.value).map_err(|e| TradeError::Generic(e.to_string()))?
-        };
 
         let margin = {
             let margin = state_guard.balance as f64 * balance_perc.into_f64() / 100.;
@@ -388,21 +374,7 @@ impl TradesManager for SimulatedTradesManager {
     }
 
     async fn state(&self, timestamp: DateTime<Utc>) -> Result<TradesState> {
-        let state_guard = self.update_state(timestamp, Close::None).await?;
-
-        let market_price = {
-            let price_entry = self
-                .db
-                .price_history
-                .get_latest_entry_at_or_before(timestamp)
-                .await
-                .map_err(|e| TradeError::Generic(e.to_string()))?
-                .ok_or(TradeError::Generic(format!(
-                    "no price history entry was found with time at or before {}",
-                    timestamp
-                )))?;
-            Price::try_from(price_entry.value).map_err(|e| TradeError::Generic(e.to_string()))?
-        };
+        let (state_guard, market_price) = self.update_state(timestamp, Close::None).await?;
 
         let mut total_margin_long: u64 = 0;
         let mut qtd_trades_running_long: usize = 0;
