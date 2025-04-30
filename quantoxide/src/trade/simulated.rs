@@ -82,15 +82,22 @@ impl SimulatedTradeClosed {
     }
 }
 
+enum Close {
+    All,
+    Side(TradeSide),
+}
+
+impl From<TradeSide> for Close {
+    fn from(value: TradeSide) -> Self {
+        Self::Side(value)
+    }
+}
+
 struct SimulatedTradesState {
     time: DateTime<Utc>,
     balance: u64,
     running: Vec<SimulatedTradeRunning>,
     closed: Vec<SimulatedTradeClosed>,
-    // locked_margin_long: Option<Margin>,
-    // locked_margin_short: Option<Margin>,
-    // running_pl: i64,
-    // closed_pl: i64,
 }
 
 impl SimulatedTradesState {
@@ -100,20 +107,34 @@ impl SimulatedTradesState {
             balance: start_balance,
             running: Vec::new(),
             closed: Vec::new(),
-            // locked_margin_long: None,
-            // locked_margin_short: None,
-            // running_pl: 0,
-            // closed_pl: 0,
         }
     }
 
-    async fn update(&mut self, db: &DbContext, new_time: DateTime<Utc>) -> Result<()> {
+    async fn update(
+        &mut self,
+        db: &DbContext,
+        new_time: DateTime<Utc>,
+        close: Option<Close>,
+    ) -> Result<()> {
         if new_time <= self.time {
             return Err(TradeError::Generic(format!(
                 "tried to update state with new_time {new_time} but current time is {}",
                 self.time
             )));
         }
+
+        let market_price = {
+            let price_entry = db
+                .price_history
+                .get_latest_entry_at_or_before(new_time)
+                .await
+                .map_err(|e| TradeError::Generic(e.to_string()))?
+                .ok_or(TradeError::Generic(format!(
+                    "no price history entry was found with time at or before {}",
+                    new_time
+                )))?;
+            Price::try_from(price_entry.value).map_err(|e| TradeError::Generic(e.to_string()))?
+        };
 
         let previous_time = self.time;
         let mut remaining_running_trades = Vec::new();
@@ -135,7 +156,7 @@ impl SimulatedTradesState {
                 .map_err(|e| TradeError::Generic(e.to_string()))?;
 
             if let Some(price_entry) = boundary_entry_opt {
-                // Trade closed
+                // Trade closed by `stoploss` or `takeprofit`
 
                 let close_price = match trade.side {
                     TradeSide::Long if price_entry.value <= min => trade.stoploss,
@@ -155,7 +176,27 @@ impl SimulatedTradesState {
             } else {
                 // Trade still running
 
-                remaining_running_trades.push(trade);
+                let should_be_closed = if let Some(close) = close.as_ref() {
+                    match close {
+                        Close::Side(side) if *side == trade.side => true,
+                        Close::All => true,
+                        _ => false,
+                    }
+                } else {
+                    false
+                };
+
+                if should_be_closed {
+                    let closed_trade =
+                        SimulatedTradeClosed::from_running(trade, new_time, market_price);
+
+                    let balance_diff = closed_trade.margin.into_u64() as i64 + closed_trade.pl();
+
+                    self.balance = (self.balance as i64 + balance_diff).max(0) as u64;
+                    new_closed_trades.push(closed_trade);
+                } else {
+                    remaining_running_trades.push(trade);
+                }
             }
         }
 
@@ -206,12 +247,9 @@ impl TradesManager for SimulatedTradesManager {
             } => {
                 let mut state_guard = self.state.lock().await;
 
-                if timestamp <= state_guard.time {
-                    return Err(TradeError::Generic(format!(
-                        "received order with timestamp {timestamp} and current time is {}",
-                        state_guard.time
-                    )));
-                }
+                state_guard
+                    .update(self.db.as_ref(), timestamp, None)
+                    .await?;
 
                 if state_guard.running.len() >= self.max_qtd_trades_running {
                     return Err(TradeError::Generic(format!(
@@ -277,12 +315,9 @@ impl TradesManager for SimulatedTradesManager {
             } => {
                 let mut state_guard = self.state.lock().await;
 
-                if timestamp <= state_guard.time {
-                    return Err(TradeError::Generic(format!(
-                        "received order with timestamp {timestamp} and current time is {}",
-                        state_guard.time
-                    )));
-                }
+                state_guard
+                    .update(self.db.as_ref(), timestamp, None)
+                    .await?;
 
                 if state_guard.running.len() >= self.max_qtd_trades_running {
                     return Err(TradeError::Generic(format!(
@@ -342,129 +377,27 @@ impl TradesManager for SimulatedTradesManager {
             TradeOrder::CloseLongs { timestamp } => {
                 let mut state_guard = self.state.lock().await;
 
-                state_guard.update(self.db.as_ref(), timestamp).await?;
-
-                let market_price = {
-                    let price_entry = self
-                        .db
-                        .price_history
-                        .get_latest_entry_at_or_before(timestamp)
-                        .await
-                        .map_err(|e| TradeError::Generic(e.to_string()))?
-                        .ok_or(TradeError::Generic(format!(
-                            "no price history entry was found with time at or before {}",
-                            timestamp
-                        )))?;
-                    Price::try_from(price_entry.value)
-                        .map_err(|e| TradeError::Generic(e.to_string()))?
-                };
-
-                let mut remaining_running_trades = Vec::new();
-                let mut new_closed_trades = Vec::new();
-                let mut new_balance = state_guard.balance as i64;
-
-                for trade in state_guard.running.drain(..) {
-                    if trade.side == TradeSide::Long {
-                        let closed_trade =
-                            SimulatedTradeClosed::from_running(trade, timestamp, market_price);
-
-                        let balance_diff =
-                            closed_trade.margin.into_u64() as i64 + closed_trade.pl();
-
-                        new_balance += balance_diff;
-                        new_closed_trades.push(closed_trade);
-                    } else {
-                        remaining_running_trades.push(trade);
-                    }
-                }
-
-                state_guard.running = remaining_running_trades;
-                state_guard.closed.append(&mut new_closed_trades);
-                state_guard.balance = new_balance.max(0) as u64;
+                state_guard
+                    .update(self.db.as_ref(), timestamp, Some(TradeSide::Long.into()))
+                    .await?;
 
                 Ok(())
             }
             TradeOrder::CloseShorts { timestamp } => {
                 let mut state_guard = self.state.lock().await;
 
-                state_guard.update(self.db.as_ref(), timestamp).await?;
-
-                let market_price = {
-                    let price_entry = self
-                        .db
-                        .price_history
-                        .get_latest_entry_at_or_before(timestamp)
-                        .await
-                        .map_err(|e| TradeError::Generic(e.to_string()))?
-                        .ok_or(TradeError::Generic(format!(
-                            "no price history entry was found with time at or before {}",
-                            timestamp
-                        )))?;
-                    Price::try_from(price_entry.value)
-                        .map_err(|e| TradeError::Generic(e.to_string()))?
-                };
-
-                let mut remaining_running_trades = Vec::new();
-                let mut new_closed_trades = Vec::new();
-                let mut new_balance = state_guard.balance as i64;
-
-                for trade in state_guard.running.drain(..) {
-                    if trade.side == TradeSide::Short {
-                        let closed_trade =
-                            SimulatedTradeClosed::from_running(trade, timestamp, market_price);
-
-                        let balance_diff =
-                            closed_trade.margin.into_u64() as i64 + closed_trade.pl();
-
-                        new_balance += balance_diff;
-                        new_closed_trades.push(closed_trade);
-                    } else {
-                        remaining_running_trades.push(trade);
-                    }
-                }
-
-                state_guard.running = remaining_running_trades;
-                state_guard.closed.append(&mut new_closed_trades);
-                state_guard.balance = new_balance.max(0) as u64;
+                state_guard
+                    .update(self.db.as_ref(), timestamp, Some(TradeSide::Short.into()))
+                    .await?;
 
                 Ok(())
             }
             TradeOrder::CloseAll { timestamp } => {
                 let mut state_guard = self.state.lock().await;
 
-                state_guard.update(self.db.as_ref(), timestamp).await?;
-
-                let market_price = {
-                    let price_entry = self
-                        .db
-                        .price_history
-                        .get_latest_entry_at_or_before(timestamp)
-                        .await
-                        .map_err(|e| TradeError::Generic(e.to_string()))?
-                        .ok_or(TradeError::Generic(format!(
-                            "no price history entry was found with time at or before {}",
-                            timestamp
-                        )))?;
-                    Price::try_from(price_entry.value)
-                        .map_err(|e| TradeError::Generic(e.to_string()))?
-                };
-
-                let mut new_closed_trades = Vec::new();
-                let mut new_balance = state_guard.balance as i64;
-
-                for trade in state_guard.running.drain(..) {
-                    let closed_trade =
-                        SimulatedTradeClosed::from_running(trade, timestamp, market_price);
-
-                    let balance_diff = closed_trade.margin.into_u64() as i64 + closed_trade.pl();
-
-                    new_balance += balance_diff;
-                    new_closed_trades.push(closed_trade);
-                }
-
-                state_guard.running = Vec::new();
-                state_guard.closed.append(&mut new_closed_trades);
-                state_guard.balance = new_balance.max(0) as u64;
+                state_guard
+                    .update(self.db.as_ref(), timestamp, Some(Close::All))
+                    .await?;
 
                 Ok(())
             }
@@ -474,7 +407,9 @@ impl TradesManager for SimulatedTradesManager {
     async fn state(&self, timestamp: DateTime<Utc>) -> Result<TradesState> {
         let mut state_guard = self.state.lock().await;
 
-        state_guard.update(self.db.as_ref(), timestamp).await?;
+        state_guard
+            .update(self.db.as_ref(), timestamp, None)
+            .await?;
 
         let market_price = {
             let price_entry = self
