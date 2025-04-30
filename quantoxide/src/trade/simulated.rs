@@ -343,10 +343,52 @@ impl TradesManager for SimulatedTradesManager {
                 // Update the state in order to determine which trades are still
                 // running.
 
+                let mut state_guard = self.state.lock().await;
+
+                state_guard.update(self.db.as_ref(), timestamp).await?;
+
                 // Get the current market price
+
+                let market_price = {
+                    let price_entry = self
+                        .db
+                        .price_history
+                        .get_latest_entry_at_or_before(timestamp)
+                        .await
+                        .map_err(|e| TradeError::Generic(e.to_string()))?
+                        .ok_or(TradeError::Generic(format!(
+                            "no price history entry was found with time at or before {}",
+                            timestamp
+                        )))?;
+                    Price::try_from(price_entry.value)
+                        .map_err(|e| TradeError::Generic(e.to_string()))?
+                };
 
                 // Update the state, moving all running long trades to 'closed',
                 // assume they were closed at the current market price.
+
+                let mut remaining_running_trades = Vec::new();
+                let mut new_closed_trades = Vec::new();
+                let mut new_balance = state_guard.balance as i64;
+
+                for trade in state_guard.running.drain(..) {
+                    if trade.side == TradeSide::Long {
+                        let closed_trade =
+                            SimulatedTradeClosed::from_running(trade, timestamp, market_price);
+
+                        let balance_diff =
+                            closed_trade.margin.into_u64() as i64 + closed_trade.pl();
+
+                        new_balance += balance_diff;
+                        new_closed_trades.push(closed_trade);
+                    } else {
+                        remaining_running_trades.push(trade);
+                    }
+                }
+
+                state_guard.running = remaining_running_trades;
+                state_guard.closed.append(&mut new_closed_trades);
+                state_guard.balance = new_balance.max(0) as u64;
 
                 Ok(())
             }
