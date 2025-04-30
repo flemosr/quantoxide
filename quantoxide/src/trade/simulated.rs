@@ -30,7 +30,7 @@ struct SimulatedTradeRunning {
 }
 
 impl SimulatedTradeRunning {
-    pub fn pl(&self, current_price: Price) -> i64 {
+    fn pl(&self, current_price: Price) -> i64 {
         let price_diff = match self.side {
             TradeSide::Long => current_price.into_f64() - self.entry_price.into_f64(),
             TradeSide::Short => self.entry_price.into_f64() - current_price.into_f64(),
@@ -54,7 +54,25 @@ struct SimulatedTradeClosed {
 }
 
 impl SimulatedTradeClosed {
-    pub fn pl(&self) -> i64 {
+    fn from_running(
+        running: SimulatedTradeRunning,
+        close_time: DateTime<Utc>,
+        close_price: Price,
+    ) -> Self {
+        SimulatedTradeClosed {
+            side: running.side,
+            entry_time: running.entry_time,
+            entry_price: running.entry_price,
+            stoploss: running.stoploss,
+            takeprofit: running.takeprofit,
+            margin: running.margin,
+            leverage: running.leverage,
+            close_time,
+            close_price,
+        }
+    }
+
+    fn pl(&self) -> i64 {
         let price_diff = match self.side {
             TradeSide::Long => self.close_price.into_f64() - self.entry_price.into_f64(),
             TradeSide::Short => self.entry_price.into_f64() - self.close_price.into_f64(),
@@ -311,17 +329,9 @@ impl TradesManager for SimulatedTradesManager {
                     _ => return Err(TradeError::Generic("invalid".to_string())),
                 };
 
-                new_closed_trades.push(SimulatedTradeClosed {
-                    side: trade.side,
-                    entry_time: trade.entry_time,
-                    entry_price: trade.entry_price,
-                    stoploss: trade.stoploss,
-                    takeprofit: trade.takeprofit,
-                    margin: trade.margin,
-                    leverage: trade.leverage,
-                    close_time: price_entry.time,
-                    close_price,
-                });
+                let closed_trade =
+                    SimulatedTradeClosed::from_running(trade, price_entry.time, close_price);
+                new_closed_trades.push(closed_trade);
             } else {
                 // Trade still running
 
