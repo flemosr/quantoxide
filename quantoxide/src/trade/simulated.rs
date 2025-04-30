@@ -123,80 +123,6 @@ impl SimulatedTradesState {
             closed: Vec::new(),
         }
     }
-
-    async fn create_running(
-        &mut self,
-        db: &DbContext,
-        timestamp: DateTime<Utc>,
-        balance_perc: BoundedPercentage,
-        leverage: Leverage,
-        side: CreateRunningSide,
-    ) -> Result<()> {
-        let market_price = {
-            let price_entry = db
-                .price_history
-                .get_latest_entry_at_or_before(timestamp)
-                .await
-                .map_err(|e| TradeError::Generic(e.to_string()))?
-                .ok_or(TradeError::Generic(format!(
-                    "no price history entry was found with time at or before {}",
-                    timestamp
-                )))?;
-            Price::try_from(price_entry.value).map_err(|e| TradeError::Generic(e.to_string()))?
-        };
-
-        let margin = {
-            let margin = self.balance as f64 * balance_perc.into_f64() / 100.;
-            let margin =
-                Margin::try_from(margin.floor()).map_err(|e| TradeError::Generic(e.to_string()))?;
-            let _ = Quantity::try_calculate(margin, market_price, leverage)
-                .map_err(|e| TradeError::Generic(e.to_string()))?;
-            margin
-        };
-
-        let (side, stoploss, takeprofit) = match side {
-            CreateRunningSide::Long {
-                stoploss_perc,
-                takeprofit_perc,
-            } => {
-                let stoploss = market_price
-                    .apply_discount(stoploss_perc)
-                    .map_err(|e| TradeError::Generic(e.to_string()))?;
-                let takeprofit = market_price
-                    .apply_gain(takeprofit_perc.into())
-                    .map_err(|e| TradeError::Generic(e.to_string()))?;
-                (TradeSide::Long, stoploss, takeprofit)
-            }
-            CreateRunningSide::Short {
-                stoploss_perc,
-                takeprofit_perc,
-            } => {
-                let stoploss = market_price
-                    .apply_gain(stoploss_perc.into())
-                    .map_err(|e| TradeError::Generic(e.to_string()))?;
-                let takeprofit = market_price
-                    .apply_discount(takeprofit_perc)
-                    .map_err(|e| TradeError::Generic(e.to_string()))?;
-                (TradeSide::Short, stoploss, takeprofit)
-            }
-        };
-
-        let trade = SimulatedTradeRunning {
-            side,
-            entry_time: timestamp,
-            entry_price: market_price,
-            stoploss,
-            takeprofit,
-            margin,
-            leverage,
-        };
-
-        self.time = timestamp;
-        self.running.push(trade);
-        self.balance -= margin.into_u64();
-
-        Ok(())
-    }
 }
 
 pub struct SimulatedTradesManager {
@@ -321,6 +247,89 @@ impl SimulatedTradesManager {
 
         Ok(state_guard)
     }
+
+    async fn create_running(
+        &self,
+        timestamp: DateTime<Utc>,
+        balance_perc: BoundedPercentage,
+        leverage: Leverage,
+        side: CreateRunningSide,
+    ) -> Result<()> {
+        let mut state_guard = self.update_state(timestamp, Close::None).await?;
+
+        if state_guard.running.len() >= self.max_qtd_trades_running {
+            return Err(TradeError::Generic(format!(
+                "received order but max qtd of running trades ({}) was reached",
+                self.max_qtd_trades_running
+            )));
+        }
+
+        let market_price = {
+            let price_entry = self
+                .db
+                .price_history
+                .get_latest_entry_at_or_before(timestamp)
+                .await
+                .map_err(|e| TradeError::Generic(e.to_string()))?
+                .ok_or(TradeError::Generic(format!(
+                    "no price history entry was found with time at or before {}",
+                    timestamp
+                )))?;
+            Price::try_from(price_entry.value).map_err(|e| TradeError::Generic(e.to_string()))?
+        };
+
+        let margin = {
+            let margin = state_guard.balance as f64 * balance_perc.into_f64() / 100.;
+            let margin =
+                Margin::try_from(margin.floor()).map_err(|e| TradeError::Generic(e.to_string()))?;
+            let _ = Quantity::try_calculate(margin, market_price, leverage)
+                .map_err(|e| TradeError::Generic(e.to_string()))?;
+            margin
+        };
+
+        let (side, stoploss, takeprofit) = match side {
+            CreateRunningSide::Long {
+                stoploss_perc,
+                takeprofit_perc,
+            } => {
+                let stoploss = market_price
+                    .apply_discount(stoploss_perc)
+                    .map_err(|e| TradeError::Generic(e.to_string()))?;
+                let takeprofit = market_price
+                    .apply_gain(takeprofit_perc.into())
+                    .map_err(|e| TradeError::Generic(e.to_string()))?;
+                (TradeSide::Long, stoploss, takeprofit)
+            }
+            CreateRunningSide::Short {
+                stoploss_perc,
+                takeprofit_perc,
+            } => {
+                let stoploss = market_price
+                    .apply_gain(stoploss_perc.into())
+                    .map_err(|e| TradeError::Generic(e.to_string()))?;
+                let takeprofit = market_price
+                    .apply_discount(takeprofit_perc)
+                    .map_err(|e| TradeError::Generic(e.to_string()))?;
+                (TradeSide::Short, stoploss, takeprofit)
+            }
+        };
+
+        let trade = SimulatedTradeRunning {
+            side,
+            entry_time: timestamp,
+            entry_price: market_price,
+            stoploss,
+            takeprofit,
+            margin,
+            leverage,
+        };
+
+        state_guard.time = timestamp;
+        state_guard.running.push(trade);
+        state_guard.balance -= margin.into_u64();
+
+        Ok(())
+    }
 }
 
 #[async_trait]
@@ -334,22 +343,12 @@ impl TradesManager for SimulatedTradesManager {
                 balance_perc,
                 leverage,
             } => {
-                let mut state_guard = self.update_state(timestamp, Close::None).await?;
-
-                if state_guard.running.len() >= self.max_qtd_trades_running {
-                    return Err(TradeError::Generic(format!(
-                        "received order but max qtd of running trades ({}) was reached",
-                        self.max_qtd_trades_running
-                    )));
-                }
-
                 let side = CreateRunningSide::Long {
                     stoploss_perc,
                     takeprofit_perc,
                 };
 
-                state_guard
-                    .create_running(self.db.as_ref(), timestamp, balance_perc, leverage, side)
+                self.create_running(timestamp, balance_perc, leverage, side)
                     .await?;
 
                 Ok(())
@@ -361,22 +360,12 @@ impl TradesManager for SimulatedTradesManager {
                 balance_perc,
                 leverage,
             } => {
-                let mut state_guard = self.update_state(timestamp, Close::None).await?;
-
-                if state_guard.running.len() >= self.max_qtd_trades_running {
-                    return Err(TradeError::Generic(format!(
-                        "received order but max qtd of running trades ({}) was reached",
-                        self.max_qtd_trades_running
-                    )));
-                }
-
                 let side = CreateRunningSide::Short {
                     stoploss_perc,
                     takeprofit_perc,
                 };
 
-                state_guard
-                    .create_running(self.db.as_ref(), timestamp, balance_perc, leverage, side)
+                self.create_running(timestamp, balance_perc, leverage, side)
                     .await?;
 
                 Ok(())
