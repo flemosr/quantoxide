@@ -16,7 +16,7 @@ impl Quantity {
         price: Price,
         leverage: Leverage,
     ) -> Result<Self, QuantityValidationError> {
-        let qtd = margin.into_u64() as f64 / 100000000. * price.into_f64() * leverage.into_f64();
+        let qtd = margin.into_u64() as f64 * leverage.into_f64() / 100_000_000. * price.into_f64();
         Self::try_from(qtd)
     }
 }
@@ -89,5 +89,41 @@ impl<'de> Deserialize<'de> for Quantity {
     {
         let quantity_u64 = u64::deserialize(deserializer)?;
         Quantity::try_from(quantity_u64).map_err(|e| de::Error::custom(e.to_string()))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_calculate_quantity() {
+        let margin = Margin::try_from(1_000).unwrap();
+        let price = Price::try_from(100_000).unwrap();
+        let leverage = Leverage::try_from(1.0).unwrap();
+
+        let quantity = Quantity::try_calculate(margin, price, leverage).unwrap();
+        assert_eq!(quantity.into_u64(), 1);
+
+        let margin = Margin::try_from(700).unwrap();
+        let price = Price::try_from(100_000).unwrap();
+        let leverage = Leverage::try_from(2.0).unwrap();
+
+        let quantity = Quantity::try_calculate(margin, price, leverage).unwrap();
+        assert_eq!(quantity.into_u64(), 1);
+
+        let margin = Margin::try_from(10).unwrap();
+        let price = Price::try_from(100_000).unwrap();
+        let leverage = Leverage::try_from(100.0).unwrap();
+
+        let quantity = Quantity::try_calculate(margin, price, leverage).unwrap();
+        assert_eq!(quantity.into_u64(), 1);
+
+        let margin = Margin::try_from(17).unwrap();
+        let price = Price::try_from(100_000).unwrap();
+        let leverage = Leverage::try_from(100.0).unwrap();
+
+        let quantity = Quantity::try_calculate(margin, price, leverage).unwrap();
+        assert_eq!(quantity.into_u64(), 1);
     }
 }
