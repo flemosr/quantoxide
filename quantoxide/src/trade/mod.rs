@@ -9,75 +9,82 @@ mod simulated;
 use error::Result;
 
 pub struct TradesState {
-    timestamp: DateTime<Utc>,
-    qtd_trades_running_long: usize,
-    qtd_trades_running_short: usize,
-    qtd_trades_closed: usize,
-    locked_margin_long: Option<Margin>,
-    locked_margin_short: Option<Margin>,
+    time: DateTime<Utc>,
     balance: u64,
+    running_long_qtd: usize,
+    running_long_margin: Option<Margin>,
+    running_short_qtd: usize,
+    running_short_margin: Option<Margin>,
     running_pl: i64,
+    closed_qtd: usize,
     closed_pl: i64,
 }
 
 impl TradesState {
     fn new(
-        timestamp: DateTime<Utc>,
-        qtd_trades_running_long: usize,
-        qtd_trades_running_short: usize,
-        qtd_trades_closed: usize,
-        locked_margin_long: Option<Margin>,
-        locked_margin_short: Option<Margin>,
+        time: DateTime<Utc>,
         balance: u64,
+        running_long_qtd: usize,
+        running_long_margin: Option<Margin>,
+        running_short_qtd: usize,
+        running_short_margin: Option<Margin>,
         running_pl: i64,
+        closed_qtd: usize,
         closed_pl: i64,
     ) -> Self {
         Self {
-            timestamp,
-            qtd_trades_running_long,
-            qtd_trades_running_short,
-            qtd_trades_closed,
-            locked_margin_long,
-            locked_margin_short,
+            time,
             balance,
+            running_long_qtd,
+            running_long_margin,
+            running_short_qtd,
+            running_short_margin,
             running_pl,
+            closed_qtd,
             closed_pl,
         }
     }
 
     /// Returns the timestamp of this trade state
     pub fn timestamp(&self) -> DateTime<Utc> {
-        self.timestamp
+        self.time
     }
 
     /// Returns the quantity of running long trades
-    pub fn qtd_trades_running_long(&self) -> usize {
-        self.qtd_trades_running_long
-    }
-
-    /// Returns the quantity of running short trades
-    pub fn qtd_trades_running_short(&self) -> usize {
-        self.qtd_trades_running_short
-    }
-
-    /// Returns the quantity of running long and short trades
-    pub fn qtd_trades_running(&self) -> usize {
-        self.qtd_trades_running_long + self.qtd_trades_running_short
-    }
-
-    /// Returns the quantity of closed trades
-    pub fn qtd_trades_closed(&self) -> usize {
-        self.qtd_trades_closed
+    pub fn running_long_qtd(&self) -> usize {
+        self.running_long_qtd
     }
 
     /// Returns the locked margin for long positions, if available
-    pub fn locked_margin_long(&self) -> Option<Margin> {
-        self.locked_margin_long
+    pub fn running_long_margin(&self) -> Option<Margin> {
+        self.running_long_margin
+    }
+
+    /// Returns the quantity of running short trades
+    pub fn running_short_qtd(&self) -> usize {
+        self.running_short_qtd
     }
 
     /// Returns the locked margin for short positions, if available
-    pub fn locked_margin_short(&self) -> Option<Margin> {
-        self.locked_margin_short
+    pub fn running_short_margin(&self) -> Option<Margin> {
+        self.running_short_margin
+    }
+
+    /// Returns the quantity of running long and short trades
+    pub fn running_qtd(&self) -> usize {
+        self.running_long_qtd + self.running_short_qtd
+    }
+
+    pub fn running_margin(&self) -> Option<Margin> {
+        match (self.running_long_margin, self.running_short_margin) {
+            (Some(long_margin), Some(short_margin)) => Some(long_margin + short_margin),
+            _ => self.running_long_margin.or(self.running_short_margin),
+        }
+    }
+
+    /// Returns the quantity of closed trades
+    pub fn closed_qtd(&self) -> usize {
+        self.closed_qtd
     }
 
     pub fn balance(&self) -> u64 {
@@ -92,7 +99,7 @@ impl TradesState {
         self.closed_pl
     }
 
-    pub fn total_pl(&self) -> i64 {
+    pub fn pl(&self) -> i64 {
         self.running_pl + self.closed_pl
     }
 }

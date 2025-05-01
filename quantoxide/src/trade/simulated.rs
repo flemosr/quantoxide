@@ -155,7 +155,7 @@ struct SimulatedTradesState {
 
 pub struct SimulatedTradesManager {
     db: Arc<DbContext>,
-    max_qtd_trades_running: usize,
+    max_running_qtd: usize,
     start_time: DateTime<Utc>,
     start_balance: u64,
     state: Arc<Mutex<SimulatedTradesState>>,
@@ -183,7 +183,7 @@ impl SimulatedTradesManager {
 
         Self {
             db,
-            max_qtd_trades_running,
+            max_running_qtd: max_qtd_trades_running,
             start_time,
             start_balance,
             state: Arc::new(Mutex::new(initial_state)),
@@ -328,10 +328,10 @@ impl SimulatedTradesManager {
     ) -> Result<()> {
         let (mut state_guard, market_price) = self.update_state(timestamp, Close::None).await?;
 
-        if state_guard.running.len() >= self.max_qtd_trades_running {
+        if state_guard.running.len() >= self.max_running_qtd {
             return Err(TradeError::Generic(format!(
                 "received order but max qtd of running trades ({}) was reached",
-                self.max_qtd_trades_running
+                self.max_running_qtd
             )));
         }
 
@@ -357,8 +357,8 @@ impl SimulatedTradesManager {
         };
 
         state_guard.time = timestamp;
-        state_guard.running.push(trade);
         state_guard.balance -= margin.into_u64();
+        state_guard.running.push(trade);
 
         Ok(())
     }
@@ -428,14 +428,14 @@ impl TradesManager for SimulatedTradesManager {
         let (state_guard, _) = self.update_state(timestamp, Close::None).await?;
 
         let trades_state = TradesState::new(
-            timestamp,
-            state_guard.running_long_qtd,
-            state_guard.running_short_qtd,
-            state_guard.closed.len(),
-            state_guard.running_long_margin,
-            state_guard.running_short_margin,
+            state_guard.time,
             state_guard.balance,
+            state_guard.running_long_qtd,
+            state_guard.running_short_margin,
+            state_guard.running_short_qtd,
+            state_guard.running_long_margin,
             state_guard.running_pl,
+            state_guard.closed.len(),
             state_guard.closed_pl,
         );
 
