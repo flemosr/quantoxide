@@ -60,8 +60,7 @@ impl Eq for Leverage {}
 
 impl Ord for Leverage {
     fn cmp(&self, other: &Self) -> Ordering {
-        // Since we guarantee the values are finite, we can use partial_cmp and unwrap
-        self.partial_cmp(other).unwrap()
+        self.partial_cmp(other).expect("`Leverage` must be finite")
     }
 }
 
