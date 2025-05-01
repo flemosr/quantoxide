@@ -10,7 +10,7 @@ use lnm_sdk::api::rest::models::{
 use crate::db::DbContext;
 
 use super::{
-    TradeOrder, TradesManager, TradesState,
+    TradesManager, TradesState,
     error::{Result, TradeError},
 };
 
@@ -319,57 +319,62 @@ impl SimulatedTradesManager {
 
 #[async_trait]
 impl TradesManager for SimulatedTradesManager {
-    async fn order(&self, order: TradeOrder) -> Result<()> {
-        match order {
-            TradeOrder::OpenLong {
-                timestamp,
-                stoploss_perc,
-                takeprofit_perc,
-                balance_perc,
-                leverage,
-            } => {
-                let risk_params = RiskParams::Long {
-                    stoploss_perc,
-                    takeprofit_perc,
-                };
+    async fn open_long(
+        &self,
+        timestamp: DateTime<Utc>,
+        stoploss_perc: BoundedPercentage,
+        takeprofit_perc: LowerBoundedPercentage,
+        balance_perc: BoundedPercentage,
+        leverage: Leverage,
+    ) -> Result<()> {
+        let risk_params = RiskParams::Long {
+            stoploss_perc,
+            takeprofit_perc,
+        };
 
-                self.create_running(timestamp, balance_perc, leverage, risk_params)
-                    .await?;
+        self.create_running(timestamp, balance_perc, leverage, risk_params)
+            .await?;
 
-                Ok(())
-            }
-            TradeOrder::OpenShort {
-                timestamp,
-                stoploss_perc,
-                takeprofit_perc,
-                balance_perc,
-                leverage,
-            } => {
-                let risk_params = RiskParams::Short {
-                    stoploss_perc,
-                    takeprofit_perc,
-                };
+        Ok(())
+    }
 
-                self.create_running(timestamp, balance_perc, leverage, risk_params)
-                    .await?;
+    async fn open_short(
+        &self,
+        timestamp: DateTime<Utc>,
+        stoploss_perc: BoundedPercentage,
+        takeprofit_perc: BoundedPercentage,
+        balance_perc: BoundedPercentage,
+        leverage: Leverage,
+    ) -> Result<()> {
+        let risk_params = RiskParams::Short {
+            stoploss_perc,
+            takeprofit_perc,
+        };
 
-                Ok(())
-            }
-            TradeOrder::CloseLongs { timestamp } => {
-                let _ = self.update_state(timestamp, TradeSide::Long.into()).await?;
-                Ok(())
-            }
-            TradeOrder::CloseShorts { timestamp } => {
-                let _ = self
-                    .update_state(timestamp, TradeSide::Short.into())
-                    .await?;
-                Ok(())
-            }
-            TradeOrder::CloseAll { timestamp } => {
-                let _ = self.update_state(timestamp, Close::All).await?;
-                Ok(())
-            }
-        }
+        self.create_running(timestamp, balance_perc, leverage, risk_params)
+            .await?;
+
+        Ok(())
+    }
+
+    async fn close_longs(&self, timestamp: DateTime<Utc>) -> Result<()> {
+        let _ = self.update_state(timestamp, TradeSide::Long.into()).await?;
+
+        Ok(())
+    }
+
+    async fn close_shorts(&self, timestamp: DateTime<Utc>) -> Result<()> {
+        let _ = self
+            .update_state(timestamp, TradeSide::Short.into())
+            .await?;
+
+        Ok(())
+    }
+
+    async fn close_all(&self, timestamp: DateTime<Utc>) -> Result<()> {
+        let _ = self.update_state(timestamp, Close::All).await?;
+
+        Ok(())
     }
 
     async fn state(&self, timestamp: DateTime<Utc>) -> Result<TradesState> {

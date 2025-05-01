@@ -8,88 +8,6 @@ mod simulated;
 
 use error::Result;
 
-pub enum TradeOrder {
-    OpenLong {
-        timestamp: DateTime<Utc>,
-        stoploss_perc: BoundedPercentage,
-        takeprofit_perc: LowerBoundedPercentage,
-        balance_perc: BoundedPercentage,
-        leverage: Leverage,
-    },
-    OpenShort {
-        timestamp: DateTime<Utc>,
-        stoploss_perc: BoundedPercentage,
-        takeprofit_perc: BoundedPercentage,
-        balance_perc: BoundedPercentage,
-        leverage: Leverage,
-    },
-    CloseLongs {
-        timestamp: DateTime<Utc>,
-    },
-    CloseShorts {
-        timestamp: DateTime<Utc>,
-    },
-    CloseAll {
-        timestamp: DateTime<Utc>,
-    },
-}
-
-impl TradeOrder {
-    pub fn open_long(
-        timestamp: DateTime<Utc>,
-        stoploss_perc: BoundedPercentage,
-        takeprofit_perc: LowerBoundedPercentage,
-        balance_perc: BoundedPercentage,
-        leverage: Leverage,
-    ) -> Self {
-        Self::OpenLong {
-            timestamp,
-            stoploss_perc,
-            takeprofit_perc,
-            balance_perc,
-            leverage,
-        }
-    }
-
-    pub fn open_short(
-        timestamp: DateTime<Utc>,
-        stoploss_perc: BoundedPercentage,
-        takeprofit_perc: BoundedPercentage,
-        balance_perc: BoundedPercentage,
-        leverage: Leverage,
-    ) -> Self {
-        Self::OpenShort {
-            timestamp,
-            stoploss_perc,
-            takeprofit_perc,
-            balance_perc,
-            leverage,
-        }
-    }
-
-    pub fn close_longs(timestamp: DateTime<Utc>) -> Self {
-        Self::CloseLongs { timestamp }
-    }
-
-    pub fn close_shorts(timestamp: DateTime<Utc>) -> Self {
-        Self::CloseShorts { timestamp }
-    }
-
-    pub fn close_all(timestamp: DateTime<Utc>) -> Self {
-        Self::CloseAll { timestamp }
-    }
-
-    pub fn timestamp(&self) -> DateTime<Utc> {
-        match self {
-            TradeOrder::OpenLong { timestamp, .. } => *timestamp,
-            TradeOrder::OpenShort { timestamp, .. } => *timestamp,
-            TradeOrder::CloseLongs { timestamp } => *timestamp,
-            TradeOrder::CloseShorts { timestamp } => *timestamp,
-            TradeOrder::CloseAll { timestamp } => *timestamp,
-        }
-    }
-}
-
 pub struct TradesState {
     timestamp: DateTime<Utc>,
     qtd_trades_running_long: usize,
@@ -181,7 +99,29 @@ impl TradesState {
 
 #[async_trait]
 pub trait TradesManager {
-    async fn order(&self, order: TradeOrder) -> Result<()>;
+    async fn open_long(
+        &self,
+        timestamp: DateTime<Utc>,
+        stoploss_perc: BoundedPercentage,
+        takeprofit_perc: LowerBoundedPercentage,
+        balance_perc: BoundedPercentage,
+        leverage: Leverage,
+    ) -> Result<()>;
+
+    async fn open_short(
+        &self,
+        timestamp: DateTime<Utc>,
+        stoploss_perc: BoundedPercentage,
+        takeprofit_perc: BoundedPercentage,
+        balance_perc: BoundedPercentage,
+        leverage: Leverage,
+    ) -> Result<()>;
+
+    async fn close_longs(&self, timestamp: DateTime<Utc>) -> Result<()>;
+
+    async fn close_shorts(&self, timestamp: DateTime<Utc>) -> Result<()>;
+
+    async fn close_all(&self, timestamp: DateTime<Utc>) -> Result<()>;
 
     async fn state(&self, timestamp: DateTime<Utc>) -> Result<TradesState>;
 }
