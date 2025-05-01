@@ -1,10 +1,56 @@
 use chrono::{DateTime, Utc};
 
-use lnm_sdk::api::rest::models::{BoundedPercentage, Leverage, Margin, Price, Quantity, TradeSide};
+use lnm_sdk::api::rest::models::{
+    BoundedPercentage, Leverage, LowerBoundedPercentage, Margin, Price, Quantity, TradeSide,
+};
 
 use super::super::error::{Result, TradeError};
 
 use super::SATS_PER_BTC;
+
+pub enum RiskParams {
+    Long {
+        stoploss_perc: BoundedPercentage,
+        takeprofit_perc: LowerBoundedPercentage,
+    },
+    Short {
+        stoploss_perc: BoundedPercentage,
+        takeprofit_perc: BoundedPercentage,
+    },
+}
+
+impl RiskParams {
+    pub fn into_trade_params(self, market_price: Price) -> Result<(TradeSide, Price, Price)> {
+        match self {
+            Self::Long {
+                stoploss_perc,
+                takeprofit_perc,
+            } => {
+                let stoploss = market_price
+                    .apply_discount(stoploss_perc)
+                    .map_err(|e| TradeError::Generic(e.to_string()))?;
+                let takeprofit = market_price
+                    .apply_gain(takeprofit_perc.into())
+                    .map_err(|e| TradeError::Generic(e.to_string()))?;
+
+                Ok((TradeSide::Buy, stoploss, takeprofit))
+            }
+            RiskParams::Short {
+                stoploss_perc,
+                takeprofit_perc,
+            } => {
+                let stoploss = market_price
+                    .apply_gain(stoploss_perc.into())
+                    .map_err(|e| TradeError::Generic(e.to_string()))?;
+                let takeprofit = market_price
+                    .apply_discount(takeprofit_perc)
+                    .map_err(|e| TradeError::Generic(e.to_string()))?;
+
+                Ok((TradeSide::Sell, stoploss, takeprofit))
+            }
+        }
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SimulatedTradeRunning {

@@ -16,7 +16,7 @@ use super::{
 
 mod models;
 
-use models::{SimulatedTradeClosed, SimulatedTradeRunning};
+use models::{RiskParams, SimulatedTradeClosed, SimulatedTradeRunning};
 
 const SATS_PER_BTC: f64 = 100_000_000.;
 
@@ -29,50 +29,6 @@ enum Close {
 impl From<TradeSide> for Close {
     fn from(value: TradeSide) -> Self {
         Self::Side(value)
-    }
-}
-
-enum RiskParams {
-    Long {
-        stoploss_perc: BoundedPercentage,
-        takeprofit_perc: LowerBoundedPercentage,
-    },
-    Short {
-        stoploss_perc: BoundedPercentage,
-        takeprofit_perc: BoundedPercentage,
-    },
-}
-
-impl RiskParams {
-    fn into_trade_params(self, market_price: Price) -> Result<(TradeSide, Price, Price)> {
-        match self {
-            Self::Long {
-                stoploss_perc,
-                takeprofit_perc,
-            } => {
-                let stoploss = market_price
-                    .apply_discount(stoploss_perc)
-                    .map_err(|e| TradeError::Generic(e.to_string()))?;
-                let takeprofit = market_price
-                    .apply_gain(takeprofit_perc.into())
-                    .map_err(|e| TradeError::Generic(e.to_string()))?;
-
-                Ok((TradeSide::Buy, stoploss, takeprofit))
-            }
-            RiskParams::Short {
-                stoploss_perc,
-                takeprofit_perc,
-            } => {
-                let stoploss = market_price
-                    .apply_gain(stoploss_perc.into())
-                    .map_err(|e| TradeError::Generic(e.to_string()))?;
-                let takeprofit = market_price
-                    .apply_discount(takeprofit_perc)
-                    .map_err(|e| TradeError::Generic(e.to_string()))?;
-
-                Ok((TradeSide::Sell, stoploss, takeprofit))
-            }
-        }
     }
 }
 
