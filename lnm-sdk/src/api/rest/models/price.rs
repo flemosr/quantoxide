@@ -200,8 +200,8 @@ impl TryFrom<f64> for Price {
             return Err(PriceValidationError::NotFinite);
         }
 
-        if price <= 0.0 {
-            return Err(PriceValidationError::NotPositive);
+        if price < 1.0 {
+            return Err(PriceValidationError::AtLeastOne);
         }
 
         if (price * 2.0).round() != price * 2.0 {

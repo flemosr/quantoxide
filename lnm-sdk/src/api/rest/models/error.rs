@@ -12,8 +12,8 @@ pub enum BoundedPercentageValidationError {
 
 #[derive(Debug, thiserror::Error)]
 pub enum PriceValidationError {
-    #[error("Price must be positive")]
-    NotPositive,
+    #[error("Price must be at least 1")]
+    AtLeastOne,
 
     #[error("Price must be a multiple of 0.5")]
     NotMultipleOfTick,
