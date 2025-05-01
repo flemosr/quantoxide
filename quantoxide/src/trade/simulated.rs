@@ -153,22 +153,6 @@ struct SimulatedTradesState {
     closed_pl: i64,
 }
 
-impl From<&SimulatedTradesState> for TradesState {
-    fn from(value: &SimulatedTradesState) -> Self {
-        TradesState {
-            time: value.time,
-            balance: value.balance,
-            running_long_qtd: value.running_long_qtd,
-            running_long_margin: value.running_long_margin,
-            running_short_qtd: value.running_short_qtd,
-            running_short_margin: value.running_short_margin,
-            running_pl: value.running_pl,
-            closed_qtd: value.closed.len(),
-            closed_pl: value.closed_pl,
-        }
-    }
-}
-
 pub struct SimulatedTradesManager {
     db: Arc<DbContext>,
     max_running_qtd: usize,
@@ -443,7 +427,19 @@ impl TradesManager for SimulatedTradesManager {
     async fn state(&self, timestamp: DateTime<Utc>) -> Result<TradesState> {
         let (state_guard, _) = self.update_state(timestamp, Close::None).await?;
 
-        let trades_state = TradesState::from(&*state_guard);
+        let trades_state = TradesState {
+            start_time: self.start_time,
+            start_balance: self.start_balance,
+            current_time: state_guard.time,
+            current_balance: state_guard.balance,
+            running_long_qtd: state_guard.running_long_qtd,
+            running_long_margin: state_guard.running_long_margin,
+            running_short_qtd: state_guard.running_short_qtd,
+            running_short_margin: state_guard.running_short_margin,
+            running_pl: state_guard.running_pl,
+            closed_qtd: state_guard.closed.len(),
+            closed_pl: state_guard.closed_pl,
+        };
 
         Ok(trades_state)
     }

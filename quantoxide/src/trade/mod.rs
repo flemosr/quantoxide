@@ -9,8 +9,10 @@ mod simulated;
 use error::Result;
 
 pub struct TradesState {
-    time: DateTime<Utc>,
-    balance: u64,
+    start_time: DateTime<Utc>,
+    start_balance: u64,
+    current_time: DateTime<Utc>,
+    current_balance: u64,
     running_long_qtd: usize,
     running_long_margin: Option<Margin>,
     running_short_qtd: usize,
@@ -22,8 +24,10 @@ pub struct TradesState {
 
 impl TradesState {
     fn new(
-        time: DateTime<Utc>,
-        balance: u64,
+        start_time: DateTime<Utc>,
+        start_balance: u64,
+        current_time: DateTime<Utc>,
+        current_balance: u64,
         running_long_qtd: usize,
         running_long_margin: Option<Margin>,
         running_short_qtd: usize,
@@ -33,8 +37,10 @@ impl TradesState {
         closed_pl: i64,
     ) -> Self {
         Self {
-            time,
-            balance,
+            start_time,
+            start_balance,
+            current_time,
+            current_balance,
             running_long_qtd,
             running_long_margin,
             running_short_qtd,
@@ -45,9 +51,20 @@ impl TradesState {
         }
     }
 
-    /// Returns the timestamp of this trade state
-    pub fn timestamp(&self) -> DateTime<Utc> {
-        self.time
+    pub fn start_time(&self) -> DateTime<Utc> {
+        self.start_time
+    }
+
+    pub fn start_balance(&self) -> u64 {
+        self.start_balance
+    }
+
+    pub fn current_time(&self) -> DateTime<Utc> {
+        self.current_time
+    }
+
+    pub fn current_balance(&self) -> u64 {
+        self.current_balance
     }
 
     /// Returns the quantity of running long trades
@@ -85,10 +102,6 @@ impl TradesState {
     /// Returns the quantity of closed trades
     pub fn closed_qtd(&self) -> usize {
         self.closed_qtd
-    }
-
-    pub fn balance(&self) -> u64 {
-        self.balance
     }
 
     pub fn running_pl(&self) -> i64 {
