@@ -18,8 +18,10 @@ pub struct TradesState {
     running_short_qtd: usize,
     running_short_margin: Option<Margin>,
     running_pl: i64,
+    running_fees_est: u64,
     closed_qtd: usize,
     closed_pl: i64,
+    closed_fees: u64,
 }
 
 impl TradesState {
@@ -33,8 +35,10 @@ impl TradesState {
         running_short_qtd: usize,
         running_short_margin: Option<Margin>,
         running_pl: i64,
+        running_fees_est: u64,
         closed_qtd: usize,
         closed_pl: i64,
+        closed_fees: u64,
     ) -> Self {
         Self {
             start_time,
@@ -46,8 +50,10 @@ impl TradesState {
             running_short_qtd,
             running_short_margin,
             running_pl,
+            running_fees_est,
             closed_qtd,
             closed_pl,
+            closed_fees,
         }
     }
 
@@ -108,12 +114,36 @@ impl TradesState {
         self.running_pl
     }
 
+    pub fn running_fees_est(&self) -> u64 {
+        self.running_fees_est
+    }
+
+    pub fn running_net_pl(&self) -> i64 {
+        self.running_pl - self.running_fees_est as i64
+    }
+
     pub fn closed_pl(&self) -> i64 {
         self.closed_pl
     }
 
+    pub fn closed_fees(&self) -> u64 {
+        self.closed_fees
+    }
+
+    pub fn closed_net_pl(&self) -> i64 {
+        self.closed_pl - self.closed_fees as i64
+    }
+
     pub fn pl(&self) -> i64 {
         self.running_pl + self.closed_pl
+    }
+
+    pub fn fees(&self) -> u64 {
+        self.running_fees_est + self.closed_fees
+    }
+
+    pub fn net_pl(&self) -> i64 {
+        self.pl() - self.fees() as i64
     }
 }
 
