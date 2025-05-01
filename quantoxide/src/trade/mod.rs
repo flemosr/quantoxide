@@ -4,7 +4,7 @@ use chrono::{DateTime, Utc};
 use lnm_sdk::api::rest::models::{BoundedPercentage, Leverage, LowerBoundedPercentage, Margin};
 
 mod error;
-mod simulated;
+mod simulation;
 
 use error::Result;
 
