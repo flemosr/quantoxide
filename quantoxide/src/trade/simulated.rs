@@ -265,7 +265,7 @@ impl RiskParams {
 
 struct SimulatedTradesState {
     time: DateTime<Utc>,
-    balance: u64,
+    balance: i64,
     running: Vec<SimulatedTradeRunning>,
     running_long_qtd: usize,
     running_long_margin: Option<Margin>,
@@ -297,7 +297,7 @@ impl SimulatedTradesManager {
     ) -> Self {
         let initial_state = SimulatedTradesState {
             time: start_time,
-            balance: start_balance,
+            balance: start_balance as i64,
             running: Vec::new(),
             running_long_qtd: 0,
             running_long_margin: None,
@@ -435,7 +435,7 @@ impl SimulatedTradesManager {
         }
 
         state_guard.time = new_time;
-        state_guard.balance = new_balance.max(0) as u64;
+        state_guard.balance = new_balance;
 
         state_guard.running = remaining_running_trades;
         state_guard.running_long_qtd = new_running_long_qtd;
@@ -495,7 +495,7 @@ impl SimulatedTradesManager {
 
         state_guard.time = timestamp;
         state_guard.balance -=
-            trade.margin.into_u64() - trade.opening_fee - trade.closing_fee_reserved;
+            trade.margin.into_i64() - trade.opening_fee as i64 - trade.closing_fee_reserved as i64;
         state_guard.running.push(trade);
 
         Ok(())
@@ -569,7 +569,7 @@ impl TradesManager for SimulatedTradesManager {
             start_time: self.start_time,
             start_balance: self.start_balance,
             current_time: state_guard.time,
-            current_balance: state_guard.balance,
+            current_balance: state_guard.balance.max(0) as u64,
             running_long_qtd: state_guard.running_long_qtd,
             running_long_margin: state_guard.running_long_margin,
             running_short_qtd: state_guard.running_short_qtd,
