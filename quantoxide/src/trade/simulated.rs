@@ -31,6 +31,8 @@ struct SimulatedTradeRunning {
     quantity: Quantity,
     leverage: Leverage,
     liquitation: Price,
+    opening_fee: u64,
+    closing_fee_reserved: u64,
 }
 
 impl SimulatedTradeRunning {
@@ -103,6 +105,12 @@ impl SimulatedTradeRunning {
             }
         };
 
+        let conversion = 100_000_000. * 0.1 / 100.; // 100,000,000 [sat/BTC] x 0.1% (fee rate)
+        let opening_fee =
+            (conversion * quantity.into_u64() as f64 / entry_price.into_f64()).floor() as u64;
+        let closing_fee_reserved =
+            (conversion * quantity.into_u64() as f64 / liquitation.into_f64()).floor() as u64;
+
         Ok(Self {
             side,
             entry_time,
@@ -113,6 +121,8 @@ impl SimulatedTradeRunning {
             quantity,
             leverage,
             liquitation,
+            opening_fee,
+            closing_fee_reserved,
         })
     }
 
@@ -128,6 +138,11 @@ impl SimulatedTradeRunning {
 
         (quantity * inverse_price_delta).floor() as i64
     }
+
+    fn net_pl(&self, current_price: Price) -> i64 {
+        let pl = self.pl(current_price);
+        pl - self.opening_fee as i64 - self.closing_fee_reserved as i64
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -142,6 +157,8 @@ struct SimulatedTradeClosed {
     leverage: Leverage,
     close_time: DateTime<Utc>,
     close_price: Price,
+    opening_fee: u64,
+    closing_fee: u64,
 }
 
 impl SimulatedTradeClosed {
@@ -150,6 +167,10 @@ impl SimulatedTradeClosed {
         close_time: DateTime<Utc>,
         close_price: Price,
     ) -> Self {
+        let conversion = 100_000_000. * 0.1 / 100.; // 100,000,000 [sat/BTC] x 0.1% (fee rate)
+        let closing_fee = (conversion * running.quantity.into_u64() as f64 / close_price.into_f64())
+            .floor() as u64;
+
         SimulatedTradeClosed {
             side: running.side,
             entry_time: running.entry_time,
@@ -161,6 +182,8 @@ impl SimulatedTradeClosed {
             leverage: running.leverage,
             close_time,
             close_price,
+            opening_fee: running.opening_fee,
+            closing_fee,
         }
     }
 
@@ -175,6 +198,11 @@ impl SimulatedTradeClosed {
         };
 
         (quantity * inverse_price_delta).floor() as i64
+    }
+
+    fn net_pl(&self) -> i64 {
+        let pl = self.pl();
+        pl - self.opening_fee as i64 - self.closing_fee as i64
     }
 }
 
@@ -319,10 +347,13 @@ impl SimulatedTradesManager {
         let mut close_trade = |trade: SimulatedTradeRunning,
                                close_time: DateTime<Utc>,
                                close_price: Price| {
+            let closing_fee_reserved = trade.closing_fee_reserved as i64;
             let closed_trade = SimulatedTradeClosed::from_running(trade, close_time, close_price);
             let closed_trade_pl = closed_trade.pl();
 
-            new_balance += closed_trade.margin.into_u64() as i64 + closed_trade_pl;
+            new_balance +=
+                closed_trade.margin.into_u64() as i64 + closed_trade_pl + closing_fee_reserved
+                    - closed_trade.closing_fee as i64;
             new_closed_pl += closed_trade_pl;
             new_closed_trades.push(closed_trade);
         };
@@ -448,7 +479,8 @@ impl SimulatedTradesManager {
         )?;
 
         state_guard.time = timestamp;
-        state_guard.balance -= trade.margin.into_u64();
+        state_guard.balance -=
+            trade.margin.into_u64() - trade.opening_fee - trade.closing_fee_reserved;
         state_guard.running.push(trade);
 
         Ok(())
@@ -693,7 +725,45 @@ mod tests {
             Leverage::try_from(7).unwrap(),
         )
         .unwrap();
+        let closed_trade =
+            SimulatedTradeClosed::from_running(trade, Utc::now(), Price::try_from(96330).unwrap());
 
-        assert_eq!(trade.pl(Price::try_from(96330).unwrap()), -10);
+        assert_eq!(closed_trade.pl(), -10);
+        assert_eq!(closed_trade.net_pl(), -708);
+
+        let trade = SimulatedTradeRunning::new(
+            TradeSide::Long,
+            Utc::now(),
+            Price::try_from(96550.5).unwrap(),
+            Price::try_from(90000).unwrap(),
+            Price::try_from(110000).unwrap(),
+            Quantity::try_from(1).unwrap(),
+            Leverage::try_from(1).unwrap(),
+        )
+        .unwrap();
+        let closed_trade =
+            SimulatedTradeClosed::from_running(trade, Utc::now(), Price::try_from(96508).unwrap());
+
+        assert_eq!(closed_trade.pl(), -1);
+        assert_eq!(closed_trade.net_pl(), -3);
+
+        let trade = SimulatedTradeRunning::new(
+            TradeSide::Long,
+            Utc::now(),
+            Price::try_from(94027.5).unwrap(),
+            Price::try_from(90000).unwrap(),
+            Price::try_from(110000).unwrap(),
+            Quantity::try_from(1).unwrap(),
+            Leverage::try_from(1).unwrap(),
+        )
+        .unwrap();
+        let closed_trade = SimulatedTradeClosed::from_running(
+            trade,
+            Utc::now(),
+            Price::try_from(94176.5).unwrap(),
+        );
+
+        assert_eq!(closed_trade.pl(), 1);
+        assert_eq!(closed_trade.net_pl(), -1);
     }
 }
