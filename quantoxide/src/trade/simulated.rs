@@ -272,8 +272,10 @@ struct SimulatedTradesState {
     running_short_qtd: usize,
     running_short_margin: Option<Margin>,
     running_pl: i64,
+    running_fees_est: u64,
     closed: Vec<SimulatedTradeClosed>,
     closed_pl: i64,
+    closed_fees: u64,
 }
 
 pub struct SimulatedTradesManager {
@@ -302,8 +304,10 @@ impl SimulatedTradesManager {
             running_short_qtd: 0,
             running_short_margin: None,
             running_pl: 0,
+            running_fees_est: 0,
             closed: Vec::new(),
             closed_pl: 0,
+            closed_fees: 0,
         };
 
         Self {
@@ -346,21 +350,22 @@ impl SimulatedTradesManager {
 
         let mut new_balance = state_guard.balance as i64;
         let mut new_closed_pl = state_guard.closed_pl;
+        let mut new_closed_fees = state_guard.closed_fees;
         let mut new_closed_trades = Vec::new();
 
         let mut close_trade = |trade: SimulatedTradeRunning,
                                close_time: DateTime<Utc>,
                                close_price: Price| {
             let closing_fee_reserved = trade.closing_fee_reserved as i64;
-            let closed_trade =
+            let trade =
                 SimulatedTradeClosed::from_running(trade, close_time, close_price, self.fee_perc);
-            let closed_trade_pl = closed_trade.pl();
+            let trade_pl = trade.pl();
+            let closing_fee_diff = closing_fee_reserved - trade.closing_fee as i64;
 
-            new_balance +=
-                closed_trade.margin.into_u64() as i64 + closed_trade_pl + closing_fee_reserved
-                    - closed_trade.closing_fee as i64;
-            new_closed_pl += closed_trade_pl;
-            new_closed_trades.push(closed_trade);
+            new_balance += trade.margin.into_i64() + trade_pl + closing_fee_diff;
+            new_closed_pl += trade_pl;
+            new_closed_fees += trade.opening_fee + trade.closing_fee;
+            new_closed_trades.push(trade);
         };
 
         let previous_time = state_guard.time;
@@ -369,6 +374,7 @@ impl SimulatedTradesManager {
         let mut new_running_short_qtd: usize = 0;
         let mut new_running_short_margin: u64 = 0;
         let mut new_running_pl: i64 = 0;
+        let mut new_running_fees_est: u64 = 0;
         let mut remaining_running_trades = Vec::new();
 
         for trade in state_guard.running.drain(..) {
@@ -422,6 +428,7 @@ impl SimulatedTradesManager {
                         }
                     }
                     new_running_pl += trade.pl(market_price);
+                    new_running_fees_est += trade.opening_fee + trade.closing_fee_reserved;
                     remaining_running_trades.push(trade);
                 }
             }
@@ -442,9 +449,11 @@ impl SimulatedTradesManager {
             .transpose()
             .map_err(|e| TradeError::Generic(e.to_string()))?;
         state_guard.running_pl = new_running_pl;
+        state_guard.running_fees_est = new_running_fees_est;
 
         state_guard.closed.append(&mut new_closed_trades);
         state_guard.closed_pl = new_closed_pl;
+        state_guard.closed_fees = new_closed_fees;
 
         Ok((state_guard, market_price))
     }
@@ -566,8 +575,10 @@ impl TradesManager for SimulatedTradesManager {
             running_short_qtd: state_guard.running_short_qtd,
             running_short_margin: state_guard.running_short_margin,
             running_pl: state_guard.running_pl,
+            running_fees_est: state_guard.running_fees_est,
             closed_qtd: state_guard.closed.len(),
             closed_pl: state_guard.closed_pl,
+            closed_fees: state_guard.closed_fees,
         };
 
         Ok(trades_state)
