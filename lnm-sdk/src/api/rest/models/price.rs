@@ -132,6 +132,21 @@ impl Price {
         f64::from(self)
     }
 
+    pub fn round_down(value: f64) -> Result<Self, PriceValidationError> {
+        let round_down = (value * 2.0).floor() / 2.0;
+        Price::try_from(round_down)
+    }
+
+    pub fn round_up(value: f64) -> Result<Self, PriceValidationError> {
+        let round_up = (value * 2.0).ceil() / 2.0;
+        Price::try_from(round_up)
+    }
+
+    pub fn round(value: f64) -> Result<Self, PriceValidationError> {
+        let round = (value * 2.0).round() / 2.0;
+        Price::try_from(round)
+    }
+
     /// Applies a discount percentage to the current price.
     ///
     /// # Parameters
