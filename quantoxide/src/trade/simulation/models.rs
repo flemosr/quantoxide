@@ -788,25 +788,25 @@ mod tests {
     }
 
     #[test]
-    fn test_edge_case_small_price() {
-        let entry_price = Price::try_from(2.0).unwrap();
-        let current_price = Price::try_from(4.0).unwrap();
-        let quantity = Quantity::try_from(10).unwrap();
-        let leverage = Leverage::try_from(5.0).unwrap();
+    fn test_edge_case_small_prices() {
+        let entry_price = Price::try_from(1.5).unwrap();
+        let current_price = Price::try_from(2.0).unwrap();
+        let quantity = Quantity::try_from(1).unwrap();
+        let leverage = Leverage::try_from(1.0).unwrap();
 
         let trade = SimulatedTradeRunning::new(
             TradeSide::Buy,
             Utc::now(),
             entry_price,
-            Price::try_from(1.5).unwrap(),
-            Price::try_from(2.5).unwrap(),
+            Price::try_from(1.0).unwrap(),
+            Price::try_from(2.0).unwrap(),
             quantity,
             leverage,
             get_lnm_fee(),
         )
         .unwrap();
 
-        assert_eq!(trade.pl(current_price), 250_000_000);
+        assert_eq!(trade.pl(current_price), 16_666_666);
     }
 
     #[test]
