@@ -16,8 +16,8 @@ impl Leverage {
         margin: Margin,
         price: Price,
     ) -> Result<Self, LeverageValidationError> {
-        let leverage_value =
-            quantity.into_u64() as f64 * 100000000. / (margin.into_u64() as f64 * price.into_f64());
+        let leverage_value = quantity.into_u64() as f64 * 100_000_000.
+            / (margin.into_u64() as f64 * price.into_f64());
         Self::try_from(leverage_value)
     }
 }
