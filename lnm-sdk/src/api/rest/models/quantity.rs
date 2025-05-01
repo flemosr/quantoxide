@@ -11,6 +11,10 @@ impl Quantity {
         self.into()
     }
 
+    pub fn into_f64(self) -> f64 {
+        self.into()
+    }
+
     pub fn try_calculate(
         margin: Margin,
         price: Price,
@@ -24,6 +28,12 @@ impl Quantity {
 impl From<Quantity> for u64 {
     fn from(value: Quantity) -> Self {
         value.0
+    }
+}
+
+impl From<Quantity> for f64 {
+    fn from(value: Quantity) -> Self {
+        value.0 as f64
     }
 }
 
