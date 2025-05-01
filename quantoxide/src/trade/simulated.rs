@@ -48,13 +48,13 @@ impl SimulatedTradeRunning {
         let margin = Margin::try_calculate(quantity, entry_price, leverage)
             .map_err(|e| TradeError::Generic(format!("Invalid margin calculation: {}", e)))?;
 
-        let margin_btc = margin.into_u64() as f64 / 100_000_000.; // From sats to BTC
+        let margin_btc = margin.into_f64() / 100_000_000.; // From sats to BTC
 
         let liquitation = match side {
             TradeSide::Long => {
                 let liquitation = {
-                    let value = 1.0
-                        / (1.0 / entry_price.into_f64() + margin_btc / quantity.into_u64() as f64);
+                    let value =
+                        1.0 / (1.0 / entry_price.into_f64() + margin_btc / quantity.into_f64());
                     Price::round(value).map_err(|e| TradeError::Generic(e.to_string()))?
                 };
 
@@ -79,8 +79,8 @@ impl SimulatedTradeRunning {
             }
             TradeSide::Short => {
                 let liquitation = {
-                    let value = 1.0
-                        / (1.0 / entry_price.into_f64() - margin_btc / quantity.into_u64() as f64);
+                    let value =
+                        1.0 / (1.0 / entry_price.into_f64() - margin_btc / quantity.into_f64());
                     Price::round(value).map_err(|e| TradeError::Generic(e.to_string()))?
                 };
 
@@ -107,9 +107,9 @@ impl SimulatedTradeRunning {
 
         let conversion = 100_000_000. * 0.1 / 100.; // 100,000,000 [sat/BTC] x 0.1% (fee rate)
         let opening_fee =
-            (conversion * quantity.into_u64() as f64 / entry_price.into_f64()).floor() as u64;
+            (conversion * quantity.into_f64() / entry_price.into_f64()).floor() as u64;
         let closing_fee_reserved =
-            (conversion * quantity.into_u64() as f64 / liquitation.into_f64()).floor() as u64;
+            (conversion * quantity.into_f64() / liquitation.into_f64()).floor() as u64;
 
         Ok(Self {
             side,
@@ -129,14 +129,13 @@ impl SimulatedTradeRunning {
     fn pl(&self, current_price: Price) -> i64 {
         let entry_price = self.entry_price.into_f64();
         let current_price = current_price.into_f64();
-        let quantity = self.quantity.into_u64() as f64;
 
         let inverse_price_delta = match self.side {
             TradeSide::Long => 100_000_000. / entry_price - 100_000_000. / current_price,
             TradeSide::Short => 100_000_000. / current_price - 100_000_000. / entry_price,
         };
 
-        (quantity * inverse_price_delta).floor() as i64
+        (self.quantity.into_f64() * inverse_price_delta).floor() as i64
     }
 
     fn net_pl(&self, current_price: Price) -> i64 {
@@ -168,8 +167,8 @@ impl SimulatedTradeClosed {
         close_price: Price,
     ) -> Self {
         let conversion = 100_000_000. * 0.1 / 100.; // 100,000,000 [sat/BTC] x 0.1% (fee rate)
-        let closing_fee = (conversion * running.quantity.into_u64() as f64 / close_price.into_f64())
-            .floor() as u64;
+        let closing_fee =
+            (conversion * running.quantity.into_f64() / close_price.into_f64()).floor() as u64;
 
         SimulatedTradeClosed {
             side: running.side,
@@ -190,14 +189,13 @@ impl SimulatedTradeClosed {
     fn pl(&self) -> i64 {
         let entry_price = self.entry_price.into_f64();
         let close_price = self.close_price.into_f64();
-        let quantity = self.quantity.into_u64() as f64;
 
         let inverse_price_delta = match self.side {
             TradeSide::Long => 100_000_000. / entry_price - 100_000_000. / close_price,
             TradeSide::Short => 100_000_000. / close_price - 100_000_000. / entry_price,
         };
 
-        (quantity * inverse_price_delta).floor() as i64
+        (self.quantity.into_f64() * inverse_price_delta).floor() as i64
     }
 
     fn net_pl(&self) -> i64 {
