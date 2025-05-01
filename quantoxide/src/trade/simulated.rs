@@ -534,3 +534,166 @@ impl TradesManager for SimulatedTradesManager {
         Ok(trades_state)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use chrono::Utc;
+
+    use super::*;
+
+    #[test]
+    fn test_long_pl_calculation() {
+        let trade = SimulatedTradeRunning::new(
+            TradeSide::Long,
+            Utc::now(),
+            Price::try_from(100_000).unwrap(),
+            Price::try_from(90_000).unwrap(),
+            Price::try_from(110_000).unwrap(),
+            Margin::try_from(500_000).unwrap(),
+            Leverage::try_from(1).unwrap(),
+        )
+        .unwrap();
+
+        assert_eq!(trade.quantity.into_u64(), 500);
+        assert_eq!(trade.liquitation.into_f64(), 50_000.0);
+
+        let trade = SimulatedTradeRunning::new(
+            TradeSide::Long,
+            Utc::now(),
+            Price::try_from(100_000).unwrap(),
+            Price::try_from(90_000).unwrap(),
+            Price::try_from(110_000).unwrap(),
+            Margin::try_from(500_000).unwrap(),
+            Leverage::try_from(2).unwrap(),
+        )
+        .unwrap();
+
+        assert_eq!(trade.quantity.into_u64(), 1_000);
+        assert_eq!(trade.liquitation.into_f64(), 66_666.5);
+
+        let trade = SimulatedTradeRunning::new(
+            TradeSide::Long,
+            Utc::now(),
+            Price::try_from(100_000).unwrap(),
+            Price::try_from(90_000).unwrap(),
+            Price::try_from(110_000).unwrap(),
+            Margin::try_from(500_000).unwrap(),
+            Leverage::try_from(3).unwrap(),
+        )
+        .unwrap();
+
+        assert_eq!(trade.quantity.into_u64(), 1_500);
+        assert_eq!(trade.liquitation.into_f64(), 75_000.0);
+
+        let trade = SimulatedTradeRunning::new(
+            TradeSide::Long,
+            Utc::now(),
+            Price::try_from(100_000).unwrap(),
+            Price::try_from(90_000).unwrap(),
+            Price::try_from(110_000).unwrap(),
+            Margin::try_from(500_000).unwrap(),
+            Leverage::try_from(5).unwrap(),
+        )
+        .unwrap();
+
+        assert_eq!(trade.quantity.into_u64(), 2_500);
+        assert_eq!(trade.liquitation.into_f64(), 83_333.5);
+
+        let trade = SimulatedTradeRunning::new(
+            TradeSide::Long,
+            Utc::now(),
+            Price::try_from(100_000).unwrap(),
+            Price::try_from(99_000).unwrap(),
+            Price::try_from(101_000).unwrap(),
+            Margin::try_from(500_000).unwrap(),
+            Leverage::try_from(80).unwrap(),
+        )
+        .unwrap();
+
+        assert_eq!(trade.quantity.into_u64(), 40_000);
+        assert_eq!(trade.liquitation.into_f64(), 98_765.5);
+
+        let trade = SimulatedTradeRunning::new(
+            TradeSide::Short,
+            Utc::now(),
+            Price::try_from(100_000).unwrap(),
+            Price::try_from(101_000).unwrap(),
+            Price::try_from(99_000).unwrap(),
+            Margin::try_from(500_000).unwrap(),
+            Leverage::try_from(80).unwrap(),
+        )
+        .unwrap();
+
+        assert_eq!(trade.quantity.into_u64(), 40_000);
+        assert_eq!(trade.liquitation.into_f64(), 101_266.0);
+
+        let trade = SimulatedTradeRunning::new(
+            TradeSide::Long,
+            Utc::now(),
+            Price::try_from(100_000).unwrap(),
+            Price::try_from(99_000).unwrap(),
+            Price::try_from(101_000).unwrap(),
+            Margin::try_from(10_000).unwrap(),
+            Leverage::try_from(5).unwrap(),
+        )
+        .unwrap();
+
+        assert_eq!(trade.quantity.into_u64(), 50);
+        assert_eq!(trade.liquitation.into_f64(), 83_333.5);
+
+        let trade = SimulatedTradeRunning::new(
+            TradeSide::Long,
+            Utc::now(),
+            Price::try_from(100_000).unwrap(),
+            Price::try_from(99_000).unwrap(),
+            Price::try_from(101_000).unwrap(),
+            Margin::try_from(10_000).unwrap(),
+            Leverage::try_from(5).unwrap(),
+        )
+        .unwrap();
+
+        assert_eq!(trade.quantity.into_u64(), 50);
+        assert_eq!(trade.liquitation.into_f64(), 83_333.5);
+
+        let trade = SimulatedTradeRunning::new(
+            TradeSide::Long,
+            Utc::now(),
+            Price::try_from(100_000).unwrap(),
+            Price::try_from(99_000).unwrap(),
+            Price::try_from(101_000).unwrap(),
+            Margin::try_from(300).unwrap(),
+            Leverage::try_from(5).unwrap(),
+        )
+        .unwrap();
+
+        assert_eq!(trade.quantity.into_u64(), 1);
+        assert_eq!(trade.liquitation.into_f64(), 76_923.0);
+
+        let trade = SimulatedTradeRunning::new(
+            TradeSide::Long,
+            Utc::now(),
+            Price::try_from(95_000).unwrap(),
+            Price::try_from(94_500).unwrap(),
+            Price::try_from(95_500).unwrap(),
+            Margin::try_from(53).unwrap(),
+            Leverage::try_from(100).unwrap(),
+        )
+        .unwrap();
+
+        assert_eq!(trade.quantity.into_u64(), 5);
+        assert_eq!(trade.liquitation.into_f64(), 94_053.0);
+
+        let trade = SimulatedTradeRunning::new(
+            TradeSide::Long,
+            Utc::now(),
+            Price::try_from(96332.5).unwrap(),
+            Price::try_from(90000).unwrap(),
+            Price::try_from(110000).unwrap(),
+            Margin::try_from(50000).unwrap(),
+            Leverage::try_from(7).unwrap(),
+        )
+        .unwrap();
+
+        assert_eq!(trade.pl(Price::try_from(96330).unwrap()), -10);
+    }
+}
