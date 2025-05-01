@@ -150,6 +150,7 @@ struct SimulatedTradesState {
     running_short_margin: Option<Margin>,
     running_pl: i64,
     closed: Vec<SimulatedTradeClosed>,
+    closed_pl: i64,
 }
 
 pub struct SimulatedTradesManager {
@@ -171,12 +172,13 @@ impl SimulatedTradesManager {
             time: start_time,
             balance: start_balance,
             running: Vec::new(),
-            closed: Vec::new(),
             running_long_qtd: 0,
             running_long_margin: None,
             running_short_qtd: 0,
             running_short_margin: None,
             running_pl: 0,
+            closed: Vec::new(),
+            closed_pl: 0,
         };
 
         Self {
@@ -216,15 +218,18 @@ impl SimulatedTradesManager {
             Price::try_from(price_entry.value).map_err(|e| TradeError::Generic(e.to_string()))?
         };
 
-        let mut new_closed_trades = Vec::new();
         let mut new_balance = state_guard.balance as i64;
+        let mut new_closed_pl = state_guard.closed_pl;
+        let mut new_closed_trades = Vec::new();
 
         let mut close_trade = |trade: SimulatedTradeRunning,
                                close_time: DateTime<Utc>,
                                close_price: Price| {
             let closed_trade = SimulatedTradeClosed::from_running(trade, close_time, close_price);
-            let balance_diff = closed_trade.margin.into_u64() as i64 + closed_trade.pl();
-            new_balance += balance_diff;
+            let closed_trade_pl = closed_trade.pl();
+
+            new_balance += closed_trade.margin.into_u64() as i64 + closed_trade_pl;
+            new_closed_pl += closed_trade_pl;
             new_closed_trades.push(closed_trade);
         };
 
@@ -292,6 +297,9 @@ impl SimulatedTradesManager {
             }
         }
 
+        state_guard.time = new_time;
+        state_guard.balance = new_balance.max(0) as u64;
+
         state_guard.running = remaining_running_trades;
         state_guard.running_long_qtd = new_running_long_qtd;
         state_guard.running_long_margin = (new_running_long_margin > 0)
@@ -304,9 +312,9 @@ impl SimulatedTradesManager {
             .transpose()
             .map_err(|e| TradeError::Generic(e.to_string()))?;
         state_guard.running_pl = new_running_pl;
+
         state_guard.closed.append(&mut new_closed_trades);
-        state_guard.time = new_time;
-        state_guard.balance = new_balance.max(0) as u64;
+        state_guard.closed_pl = new_closed_pl;
 
         Ok((state_guard, market_price))
     }
@@ -419,12 +427,6 @@ impl TradesManager for SimulatedTradesManager {
     async fn state(&self, timestamp: DateTime<Utc>) -> Result<TradesState> {
         let (state_guard, _) = self.update_state(timestamp, Close::None).await?;
 
-        let closed_pl = state_guard
-            .closed
-            .iter()
-            .map(|trade| trade.pl())
-            .sum::<i64>();
-
         let trades_state = TradesState::new(
             timestamp,
             state_guard.running_long_qtd,
@@ -434,7 +436,7 @@ impl TradesManager for SimulatedTradesManager {
             state_guard.running_short_margin,
             state_guard.balance,
             state_guard.running_pl,
-            closed_pl,
+            state_guard.closed_pl,
         );
 
         Ok(trades_state)
