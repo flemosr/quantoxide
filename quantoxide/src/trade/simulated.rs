@@ -14,6 +14,8 @@ use super::{
     error::{Result, TradeError},
 };
 
+const SATS_PER_BTC: f64 = 100_000_000.;
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 enum TradeSide {
     Long,
@@ -44,11 +46,12 @@ impl SimulatedTradeRunning {
         takeprofit: Price,
         quantity: Quantity,
         leverage: Leverage,
+        fee_perc: BoundedPercentage,
     ) -> Result<Self> {
         let margin = Margin::try_calculate(quantity, entry_price, leverage)
             .map_err(|e| TradeError::Generic(format!("Invalid margin calculation: {}", e)))?;
 
-        let margin_btc = margin.into_f64() / 100_000_000.; // From sats to BTC
+        let margin_btc = margin.into_f64() / SATS_PER_BTC; // From sats to BTC
 
         let liquitation = match side {
             TradeSide::Long => {
@@ -105,11 +108,10 @@ impl SimulatedTradeRunning {
             }
         };
 
-        let conversion = 100_000_000. * 0.1 / 100.; // 100,000,000 [sat/BTC] x 0.1% (fee rate)
-        let opening_fee =
-            (conversion * quantity.into_f64() / entry_price.into_f64()).floor() as u64;
+        let fee_calc = SATS_PER_BTC * fee_perc.into_f64() / 100.;
+        let opening_fee = (fee_calc * quantity.into_f64() / entry_price.into_f64()).floor() as u64;
         let closing_fee_reserved =
-            (conversion * quantity.into_f64() / liquitation.into_f64()).floor() as u64;
+            (fee_calc * quantity.into_f64() / liquitation.into_f64()).floor() as u64;
 
         Ok(Self {
             side,
@@ -131,8 +133,8 @@ impl SimulatedTradeRunning {
         let current_price = current_price.into_f64();
 
         let inverse_price_delta = match self.side {
-            TradeSide::Long => 100_000_000. / entry_price - 100_000_000. / current_price,
-            TradeSide::Short => 100_000_000. / current_price - 100_000_000. / entry_price,
+            TradeSide::Long => SATS_PER_BTC / entry_price - SATS_PER_BTC / current_price,
+            TradeSide::Short => SATS_PER_BTC / current_price - SATS_PER_BTC / entry_price,
         };
 
         (self.quantity.into_f64() * inverse_price_delta).floor() as i64
@@ -165,10 +167,11 @@ impl SimulatedTradeClosed {
         running: SimulatedTradeRunning,
         close_time: DateTime<Utc>,
         close_price: Price,
+        fee_perc: BoundedPercentage,
     ) -> Self {
-        let conversion = 100_000_000. * 0.1 / 100.; // 100,000,000 [sat/BTC] x 0.1% (fee rate)
+        let fee_calc = SATS_PER_BTC * fee_perc.into_f64() / 100.;
         let closing_fee =
-            (conversion * running.quantity.into_f64() / close_price.into_f64()).floor() as u64;
+            (fee_calc * running.quantity.into_f64() / close_price.into_f64()).floor() as u64;
 
         SimulatedTradeClosed {
             side: running.side,
@@ -191,8 +194,8 @@ impl SimulatedTradeClosed {
         let close_price = self.close_price.into_f64();
 
         let inverse_price_delta = match self.side {
-            TradeSide::Long => 100_000_000. / entry_price - 100_000_000. / close_price,
-            TradeSide::Short => 100_000_000. / close_price - 100_000_000. / entry_price,
+            TradeSide::Long => SATS_PER_BTC / entry_price - SATS_PER_BTC / close_price,
+            TradeSide::Short => SATS_PER_BTC / close_price - SATS_PER_BTC / entry_price,
         };
 
         (self.quantity.into_f64() * inverse_price_delta).floor() as i64
@@ -276,6 +279,7 @@ struct SimulatedTradesState {
 pub struct SimulatedTradesManager {
     db: Arc<DbContext>,
     max_running_qtd: usize,
+    fee_perc: BoundedPercentage,
     start_time: DateTime<Utc>,
     start_balance: u64,
     state: Arc<Mutex<SimulatedTradesState>>,
@@ -284,7 +288,8 @@ pub struct SimulatedTradesManager {
 impl SimulatedTradesManager {
     pub fn new(
         db: Arc<DbContext>,
-        max_qtd_trades_running: usize,
+        max_running_qtd: usize,
+        fee_perc: BoundedPercentage,
         start_time: DateTime<Utc>,
         start_balance: u64,
     ) -> Self {
@@ -303,7 +308,8 @@ impl SimulatedTradesManager {
 
         Self {
             db,
-            max_running_qtd: max_qtd_trades_running,
+            max_running_qtd,
+            fee_perc,
             start_time,
             start_balance,
             state: Arc::new(Mutex::new(initial_state)),
@@ -346,7 +352,8 @@ impl SimulatedTradesManager {
                                close_time: DateTime<Utc>,
                                close_price: Price| {
             let closing_fee_reserved = trade.closing_fee_reserved as i64;
-            let closed_trade = SimulatedTradeClosed::from_running(trade, close_time, close_price);
+            let closed_trade =
+                SimulatedTradeClosed::from_running(trade, close_time, close_price, self.fee_perc);
             let closed_trade_pl = closed_trade.pl();
 
             new_balance +=
@@ -459,7 +466,7 @@ impl SimulatedTradesManager {
         }
 
         let quantity = {
-            let balance_usd = state_guard.balance as f64 * market_price.into_f64() / 100_000_000.;
+            let balance_usd = state_guard.balance as f64 * market_price.into_f64() / SATS_PER_BTC;
             let quantity = balance_usd * balance_perc.into_f64() / 100.;
             Quantity::try_from(quantity.floor()).map_err(|e| TradeError::Generic(e.to_string()))?
         };
@@ -474,6 +481,7 @@ impl SimulatedTradesManager {
             takeprofit,
             quantity,
             leverage,
+            self.fee_perc,
         )?;
 
         state_guard.time = timestamp;
@@ -574,6 +582,8 @@ mod tests {
 
     #[test]
     fn test_long_pl_calculation() {
+        let lnm_estimated_fee = BoundedPercentage::try_from(0.1).unwrap();
+
         let trade = SimulatedTradeRunning::new(
             TradeSide::Long,
             Utc::now(),
@@ -582,6 +592,7 @@ mod tests {
             Price::try_from(110_000).unwrap(),
             Quantity::try_from(500).unwrap(),
             Leverage::try_from(1).unwrap(),
+            lnm_estimated_fee,
         )
         .unwrap();
 
@@ -596,6 +607,7 @@ mod tests {
             Price::try_from(110_000).unwrap(),
             Quantity::try_from(1_000).unwrap(),
             Leverage::try_from(2).unwrap(),
+            lnm_estimated_fee,
         )
         .unwrap();
 
@@ -610,6 +622,7 @@ mod tests {
             Price::try_from(110_000).unwrap(),
             Quantity::try_from(1_500).unwrap(),
             Leverage::try_from(3).unwrap(),
+            lnm_estimated_fee,
         )
         .unwrap();
 
@@ -624,6 +637,7 @@ mod tests {
             Price::try_from(110_000).unwrap(),
             Quantity::try_from(2_500).unwrap(),
             Leverage::try_from(5).unwrap(),
+            lnm_estimated_fee,
         )
         .unwrap();
 
@@ -638,6 +652,7 @@ mod tests {
             Price::try_from(101_000).unwrap(),
             Quantity::try_from(40_000).unwrap(),
             Leverage::try_from(80).unwrap(),
+            lnm_estimated_fee,
         )
         .unwrap();
 
@@ -652,6 +667,7 @@ mod tests {
             Price::try_from(99_000).unwrap(),
             Quantity::try_from(40_000).unwrap(),
             Leverage::try_from(80).unwrap(),
+            lnm_estimated_fee,
         )
         .unwrap();
 
@@ -666,6 +682,7 @@ mod tests {
             Price::try_from(101_000).unwrap(),
             Quantity::try_from(50).unwrap(),
             Leverage::try_from(5).unwrap(),
+            lnm_estimated_fee,
         )
         .unwrap();
 
@@ -680,6 +697,7 @@ mod tests {
             Price::try_from(101_000).unwrap(),
             Quantity::try_from(50).unwrap(),
             Leverage::try_from(5).unwrap(),
+            lnm_estimated_fee,
         )
         .unwrap();
 
@@ -694,6 +712,7 @@ mod tests {
             Price::try_from(101_000).unwrap(),
             Quantity::try_from(1).unwrap(),
             Leverage::try_from(5).unwrap(),
+            lnm_estimated_fee,
         )
         .unwrap();
 
@@ -708,6 +727,7 @@ mod tests {
             Price::try_from(95_500).unwrap(),
             Quantity::try_from(5).unwrap(),
             Leverage::try_from(100).unwrap(),
+            lnm_estimated_fee,
         )
         .unwrap();
 
@@ -721,10 +741,15 @@ mod tests {
             Price::try_from(110000).unwrap(),
             Quantity::try_from(337).unwrap(),
             Leverage::try_from(7).unwrap(),
+            lnm_estimated_fee,
         )
         .unwrap();
-        let closed_trade =
-            SimulatedTradeClosed::from_running(trade, Utc::now(), Price::try_from(96330).unwrap());
+        let closed_trade = SimulatedTradeClosed::from_running(
+            trade,
+            Utc::now(),
+            Price::try_from(96330).unwrap(),
+            lnm_estimated_fee,
+        );
 
         assert_eq!(closed_trade.pl(), -10);
         assert_eq!(closed_trade.net_pl(), -708);
@@ -737,10 +762,15 @@ mod tests {
             Price::try_from(110000).unwrap(),
             Quantity::try_from(1).unwrap(),
             Leverage::try_from(1).unwrap(),
+            lnm_estimated_fee,
         )
         .unwrap();
-        let closed_trade =
-            SimulatedTradeClosed::from_running(trade, Utc::now(), Price::try_from(96508).unwrap());
+        let closed_trade = SimulatedTradeClosed::from_running(
+            trade,
+            Utc::now(),
+            Price::try_from(96508).unwrap(),
+            lnm_estimated_fee,
+        );
 
         assert_eq!(closed_trade.pl(), -1);
         assert_eq!(closed_trade.net_pl(), -3);
@@ -753,12 +783,14 @@ mod tests {
             Price::try_from(110000).unwrap(),
             Quantity::try_from(1).unwrap(),
             Leverage::try_from(1).unwrap(),
+            lnm_estimated_fee,
         )
         .unwrap();
         let closed_trade = SimulatedTradeClosed::from_running(
             trade,
             Utc::now(),
             Price::try_from(94176.5).unwrap(),
+            lnm_estimated_fee,
         );
 
         assert_eq!(closed_trade.pl(), 1);
