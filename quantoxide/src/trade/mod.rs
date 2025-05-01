@@ -8,6 +8,8 @@ mod simulation;
 
 use error::Result;
 
+pub use simulation::SimulatedTradesManager;
+
 pub struct TradesState {
     start_time: DateTime<Utc>,
     start_balance: u64,
