@@ -224,8 +224,7 @@ impl Eq for Price {}
 
 impl Ord for Price {
     fn cmp(&self, other: &Self) -> Ordering {
-        // Since we guarantee the values are finite, we can use partial_cmp and unwrap
-        self.partial_cmp(other).unwrap()
+        self.partial_cmp(other).expect("`Price` must be finite")
     }
 }
 
