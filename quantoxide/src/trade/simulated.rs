@@ -28,17 +28,105 @@ struct SimulatedTradeRunning {
     stoploss: Price,
     takeprofit: Price,
     margin: Margin,
+    quantity: Quantity,
     leverage: Leverage,
+    liquitation: Price,
 }
 
 impl SimulatedTradeRunning {
-    fn pl(&self, current_price: Price) -> i64 {
-        let price_diff = match self.side {
-            TradeSide::Long => current_price.into_f64() - self.entry_price.into_f64(),
-            TradeSide::Short => self.entry_price.into_f64() - current_price.into_f64(),
+    fn new(
+        side: TradeSide,
+        entry_time: DateTime<Utc>,
+        entry_price: Price,
+        stoploss: Price,
+        takeprofit: Price,
+        margin: Margin,
+        leverage: Leverage,
+    ) -> Result<Self> {
+        let quantity = Quantity::try_calculate(margin, entry_price, leverage)
+            .map_err(|e| TradeError::Generic(format!("Invalid quantity calculation: {}", e)))?;
+
+        let margin_btc = margin.into_u64() as f64 / 100_000_000.; // From sats to BTC
+
+        let liquitation = match side {
+            TradeSide::Long => {
+                let liquitation = {
+                    let value = 1.0
+                        / (1.0 / entry_price.into_f64() + margin_btc / quantity.into_u64() as f64);
+                    Price::round(value).map_err(|e| TradeError::Generic(e.to_string()))?
+                };
+
+                if stoploss < liquitation {
+                    return Err(TradeError::Generic(
+                        "Stoploss can't be bellow the liquitation price for long positions"
+                            .to_string(),
+                    ));
+                }
+                if stoploss >= entry_price {
+                    return Err(TradeError::Generic(
+                        "Stoploss must be below entry price for long positions".to_string(),
+                    ));
+                }
+                if takeprofit <= entry_price {
+                    return Err(TradeError::Generic(
+                        "Takeprofit must be above entry price for long positions".to_string(),
+                    ));
+                }
+
+                liquitation
+            }
+            TradeSide::Short => {
+                let liquitation = {
+                    let value = 1.0
+                        / (1.0 / entry_price.into_f64() - margin_btc / quantity.into_u64() as f64);
+                    Price::round(value).map_err(|e| TradeError::Generic(e.to_string()))?
+                };
+
+                if stoploss > liquitation {
+                    return Err(TradeError::Generic(
+                        "Stoploss can't be above the liquitation price for short positions"
+                            .to_string(),
+                    ));
+                }
+                if stoploss <= entry_price {
+                    return Err(TradeError::Generic(
+                        "Stoploss must be above entry price for short positions".to_string(),
+                    ));
+                }
+                if takeprofit >= entry_price {
+                    return Err(TradeError::Generic(
+                        "Takeprofit must be below entry price for short positions".to_string(),
+                    ));
+                }
+
+                liquitation
+            }
         };
-        let pl = price_diff * self.margin.into_u64() as f64 * self.leverage.into_f64();
-        pl as i64
+
+        Ok(Self {
+            side,
+            entry_time,
+            entry_price,
+            stoploss,
+            takeprofit,
+            margin,
+            quantity,
+            leverage,
+            liquitation,
+        })
+    }
+
+    fn pl(&self, current_price: Price) -> i64 {
+        let entry_price = self.entry_price.into_f64();
+        let current_price = current_price.into_f64();
+        let quantity = self.quantity.into_u64() as f64;
+
+        let inverse_price_delta = match self.side {
+            TradeSide::Long => 100_000_000. / entry_price - 100_000_000. / current_price,
+            TradeSide::Short => 100_000_000. / current_price - 100_000_000. / entry_price,
+        };
+
+        (quantity * inverse_price_delta).floor() as i64
     }
 }
 
@@ -50,6 +138,7 @@ struct SimulatedTradeClosed {
     stoploss: Price,
     takeprofit: Price,
     margin: Margin,
+    quantity: Quantity,
     leverage: Leverage,
     close_time: DateTime<Utc>,
     close_price: Price,
@@ -68,6 +157,7 @@ impl SimulatedTradeClosed {
             stoploss: running.stoploss,
             takeprofit: running.takeprofit,
             margin: running.margin,
+            quantity: running.quantity,
             leverage: running.leverage,
             close_time,
             close_price,
@@ -75,12 +165,16 @@ impl SimulatedTradeClosed {
     }
 
     fn pl(&self) -> i64 {
-        let price_diff = match self.side {
-            TradeSide::Long => self.close_price.into_f64() - self.entry_price.into_f64(),
-            TradeSide::Short => self.entry_price.into_f64() - self.close_price.into_f64(),
+        let entry_price = self.entry_price.into_f64();
+        let close_price = self.close_price.into_f64();
+        let quantity = self.quantity.into_u64() as f64;
+
+        let inverse_price_delta = match self.side {
+            TradeSide::Long => 100_000_000. / entry_price - 100_000_000. / close_price,
+            TradeSide::Short => 100_000_000. / close_price - 100_000_000. / entry_price,
         };
-        let pl = price_diff * self.margin.into_u64() as f64 * self.leverage.into_f64();
-        pl as i64
+
+        (quantity * inverse_price_delta).floor() as i64
     }
 }
 
@@ -337,24 +431,20 @@ impl SimulatedTradesManager {
 
         let margin = {
             let margin = state_guard.balance as f64 * balance_perc.into_f64() / 100.;
-            let margin =
-                Margin::try_from(margin.floor()).map_err(|e| TradeError::Generic(e.to_string()))?;
-            let _ = Quantity::try_calculate(margin, market_price, leverage)
-                .map_err(|e| TradeError::Generic(e.to_string()))?;
-            margin
+            Margin::try_from(margin.floor()).map_err(|e| TradeError::Generic(e.to_string()))?
         };
 
         let (side, stoploss, takeprofit) = risk_params.into_trade_params(market_price)?;
 
-        let trade = SimulatedTradeRunning {
+        let trade = SimulatedTradeRunning::new(
             side,
-            entry_time: timestamp,
-            entry_price: market_price,
+            timestamp,
+            market_price,
             stoploss,
             takeprofit,
             margin,
             leverage,
-        };
+        )?;
 
         state_guard.time = timestamp;
         state_guard.balance -= margin.into_u64();
