@@ -1,15 +1,21 @@
+use chrono::{DateTime, Utc};
 use std::result;
 use thiserror::Error;
 
 use lnm_sdk::api::rest::models::{
-    Price,
-    error::{MarginValidationError, PriceValidationError},
+    Price, TradeSide,
+    error::{MarginValidationError, PriceValidationError, QuantityValidationError},
 };
+
+use crate::db::{error::DbError, models::PriceHistoryEntry};
 
 #[derive(Error, Debug)]
 pub enum SimulationError {
     #[error("[MarginValidation] {0}")]
     MarginValidation(#[from] MarginValidationError),
+
+    #[error("[QuantityValidation] {0}")]
+    QuantityValidation(#[from] QuantityValidationError),
 
     #[error("[PriceValidation] {0}")]
     PriceValidation(#[from] PriceValidationError),
@@ -46,8 +52,30 @@ pub enum SimulationError {
         entry_price: Price,
     },
 
-    #[error("Error: {0}")]
-    Generic(String),
+    #[error("Invalid time sequence: new time {new_time} is not after current time {current_time}")]
+    TimeSequenceViolation {
+        new_time: DateTime<Utc>,
+        current_time: DateTime<Utc>,
+    },
+
+    #[error("No price history entry found at or before {time}")]
+    NoPriceHistoryEntry { time: DateTime<Utc> },
+
+    #[error("[Db] {0}")]
+    Db(#[from] DbError),
+
+    #[error("Max running trades ({max_qtd}) reached")]
+    MaxRunningTradesReached { max_qtd: usize },
+
+    #[error("Invalid trade state for price boundary check")]
+    InvalidTradeBoundaryState {
+        start_time: DateTime<Utc>,
+        end_time: DateTime<Utc>,
+        min: f64,
+        max: f64,
+        side: TradeSide,
+        entry: PriceHistoryEntry,
+    },
 }
 
 pub type Result<T> = result::Result<T, SimulationError>;
