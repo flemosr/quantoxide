@@ -14,6 +14,7 @@ use super::{
     error::{Result, TradeError},
 };
 
+pub mod error;
 mod models;
 
 use models::{RiskParams, SimulatedTradeClosed, SimulatedTradeRunning};
