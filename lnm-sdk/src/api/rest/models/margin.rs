@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize, de};
-use std::{convert::TryFrom, ops::Add};
+use std::{convert::TryFrom, fmt, ops::Add};
 
 use super::{Leverage, Price, Quantity, error::MarginValidationError};
 
@@ -97,6 +97,12 @@ impl TryFrom<f64> for Margin {
         }
 
         Ok(Margin(value as u64))
+    }
+}
+
+impl fmt::Display for Margin {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
     }
 }
 

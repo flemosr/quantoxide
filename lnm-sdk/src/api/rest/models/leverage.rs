@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize, de};
-use std::{cmp::Ordering, convert::TryFrom};
+use std::{cmp::Ordering, convert::TryFrom, fmt};
 
 use super::{Margin, Price, Quantity, error::LeverageValidationError, utils};
 
@@ -61,6 +61,12 @@ impl Eq for Leverage {}
 impl Ord for Leverage {
     fn cmp(&self, other: &Self) -> Ordering {
         self.partial_cmp(other).expect("`Leverage` must be finite")
+    }
+}
+
+impl fmt::Display for Leverage {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:.6}", self.0)
     }
 }
 

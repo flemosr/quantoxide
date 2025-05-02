@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize, de};
-use std::convert::TryFrom;
+use std::{convert::TryFrom, fmt};
 
 use super::{Leverage, Margin, Price, error::QuantityValidationError};
 
@@ -80,6 +80,12 @@ impl TryFrom<f64> for Quantity {
         let quantity_u64 = quantity as u64;
 
         Self::try_from(quantity_u64)
+    }
+}
+
+impl fmt::Display for Quantity {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
     }
 }
 

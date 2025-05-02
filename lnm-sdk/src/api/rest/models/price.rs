@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize, de};
-use std::{cmp::Ordering, convert::TryFrom};
+use std::{cmp::Ordering, convert::TryFrom, fmt};
 
 use super::{
     error::{BoundedPercentageValidationError, PriceValidationError},
@@ -225,6 +225,12 @@ impl Eq for Price {}
 impl Ord for Price {
     fn cmp(&self, other: &Self) -> Ordering {
         self.partial_cmp(other).expect("`Price` must be finite")
+    }
+}
+
+impl fmt::Display for Price {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:.2}", self.0)
     }
 }
 

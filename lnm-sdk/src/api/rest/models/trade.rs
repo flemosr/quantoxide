@@ -3,6 +3,7 @@ use chrono::{
     serde::{ts_milliseconds, ts_milliseconds_option},
 };
 use serde::{Deserialize, Serialize};
+use std::fmt;
 use uuid::Uuid;
 
 use super::{Leverage, Margin, Price, Quantity, error::FuturesTradeRequestValidationError, utils};
@@ -13,6 +14,15 @@ pub enum TradeSide {
     Buy,
     #[serde(rename = "s")]
     Sell,
+}
+
+impl fmt::Display for TradeSide {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            TradeSide::Buy => write!(f, "Buy"),
+            TradeSide::Sell => write!(f, "Sell"),
+        }
+    }
 }
 
 #[derive(Serialize, Debug, Clone, PartialEq, Eq, Copy)]
