@@ -96,10 +96,14 @@ impl SimulatedTradesManager {
         let mut state_guard = self.state.lock().await;
 
         if new_time <= state_guard.time {
-            return Err(SimulationError::Generic(format!(
-                "tried to update state with new_time {new_time} but current time is {}",
-                state_guard.time
-            )));
+            // return Err(SimulationError::Generic(format!(
+            //     "tried to update state with new_time {new_time} but current time is {}",
+            //     state_guard.time
+            // )));
+            return Err(SimulationError::TimeSequenceViolation {
+                new_time,
+                current_time: state_guard.time,
+            });
         }
 
         let market_price = {
@@ -107,14 +111,9 @@ impl SimulatedTradesManager {
                 .db
                 .price_history
                 .get_latest_entry_at_or_before(new_time)
-                .await
-                .map_err(|e| SimulationError::Generic(e.to_string()))?
-                .ok_or(SimulationError::Generic(format!(
-                    "no price history entry was found with time at or before {}",
-                    new_time
-                )))?;
-            Price::try_from(price_entry.value)
-                .map_err(|e| SimulationError::Generic(e.to_string()))?
+                .await?
+                .ok_or(SimulationError::NoPriceHistoryEntry { time: new_time })?;
+            Price::try_from(price_entry.value)?
         };
 
         let mut new_balance = state_guard.balance as i64;
@@ -159,8 +158,7 @@ impl SimulatedTradesManager {
                 .db
                 .price_history
                 .get_first_entry_reaching_bounds(previous_time, new_time, min, max)
-                .await
-                .map_err(|e| SimulationError::Generic(e.to_string()))?;
+                .await?;
 
             if let Some(price_entry) = boundary_entry_opt {
                 // Trade closed by `stoploss` or `takeprofit`
@@ -170,7 +168,16 @@ impl SimulatedTradesManager {
                     TradeSide::Buy if price_entry.value >= max => trade.takeprofit,
                     TradeSide::Sell if price_entry.value <= min => trade.takeprofit,
                     TradeSide::Sell if price_entry.value >= max => trade.stoploss,
-                    _ => Err(SimulationError::Generic("invalid".to_string()))?,
+                    _ => {
+                        return Err(SimulationError::InvalidTradeBoundaryState {
+                            start_time: previous_time,
+                            end_time: new_time,
+                            min,
+                            max,
+                            side: trade.side,
+                            entry: price_entry,
+                        });
+                    }
                 };
 
                 close_trade(trade, price_entry.time, close_price);
@@ -210,13 +217,11 @@ impl SimulatedTradesManager {
         state_guard.running_long_qtd = new_running_long_qtd;
         state_guard.running_long_margin = (new_running_long_margin > 0)
             .then(|| Margin::try_from(new_running_long_margin))
-            .transpose()
-            .map_err(|e| SimulationError::Generic(e.to_string()))?;
+            .transpose()?;
         state_guard.running_short_qtd = new_running_short_qtd;
         state_guard.running_short_margin = (new_running_short_margin > 0)
             .then(|| Margin::try_from(new_running_short_margin))
-            .transpose()
-            .map_err(|e| SimulationError::Generic(e.to_string()))?;
+            .transpose()?;
         state_guard.running_pl = new_running_pl;
         state_guard.running_fees_est = new_running_fees_est;
 
@@ -237,17 +242,15 @@ impl SimulatedTradesManager {
         let (mut state_guard, market_price) = self.update_state(timestamp, Close::None).await?;
 
         if state_guard.running.len() >= self.max_running_qtd {
-            return Err(SimulationError::Generic(format!(
-                "received order but max qtd of running trades ({}) was reached",
-                self.max_running_qtd
-            )));
+            return Err(SimulationError::MaxRunningTradesReached {
+                max_qtd: self.max_running_qtd,
+            });
         }
 
         let quantity = {
             let balance_usd = state_guard.balance as f64 * market_price.into_f64() / SATS_PER_BTC;
             let quantity = balance_usd * balance_perc.into_f64() / 100.;
-            Quantity::try_from(quantity.floor())
-                .map_err(|e| SimulationError::Generic(e.to_string()))?
+            Quantity::try_from(quantity.floor())?
         };
 
         let (side, stoploss, takeprofit) = risk_params.into_trade_params(market_price)?;
