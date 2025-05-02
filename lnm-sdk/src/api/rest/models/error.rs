@@ -1,4 +1,6 @@
-#[derive(Debug, thiserror::Error)]
+use thiserror::Error;
+
+#[derive(Debug, Error)]
 pub enum BoundedPercentageValidationError {
     #[error("Percentage must be at least 0.1%")]
     BelowMinimum,
@@ -10,7 +12,7 @@ pub enum BoundedPercentageValidationError {
     NotFinite,
 }
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, Error)]
 pub enum PriceValidationError {
     #[error("Price must be at least 1")]
     AtLeastOne,
@@ -25,7 +27,7 @@ pub enum PriceValidationError {
     InvalidPercentage,
 }
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, Error)]
 pub enum LeverageValidationError {
     #[error("Leverage must be at least 1")]
     TooLow,
@@ -37,7 +39,7 @@ pub enum LeverageValidationError {
     NotFinite,
 }
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, Error)]
 pub enum QuantityValidationError {
     #[error("Quantity must be positive")]
     NotPositive,
@@ -52,7 +54,7 @@ pub enum QuantityValidationError {
     NotFinite,
 }
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, Error)]
 pub enum MarginValidationError {
     #[error("Margin can't be negative")]
     Negative,
@@ -67,7 +69,7 @@ pub enum MarginValidationError {
     NotInteger,
 }
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, Error)]
 pub enum FuturesTradeRequestValidationError {
     #[error("Price cannot be set for market orders")]
     PriceSetForMarketOrder,
@@ -75,8 +77,8 @@ pub enum FuturesTradeRequestValidationError {
     #[error("Price must be set for limit orders")]
     MissingPriceForLimitOrder,
 
-    #[error("Implied quantity must be valid")]
-    InvalidImpliedQuantity(#[from] QuantityValidationError),
+    #[error("[QuantityValidation] {0}")]
+    QuantityValidation(#[from] QuantityValidationError),
 
     #[error("Stop loss must be lower than the entry price")]
     StopLossHigherThanPrice,
@@ -85,20 +87,20 @@ pub enum FuturesTradeRequestValidationError {
     TakeProfitLowerThanPrice,
 }
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, Error)]
 pub enum ValidationError {
-    #[error(transparent)]
-    Price(#[from] PriceValidationError),
+    #[error("[PriceValidation] {0}")]
+    PriceValidation(#[from] PriceValidationError),
 
-    #[error(transparent)]
-    Leverage(#[from] LeverageValidationError),
+    #[error("[LeverageValidation] {0}")]
+    LeverageValidation(#[from] LeverageValidationError),
 
-    #[error(transparent)]
-    Quantity(#[from] QuantityValidationError),
+    #[error("[QuantityValidation] {0}")]
+    QuantityValidation(#[from] QuantityValidationError),
 
-    #[error(transparent)]
-    Margin(#[from] MarginValidationError),
+    #[error("[MarginValidation] {0}")]
+    MarginValidation(#[from] MarginValidationError),
 
-    #[error(transparent)]
-    FuturesTradeRequest(#[from] FuturesTradeRequestValidationError),
+    #[error("[FuturesTradeRequestValidation] {0}")]
+    FuturesTradeRequestValidation(#[from] FuturesTradeRequestValidationError),
 }
