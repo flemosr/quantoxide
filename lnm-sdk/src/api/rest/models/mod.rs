@@ -1,4 +1,4 @@
-mod error;
+pub mod error;
 mod leverage;
 mod margin;
 mod price;
