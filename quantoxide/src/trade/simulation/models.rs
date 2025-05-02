@@ -4,7 +4,7 @@ use lnm_sdk::api::rest::models::{
     BoundedPercentage, Leverage, LowerBoundedPercentage, Margin, Price, Quantity, TradeSide,
 };
 
-use super::super::error::{Result, TradeError};
+use super::error::{Result, SimulationError};
 
 use super::SATS_PER_BTC;
 
@@ -28,10 +28,10 @@ impl RiskParams {
             } => {
                 let stoploss = market_price
                     .apply_discount(stoploss_perc)
-                    .map_err(|e| TradeError::Generic(e.to_string()))?;
+                    .map_err(|e| SimulationError::Generic(e.to_string()))?;
                 let takeprofit = market_price
                     .apply_gain(takeprofit_perc.into())
-                    .map_err(|e| TradeError::Generic(e.to_string()))?;
+                    .map_err(|e| SimulationError::Generic(e.to_string()))?;
 
                 Ok((TradeSide::Buy, stoploss, takeprofit))
             }
@@ -41,10 +41,10 @@ impl RiskParams {
             } => {
                 let stoploss = market_price
                     .apply_gain(stoploss_perc.into())
-                    .map_err(|e| TradeError::Generic(e.to_string()))?;
+                    .map_err(|e| SimulationError::Generic(e.to_string()))?;
                 let takeprofit = market_price
                     .apply_discount(takeprofit_perc)
-                    .map_err(|e| TradeError::Generic(e.to_string()))?;
+                    .map_err(|e| SimulationError::Generic(e.to_string()))?;
 
                 Ok((TradeSide::Sell, stoploss, takeprofit))
             }
@@ -79,7 +79,7 @@ impl SimulatedTradeRunning {
         fee_perc: BoundedPercentage,
     ) -> Result<Self> {
         let margin = Margin::try_calculate(quantity, entry_price, leverage)
-            .map_err(|e| TradeError::Generic(format!("Invalid margin calculation: {}", e)))?;
+            .map_err(|e| SimulationError::Generic(format!("Invalid margin calculation: {}", e)))?;
 
         let margin_btc = margin.into_f64() / SATS_PER_BTC; // From sats to BTC
 
@@ -88,23 +88,23 @@ impl SimulatedTradeRunning {
                 let liquitation = {
                     let value =
                         1.0 / (1.0 / entry_price.into_f64() + margin_btc / quantity.into_f64());
-                    Price::round(value).map_err(|e| TradeError::Generic(e.to_string()))?
+                    Price::round(value).map_err(|e| SimulationError::Generic(e.to_string()))?
                 };
 
                 if stoploss < liquitation {
-                    return Err(TradeError::Generic(format!(
+                    return Err(SimulationError::Generic(format!(
                         "Stoploss {} can't be bellow the liquitation price {} for long positions",
                         stoploss.into_f64(),
                         liquitation.into_f64()
                     )));
                 }
                 if stoploss >= entry_price {
-                    return Err(TradeError::Generic(
+                    return Err(SimulationError::Generic(
                         "Stoploss must be below entry price for long positions".to_string(),
                     ));
                 }
                 if takeprofit <= entry_price {
-                    return Err(TradeError::Generic(
+                    return Err(SimulationError::Generic(
                         "Takeprofit must be above entry price for long positions".to_string(),
                     ));
                 }
@@ -115,22 +115,22 @@ impl SimulatedTradeRunning {
                 let liquitation = {
                     let value =
                         1.0 / (1.0 / entry_price.into_f64() - margin_btc / quantity.into_f64());
-                    Price::round(value).map_err(|e| TradeError::Generic(e.to_string()))?
+                    Price::round(value).map_err(|e| SimulationError::Generic(e.to_string()))?
                 };
 
                 if stoploss > liquitation {
-                    return Err(TradeError::Generic(
+                    return Err(SimulationError::Generic(
                         "Stoploss can't be above the liquitation price for short positions"
                             .to_string(),
                     ));
                 }
                 if stoploss <= entry_price {
-                    return Err(TradeError::Generic(
+                    return Err(SimulationError::Generic(
                         "Stoploss must be above entry price for short positions".to_string(),
                     ));
                 }
                 if takeprofit >= entry_price {
-                    return Err(TradeError::Generic(
+                    return Err(SimulationError::Generic(
                         "Takeprofit must be below entry price for short positions".to_string(),
                     ));
                 }
