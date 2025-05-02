@@ -3,19 +3,19 @@ use thiserror::Error;
 use tokio::{sync::broadcast::error::SendError, task::JoinError};
 
 use super::{
-    real_time_collection_task::error::RealTimeCollectionError,
-    sync_price_history_task::error::SyncPriceHistoryError, SyncState,
+    SyncState, real_time_collection_task::error::RealTimeCollectionError,
+    sync_price_history_task::error::SyncPriceHistoryError,
 };
 
 #[derive(Error, Debug)]
 pub enum SyncError {
-    #[error("SyncPriceHistory error: {0}")]
+    #[error("[SyncPriceHistory] {0}")]
     SyncPriceHistory(#[from] SyncPriceHistoryError),
-    #[error("RealTimeCollection error: {0}")]
+    #[error("[RealTimeCollection] {0}")]
     RealTimeCollection(#[from] RealTimeCollectionError),
-    #[error("SyncTransmiter failed error {0}")]
+    #[error("[SyncTransmiterFailed] {0}")]
     SyncTransmiterFailed(SendError<Arc<SyncState>>),
-    #[error("TaskJoin error {0}")]
+    #[error("[TaskJoin] {0}")]
     TaskJoin(JoinError),
     #[error("UnexpectedRealTimeCollectionShutdown error")]
     UnexpectedRealTimeCollectionShutdown,

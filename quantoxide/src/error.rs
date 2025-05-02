@@ -5,9 +5,9 @@ use crate::{db::error::DbError, sync::error::SyncError};
 
 #[derive(Error, Debug)]
 pub enum AppError {
-    #[error("Sync error: {0}")]
+    #[error("[Sync] {0}")]
     Sync(#[from] SyncError),
-    #[error("Database error: {0}")]
+    #[error("[Db] {0}")]
     Db(#[from] DbError),
 }
 

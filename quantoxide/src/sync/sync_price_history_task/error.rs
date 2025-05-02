@@ -20,7 +20,7 @@ pub enum SyncPriceHistoryError {
     HistoryUpdateHandlerFailed,
     #[error("NoGapEntriesReceived error")]
     NoGapEntriesReceived,
-    #[error("Database error: {0}")]
+    #[error("[Db] {0}")]
     Db(#[from] DbError),
     #[error("UnreachableDbGap error: gap {gap}, reach {reach}")]
     UnreachableDbGap {
