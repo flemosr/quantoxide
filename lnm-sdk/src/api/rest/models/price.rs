@@ -204,7 +204,7 @@ impl TryFrom<f64> for Price {
             return Err(PriceValidationError::AtLeastOne);
         }
 
-        if (price * 2.0).round() != price * 2.0 {
+        if ((price * 2.0).round() - (price * 2.0)).abs() > 1e-10 {
             return Err(PriceValidationError::NotMultipleOfTick);
         }
 
