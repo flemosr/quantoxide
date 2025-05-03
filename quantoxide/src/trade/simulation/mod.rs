@@ -1,13 +1,13 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use std::sync::Arc;
-use tokio::sync::{Mutex, MutexGuard};
+use tokio::sync::Mutex;
 
 use lnm_sdk::api::rest::models::{
     BoundedPercentage, Leverage, LowerBoundedPercentage, Margin, Price, Quantity, TradeSide,
 };
 
-use crate::db::DbContext;
+use crate::db::models::PriceHistoryEntry;
 
 use super::{TradesManager, TradesState, error::Result};
 
@@ -20,7 +20,6 @@ use models::{RiskParams, SimulatedTradeClosed, SimulatedTradeRunning};
 const SATS_PER_BTC: f64 = 100_000_000.;
 
 enum Close {
-    None,
     Side(TradeSide),
     All,
 }
@@ -33,6 +32,7 @@ impl From<TradeSide> for Close {
 
 struct SimulatedTradesState {
     time: DateTime<Utc>,
+    market_price: Price,
     balance: i64,
     running: Vec<SimulatedTradeRunning>,
     running_long_qtd: usize,
@@ -47,7 +47,6 @@ struct SimulatedTradesState {
 }
 
 pub struct SimulatedTradesManager {
-    db: Arc<DbContext>,
     max_running_qtd: usize,
     fee_perc: BoundedPercentage,
     start_time: DateTime<Utc>,
@@ -57,14 +56,15 @@ pub struct SimulatedTradesManager {
 
 impl SimulatedTradesManager {
     pub fn new(
-        db: Arc<DbContext>,
         max_running_qtd: usize,
         fee_perc: BoundedPercentage,
         start_time: DateTime<Utc>,
+        market_price: Price,
         start_balance: u64,
     ) -> Self {
         let initial_state = SimulatedTradesState {
             time: start_time,
+            market_price,
             balance: start_balance as i64,
             running: Vec::new(),
             running_long_qtd: 0,
@@ -79,7 +79,6 @@ impl SimulatedTradesManager {
         };
 
         Self {
-            db,
             max_running_qtd,
             fee_perc,
             start_time,
@@ -88,45 +87,28 @@ impl SimulatedTradesManager {
         }
     }
 
-    async fn update_state(
-        &self,
-        new_time: DateTime<Utc>,
-        close: Close,
-    ) -> SimulationResult<(MutexGuard<SimulatedTradesState>, Price)> {
+    pub async fn tick_update(&self, new_entry: &PriceHistoryEntry) -> SimulationResult<()> {
+        let new_time = new_entry.time;
+        let market_price = Price::try_from(new_entry.value)?;
+
         let mut state_guard = self.state.lock().await;
 
         if new_time <= state_guard.time {
-            // return Err(SimulationError::Generic(format!(
-            //     "tried to update state with new_time {new_time} but current time is {}",
-            //     state_guard.time
-            // )));
             return Err(SimulationError::TimeSequenceViolation {
                 new_time,
                 current_time: state_guard.time,
             });
         }
 
-        let market_price = {
-            let price_entry = self
-                .db
-                .price_history
-                .get_latest_entry_at_or_before(new_time)
-                .await?
-                .ok_or(SimulationError::NoPriceHistoryEntry { time: new_time })?;
-            Price::try_from(price_entry.value)?
-        };
-
         let mut new_balance = state_guard.balance as i64;
         let mut new_closed_pl = state_guard.closed_pl;
         let mut new_closed_fees = state_guard.closed_fees;
         let mut new_closed_trades = Vec::new();
 
-        let mut close_trade = |trade: SimulatedTradeRunning,
-                               close_time: DateTime<Utc>,
-                               close_price: Price| {
+        let mut close_trade = |trade: SimulatedTradeRunning, close_price: Price| {
             let closing_fee_reserved = trade.closing_fee_reserved as i64;
             let trade =
-                SimulatedTradeClosed::from_running(trade, close_time, close_price, self.fee_perc);
+                SimulatedTradeClosed::from_running(trade, new_time, close_price, self.fee_perc);
             let trade_pl = trade.pl();
             let closing_fee_diff = closing_fee_reserved - trade.closing_fee as i64;
 
@@ -136,7 +118,6 @@ impl SimulatedTradesManager {
             new_closed_trades.push(trade);
         };
 
-        let previous_time = state_guard.time;
         let mut new_running_long_qtd: usize = 0;
         let mut new_running_long_margin: u64 = 0;
         let mut new_running_short_qtd: usize = 0;
@@ -146,71 +127,38 @@ impl SimulatedTradesManager {
         let mut remaining_running_trades = Vec::new();
 
         for trade in state_guard.running.drain(..) {
-            // Check if price reached stoploss or takeprofit between
-            // `current_time_guard` and `timestamp`.
+            // Check if price reached stoploss or takeprofit
 
             let (min, max) = match trade.side {
-                TradeSide::Buy => (trade.stoploss.into_f64(), trade.takeprofit.into_f64()),
-                TradeSide::Sell => (trade.takeprofit.into_f64(), trade.stoploss.into_f64()),
+                TradeSide::Buy => (trade.stoploss, trade.takeprofit),
+                TradeSide::Sell => (trade.takeprofit, trade.stoploss),
             };
 
-            let boundary_entry_opt = self
-                .db
-                .price_history
-                .get_first_entry_reaching_bounds(previous_time, new_time, min, max)
-                .await?;
-
-            if let Some(price_entry) = boundary_entry_opt {
-                // Trade closed by `stoploss` or `takeprofit`
-
-                let close_price = match trade.side {
-                    TradeSide::Buy if price_entry.value <= min => trade.stoploss,
-                    TradeSide::Buy if price_entry.value >= max => trade.takeprofit,
-                    TradeSide::Sell if price_entry.value <= min => trade.takeprofit,
-                    TradeSide::Sell if price_entry.value >= max => trade.stoploss,
-                    _ => {
-                        return Err(SimulationError::InvalidTradeBoundaryState {
-                            start_time: previous_time,
-                            end_time: new_time,
-                            min,
-                            max,
-                            side: trade.side,
-                            entry: price_entry,
-                        });
-                    }
-                };
-
-                close_trade(trade, price_entry.time, close_price);
+            if market_price <= min {
+                close_trade(trade, min);
+            } else if market_price >= max {
+                close_trade(trade, max);
             } else {
                 // Trade still running
 
-                let should_be_closed = match &close {
-                    Close::Side(side) if *side == trade.side => true,
-                    Close::All => true,
-                    _ => false,
-                };
-
-                if should_be_closed {
-                    close_trade(trade, new_time, market_price);
-                } else {
-                    match trade.side {
-                        TradeSide::Buy => {
-                            new_running_long_qtd += 1;
-                            new_running_long_margin += trade.margin.into_u64();
-                        }
-                        TradeSide::Sell => {
-                            new_running_short_qtd += 1;
-                            new_running_short_margin += trade.margin.into_u64();
-                        }
+                match trade.side {
+                    TradeSide::Buy => {
+                        new_running_long_qtd += 1;
+                        new_running_long_margin += trade.margin.into_u64();
                     }
-                    new_running_pl += trade.pl(market_price);
-                    new_running_fees_est += trade.opening_fee + trade.closing_fee_reserved;
-                    remaining_running_trades.push(trade);
+                    TradeSide::Sell => {
+                        new_running_short_qtd += 1;
+                        new_running_short_margin += trade.margin.into_u64();
+                    }
                 }
+                new_running_pl += trade.pl(market_price);
+                new_running_fees_est += trade.opening_fee + trade.closing_fee_reserved;
+                remaining_running_trades.push(trade);
             }
         }
 
         state_guard.time = new_time;
+        state_guard.market_price = market_price;
         state_guard.balance = new_balance;
 
         state_guard.running = remaining_running_trades;
@@ -229,7 +177,96 @@ impl SimulatedTradesManager {
         state_guard.closed_pl = new_closed_pl;
         state_guard.closed_fees = new_closed_fees;
 
-        Ok((state_guard, market_price))
+        Ok(())
+    }
+
+    async fn close_running(&self, timestamp: DateTime<Utc>, close: Close) -> SimulationResult<()> {
+        let mut state_guard = self.state.lock().await;
+
+        if timestamp <= state_guard.time {
+            return Err(SimulationError::TimeSequenceViolation {
+                new_time: timestamp,
+                current_time: state_guard.time,
+            });
+        }
+
+        let time = state_guard.time;
+        let market_price = state_guard.market_price;
+
+        let mut new_balance = state_guard.balance as i64;
+        let mut new_closed_pl = state_guard.closed_pl;
+        let mut new_closed_fees = state_guard.closed_fees;
+        let mut new_closed_trades = Vec::new();
+
+        let mut close_trade = |trade: SimulatedTradeRunning| {
+            let closing_fee_reserved = trade.closing_fee_reserved as i64;
+            let trade =
+                SimulatedTradeClosed::from_running(trade, time, market_price, self.fee_perc);
+            let trade_pl = trade.pl();
+            let closing_fee_diff = closing_fee_reserved - trade.closing_fee as i64;
+
+            new_balance += trade.margin.into_i64() + trade_pl + closing_fee_diff;
+            new_closed_pl += trade_pl;
+            new_closed_fees += trade.opening_fee + trade.closing_fee;
+            new_closed_trades.push(trade);
+        };
+
+        let mut new_running_long_qtd: usize = 0;
+        let mut new_running_long_margin: u64 = 0;
+        let mut new_running_short_qtd: usize = 0;
+        let mut new_running_short_margin: u64 = 0;
+        let mut new_running_pl: i64 = 0;
+        let mut new_running_fees_est: u64 = 0;
+        let mut remaining_running_trades = Vec::new();
+
+        for trade in state_guard.running.drain(..) {
+            // Check if price reached stoploss or takeprofit
+
+            let should_be_closed = match &close {
+                Close::Side(side) if *side == trade.side => true,
+                Close::All => true,
+                _ => false,
+            };
+
+            if should_be_closed {
+                close_trade(trade);
+            } else {
+                match trade.side {
+                    TradeSide::Buy => {
+                        new_running_long_qtd += 1;
+                        new_running_long_margin += trade.margin.into_u64();
+                    }
+                    TradeSide::Sell => {
+                        new_running_short_qtd += 1;
+                        new_running_short_margin += trade.margin.into_u64();
+                    }
+                }
+                new_running_pl += trade.pl(market_price);
+                new_running_fees_est += trade.opening_fee + trade.closing_fee_reserved;
+                remaining_running_trades.push(trade);
+            }
+        }
+
+        state_guard.time = timestamp;
+        state_guard.balance = new_balance;
+
+        state_guard.running = remaining_running_trades;
+        state_guard.running_long_qtd = new_running_long_qtd;
+        state_guard.running_long_margin = (new_running_long_margin > 0)
+            .then(|| Margin::try_from(new_running_long_margin))
+            .transpose()?;
+        state_guard.running_short_qtd = new_running_short_qtd;
+        state_guard.running_short_margin = (new_running_short_margin > 0)
+            .then(|| Margin::try_from(new_running_short_margin))
+            .transpose()?;
+        state_guard.running_pl = new_running_pl;
+        state_guard.running_fees_est = new_running_fees_est;
+
+        state_guard.closed.append(&mut new_closed_trades);
+        state_guard.closed_pl = new_closed_pl;
+        state_guard.closed_fees = new_closed_fees;
+
+        Ok(())
     }
 
     async fn create_running(
@@ -239,7 +276,14 @@ impl SimulatedTradesManager {
         leverage: Leverage,
         risk_params: RiskParams,
     ) -> SimulationResult<()> {
-        let (mut state_guard, market_price) = self.update_state(timestamp, Close::None).await?;
+        let mut state_guard = self.state.lock().await;
+
+        if timestamp <= state_guard.time {
+            return Err(SimulationError::TimeSequenceViolation {
+                new_time: timestamp,
+                current_time: state_guard.time,
+            });
+        }
 
         if state_guard.running.len() >= self.max_running_qtd {
             return Err(SimulationError::MaxRunningTradesReached {
@@ -248,17 +292,19 @@ impl SimulatedTradesManager {
         }
 
         let quantity = {
-            let balance_usd = state_guard.balance as f64 * market_price.into_f64() / SATS_PER_BTC;
+            let balance_usd =
+                state_guard.balance as f64 * state_guard.market_price.into_f64() / SATS_PER_BTC;
             let quantity = balance_usd * balance_perc.into_f64() / 100.;
             Quantity::try_from(quantity.floor())?
         };
 
-        let (side, stoploss, takeprofit) = risk_params.into_trade_params(market_price)?;
+        let (side, stoploss, takeprofit) =
+            risk_params.into_trade_params(state_guard.market_price)?;
 
         let trade = SimulatedTradeRunning::new(
             side,
             timestamp,
-            market_price,
+            state_guard.market_price,
             stoploss,
             takeprofit,
             quantity,
@@ -316,25 +362,27 @@ impl TradesManager for SimulatedTradesManager {
     }
 
     async fn close_longs(&self, timestamp: DateTime<Utc>) -> Result<()> {
-        let _ = self.update_state(timestamp, TradeSide::Buy.into()).await?;
+        let _ = self.close_running(timestamp, TradeSide::Buy.into()).await?;
 
         Ok(())
     }
 
     async fn close_shorts(&self, timestamp: DateTime<Utc>) -> Result<()> {
-        let _ = self.update_state(timestamp, TradeSide::Sell.into()).await?;
+        let _ = self
+            .close_running(timestamp, TradeSide::Sell.into())
+            .await?;
 
         Ok(())
     }
 
     async fn close_all(&self, timestamp: DateTime<Utc>) -> Result<()> {
-        let _ = self.update_state(timestamp, Close::All).await?;
+        let _ = self.close_running(timestamp, Close::All).await?;
 
         Ok(())
     }
 
-    async fn state(&self, timestamp: DateTime<Utc>) -> Result<TradesState> {
-        let (state_guard, _) = self.update_state(timestamp, Close::None).await?;
+    async fn state(&self) -> Result<TradesState> {
+        let state_guard = self.state.lock().await;
 
         let trades_state = TradesState {
             start_time: self.start_time,
