@@ -343,11 +343,11 @@ impl PriceHistoryRepository for PgPriceHistoryRepo {
         .unwrap_or(false);
 
         if !is_time_valid {
-            return Ok(vec![]);
+            return Err(DbError::Generic(format!(
+                "The is not price entry with time lte {min_locf_sec}"
+            )));
         }
 
-        // Using raw query_as here because the WITH clause is complex for the query_as! macro
-        // and the query returns exactly the PriceHistoryEntryLOCF struct columns
         let entries_locf = sqlx::query_as!(
             PriceHistoryEntryLOCF,
             r#"
