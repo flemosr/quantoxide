@@ -32,7 +32,7 @@ impl From<TradeSide> for Close {
 
 struct SimulatedTradesState {
     time: DateTime<Utc>,
-    market_price: Price,
+    market_price: f64,
     balance: i64,
     running: Vec<SimulatedTradeRunning>,
     running_long_qtd: usize,
@@ -59,7 +59,7 @@ impl SimulatedTradesManager {
         max_running_qtd: usize,
         fee_perc: BoundedPercentage,
         start_time: DateTime<Utc>,
-        market_price: Price,
+        market_price: f64,
         start_balance: u64,
     ) -> Self {
         let initial_state = SimulatedTradesState {
@@ -89,7 +89,7 @@ impl SimulatedTradesManager {
 
     pub async fn tick_update(&self, new_entry: &PriceHistoryEntry) -> SimulationResult<()> {
         let new_time = new_entry.time;
-        let market_price = Price::try_from(new_entry.value)?;
+        let market_price = new_entry.value;
 
         let mut state_guard = self.state.lock().await;
 
@@ -134,9 +134,9 @@ impl SimulatedTradesManager {
                 TradeSide::Sell => (trade.takeprofit, trade.stoploss),
             };
 
-            if market_price <= min {
+            if market_price <= min.into_f64() {
                 close_trade(trade, min);
-            } else if market_price >= max {
+            } else if market_price >= max.into_f64() {
                 close_trade(trade, max);
             } else {
                 // Trade still running
@@ -151,7 +151,7 @@ impl SimulatedTradesManager {
                         new_running_short_margin += trade.margin.into_u64();
                     }
                 }
-                new_running_pl += trade.pl(market_price);
+                new_running_pl += trade.pl(Price::round(market_price)?);
                 new_running_fees_est += trade.opening_fee + trade.closing_fee_reserved;
                 remaining_running_trades.push(trade);
             }
@@ -191,7 +191,7 @@ impl SimulatedTradesManager {
         }
 
         let time = state_guard.time;
-        let market_price = state_guard.market_price;
+        let market_price = Price::round(state_guard.market_price)?;
 
         let mut new_balance = state_guard.balance as i64;
         let mut new_closed_pl = state_guard.closed_pl;
@@ -291,20 +291,20 @@ impl SimulatedTradesManager {
             });
         }
 
+        let market_price = Price::round(state_guard.market_price)?;
+
         let quantity = {
-            let balance_usd =
-                state_guard.balance as f64 * state_guard.market_price.into_f64() / SATS_PER_BTC;
+            let balance_usd = state_guard.balance as f64 * market_price.into_f64() / SATS_PER_BTC;
             let quantity = balance_usd * balance_perc.into_f64() / 100.;
             Quantity::try_from(quantity.floor())?
         };
 
-        let (side, stoploss, takeprofit) =
-            risk_params.into_trade_params(state_guard.market_price)?;
+        let (side, stoploss, takeprofit) = risk_params.into_trade_params(market_price)?;
 
         let trade = SimulatedTradeRunning::new(
             side,
             timestamp,
-            state_guard.market_price,
+            market_price,
             stoploss,
             takeprofit,
             quantity,
