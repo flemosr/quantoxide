@@ -71,6 +71,21 @@ pub trait PriceHistoryRepository: Send + Sync {
         max: f64,
     ) -> Result<Option<PriceHistoryEntry>>;
 
+    /// Retrieves price history entries within the specified time range (inclusive).
+    ///
+    /// Parameters:
+    ///   - `start`: The lower bound timestamp (inclusive)
+    ///   - `end`: The upper bound timestamp (inclusive)
+    ///
+    /// Returns:
+    ///   - `Ok(Vec<PriceHistoryEntry>)` containing entries ordered by time ascending
+    ///   - `Err` on database errors
+    async fn get_entries_between(
+        &self,
+        start: DateTime<Utc>,
+        end: DateTime<Utc>,
+    ) -> Result<Vec<PriceHistoryEntry>>;
+
     /// Retrieves gaps in price history data from the database.
     ///
     /// This method finds time periods where price history data is missing by:
