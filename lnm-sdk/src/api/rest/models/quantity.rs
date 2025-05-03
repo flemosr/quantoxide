@@ -21,7 +21,7 @@ impl Quantity {
         leverage: Leverage,
     ) -> Result<Self, QuantityValidationError> {
         let qtd = margin.into_u64() as f64 * leverage.into_f64() / 100_000_000. * price.into_f64();
-        Self::try_from(qtd)
+        Self::try_from(qtd.floor() as u64)
     }
 }
 
