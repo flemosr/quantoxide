@@ -175,5 +175,5 @@ pub trait TradesManager {
 
     async fn close_all(&self, timestamp: DateTime<Utc>) -> Result<()>;
 
-    async fn state(&self, timestamp: DateTime<Utc>) -> Result<TradesState>;
+    async fn state(&self) -> Result<TradesState>;
 }
