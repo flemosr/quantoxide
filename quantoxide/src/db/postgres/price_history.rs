@@ -120,6 +120,26 @@ impl PriceHistoryRepository for PgPriceHistoryRepo {
         .map_err(DbError::Query)
     }
 
+    async fn get_entries_between(
+        &self,
+        start: DateTime<Utc>,
+        end: DateTime<Utc>,
+    ) -> Result<Vec<PriceHistoryEntry>> {
+        let entries = sqlx::query_as!(
+            PriceHistoryEntry,
+            "SELECT * FROM price_history
+             WHERE time >= $1 AND time <= $2
+             ORDER BY time ASC",
+            start,
+            end,
+        )
+        .fetch_all(self.pool())
+        .await
+        .map_err(DbError::Query)?;
+
+        Ok(entries)
+    }
+
     async fn get_gaps(&self) -> Result<Vec<(DateTime<Utc>, DateTime<Utc>)>> {
         let entries = sqlx::query_as!(
             GapEntry,
