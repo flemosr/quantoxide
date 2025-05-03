@@ -25,8 +25,8 @@ impl Margin {
         leverage: Leverage,
     ) -> Result<Self, MarginValidationError> {
         let margin =
-            quantity.into_u64() as f64 * (100_000_000. / (price.into_f64() * leverage.into_f64()));
-        Self::try_from(margin.floor() as u64)
+            quantity.into_f64() * (100_000_000. / (price.into_f64() * leverage.into_f64()));
+        Self::try_from(margin.ceil() as u64)
     }
 }
 
@@ -136,18 +136,18 @@ mod tests {
         let leverage = Leverage::try_from(1.0).unwrap();
 
         let margin = Margin::try_calculate(quantity, price, leverage).unwrap();
-        assert_eq!(margin.into_u64(), 5263);
+        assert_eq!(margin.into_u64(), 5264);
 
         let leverage = Leverage::try_from(2.0).unwrap();
         let margin = Margin::try_calculate(quantity, price, leverage).unwrap();
-        assert_eq!(margin.into_u64(), 2631);
+        assert_eq!(margin.into_u64(), 2632);
 
         let leverage = Leverage::try_from(50.0).unwrap();
         let margin = Margin::try_calculate(quantity, price, leverage).unwrap();
-        assert_eq!(margin.into_u64(), 105);
+        assert_eq!(margin.into_u64(), 106);
 
         let leverage = Leverage::try_from(100.0).unwrap();
         let margin = Margin::try_calculate(quantity, price, leverage).unwrap();
-        assert_eq!(margin.into_u64(), 52);
+        assert_eq!(margin.into_u64(), 53);
     }
 }
