@@ -1,12 +1,11 @@
 use chrono::{DateTime, Utc};
 
 use lnm_sdk::api::rest::models::{
-    BoundedPercentage, Leverage, LowerBoundedPercentage, Margin, Price, Quantity, TradeSide,
+    BoundedPercentage, Leverage, LowerBoundedPercentage, Margin, Price, Quantity, SATS_PER_BTC,
+    TradeSide, estimate_liquidation_price,
 };
 
 use super::error::{Result, SimulationError};
-
-use super::SATS_PER_BTC;
 
 pub enum RiskParams {
     Long {
@@ -54,7 +53,7 @@ pub struct SimulatedTradeRunning {
     pub margin: Margin,
     pub quantity: Quantity,
     pub leverage: Leverage,
-    pub liquitation: Price,
+    pub liquidation: Price,
     pub opening_fee: u64,
     pub closing_fee_reserved: u64,
 }
@@ -70,18 +69,10 @@ impl SimulatedTradeRunning {
         leverage: Leverage,
         fee_perc: BoundedPercentage,
     ) -> Result<Self> {
-        let margin = Margin::try_calculate(quantity, entry_price, leverage)?;
+        let liquidation = estimate_liquidation_price(side, quantity, entry_price, leverage);
 
-        let margin_btc = margin.into_f64() / SATS_PER_BTC; // From sats to BTC
-
-        let liquitation = match side {
+        match side {
             TradeSide::Buy => {
-                let liquidation = {
-                    let value =
-                        1.0 / (1.0 / entry_price.into_f64() + margin_btc / quantity.into_f64());
-                    Price::round(value)?
-                };
-
                 if stoploss < liquidation {
                     return Err(SimulationError::StoplossBelowLiquidationLong {
                         stoploss,
@@ -100,16 +91,8 @@ impl SimulatedTradeRunning {
                         entry_price,
                     });
                 }
-
-                liquidation
             }
             TradeSide::Sell => {
-                let liquidation = {
-                    let value =
-                        1.0 / (1.0 / entry_price.into_f64() - margin_btc / quantity.into_f64());
-                    Price::round(value)?
-                };
-
                 if stoploss > liquidation {
                     return Err(SimulationError::StoplossAboveLiquidationShort {
                         stoploss,
@@ -128,15 +111,15 @@ impl SimulatedTradeRunning {
                         entry_price,
                     });
                 }
-
-                liquidation
             }
         };
+
+        let margin = Margin::try_calculate(quantity, entry_price, leverage)?;
 
         let fee_calc = SATS_PER_BTC * fee_perc.into_f64() / 100.;
         let opening_fee = (fee_calc * quantity.into_f64() / entry_price.into_f64()).floor() as u64;
         let closing_fee_reserved =
-            (fee_calc * quantity.into_f64() / liquitation.into_f64()).floor() as u64;
+            (fee_calc * quantity.into_f64() / liquidation.into_f64()).floor() as u64;
 
         Ok(Self {
             side,
@@ -147,7 +130,7 @@ impl SimulatedTradeRunning {
             margin,
             quantity,
             leverage,
-            liquitation,
+            liquidation,
             opening_fee,
             closing_fee_reserved,
         })
@@ -261,7 +244,7 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(trade.liquitation.into_f64(), 81_819.0);
+        assert_eq!(trade.liquidation.into_f64(), 81_819.0);
     }
 
     #[test]
@@ -283,8 +266,31 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(trade.liquitation.into_f64(), 99_999.0);
+        assert_eq!(trade.liquidation.into_f64(), 99_999.0);
     }
+
+    #[test]
+    fn test_short_liquidation_calculation_max_price() {
+        // Create a short trade with known parameters
+        let entry_price = Price::try_from(58_954.00).unwrap();
+        let quantity = Quantity::try_from(5).unwrap();
+        let leverage = Leverage::try_from(1).unwrap();
+
+        let trade = SimulatedTradeRunning::new(
+            TradeSide::Sell,
+            Utc::now(),
+            entry_price,
+            Price::try_from(60_000.0).unwrap(),
+            Price::try_from(58_000.0).unwrap(),
+            quantity,
+            leverage,
+            get_lnm_fee(),
+        )
+        .unwrap();
+
+        assert_eq!(trade.liquidation, Price::MAX);
+    }
+
     #[test]
     fn test_long_stoploss_validation() {
         let entry_price = Price::try_from(90_000.0).unwrap();
