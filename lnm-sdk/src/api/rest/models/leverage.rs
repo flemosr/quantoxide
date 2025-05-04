@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize, de};
 use std::{cmp::Ordering, convert::TryFrom, fmt};
 
-use super::{Margin, Price, Quantity, error::LeverageValidationError, utils};
+use super::{Margin, Price, Quantity, SATS_PER_BTC, error::LeverageValidationError, utils};
 
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 pub struct Leverage(f64);
@@ -16,7 +16,7 @@ impl Leverage {
         margin: Margin,
         price: Price,
     ) -> Result<Self, LeverageValidationError> {
-        let leverage_value = quantity.into_u64() as f64 * 100_000_000.
+        let leverage_value = quantity.into_u64() as f64 * SATS_PER_BTC
             / (margin.into_u64() as f64 * price.into_f64());
         Self::try_from(leverage_value)
     }

@@ -1,3 +1,5 @@
+pub const SATS_PER_BTC: f64 = 100_000_000.;
+
 pub mod error;
 mod leverage;
 mod margin;

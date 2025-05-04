@@ -6,7 +6,10 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 use uuid::Uuid;
 
-use super::{Leverage, Margin, Price, Quantity, error::FuturesTradeRequestValidationError, utils};
+use super::{
+    Leverage, Margin, Price, Quantity, SATS_PER_BTC, error::FuturesTradeRequestValidationError,
+    utils,
+};
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Copy)]
 pub enum TradeSide {
@@ -94,8 +97,8 @@ pub fn estimate_liquidation_price(
 
     let a = 1.0 / price;
 
-    let floored_margin = (quantity * 100_000_000. / price / leverage).floor();
-    let b = floored_margin / 100_000_000. / quantity;
+    let floored_margin = (quantity * SATS_PER_BTC / price / leverage).floor();
+    let b = floored_margin / SATS_PER_BTC / quantity;
 
     // May result in `f64::INFINITY`
     let liquidation_calc = match side {

@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize, de};
 use std::{convert::TryFrom, fmt, ops::Add};
 
-use super::{Leverage, Price, Quantity, error::MarginValidationError};
+use super::{Leverage, Price, Quantity, SATS_PER_BTC, error::MarginValidationError};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Margin(u64);
@@ -25,7 +25,7 @@ impl Margin {
         leverage: Leverage,
     ) -> Result<Self, MarginValidationError> {
         let margin =
-            quantity.into_f64() * (100_000_000. / (price.into_f64() * leverage.into_f64()));
+            quantity.into_f64() * (SATS_PER_BTC / (price.into_f64() * leverage.into_f64()));
         Self::try_from(margin.ceil() as u64)
     }
 }
