@@ -4,7 +4,8 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 
 use lnm_sdk::api::rest::models::{
-    BoundedPercentage, Leverage, LowerBoundedPercentage, Margin, Price, Quantity, TradeSide,
+    BoundedPercentage, Leverage, LowerBoundedPercentage, Margin, Price, Quantity, SATS_PER_BTC,
+    TradeSide,
 };
 
 use crate::db::models::PriceHistoryEntry;
@@ -16,8 +17,6 @@ mod models;
 
 use error::{Result as SimulationResult, SimulationError};
 use models::{RiskParams, SimulatedTradeClosed, SimulatedTradeRunning};
-
-const SATS_PER_BTC: f64 = 100_000_000.;
 
 enum Close {
     Side(TradeSide),
@@ -151,6 +150,7 @@ impl SimulatedTradesManager {
                         new_running_short_margin += trade.margin.into_u64();
                     }
                 }
+
                 new_running_pl += trade.pl(Price::round(market_price)?);
                 new_running_fees_est += trade.opening_fee + trade.closing_fee_reserved;
                 remaining_running_trades.push(trade);
@@ -183,7 +183,7 @@ impl SimulatedTradesManager {
     async fn close_running(&self, timestamp: DateTime<Utc>, close: Close) -> SimulationResult<()> {
         let mut state_guard = self.state.lock().await;
 
-        if timestamp <= state_guard.time {
+        if timestamp < state_guard.time {
             return Err(SimulationError::TimeSequenceViolation {
                 new_time: timestamp,
                 current_time: state_guard.time,
@@ -278,7 +278,7 @@ impl SimulatedTradesManager {
     ) -> SimulationResult<()> {
         let mut state_guard = self.state.lock().await;
 
-        if timestamp <= state_guard.time {
+        if timestamp < state_guard.time {
             return Err(SimulationError::TimeSequenceViolation {
                 new_time: timestamp,
                 current_time: state_guard.time,
@@ -295,8 +295,8 @@ impl SimulatedTradesManager {
 
         let quantity = {
             let balance_usd = state_guard.balance as f64 * market_price.into_f64() / SATS_PER_BTC;
-            let quantity = balance_usd * balance_perc.into_f64() / 100.;
-            Quantity::try_from(quantity.floor())?
+            let quantity_target = balance_usd * balance_perc.into_f64() / 100.;
+            Quantity::try_from(quantity_target.floor())?
         };
 
         let (side, stoploss, takeprofit) = risk_params.into_trade_params(market_price)?;
