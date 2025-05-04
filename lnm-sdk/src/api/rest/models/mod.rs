@@ -18,5 +18,6 @@ pub use ticker::Ticker;
 pub use trade::{
     FuturesTradeRequestBody, FuturesUpdateTradeRequestBody, NestedTradesResponse, Trade,
     TradeExecution, TradeExecutionType, TradeSide, TradeSize, TradeStatus, TradeUpdateType,
+    estimate_liquidation_price,
 };
 pub use user::{User, UserRole};

@@ -74,6 +74,38 @@ impl From<Price> for TradeExecution {
     }
 }
 
+pub fn estimate_liquidation_price(
+    side: TradeSide,
+    quantity: Quantity,
+    entry_price: Price,
+    leverage: Leverage,
+) -> Price {
+    // The `Margin::try_calculate` shouldn't be used here since 'ceil' is
+    // used there to achive a `Margin` that would result in the same `Quantity`
+    // input via `Quantity::try_calculate`. Said rounding would reduce the
+    // corresponding liquidation contraint
+    // Here, `floor` is used in order to *understate* the margin, resulting in
+    // a more conservative liquidation price. As of May 4 2025, this approach
+    // matches liquidation values obtained via the LNM platform.
+
+    let quantity = quantity.into_f64();
+    let price = entry_price.into_f64();
+    let leverage = leverage.into_f64();
+
+    let a = 1.0 / price;
+
+    let floored_margin = (quantity * 100_000_000. / price / leverage).floor();
+    let b = floored_margin / 100_000_000. / quantity;
+
+    // May result in `f64::INFINITY`
+    let liquidation_calc = match side {
+        TradeSide::Buy => 1.0 / (a + b),
+        TradeSide::Sell => 1.0 / (a - b),
+    };
+
+    Price::clamp_from(liquidation_calc)
+}
+
 #[derive(Serialize, Debug)]
 pub struct FuturesTradeRequestBody {
     leverage: Leverage,
