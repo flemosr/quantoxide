@@ -2,7 +2,10 @@ use serde::{Deserialize, Serialize, de};
 use std::{cmp::Ordering, convert::TryFrom, fmt};
 
 use super::{
-    error::{BoundedPercentageValidationError, PriceValidationError},
+    error::{
+        BoundedPercentageValidationError, LowerBoundedPercentageValidationError,
+        PriceValidationError,
+    },
     utils,
 };
 
@@ -18,6 +21,10 @@ use super::{
 pub struct BoundedPercentage(f64);
 
 impl BoundedPercentage {
+    pub const MIN: Self = Self(0.1);
+
+    pub const MAX: Self = Self(99.9);
+
     pub fn into_f64(self) -> f64 {
         f64::from(self)
     }
@@ -27,15 +34,13 @@ impl TryFrom<f64> for BoundedPercentage {
     type Error = BoundedPercentageValidationError;
 
     fn try_from(value: f64) -> Result<Self, Self::Error> {
-        if value < 0.1 {
-            return Err(BoundedPercentageValidationError::BelowMinimum);
+        if value < Self::MIN.0 {
+            return Err(BoundedPercentageValidationError::BelowMinimum { value });
         }
-        if value > 99.9 {
-            return Err(BoundedPercentageValidationError::AboveMaximum);
+        if value > Self::MAX.0 {
+            return Err(BoundedPercentageValidationError::AboveMaximum { value });
         }
-        if !value.is_finite() {
-            return Err(BoundedPercentageValidationError::NotFinite);
-        }
+
         Ok(Self(value))
     }
 }
@@ -49,8 +54,8 @@ impl TryFrom<i32> for BoundedPercentage {
 }
 
 impl From<BoundedPercentage> for f64 {
-    fn from(perc: BoundedPercentage) -> f64 {
-        perc.0
+    fn from(value: BoundedPercentage) -> f64 {
+        value.0
     }
 }
 
@@ -60,6 +65,12 @@ impl Ord for BoundedPercentage {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.partial_cmp(other)
             .expect("`BoundedPercentage` must be finite")
+    }
+}
+
+impl fmt::Display for BoundedPercentage {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:.4}", self.0)
     }
 }
 
@@ -76,27 +87,30 @@ impl Ord for BoundedPercentage {
 pub struct LowerBoundedPercentage(f64);
 
 impl LowerBoundedPercentage {
+    pub const MIN: Self = Self(0.1);
+
     pub fn into_f64(self) -> f64 {
         f64::from(self)
     }
 }
 
 impl TryFrom<f64> for LowerBoundedPercentage {
-    type Error = BoundedPercentageValidationError;
+    type Error = LowerBoundedPercentageValidationError;
 
     fn try_from(value: f64) -> Result<Self, Self::Error> {
-        if value < 0.1 {
-            return Err(BoundedPercentageValidationError::BelowMinimum);
+        if value < Self::MIN.0 {
+            return Err(LowerBoundedPercentageValidationError::BelowMinimum { value });
         }
         if !value.is_finite() {
-            return Err(BoundedPercentageValidationError::NotFinite);
+            return Err(LowerBoundedPercentageValidationError::NotFinite);
         }
+
         Ok(Self(value))
     }
 }
 
 impl TryFrom<i32> for LowerBoundedPercentage {
-    type Error = BoundedPercentageValidationError;
+    type Error = LowerBoundedPercentageValidationError;
 
     fn try_from(value: i32) -> Result<Self, Self::Error> {
         Self::try_from(value as f64)
@@ -104,8 +118,8 @@ impl TryFrom<i32> for LowerBoundedPercentage {
 }
 
 impl From<LowerBoundedPercentage> for f64 {
-    fn from(perc: LowerBoundedPercentage) -> f64 {
-        perc.0
+    fn from(value: LowerBoundedPercentage) -> f64 {
+        value.0
     }
 }
 
@@ -119,8 +133,14 @@ impl Ord for LowerBoundedPercentage {
 }
 
 impl From<BoundedPercentage> for LowerBoundedPercentage {
-    fn from(bounded: BoundedPercentage) -> Self {
-        LowerBoundedPercentage(bounded.0)
+    fn from(value: BoundedPercentage) -> Self {
+        Self(value.0)
+    }
+}
+
+impl fmt::Display for LowerBoundedPercentage {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:.4}", self.0)
     }
 }
 
@@ -128,23 +148,38 @@ impl From<BoundedPercentage> for LowerBoundedPercentage {
 pub struct Price(f64);
 
 impl Price {
+    pub const MIN: Self = Self(1.);
+
+    pub const MAX: Self = Self(100_000_000.);
+
+    pub const TICK: f64 = 0.5;
+
     pub fn into_f64(self) -> f64 {
         f64::from(self)
     }
 
     pub fn round_down(value: f64) -> Result<Self, PriceValidationError> {
-        let round_down = (value * 2.0).floor() / 2.0;
-        Price::try_from(round_down)
+        let round_down = (value / Self::TICK).floor() * Self::TICK;
+
+        Self::try_from(round_down)
     }
 
     pub fn round_up(value: f64) -> Result<Self, PriceValidationError> {
-        let round_up = (value * 2.0).ceil() / 2.0;
-        Price::try_from(round_up)
+        let round_up = (value / Self::TICK).ceil() * Self::TICK;
+
+        Self::try_from(round_up)
     }
 
     pub fn round(value: f64) -> Result<Self, PriceValidationError> {
-        let round = (value * 2.0).round() / 2.0;
-        Price::try_from(round)
+        let round = (value / Self::TICK).round() * Self::TICK;
+
+        Self::try_from(round)
+    }
+
+    pub fn clamp_from(value: f64) -> Self {
+        let value = value.clamp(Self::MIN.0, Self::MAX.0);
+
+        Self::round(value).expect("value must be within valid range")
     }
 
     /// Applies a discount percentage to the current price.
@@ -158,12 +193,9 @@ impl Price {
         &self,
         percentage: BoundedPercentage,
     ) -> Result<Self, PriceValidationError> {
-        let discount_factor = 1.0 - (f64::from(percentage) / 100.0);
-        let target_price = self.0 * discount_factor;
+        let target_price = self.0 - self.0 * percentage.into_f64() / 100.0;
 
-        let nearest_rounded_price = (target_price * 2.0).round() / 2.0;
-
-        Price::try_from(nearest_rounded_price)
+        Self::round(target_price)
     }
 
     /// Applies a gain percentage to the current price.
@@ -177,12 +209,9 @@ impl Price {
         &self,
         percentage: LowerBoundedPercentage,
     ) -> Result<Self, PriceValidationError> {
-        let gain_factor = 1.0 + (f64::from(percentage) / 100.0);
-        let target_price = self.0 * gain_factor;
+        let target_price = self.0 + self.0 * percentage.into_f64() / 100.0;
 
-        let nearest_rounded_price = (target_price * 2.0).round() / 2.0;
-
-        Price::try_from(nearest_rounded_price)
+        Self::round(target_price)
     }
 }
 
@@ -195,20 +224,21 @@ impl From<Price> for f64 {
 impl TryFrom<f64> for Price {
     type Error = PriceValidationError;
 
-    fn try_from(price: f64) -> Result<Self, Self::Error> {
-        if !price.is_finite() {
-            return Err(PriceValidationError::NotFinite);
+    fn try_from(value: f64) -> Result<Self, Self::Error> {
+        if value < Self::MIN.0 {
+            return Err(PriceValidationError::AtLeastOne { value });
         }
 
-        if price < 1.0 {
-            return Err(PriceValidationError::AtLeastOne);
+        if value > Self::MAX.0 {
+            return Err(PriceValidationError::AboveMaximum { value });
         }
 
-        if ((price * 2.0).round() - (price * 2.0)).abs() > 1e-10 {
-            return Err(PriceValidationError::NotMultipleOfTick);
+        let calc = value / Self::TICK;
+        if (calc.round() - calc).abs() > 1e-10 {
+            return Err(PriceValidationError::NotMultipleOfTick { value });
         }
 
-        Ok(Price(price))
+        Ok(Price(value))
     }
 }
 
@@ -230,7 +260,7 @@ impl Ord for Price {
 
 impl fmt::Display for Price {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:.2}", self.0)
+        write!(f, "{:.1}", self.0)
     }
 }
 

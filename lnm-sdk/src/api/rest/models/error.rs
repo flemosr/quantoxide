@@ -1,27 +1,44 @@
 use thiserror::Error;
 
+use super::{BoundedPercentage, LowerBoundedPercentage, Price};
+
 #[derive(Debug, Error)]
 pub enum BoundedPercentageValidationError {
-    #[error("Percentage must be at least 0.1%")]
-    BelowMinimum,
+    #[error(
+        "BoundedPercentage must be at least {}. Value: {value}",
+        BoundedPercentage::MIN
+    )]
+    BelowMinimum { value: f64 },
 
-    #[error("Percentage must be at most 99.9%")]
-    AboveMaximum,
+    #[error(
+        "BoundedPercentage must be at most {}. Value: {value}",
+        BoundedPercentage::MAX
+    )]
+    AboveMaximum { value: f64 },
+}
 
-    #[error("Percentage must be a finite number")]
+#[derive(Debug, Error)]
+pub enum LowerBoundedPercentageValidationError {
+    #[error(
+        "LowerBoundedPercentage must be at least {}. Value: {value}",
+        LowerBoundedPercentage::MIN
+    )]
+    BelowMinimum { value: f64 },
+
+    #[error("LowerBoundedPercentage must be a finite number")]
     NotFinite,
 }
 
 #[derive(Debug, Error)]
 pub enum PriceValidationError {
-    #[error("Price must be at least 1")]
-    AtLeastOne,
+    #[error("Price must be at least {}. Value: {value}", Price::MIN)]
+    AtLeastOne { value: f64 },
 
-    #[error("Price must be a multiple of 0.5")]
-    NotMultipleOfTick,
+    #[error("Price must be a multiple of 0.5. Value: {value}")]
+    NotMultipleOfTick { value: f64 },
 
-    #[error("Price must be a finite number")]
-    NotFinite,
+    #[error("Price must be at most {}. Value: {value}", Price::MAX)]
+    AboveMaximum { value: f64 },
 
     #[error("Invalid percentage change")]
     InvalidPercentage,
