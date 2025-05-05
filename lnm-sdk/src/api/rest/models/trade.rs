@@ -109,6 +109,23 @@ pub fn estimate_liquidation_price(
     Price::clamp_from(liquidation_calc)
 }
 
+pub fn estimate_pl(
+    side: TradeSide,
+    quantity: Quantity,
+    start_price: Price,
+    end_price: Price,
+) -> i64 {
+    let start_price = start_price.into_f64();
+    let end_price = end_price.into_f64();
+
+    let inverse_price_delta = match side {
+        TradeSide::Buy => SATS_PER_BTC / start_price - SATS_PER_BTC / end_price,
+        TradeSide::Sell => SATS_PER_BTC / end_price - SATS_PER_BTC / start_price,
+    };
+
+    (quantity.into_f64() * inverse_price_delta).floor() as i64
+}
+
 #[derive(Serialize, Debug)]
 pub struct FuturesTradeRequestBody {
     leverage: Leverage,
