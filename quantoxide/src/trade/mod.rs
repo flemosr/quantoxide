@@ -10,15 +10,17 @@ use error::Result;
 
 pub use simulation::SimulatedTradesManager;
 
+#[derive(Debug, Clone)]
 pub struct TradesState {
     start_time: DateTime<Utc>,
     start_balance: u64,
     current_time: DateTime<Utc>,
     current_balance: u64,
+    market_price: f64,
     running_long_qtd: usize,
-    running_long_margin: Option<Margin>,
+    running_long_margin: u64,
     running_short_qtd: usize,
-    running_short_margin: Option<Margin>,
+    running_short_margin: u64,
     running_pl: i64,
     running_fees_est: u64,
     closed_qtd: usize,
@@ -32,10 +34,11 @@ impl TradesState {
         start_balance: u64,
         current_time: DateTime<Utc>,
         current_balance: u64,
+        market_price: f64,
         running_long_qtd: usize,
-        running_long_margin: Option<Margin>,
+        running_long_margin: u64,
         running_short_qtd: usize,
-        running_short_margin: Option<Margin>,
+        running_short_margin: u64,
         running_pl: i64,
         running_fees_est: u64,
         closed_qtd: usize,
@@ -47,6 +50,7 @@ impl TradesState {
             start_balance,
             current_time,
             current_balance,
+            market_price,
             running_long_qtd,
             running_long_margin,
             running_short_qtd,
@@ -75,13 +79,17 @@ impl TradesState {
         self.current_balance
     }
 
+    pub fn market_price(&self) -> f64 {
+        self.market_price
+    }
+
     /// Returns the quantity of running long trades
     pub fn running_long_qtd(&self) -> usize {
         self.running_long_qtd
     }
 
     /// Returns the locked margin for long positions, if available
-    pub fn running_long_margin(&self) -> Option<Margin> {
+    pub fn running_long_margin(&self) -> u64 {
         self.running_long_margin
     }
 
@@ -91,7 +99,7 @@ impl TradesState {
     }
 
     /// Returns the locked margin for short positions, if available
-    pub fn running_short_margin(&self) -> Option<Margin> {
+    pub fn running_short_margin(&self) -> u64 {
         self.running_short_margin
     }
 
@@ -100,11 +108,8 @@ impl TradesState {
         self.running_long_qtd + self.running_short_qtd
     }
 
-    pub fn running_margin(&self) -> Option<Margin> {
-        match (self.running_long_margin, self.running_short_margin) {
-            (Some(long_margin), Some(short_margin)) => Some(long_margin + short_margin),
-            _ => self.running_long_margin.or(self.running_short_margin),
-        }
+    pub fn running_margin(&self) -> u64 {
+        self.running_long_margin + self.running_short_margin
     }
 
     /// Returns the quantity of closed trades
