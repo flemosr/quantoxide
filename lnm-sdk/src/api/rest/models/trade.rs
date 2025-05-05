@@ -103,7 +103,7 @@ pub fn estimate_liquidation_price(
     // May result in `f64::INFINITY`
     let liquidation_calc = match side {
         TradeSide::Buy => 1.0 / (a + b),
-        TradeSide::Sell => 1.0 / (a - b),
+        TradeSide::Sell => 1.0 / (a - b).max(0.),
     };
 
     Price::clamp_from(liquidation_calc)
