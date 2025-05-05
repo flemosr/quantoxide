@@ -2,7 +2,7 @@ use chrono::{DateTime, Utc};
 
 use lnm_sdk::api::rest::models::{
     BoundedPercentage, Leverage, LowerBoundedPercentage, Margin, Price, Quantity, SATS_PER_BTC,
-    TradeSide, estimate_liquidation_price,
+    TradeSide, estimate_liquidation_price, estimate_pl,
 };
 
 use super::error::{Result, SimulationError};
@@ -137,15 +137,7 @@ impl SimulatedTradeRunning {
     }
 
     pub fn pl(&self, current_price: Price) -> i64 {
-        let entry_price = self.entry_price.into_f64();
-        let current_price = current_price.into_f64();
-
-        let inverse_price_delta = match self.side {
-            TradeSide::Buy => SATS_PER_BTC / entry_price - SATS_PER_BTC / current_price,
-            TradeSide::Sell => SATS_PER_BTC / current_price - SATS_PER_BTC / entry_price,
-        };
-
-        (self.quantity.into_f64() * inverse_price_delta).floor() as i64
+        estimate_pl(self.side, self.quantity, self.entry_price, current_price)
     }
 
     pub fn net_pl(&self, current_price: Price) -> i64 {
@@ -198,15 +190,7 @@ impl SimulatedTradeClosed {
     }
 
     pub fn pl(&self) -> i64 {
-        let entry_price = self.entry_price.into_f64();
-        let close_price = self.close_price.into_f64();
-
-        let inverse_price_delta = match self.side {
-            TradeSide::Buy => SATS_PER_BTC / entry_price - SATS_PER_BTC / close_price,
-            TradeSide::Sell => SATS_PER_BTC / close_price - SATS_PER_BTC / entry_price,
-        };
-
-        (self.quantity.into_f64() * inverse_price_delta).floor() as i64
+        estimate_pl(self.side, self.quantity, self.entry_price, self.close_price)
     }
 
     pub fn net_pl(&self) -> i64 {
