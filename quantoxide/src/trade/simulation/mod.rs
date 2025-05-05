@@ -8,8 +8,6 @@ use lnm_sdk::api::rest::models::{
     TradeSide,
 };
 
-use crate::db::models::PriceHistoryEntry;
-
 use super::{TradesManager, TradesState, error::Result};
 
 pub mod error;
@@ -35,9 +33,9 @@ struct SimulatedTradesState {
     balance: i64,
     running: Vec<SimulatedTradeRunning>,
     running_long_qtd: usize,
-    running_long_margin: Option<Margin>,
+    running_long_margin: u64,
     running_short_qtd: usize,
-    running_short_margin: Option<Margin>,
+    running_short_margin: u64,
     running_pl: i64,
     running_fees_est: u64,
     closed: Vec<SimulatedTradeClosed>,
@@ -67,9 +65,9 @@ impl SimulatedTradesManager {
             balance: start_balance as i64,
             running: Vec::new(),
             running_long_qtd: 0,
-            running_long_margin: None,
+            running_long_margin: 0,
             running_short_qtd: 0,
-            running_short_margin: None,
+            running_short_margin: 0,
             running_pl: 0,
             running_fees_est: 0,
             closed: Vec::new(),
@@ -86,15 +84,16 @@ impl SimulatedTradesManager {
         }
     }
 
-    pub async fn tick_update(&self, new_entry: &PriceHistoryEntry) -> SimulationResult<()> {
-        let new_time = new_entry.time;
-        let market_price = new_entry.value;
-
+    pub async fn tick_update(
+        &self,
+        time: DateTime<Utc>,
+        market_price: f64,
+    ) -> SimulationResult<()> {
         let mut state_guard = self.state.lock().await;
 
-        if new_time <= state_guard.time {
+        if time <= state_guard.time {
             return Err(SimulationError::TimeSequenceViolation {
-                new_time,
+                new_time: time,
                 current_time: state_guard.time,
             });
         }
@@ -106,8 +105,7 @@ impl SimulatedTradesManager {
 
         let mut close_trade = |trade: SimulatedTradeRunning, close_price: Price| {
             let closing_fee_reserved = trade.closing_fee_reserved as i64;
-            let trade =
-                SimulatedTradeClosed::from_running(trade, new_time, close_price, self.fee_perc);
+            let trade = SimulatedTradeClosed::from_running(trade, time, close_price, self.fee_perc);
             let trade_pl = trade.pl();
             let closing_fee_diff = closing_fee_reserved - trade.closing_fee as i64;
 
@@ -157,19 +155,15 @@ impl SimulatedTradesManager {
             }
         }
 
-        state_guard.time = new_time;
+        state_guard.time = time;
         state_guard.market_price = market_price;
         state_guard.balance = new_balance;
 
         state_guard.running = remaining_running_trades;
         state_guard.running_long_qtd = new_running_long_qtd;
-        state_guard.running_long_margin = (new_running_long_margin > 0)
-            .then(|| Margin::try_from(new_running_long_margin))
-            .transpose()?;
+        state_guard.running_long_margin = new_running_long_margin;
         state_guard.running_short_qtd = new_running_short_qtd;
-        state_guard.running_short_margin = (new_running_short_margin > 0)
-            .then(|| Margin::try_from(new_running_short_margin))
-            .transpose()?;
+        state_guard.running_short_margin = new_running_short_margin;
         state_guard.running_pl = new_running_pl;
         state_guard.running_fees_est = new_running_fees_est;
 
@@ -252,13 +246,9 @@ impl SimulatedTradesManager {
 
         state_guard.running = remaining_running_trades;
         state_guard.running_long_qtd = new_running_long_qtd;
-        state_guard.running_long_margin = (new_running_long_margin > 0)
-            .then(|| Margin::try_from(new_running_long_margin))
-            .transpose()?;
+        state_guard.running_long_margin = new_running_long_margin;
         state_guard.running_short_qtd = new_running_short_qtd;
-        state_guard.running_short_margin = (new_running_short_margin > 0)
-            .then(|| Margin::try_from(new_running_short_margin))
-            .transpose()?;
+        state_guard.running_short_margin = new_running_short_margin;
         state_guard.running_pl = new_running_pl;
         state_guard.running_fees_est = new_running_fees_est;
 
@@ -314,7 +304,21 @@ impl SimulatedTradesManager {
 
         state_guard.time = timestamp;
         state_guard.balance -=
-            trade.margin.into_i64() - trade.opening_fee as i64 - trade.closing_fee_reserved as i64;
+            trade.margin.into_i64() + trade.opening_fee as i64 + trade.closing_fee_reserved as i64;
+
+        match side {
+            TradeSide::Buy => {
+                state_guard.running_long_qtd += 1;
+                state_guard.running_long_margin += trade.margin.into_u64();
+                state_guard.running_fees_est += trade.opening_fee + trade.closing_fee_reserved;
+            }
+            TradeSide::Sell => {
+                state_guard.running_short_qtd += 1;
+                state_guard.running_short_margin += trade.margin.into_u64();
+                state_guard.running_fees_est += trade.opening_fee + trade.closing_fee_reserved;
+            }
+        }
+
         state_guard.running.push(trade);
 
         Ok(())
@@ -389,6 +393,7 @@ impl TradesManager for SimulatedTradesManager {
             start_balance: self.start_balance,
             current_time: state_guard.time,
             current_balance: state_guard.balance.max(0) as u64,
+            market_price: state_guard.market_price,
             running_long_qtd: state_guard.running_long_qtd,
             running_long_margin: state_guard.running_long_margin,
             running_short_qtd: state_guard.running_short_qtd,
