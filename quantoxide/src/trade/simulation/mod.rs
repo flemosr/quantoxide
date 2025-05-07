@@ -26,10 +26,46 @@ impl From<TradeSide> for Close {
     }
 }
 
+enum Trigger {
+    NotSet,
+    Set { min: Price, max: Price },
+}
+
+impl Trigger {
+    fn new() -> Self {
+        Self::NotSet
+    }
+
+    fn update(&mut self, trade: &SimulatedTradeRunning) {
+        let mut new_min = trade.stoploss.min(trade.takeprofit);
+        let mut new_max = trade.stoploss.max(trade.takeprofit);
+
+        if let Trigger::Set { min, max } = *self {
+            new_min = new_min.max(min);
+            new_max = new_max.min(max);
+        }
+
+        *self = Trigger::Set {
+            min: new_min,
+            max: new_max,
+        };
+    }
+
+    fn was_reached(&self, market_price: f64) -> bool {
+        match self {
+            Trigger::NotSet => false,
+            Trigger::Set { min, max } => {
+                market_price <= min.into_f64() || market_price >= max.into_f64()
+            }
+        }
+    }
+}
+
 struct SimulatedTradesState {
     time: DateTime<Utc>,
     market_price: f64,
     balance: i64,
+    trigger: Trigger,
     running: Vec<SimulatedTradeRunning>,
     closed: Vec<SimulatedTradeClosed>,
     closed_pl: i64,
@@ -56,6 +92,7 @@ impl SimulatedTradesManager {
             time: start_time,
             market_price,
             balance: start_balance as i64,
+            trigger: Trigger::new(),
             running: Vec::new(),
             closed: Vec::new(),
             closed_pl: 0,
@@ -85,9 +122,15 @@ impl SimulatedTradesManager {
             });
         }
 
-        // We can expect that, most of the time, tick updates won't result in
-        // changes in our running trades. They will consist basically of a
-        // market price update.
+        state_guard.time = time;
+        state_guard.market_price = market_price;
+
+        if !state_guard.trigger.was_reached(market_price) {
+            return Ok(());
+        }
+
+        // The market price reached some `stoploss` and/or `takeprofit`. Running
+        // trades must be re-evaluated.
 
         let mut new_balance = state_guard.balance as i64;
         let mut new_closed_pl = state_guard.closed_pl;
@@ -106,6 +149,7 @@ impl SimulatedTradesManager {
             new_closed_trades.push(trade);
         };
 
+        let mut new_trigger = Trigger::new();
         let mut remaining_running_trades = Vec::new();
 
         for trade in state_guard.running.drain(..) {
@@ -121,14 +165,14 @@ impl SimulatedTradesManager {
             } else if market_price >= max.into_f64() {
                 close_trade(trade, max);
             } else {
+                new_trigger.update(&trade);
                 remaining_running_trades.push(trade);
             }
         }
 
-        state_guard.time = time;
-        state_guard.market_price = market_price;
         state_guard.balance = new_balance;
 
+        state_guard.trigger = new_trigger;
         state_guard.running = remaining_running_trades;
 
         state_guard.closed.append(&mut new_closed_trades);
@@ -169,11 +213,10 @@ impl SimulatedTradesManager {
             new_closed_trades.push(trade);
         };
 
+        let mut new_trigger = Trigger::new();
         let mut remaining_running_trades = Vec::new();
 
         for trade in state_guard.running.drain(..) {
-            // Check if price reached stoploss or takeprofit
-
             let should_be_closed = match &close {
                 Close::Side(side) if *side == trade.side => true,
                 Close::All => true,
@@ -183,6 +226,7 @@ impl SimulatedTradesManager {
             if should_be_closed {
                 close_trade(trade);
             } else {
+                new_trigger.update(&trade);
                 remaining_running_trades.push(trade);
             }
         }
@@ -190,6 +234,7 @@ impl SimulatedTradesManager {
         state_guard.time = timestamp;
         state_guard.balance = new_balance;
 
+        state_guard.trigger = new_trigger;
         state_guard.running = remaining_running_trades;
 
         state_guard.closed.append(&mut new_closed_trades);
@@ -246,6 +291,7 @@ impl SimulatedTradesManager {
         state_guard.balance -=
             trade.margin.into_i64() + trade.opening_fee as i64 + trade.closing_fee_reserved as i64;
 
+        state_guard.trigger.update(&trade);
         state_guard.running.push(trade);
 
         Ok(())
@@ -341,6 +387,7 @@ impl TradesManager for SimulatedTradesManager {
                     Price::round_up(state_guard.market_price).map_err(SimulationError::from)?
                 }
             };
+
             running_pl += trade.pl(market_price);
             running_fees_est += trade.opening_fee + trade.closing_fee_reserved;
         }
