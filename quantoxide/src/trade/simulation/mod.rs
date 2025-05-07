@@ -392,22 +392,22 @@ impl TradesManager for SimulatedTradesManager {
             running_fees_est += trade.opening_fee + trade.closing_fee_reserved;
         }
 
-        let trades_state = TradesState {
-            start_time: self.start_time,
-            start_balance: self.start_balance,
-            current_time: state_guard.time,
-            current_balance: state_guard.balance.max(0) as u64,
-            market_price: state_guard.market_price,
+        let trades_state = TradesState::new(
+            self.start_time,
+            self.start_balance,
+            state_guard.time,
+            state_guard.balance.max(0) as u64,
+            state_guard.market_price,
             running_long_qtd,
             running_long_margin,
             running_short_qtd,
             running_short_margin,
             running_pl,
             running_fees_est,
-            closed_qtd: state_guard.closed.len(),
-            closed_pl: state_guard.closed_pl,
-            closed_fees: state_guard.closed_fees,
-        };
+            state_guard.closed.len(),
+            state_guard.closed_pl,
+            state_guard.closed_fees,
+        );
 
         Ok(trades_state)
     }
