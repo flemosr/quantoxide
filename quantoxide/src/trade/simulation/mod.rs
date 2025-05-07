@@ -4,8 +4,7 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 
 use lnm_sdk::api::rest::models::{
-    BoundedPercentage, Leverage, LowerBoundedPercentage, Margin, Price, Quantity, SATS_PER_BTC,
-    TradeSide,
+    BoundedPercentage, Leverage, LowerBoundedPercentage, Price, Quantity, SATS_PER_BTC, TradeSide,
 };
 
 use super::{TradesManager, TradesState, error::Result};
@@ -32,12 +31,6 @@ struct SimulatedTradesState {
     market_price: f64,
     balance: i64,
     running: Vec<SimulatedTradeRunning>,
-    running_long_qtd: usize,
-    running_long_margin: u64,
-    running_short_qtd: usize,
-    running_short_margin: u64,
-    running_pl: i64,
-    running_fees_est: u64,
     closed: Vec<SimulatedTradeClosed>,
     closed_pl: i64,
     closed_fees: u64,
@@ -64,12 +57,6 @@ impl SimulatedTradesManager {
             market_price,
             balance: start_balance as i64,
             running: Vec::new(),
-            running_long_qtd: 0,
-            running_long_margin: 0,
-            running_short_qtd: 0,
-            running_short_margin: 0,
-            running_pl: 0,
-            running_fees_est: 0,
             closed: Vec::new(),
             closed_pl: 0,
             closed_fees: 0,
@@ -98,6 +85,10 @@ impl SimulatedTradesManager {
             });
         }
 
+        // We can expect that, most of the time, tick updates won't result in
+        // changes in our running trades. They will consist basically of a
+        // market price update.
+
         let mut new_balance = state_guard.balance as i64;
         let mut new_closed_pl = state_guard.closed_pl;
         let mut new_closed_fees = state_guard.closed_fees;
@@ -115,12 +106,6 @@ impl SimulatedTradesManager {
             new_closed_trades.push(trade);
         };
 
-        let mut new_running_long_qtd: usize = 0;
-        let mut new_running_long_margin: u64 = 0;
-        let mut new_running_short_qtd: usize = 0;
-        let mut new_running_short_margin: u64 = 0;
-        let mut new_running_pl: i64 = 0;
-        let mut new_running_fees_est: u64 = 0;
         let mut remaining_running_trades = Vec::new();
 
         for trade in state_guard.running.drain(..) {
@@ -136,21 +121,6 @@ impl SimulatedTradesManager {
             } else if market_price >= max.into_f64() {
                 close_trade(trade, max);
             } else {
-                // Trade still running
-
-                match trade.side {
-                    TradeSide::Buy => {
-                        new_running_long_qtd += 1;
-                        new_running_long_margin += trade.margin.into_u64();
-                    }
-                    TradeSide::Sell => {
-                        new_running_short_qtd += 1;
-                        new_running_short_margin += trade.margin.into_u64();
-                    }
-                }
-
-                new_running_pl += trade.pl(Price::round(market_price)?);
-                new_running_fees_est += trade.opening_fee + trade.closing_fee_reserved;
                 remaining_running_trades.push(trade);
             }
         }
@@ -160,12 +130,6 @@ impl SimulatedTradesManager {
         state_guard.balance = new_balance;
 
         state_guard.running = remaining_running_trades;
-        state_guard.running_long_qtd = new_running_long_qtd;
-        state_guard.running_long_margin = new_running_long_margin;
-        state_guard.running_short_qtd = new_running_short_qtd;
-        state_guard.running_short_margin = new_running_short_margin;
-        state_guard.running_pl = new_running_pl;
-        state_guard.running_fees_est = new_running_fees_est;
 
         state_guard.closed.append(&mut new_closed_trades);
         state_guard.closed_pl = new_closed_pl;
@@ -205,12 +169,6 @@ impl SimulatedTradesManager {
             new_closed_trades.push(trade);
         };
 
-        let mut new_running_long_qtd: usize = 0;
-        let mut new_running_long_margin: u64 = 0;
-        let mut new_running_short_qtd: usize = 0;
-        let mut new_running_short_margin: u64 = 0;
-        let mut new_running_pl: i64 = 0;
-        let mut new_running_fees_est: u64 = 0;
         let mut remaining_running_trades = Vec::new();
 
         for trade in state_guard.running.drain(..) {
@@ -225,18 +183,6 @@ impl SimulatedTradesManager {
             if should_be_closed {
                 close_trade(trade);
             } else {
-                match trade.side {
-                    TradeSide::Buy => {
-                        new_running_long_qtd += 1;
-                        new_running_long_margin += trade.margin.into_u64();
-                    }
-                    TradeSide::Sell => {
-                        new_running_short_qtd += 1;
-                        new_running_short_margin += trade.margin.into_u64();
-                    }
-                }
-                new_running_pl += trade.pl(market_price);
-                new_running_fees_est += trade.opening_fee + trade.closing_fee_reserved;
                 remaining_running_trades.push(trade);
             }
         }
@@ -245,12 +191,6 @@ impl SimulatedTradesManager {
         state_guard.balance = new_balance;
 
         state_guard.running = remaining_running_trades;
-        state_guard.running_long_qtd = new_running_long_qtd;
-        state_guard.running_long_margin = new_running_long_margin;
-        state_guard.running_short_qtd = new_running_short_qtd;
-        state_guard.running_short_margin = new_running_short_margin;
-        state_guard.running_pl = new_running_pl;
-        state_guard.running_fees_est = new_running_fees_est;
 
         state_guard.closed.append(&mut new_closed_trades);
         state_guard.closed_pl = new_closed_pl;
@@ -305,19 +245,6 @@ impl SimulatedTradesManager {
         state_guard.time = timestamp;
         state_guard.balance -=
             trade.margin.into_i64() + trade.opening_fee as i64 + trade.closing_fee_reserved as i64;
-
-        match side {
-            TradeSide::Buy => {
-                state_guard.running_long_qtd += 1;
-                state_guard.running_long_margin += trade.margin.into_u64();
-                state_guard.running_fees_est += trade.opening_fee + trade.closing_fee_reserved;
-            }
-            TradeSide::Sell => {
-                state_guard.running_short_qtd += 1;
-                state_guard.running_short_margin += trade.margin.into_u64();
-                state_guard.running_fees_est += trade.opening_fee + trade.closing_fee_reserved;
-            }
-        }
 
         state_guard.running.push(trade);
 
@@ -388,18 +315,48 @@ impl TradesManager for SimulatedTradesManager {
     async fn state(&self) -> Result<TradesState> {
         let state_guard = self.state.lock().await;
 
+        let mut running_long_qtd: usize = 0;
+        let mut running_long_margin: u64 = 0;
+        let mut running_short_qtd: usize = 0;
+        let mut running_short_margin: u64 = 0;
+        let mut running_pl: i64 = 0;
+        let mut running_fees_est: u64 = 0;
+
+        // Use `Price::round_down` for long trades and `Price::round_up` for
+        // short trades, in order to obtain more conservative prices. It is
+        // expected that prices won't need to be rounded most of the time.
+
+        for trade in state_guard.running.iter() {
+            let market_price = match trade.side {
+                TradeSide::Buy => {
+                    running_long_qtd += 1;
+                    running_long_margin += trade.margin.into_u64();
+
+                    Price::round_down(state_guard.market_price).map_err(SimulationError::from)?
+                }
+                TradeSide::Sell => {
+                    running_short_qtd += 1;
+                    running_short_margin += trade.margin.into_u64();
+
+                    Price::round_up(state_guard.market_price).map_err(SimulationError::from)?
+                }
+            };
+            running_pl += trade.pl(market_price);
+            running_fees_est += trade.opening_fee + trade.closing_fee_reserved;
+        }
+
         let trades_state = TradesState {
             start_time: self.start_time,
             start_balance: self.start_balance,
             current_time: state_guard.time,
             current_balance: state_guard.balance.max(0) as u64,
             market_price: state_guard.market_price,
-            running_long_qtd: state_guard.running_long_qtd,
-            running_long_margin: state_guard.running_long_margin,
-            running_short_qtd: state_guard.running_short_qtd,
-            running_short_margin: state_guard.running_short_margin,
-            running_pl: state_guard.running_pl,
-            running_fees_est: state_guard.running_fees_est,
+            running_long_qtd,
+            running_long_margin,
+            running_short_qtd,
+            running_short_margin,
+            running_pl,
+            running_fees_est,
             closed_qtd: state_guard.closed.len(),
             closed_pl: state_guard.closed_pl,
             closed_fees: state_guard.closed_fees,
