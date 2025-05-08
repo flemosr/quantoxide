@@ -52,7 +52,7 @@ impl SignalJobStateManager {
         Self { state, state_tx }
     }
 
-    pub async fn state_snapshopt(&self) -> Arc<SignalJobState> {
+    pub async fn state_snapshot(&self) -> Arc<SignalJobState> {
         self.state.lock().await.clone()
     }
 
@@ -210,12 +210,32 @@ impl SignalJobController {
         self.state_manager.receiver()
     }
 
+    /// Provides the current state without consuming the controller.
+    ///
+    /// If  a failure is detected through this method and detailed error
+    /// information is needed, `SignalJobController::into_final_result()` can be
+    /// called to obtain the underlying error.
     pub async fn state_snapshot(&self) -> Arc<SignalJobState> {
-        self.state_manager.state_snapshopt().await
+        if self.handle.is_finished() {
+            // Not possible to get the process error without consuming self
+            return Arc::new(SignalJobState::Failed(SignalError::Generic(
+                "Signal job process terminated unexpectedly".to_string(),
+            )));
+        }
+
+        self.state_manager.state_snapshot().await
     }
 
-    pub fn abort(&self) {
-        self.handle.abort();
+    /// Consumes this controller, aborts the underlying task if still running,
+    /// and returns the final result with detailed error information.
+    ///
+    /// This is a terminal operation intended for cleanup and error diagnosis.
+    pub async fn into_final_result(self) -> Result<()> {
+        if !self.handle.is_finished() {
+            self.handle.abort();
+        }
+
+        self.handle.await.map_err(SignalError::TaskJoin)?
     }
 }
 
