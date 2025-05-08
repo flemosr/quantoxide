@@ -10,7 +10,7 @@ use error::Result;
 
 pub use simulation::SimulatedTradesManager;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct TradesState {
     start_time: DateTime<Utc>,
     start_balance: u64,
