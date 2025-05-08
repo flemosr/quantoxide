@@ -19,6 +19,8 @@ pub enum SyncError {
     TaskJoin(JoinError),
     #[error("UnexpectedRealTimeCollectionShutdown error")]
     UnexpectedRealTimeCollectionShutdown,
+    #[error("Generic error, {0}")]
+    Generic(String),
 }
 
 impl PartialEq for SyncError {
