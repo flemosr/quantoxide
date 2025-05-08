@@ -1,3 +1,4 @@
+pub mod backtest;
 pub mod db;
 pub mod signal;
 pub mod sync;
