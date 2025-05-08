@@ -50,7 +50,7 @@ impl SyncStateManager {
         Self { state, state_tx }
     }
 
-    pub async fn state_snapshot(&self) -> Arc<SyncState> {
+    pub async fn snapshot(&self) -> Arc<SyncState> {
         self.state.lock().await.clone()
     }
 
@@ -185,14 +185,14 @@ impl SyncProcess {
 
 pub struct SyncController {
     state_manager: SyncStateManager,
-    handle: JoinHandle<Result<()>>,
+    handle: Arc<Mutex<Option<JoinHandle<Result<()>>>>>,
 }
 
 impl SyncController {
     fn new(state_manager: SyncStateManager, handle: JoinHandle<Result<()>>) -> Self {
         Self {
             state_manager,
-            handle,
+            handle: Arc::new(Mutex::new(Some(handle))),
         }
     }
 
@@ -200,32 +200,38 @@ impl SyncController {
         self.state_manager.receiver()
     }
 
-    /// Provides the current state without consuming the controller.
-    ///
-    /// If  a failure is detected through this method and detailed error
-    /// information is needed, `SignalJobController::into_final_result()` can be
-    /// called to obtain the underlying error.
     pub async fn state_snapshot(&self) -> Arc<SyncState> {
-        if self.handle.is_finished() {
-            // Not possible to get the process error without consuming self
-            return Arc::new(SyncState::Failed(SyncError::Generic(
-                "Sync process terminated unexpectedly".to_string(),
-            )));
+        match self.handle.lock().await.as_ref() {
+            Some(handle) if handle.is_finished() => {
+                return Arc::new(SyncState::Failed(SyncError::Generic(
+                    "Sync process terminated unexpectedly".to_string(),
+                )));
+            }
+            None => {
+                return Arc::new(SyncState::Failed(SyncError::Generic(
+                    "Sync process has been aborted".to_string(),
+                )));
+            }
+            _ => self.state_manager.snapshot().await,
         }
-
-        self.state_manager.state_snapshot().await
     }
 
-    /// Consumes this controller, aborts the underlying task if still running,
-    /// and returns the final result with detailed error information.
-    ///
-    /// This is a terminal operation intended for cleanup and error diagnosis.
-    pub async fn into_final_result(self) -> Result<()> {
-        if !self.handle.is_finished() {
-            self.handle.abort();
+    /// Aborts the sync process and consumes the task handle.
+    /// This method can only be called once per controller instance.
+    /// Returns the result of the aborted sync process.
+    pub async fn abort(&self) -> Result<()> {
+        let mut handle_guard = self.handle.lock().await;
+        if let Some(handle) = handle_guard.take() {
+            if !handle.is_finished() {
+                handle.abort();
+            }
+
+            return handle.await.map_err(SyncError::TaskJoin)?;
         }
 
-        self.handle.await.map_err(SyncError::TaskJoin)?
+        return Err(SyncError::Generic(
+            "Sync process was already aborted".to_string(),
+        ));
     }
 }
 
