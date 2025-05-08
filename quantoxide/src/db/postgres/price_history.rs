@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use lnm_sdk::api::rest::models::PriceEntryLNM;
 
-use crate::util::CeilSec;
+use crate::util::DateTimeExt;
 
 use super::super::{
     error::{DbError, Result},

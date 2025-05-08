@@ -9,7 +9,7 @@ use tokio::{
 use crate::{
     db::DbContext,
     sync::{SyncController, SyncState},
-    util::CeilSec,
+    util::DateTimeExt,
 };
 
 pub mod error;

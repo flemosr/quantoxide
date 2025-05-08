@@ -1,10 +1,12 @@
 use chrono::{DateTime, Duration, SubsecRound, Utc};
 
-pub trait CeilSec {
+pub trait DateTimeExt {
     fn ceil_sec(&self) -> DateTime<Utc>;
+
+    fn is_round(&self) -> bool;
 }
 
-impl CeilSec for DateTime<Utc> {
+impl DateTimeExt for DateTime<Utc> {
     fn ceil_sec(&self) -> DateTime<Utc> {
         let trunc_time_sec = self.trunc_subsecs(0);
         if trunc_time_sec == *self {
@@ -12,5 +14,9 @@ impl CeilSec for DateTime<Utc> {
         } else {
             trunc_time_sec + Duration::seconds(1)
         }
+    }
+
+    fn is_round(&self) -> bool {
+        *self == self.trunc_subsecs(0)
     }
 }
