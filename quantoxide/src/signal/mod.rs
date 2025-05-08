@@ -115,15 +115,24 @@ impl SignalProcess {
     }
 
     async fn run(&self) -> Result<()> {
+        let mut last_eval = Utc::now();
+
         loop {
             let now = {
+                let target_exec = (last_eval + self.config.eval_interval).ceil_sec();
                 let now = Utc::now();
-                let now_ceil_sec = now.ceil_sec();
-                let wait_duration = (now_ceil_sec - now).to_std().expect("valid duration");
 
+                if now >= target_exec {
+                    return Err(SignalError::Generic(
+                        "evaluation time incompatible with eval interval".to_string(),
+                    ));
+                }
+
+                let wait_duration = (target_exec - now).to_std().expect("valid duration");
                 time::sleep(wait_duration).await;
+                last_eval = target_exec;
 
-                now_ceil_sec
+                target_exec
             };
 
             let sync_state = self.sync_controller.state_snapshot().await;
