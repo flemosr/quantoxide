@@ -31,6 +31,7 @@ pub enum SyncState {
     Synced,
     Failed(SyncError),
     Restarting,
+    Aborted,
 }
 
 pub type SyncTransmiter = broadcast::Sender<Arc<SyncState>>;
@@ -224,6 +225,7 @@ impl SyncController {
         if let Some(handle) = handle_guard.take() {
             if !handle.is_finished() {
                 handle.abort();
+                self.state_manager.update(SyncState::Aborted).await?;
             }
 
             return handle.await.map_err(SyncError::TaskJoin)?;
