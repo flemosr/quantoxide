@@ -33,6 +33,7 @@ pub enum SignalJobState {
     WaitingForSync,
     Failed(SignalError),
     Restarting,
+    Aborted,
 }
 
 pub type SignalJobTransmiter = broadcast::Sender<Arc<SignalJobState>>;
@@ -234,6 +235,7 @@ impl SignalJobController {
         if let Some(handle) = handle_guard.take() {
             if !handle.is_finished() {
                 handle.abort();
+                self.state_manager.update(SignalJobState::Aborted).await?;
             }
 
             return handle.await.map_err(SignalError::TaskJoin)?;
