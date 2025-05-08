@@ -19,13 +19,14 @@ pub enum BacktestState {
     NotInitiated,
     Starting,
     Running(TradesState),
+    Finished(TradesState),
     Failed(BacktestError),
 }
 
 pub type BacktestTransmiter = broadcast::Sender<Arc<BacktestState>>;
 pub type BacktestReceiver = broadcast::Receiver<Arc<BacktestState>>;
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 struct BacktestStateManager {
     state: Arc<Mutex<Arc<BacktestState>>>,
     state_tx: BacktestTransmiter,
@@ -39,7 +40,7 @@ impl BacktestStateManager {
         Self { state, state_tx }
     }
 
-    pub async fn state_snapshopt(&self) -> Arc<BacktestState> {
+    pub async fn snapshot(&self) -> Arc<BacktestState> {
         self.state.lock().await.clone()
     }
 
@@ -72,16 +73,17 @@ impl BacktestStateManager {
     }
 }
 
+#[derive(Debug)]
 pub struct BacktestController {
     state_manager: BacktestStateManager,
-    handle: JoinHandle<Result<()>>,
+    handle: Arc<Mutex<Option<JoinHandle<Result<()>>>>>,
 }
 
 impl BacktestController {
     fn new(state_manager: BacktestStateManager, handle: JoinHandle<Result<()>>) -> Self {
         Self {
             state_manager,
-            handle,
+            handle: Arc::new(Mutex::new(Some(handle))),
         }
     }
 
@@ -90,11 +92,58 @@ impl BacktestController {
     }
 
     pub async fn state_snapshot(&self) -> Arc<BacktestState> {
-        self.state_manager.state_snapshopt().await
+        let state = self.state_manager.snapshot().await;
+
+        match self.handle.lock().await.as_ref() {
+            Some(handle) if handle.is_finished() => {
+                // If the process has terminated but the state doesn't reflect that,
+                // return a failure state
+                match state.as_ref() {
+                    BacktestState::Finished(_) | BacktestState::Failed(_) => state,
+                    _ => Arc::new(BacktestState::Failed(BacktestError::Generic(
+                        "Backtest terminated unexpectedly".to_string(),
+                    ))),
+                }
+            }
+            None => {
+                return Arc::new(BacktestState::Failed(BacktestError::Generic(
+                    "Backtest process was already consumed".to_string(),
+                )));
+            }
+            _ => state,
+        }
     }
 
-    pub fn abort(&self) {
-        self.handle.abort();
+    /// Consumes the task handle and waits for the backtest to complete.
+    /// This method can only be called once per controller instance.
+    /// Returns the final result of the backtest.
+    pub async fn wait_for_completion(&self) -> Result<()> {
+        let mut handle_guard = self.handle.lock().await;
+        if let Some(handle) = handle_guard.take() {
+            return handle.await.map_err(BacktestError::TaskJoin)?;
+        }
+
+        return Err(BacktestError::Generic(
+            "Backtest process was already consumed".to_string(),
+        ));
+    }
+
+    /// Aborts the backtest and consumes the task handle.
+    /// This method can only be called once per controller instance.
+    /// Returns the result of the aborted backtest.
+    pub async fn abort(&self) -> Result<()> {
+        let mut handle_guard = self.handle.lock().await;
+        if let Some(handle) = handle_guard.take() {
+            if !handle.is_finished() {
+                handle.abort();
+            }
+
+            return handle.await.map_err(BacktestError::TaskJoin)?;
+        }
+
+        return Err(BacktestError::Generic(
+            "Backtest process was already consumed".to_string(),
+        ));
     }
 }
 
@@ -189,12 +238,20 @@ impl Backtest {
         loop {
             todo!()
         }
+
+        // self.state_manager.update(BacktestState::Finished).await?;
     }
 
     pub fn start(self) -> Result<Arc<BacktestController>> {
         let state_manager = self.state_manager.clone();
 
-        let handle = tokio::spawn(self.run());
+        let handle = tokio::spawn(async move {
+            let state_manager = self.state_manager.clone();
+            if let Err(e) = self.run().await {
+                return state_manager.update(BacktestState::Failed(e)).await;
+            }
+            Ok(())
+        });
 
         let backtest_controller = BacktestController::new(state_manager, handle);
 
