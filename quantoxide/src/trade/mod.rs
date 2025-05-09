@@ -187,9 +187,16 @@ pub trait TradesManager {
 
 #[async_trait]
 pub trait Operator: Send + Sync {
-    fn set_trades_manager(&mut self, trades_manager: Box<dyn TradesManager>);
+    fn set_trades_manager(
+        &mut self,
+        trades_manager: Box<dyn TradesManager>,
+    ) -> std::result::Result<(), Box<dyn std::error::Error>>;
 
-    fn trades_manager(&self) -> &dyn TradesManager;
+    fn trades_manager(&self)
+    -> std::result::Result<&dyn TradesManager, Box<dyn std::error::Error>>;
 
-    async fn consume_signal(&self, signal: Signal) -> Result<()>;
+    async fn consume_signal(
+        &self,
+        signal: Signal,
+    ) -> std::result::Result<(), Box<dyn std::error::Error>>;
 }
