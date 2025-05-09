@@ -160,7 +160,6 @@ impl TradesState {
 pub trait TradesManager {
     async fn open_long(
         &self,
-        timestamp: DateTime<Utc>,
         stoploss_perc: BoundedPercentage,
         takeprofit_perc: LowerBoundedPercentage,
         balance_perc: BoundedPercentage,
@@ -169,18 +168,17 @@ pub trait TradesManager {
 
     async fn open_short(
         &self,
-        timestamp: DateTime<Utc>,
         stoploss_perc: BoundedPercentage,
         takeprofit_perc: BoundedPercentage,
         balance_perc: BoundedPercentage,
         leverage: Leverage,
     ) -> Result<()>;
 
-    async fn close_longs(&self, timestamp: DateTime<Utc>) -> Result<()>;
+    async fn close_longs(&self) -> Result<()>;
 
-    async fn close_shorts(&self, timestamp: DateTime<Utc>) -> Result<()>;
+    async fn close_shorts(&self) -> Result<()>;
 
-    async fn close_all(&self, timestamp: DateTime<Utc>) -> Result<()>;
+    async fn close_all(&self) -> Result<()>;
 
     async fn state(&self) -> Result<TradesState>;
 }
