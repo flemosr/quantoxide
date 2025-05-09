@@ -57,15 +57,14 @@ async fn test_simulated_trades_manager_long_profit() -> Result<()> {
     assert_eq!(state.closed_pl, 0);
     assert_eq!(state.closed_fees, 0);
 
-    // Step 3: Open a long trade using 5% of balance
-    let time = time + Duration::seconds(1);
+    // Step 3: Open a long trade using 5% of balance;
     let stoploss_perc = BoundedPercentage::try_from(2.0).unwrap(); // 2% stoploss
     let takeprofit_perc = LowerBoundedPercentage::try_from(5.0).unwrap(); // 5% takeprofit
     let balance_perc = BoundedPercentage::try_from(5.0).unwrap(); // 5% of balance
     let leverage = Leverage::try_from(1).unwrap(); // 1x leverage
 
     manager
-        .open_long(time, stoploss_perc, takeprofit_perc, balance_perc, leverage)
+        .open_long(stoploss_perc, takeprofit_perc, balance_perc, leverage)
         .await?;
 
     let state = manager.state().await?;
@@ -123,8 +122,7 @@ async fn test_simulated_trades_manager_long_profit() -> Result<()> {
     assert_eq!(state.closed_fees, 0);
 
     // Step 5: Close all running long trades
-    let time = time + Duration::seconds(1);
-    manager.close_longs(time).await?;
+    manager.close_longs().await?;
 
     let state = manager.state().await?;
     let expected_balance =
@@ -185,20 +183,19 @@ async fn test_simulated_trades_manager_long_loss() -> Result<()> {
     assert_eq!(state.closed_fees, 0);
 
     // Step 2: Open a long trade using 5% of balance
-    let time = start_time + Duration::seconds(1);
     let stoploss_perc = BoundedPercentage::try_from(2.0).unwrap(); // 2% stoploss
     let takeprofit_perc = LowerBoundedPercentage::try_from(5.0).unwrap(); // 5% takeprofit
     let balance_perc = BoundedPercentage::try_from(5.0).unwrap(); // 5% of balance
     let leverage = Leverage::try_from(1).unwrap(); // 1x leverage
 
     manager
-        .open_long(time, stoploss_perc, takeprofit_perc, balance_perc, leverage)
+        .open_long(stoploss_perc, takeprofit_perc, balance_perc, leverage)
         .await?;
 
     let state = manager.state().await?;
     let expected_balance = start_balance - state.running_long_margin - state.running_fees_est;
 
-    assert_eq!(state.current_time, time);
+    assert_eq!(state.current_time, start_time);
     assert_eq!(state.current_balance, expected_balance);
     assert_eq!(state.running_long_qtd, 1);
     assert!(
@@ -213,7 +210,7 @@ async fn test_simulated_trades_manager_long_loss() -> Result<()> {
     assert_eq!(state.closed_qtd, 0);
 
     // Step 3: Update price to 99_000 (1% drop)
-    let time = time + Duration::seconds(1);
+    let time = start_time + Duration::seconds(1);
     let market_price = 99_000.0;
     manager.tick_update(time, market_price).await?;
 
@@ -292,20 +289,19 @@ async fn test_simulated_trades_manager_short_profit() -> Result<()> {
     assert_eq!(state.closed_fees, 0);
 
     // Step 2: Open a short trade using 5% of balance
-    let time = start_time + Duration::seconds(1);
     let stoploss_perc = BoundedPercentage::try_from(3.0).unwrap(); // 3% stoploss
     let takeprofit_perc = BoundedPercentage::try_from(4.0).unwrap(); // 4% takeprofit
     let balance_perc = BoundedPercentage::try_from(5.0).unwrap(); // 5% of balance
     let leverage = Leverage::try_from(1).unwrap(); // 1x leverage
 
     manager
-        .open_short(time, stoploss_perc, takeprofit_perc, balance_perc, leverage)
+        .open_short(stoploss_perc, takeprofit_perc, balance_perc, leverage)
         .await?;
 
     let state = manager.state().await?;
     let expected_balance = start_balance - state.running_short_margin - state.running_fees_est;
 
-    assert_eq!(state.current_time, time);
+    assert_eq!(state.current_time, start_time);
     assert_eq!(state.current_balance, expected_balance);
     assert_eq!(state.market_price, market_price);
     assert_eq!(state.running_long_qtd, 0);
@@ -325,7 +321,7 @@ async fn test_simulated_trades_manager_short_profit() -> Result<()> {
     assert_eq!(state.closed_fees, 0);
 
     // Step 3: Update price to 98_000 (2% drop)
-    let time = time + Duration::seconds(1);
+    let time = start_time + Duration::seconds(1);
     let market_price = 98_000.0;
     manager.tick_update(time, market_price).await?;
 
@@ -410,20 +406,19 @@ async fn test_simulated_trades_manager_short_loss() -> Result<()> {
     assert_eq!(state.closed_fees, 0);
 
     // Step 2: Open a short trade using 5% of balance
-    let time = start_time + Duration::seconds(1);
     let stoploss_perc = BoundedPercentage::try_from(2.0).unwrap(); // 2% stoploss
     let takeprofit_perc = BoundedPercentage::try_from(5.0).unwrap(); // 5% takeprofit
     let balance_perc = BoundedPercentage::try_from(5.0).unwrap(); // 5% of balance
     let leverage = Leverage::try_from(1).unwrap(); // 1x leverage
 
     manager
-        .open_short(time, stoploss_perc, takeprofit_perc, balance_perc, leverage)
+        .open_short(stoploss_perc, takeprofit_perc, balance_perc, leverage)
         .await?;
 
     let state = manager.state().await?;
     let expected_balance = start_balance - state.running_short_margin - state.running_fees_est;
 
-    assert_eq!(state.current_time, time);
+    assert_eq!(state.current_time, start_time);
     assert_eq!(state.current_balance, expected_balance);
     assert_eq!(state.running_short_qtd, 1);
     assert!(
@@ -438,7 +433,7 @@ async fn test_simulated_trades_manager_short_loss() -> Result<()> {
     assert_eq!(state.closed_qtd, 0);
 
     // Step 3: Update price to 101_000 (1% increase)
-    let time = time + Duration::seconds(1);
+    let time = start_time + Duration::seconds(1);
     let market_price = 101_000.0;
     manager.tick_update(time, market_price).await?;
 

@@ -182,15 +182,8 @@ impl SimulatedTradesManager {
         Ok(())
     }
 
-    async fn close_running(&self, timestamp: DateTime<Utc>, close: Close) -> SimulationResult<()> {
+    async fn close_running(&self, close: Close) -> SimulationResult<()> {
         let mut state_guard = self.state.lock().await;
-
-        if timestamp < state_guard.time {
-            return Err(SimulationError::TimeSequenceViolation {
-                new_time: timestamp,
-                current_time: state_guard.time,
-            });
-        }
 
         let time = state_guard.time;
         let market_price = Price::round(state_guard.market_price)?;
@@ -231,7 +224,6 @@ impl SimulatedTradesManager {
             }
         }
 
-        state_guard.time = timestamp;
         state_guard.balance = new_balance;
 
         state_guard.trigger = new_trigger;
@@ -246,19 +238,11 @@ impl SimulatedTradesManager {
 
     async fn create_running(
         &self,
-        timestamp: DateTime<Utc>,
         balance_perc: BoundedPercentage,
         leverage: Leverage,
         risk_params: RiskParams,
     ) -> SimulationResult<()> {
         let mut state_guard = self.state.lock().await;
-
-        if timestamp < state_guard.time {
-            return Err(SimulationError::TimeSequenceViolation {
-                new_time: timestamp,
-                current_time: state_guard.time,
-            });
-        }
 
         if state_guard.running.len() >= self.max_running_qtd {
             return Err(SimulationError::MaxRunningTradesReached {
@@ -278,7 +262,7 @@ impl SimulatedTradesManager {
 
         let trade = SimulatedTradeRunning::new(
             side,
-            timestamp,
+            state_guard.time,
             market_price,
             stoploss,
             takeprofit,
@@ -287,7 +271,6 @@ impl SimulatedTradesManager {
             self.fee_perc,
         )?;
 
-        state_guard.time = timestamp;
         state_guard.balance -=
             trade.margin.into_i64() + trade.opening_fee as i64 + trade.closing_fee_reserved as i64;
 
@@ -302,7 +285,6 @@ impl SimulatedTradesManager {
 impl TradesManager for SimulatedTradesManager {
     async fn open_long(
         &self,
-        timestamp: DateTime<Utc>,
         stoploss_perc: BoundedPercentage,
         takeprofit_perc: LowerBoundedPercentage,
         balance_perc: BoundedPercentage,
@@ -313,7 +295,7 @@ impl TradesManager for SimulatedTradesManager {
             takeprofit_perc,
         };
 
-        self.create_running(timestamp, balance_perc, leverage, risk_params)
+        self.create_running(balance_perc, leverage, risk_params)
             .await?;
 
         Ok(())
@@ -321,7 +303,6 @@ impl TradesManager for SimulatedTradesManager {
 
     async fn open_short(
         &self,
-        timestamp: DateTime<Utc>,
         stoploss_perc: BoundedPercentage,
         takeprofit_perc: BoundedPercentage,
         balance_perc: BoundedPercentage,
@@ -332,28 +313,26 @@ impl TradesManager for SimulatedTradesManager {
             takeprofit_perc,
         };
 
-        self.create_running(timestamp, balance_perc, leverage, risk_params)
+        self.create_running(balance_perc, leverage, risk_params)
             .await?;
 
         Ok(())
     }
 
-    async fn close_longs(&self, timestamp: DateTime<Utc>) -> Result<()> {
-        let _ = self.close_running(timestamp, TradeSide::Buy.into()).await?;
+    async fn close_longs(&self) -> Result<()> {
+        let _ = self.close_running(TradeSide::Buy.into()).await?;
 
         Ok(())
     }
 
-    async fn close_shorts(&self, timestamp: DateTime<Utc>) -> Result<()> {
-        let _ = self
-            .close_running(timestamp, TradeSide::Sell.into())
-            .await?;
+    async fn close_shorts(&self) -> Result<()> {
+        let _ = self.close_running(TradeSide::Sell.into()).await?;
 
         Ok(())
     }
 
-    async fn close_all(&self, timestamp: DateTime<Utc>) -> Result<()> {
-        let _ = self.close_running(timestamp, Close::All).await?;
+    async fn close_all(&self) -> Result<()> {
+        let _ = self.close_running(Close::All).await?;
 
         Ok(())
     }
