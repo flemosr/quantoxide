@@ -1,7 +1,9 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 
-use lnm_sdk::api::rest::models::{BoundedPercentage, Leverage, LowerBoundedPercentage, Margin};
+use lnm_sdk::api::rest::models::{BoundedPercentage, Leverage, LowerBoundedPercentage};
+
+use crate::signal::Signal;
 
 mod error;
 mod simulation;
@@ -181,4 +183,13 @@ pub trait TradesManager {
     async fn close_all(&self, timestamp: DateTime<Utc>) -> Result<()>;
 
     async fn state(&self) -> Result<TradesState>;
+}
+
+#[async_trait]
+pub trait Operator: Send + Sync {
+    fn set_trades_manager(&mut self, trades_manager: Box<dyn TradesManager>);
+
+    fn trades_manager(&self) -> &dyn TradesManager;
+
+    async fn consume_signal(&self, signal: Signal) -> Result<()>;
 }
