@@ -6,7 +6,12 @@ use tokio::{
     task::JoinHandle,
 };
 
-use crate::{db::DbContext, signal::eval::SignalEvaluator, trade::TradesState, util::DateTimeExt};
+use crate::{
+    db::DbContext,
+    signal::eval::SignalEvaluator,
+    trade::{Operator, SimulatedTradesManager, TradesState},
+    util::DateTimeExt,
+};
 
 pub mod error;
 
@@ -21,6 +26,7 @@ pub enum BacktestState {
     Running(TradesState),
     Finished(TradesState),
     Failed(BacktestError),
+    Aborted,
 }
 
 pub type BacktestTransmiter = broadcast::Sender<Arc<BacktestState>>;
@@ -136,6 +142,7 @@ impl BacktestController {
         if let Some(handle) = handle_guard.take() {
             if !handle.is_finished() {
                 handle.abort();
+                self.state_manager.update(BacktestState::Aborted).await?;
             }
 
             return handle.await.map_err(BacktestError::TaskJoin)?;
@@ -177,16 +184,18 @@ pub struct Backtest {
     start_time: DateTime<Utc>,
     end_time: DateTime<Utc>,
     evaluators: Vec<Box<dyn SignalEvaluator>>,
+    operator: Box<dyn Operator>,
     state_manager: BacktestStateManager,
 }
 
 impl Backtest {
-    pub fn new(
+    pub async fn new(
         config: BacktestConfig,
         db: Arc<DbContext>,
         start_time: DateTime<Utc>,
         end_time: DateTime<Utc>,
         evaluators: Vec<Box<dyn SignalEvaluator>>,
+        mut operator: Box<dyn Operator>,
     ) -> Result<Self> {
         if !start_time.is_round() || !end_time.is_round() {
             return Err(BacktestError::Generic(
@@ -220,6 +229,27 @@ impl Backtest {
             )));
         }
 
+        let trades_manager = {
+            let start_time_entry = db
+                .price_history
+                .get_latest_entry_at_or_before(start_time)
+                .await
+                .map_err(|e| BacktestError::Generic(e.to_string()))?
+                .ok_or(BacktestError::Generic(format!(
+                    "no entries before start_time"
+                )))?;
+
+            SimulatedTradesManager::new(
+                50,
+                0.1.try_into().unwrap(),
+                start_time,
+                start_time_entry.value,
+                1_000_000,
+            )
+        };
+
+        operator.set_trades_manager(Box::new(trades_manager));
+
         let state_manager = BacktestStateManager::new();
 
         Ok(Self {
@@ -228,12 +258,14 @@ impl Backtest {
             start_time,
             end_time,
             evaluators,
+            operator,
             state_manager,
         })
     }
 
     async fn run(self) -> Result<()> {
         self.state_manager.update(BacktestState::Starting).await?;
+        // let trades_manager = self.operator.trades_manager();
 
         loop {
             todo!()
