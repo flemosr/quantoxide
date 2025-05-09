@@ -25,6 +25,20 @@ pub struct Signal {
     action: SignalAction,
 }
 
+impl Signal {
+    pub fn time(&self) -> DateTime<Utc> {
+        self.time
+    }
+
+    pub fn name(&self) -> &SignalName {
+        &self.name
+    }
+
+    pub fn action(&self) -> SignalAction {
+        self.action
+    }
+}
+
 #[derive(Debug, PartialEq)]
 pub enum SignalJobState {
     NotInitiated,

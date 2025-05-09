@@ -38,7 +38,7 @@ impl PartialEq for SignalName {
 
 impl Eq for SignalName {}
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum SignalAction {
     Buy { price: f64, strength: u8 },
     Sell { price: f64, strength: u8 },
