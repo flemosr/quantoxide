@@ -1,7 +1,4 @@
-use std::{
-    fmt,
-    panic::{self, AssertUnwindSafe},
-};
+use std::{fmt, panic::AssertUnwindSafe};
 
 use async_trait::async_trait;
 use futures::FutureExt;
@@ -57,46 +54,74 @@ pub enum SignalAction {
 }
 
 #[async_trait]
-pub trait SignalEvaluator: Send + Sync {
-    fn name(&self) -> &SignalName;
-
-    fn context_window_secs(&self) -> usize;
-
+pub trait SignalActionEvaluator: Send + Sync {
     async fn evaluate(
         &self,
         entries: &[PriceHistoryEntryLOCF],
     ) -> std::result::Result<SignalAction, Box<dyn std::error::Error>>;
 }
 
-pub(crate) struct WrappedSignalEvaluator(Box<dyn SignalEvaluator>);
+#[async_trait]
+impl SignalActionEvaluator for Box<dyn SignalActionEvaluator> {
+    async fn evaluate(
+        &self,
+        entries: &[PriceHistoryEntryLOCF],
+    ) -> std::result::Result<SignalAction, Box<dyn std::error::Error>> {
+        (**self).evaluate(entries).await
+    }
+}
 
-impl WrappedSignalEvaluator {
-    pub fn name(&self) -> Result<&SignalName> {
-        panic::catch_unwind(AssertUnwindSafe(|| self.0.name()))
-            .map_err(|_| SignalError::Generic(format!("`SignalEvaluator::name` panicked")))
+pub struct SignalEvaluator<T: SignalActionEvaluator> {
+    name: SignalName,
+    context_window_secs: usize,
+    action_evaluator: T,
+}
+
+impl<T: SignalActionEvaluator> SignalEvaluator<T> {
+    pub fn new(name: SignalName, context_window_secs: usize, action_evaluator: T) -> Self {
+        Self {
+            name,
+            context_window_secs,
+            action_evaluator,
+        }
     }
 
-    pub fn context_window_secs(&self) -> Result<usize> {
-        panic::catch_unwind(AssertUnwindSafe(|| self.0.context_window_secs())).map_err(|_| {
-            SignalError::Generic(format!("`SignalEvaluator::context_window_secs` panicked"))
-        })
+    pub fn name(&self) -> &SignalName {
+        &self.name
+    }
+
+    pub fn context_window_secs(&self) -> usize {
+        self.context_window_secs
     }
 
     pub async fn evaluate(&self, entries: &[PriceHistoryEntryLOCF]) -> Result<SignalAction> {
-        FutureExt::catch_unwind(AssertUnwindSafe(self.0.evaluate(entries)))
+        FutureExt::catch_unwind(AssertUnwindSafe(self.action_evaluator.evaluate(entries)))
             .await
             .map_err(|_| SignalError::Generic(format!("`SignalEvaluator::evaluate` panicked")))?
             .map_err(|e| {
                 SignalError::Generic(format!(
-                    "`SignalEvaluator::evaluate`   error {}",
+                    "`SignalEvaluator::evaluate` error {}",
                     e.to_string()
                 ))
             })
     }
 }
 
-impl From<Box<dyn SignalEvaluator>> for WrappedSignalEvaluator {
-    fn from(value: Box<dyn SignalEvaluator>) -> Self {
-        Self(value)
+pub type ConfiguredSignalEvaluator = SignalEvaluator<Box<dyn SignalActionEvaluator>>;
+
+impl SignalEvaluator<Box<dyn SignalActionEvaluator>> {
+    pub fn new_boxed<E>(
+        name: SignalName,
+        context_window_secs: usize,
+        action_evaluator: E,
+    ) -> ConfiguredSignalEvaluator
+    where
+        E: SignalActionEvaluator + 'static,
+    {
+        Self {
+            name,
+            context_window_secs,
+            action_evaluator: Box::new(action_evaluator),
+        }
     }
 }
