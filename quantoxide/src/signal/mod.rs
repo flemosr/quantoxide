@@ -28,12 +28,10 @@ pub struct Signal {
 
 impl Signal {
     pub(crate) async fn try_evaluate(
-        evaluator: &WrappedSignalEvaluator,
+        evaluator: &ConfiguredSignalEvaluator,
         entries: &[PriceHistoryEntryLOCF],
     ) -> Result<Self> {
         let signal_action = evaluator.evaluate(entries).await?;
-
-        let name = evaluator.name()?;
 
         let last_ctx_entry = entries
             .last()
@@ -41,7 +39,7 @@ impl Signal {
 
         let signal = Signal {
             time: last_ctx_entry.time,
-            name: name.clone(),
+            name: evaluator.name().clone(),
             action: signal_action,
         };
 
