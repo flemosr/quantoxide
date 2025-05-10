@@ -17,7 +17,7 @@ pub mod error;
 pub mod eval;
 
 use error::{Result, SignalError};
-use eval::{SignalAction, SignalEvaluator, SignalName, WrappedSignalEvaluator};
+use eval::{ConfiguredSignalEvaluator, SignalAction, SignalName};
 
 #[derive(Debug, PartialEq)]
 pub struct Signal {
@@ -125,7 +125,7 @@ struct SignalProcess {
     db: Arc<DbContext>,
     sync_controller: Arc<SyncController>,
     state_manager: SignalJobStateManager,
-    evaluators: Vec<WrappedSignalEvaluator>,
+    evaluators: Vec<ConfiguredSignalEvaluator>,
 }
 
 impl SignalProcess {
@@ -134,7 +134,7 @@ impl SignalProcess {
         db: Arc<DbContext>,
         sync_controller: Arc<SyncController>,
         state_manager: SignalJobStateManager,
-        evaluators: Vec<Box<dyn SignalEvaluator>>,
+        evaluators: Vec<ConfiguredSignalEvaluator>,
     ) -> Result<Self> {
         if evaluators.is_empty() {
             return Err(SignalError::Generic("empty `evaluators`".to_string()));
@@ -145,7 +145,7 @@ impl SignalProcess {
             db,
             sync_controller,
             state_manager,
-            evaluators: evaluators.into_iter().map(|e| e.into()).collect(),
+            evaluators,
         })
     }
 
@@ -184,8 +184,6 @@ impl SignalProcess {
                 .evaluators
                 .iter()
                 .map(|evaluator| evaluator.context_window_secs())
-                .collect::<Result<Vec<_>>>()? // Collect results, propagate error if any
-                .into_iter()
                 .max()
                 .expect("evaluators can't be empty");
 
@@ -204,7 +202,7 @@ impl SignalProcess {
             }
 
             for evaluator in self.evaluators.iter() {
-                let ctx_size = evaluator.context_window_secs()?;
+                let ctx_size = evaluator.context_window_secs();
                 if all_ctx_entries.len() < ctx_size {
                     return Err(SignalError::Generic(
                         "evaluator with inconsistent window size".to_string(),
@@ -315,7 +313,7 @@ impl SignalJob {
         config: SignalJobConfig,
         db: Arc<DbContext>,
         sync_controller: Arc<SyncController>,
-        evaluators: Vec<Box<dyn SignalEvaluator>>,
+        evaluators: Vec<ConfiguredSignalEvaluator>,
     ) -> Result<Self> {
         let state_manager = SignalJobStateManager::new();
         let restart_interval = config.restart_interval;
