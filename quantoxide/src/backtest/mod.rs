@@ -189,7 +189,7 @@ pub struct Backtest {
 }
 
 impl Backtest {
-    pub async fn new(
+    pub fn new(
         config: BacktestConfig,
         db: Arc<DbContext>,
         start_time: DateTime<Utc>,
@@ -342,11 +342,6 @@ impl Backtest {
 
         loop {
             if time_cursor >= self.end_time {
-                trades_manager
-                    .as_ref()
-                    .close_all()
-                    .await
-                    .map_err(|e| BacktestError::Generic(e.to_string()))?;
                 break;
             }
 
