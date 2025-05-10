@@ -14,7 +14,12 @@ use super::error::{Result, SignalError};
 pub struct SignalName(String);
 
 impl SignalName {
-    pub fn new(name: String) -> Result<Self> {
+    pub fn new<S>(name: S) -> Result<Self>
+    where
+        S: Into<String>,
+    {
+        let name = name.into();
+
         if name.is_empty() {
             return Err(SignalError::Generic(
                 "signal name cannot be empty".to_string(),
