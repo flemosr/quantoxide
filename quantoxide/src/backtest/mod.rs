@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use chrono::{DateTime, Duration, Utc};
+use lnm_sdk::api::rest::models::BoundedPercentage;
 use tokio::{
     sync::{Mutex, broadcast},
     task::JoinHandle,
@@ -19,8 +20,6 @@ use crate::{
 pub mod error;
 
 use error::{BacktestError, Result};
-
-const BUFFER_SIZE_DEFAULT: usize = 1800;
 
 #[derive(Debug, PartialEq)]
 pub enum BacktestState {
@@ -159,12 +158,18 @@ impl BacktestController {
 
 pub struct BacktestConfig {
     buffer_size: usize,
+    max_running_qtd: usize,
+    fee_perc: BoundedPercentage,
 }
 
 impl Default for BacktestConfig {
     fn default() -> Self {
         Self {
-            buffer_size: BUFFER_SIZE_DEFAULT,
+            buffer_size: 1800,
+            max_running_qtd: 50,
+            fee_perc: 0.1
+                .try_into()
+                .expect("0.1 must be a valid `BoundedPercentage`"),
         }
     }
 }
@@ -179,15 +184,31 @@ impl BacktestConfig {
         self.buffer_size = size;
         Ok(self)
     }
+
+    pub fn set_max_running_qtd(mut self, max: usize) -> Result<Self> {
+        if max == 0 {
+            return Err(BacktestError::Generic(
+                "Maximum running quantity must be at least 1".to_string(),
+            ));
+        }
+        self.max_running_qtd = max;
+        Ok(self)
+    }
+
+    pub fn set_fee_perc(mut self, fee_perc: BoundedPercentage) -> Self {
+        self.fee_perc = fee_perc;
+        self
+    }
 }
 
 pub struct Backtest {
     config: BacktestConfig,
     db: Arc<DbContext>,
-    start_time: DateTime<Utc>,
-    end_time: DateTime<Utc>,
     evaluator: WrappedSignalEvaluator,
     operator: WrappedOperator,
+    start_time: DateTime<Utc>,
+    start_balance: u64,
+    end_time: DateTime<Utc>,
     state_manager: BacktestStateManager,
 }
 
@@ -195,10 +216,11 @@ impl Backtest {
     pub fn new(
         config: BacktestConfig,
         db: Arc<DbContext>,
-        start_time: DateTime<Utc>,
-        end_time: DateTime<Utc>,
         evaluator: Box<dyn SignalEvaluator>,
         operator: Box<dyn Operator>,
+        start_time: DateTime<Utc>,
+        start_balance: u64,
+        end_time: DateTime<Utc>,
     ) -> Result<Self> {
         if !start_time.is_round() || !end_time.is_round() {
             return Err(BacktestError::Generic(
@@ -240,10 +262,11 @@ impl Backtest {
         Ok(Self {
             config,
             db,
-            start_time,
-            end_time,
             evaluator: evaluator.into(),
             operator: operator.into(),
+            start_time,
+            start_balance,
+            end_time,
             state_manager,
         })
     }
@@ -262,13 +285,12 @@ impl Backtest {
                     "no entries before start_time"
                 )))?;
 
-            // TODO: Use config
             Arc::new(SimulatedTradesManager::new(
-                50,
-                0.1.try_into().unwrap(),
+                self.config.max_running_qtd,
+                self.config.fee_perc,
                 self.start_time,
                 start_time_entry.value,
-                1_000_000,
+                self.start_balance,
             ))
         };
 
@@ -283,7 +305,6 @@ impl Backtest {
                 ))
             })?;
 
-        // Handle potential panics from `SignalEvaluator::context_window_secs`
         let ctx_window_size = self.evaluator.context_window_secs().map_err(|_| {
             BacktestError::Generic(format!("evaluator's context_window_secs method panicked"))
         })?;
@@ -293,6 +314,7 @@ impl Backtest {
         let get_buffers = |time_cursor: DateTime<Utc>, ctx_window_size: usize| {
             let db = &self.db;
             async move {
+                let boo = Duration::seconds(buffer_size as i64 - ctx_window_size as i64);
                 let locf_buffer_last_time = time_cursor
                     .checked_add_signed(Duration::seconds(
                         buffer_size as i64 - ctx_window_size as i64,
