@@ -1,5 +1,10 @@
+use std::{
+    fmt,
+    panic::{self, AssertUnwindSafe},
+};
+
 use async_trait::async_trait;
-use std::fmt;
+use futures::FutureExt;
 
 use crate::db::models::PriceHistoryEntryLOCF;
 
@@ -56,4 +61,37 @@ pub trait SignalEvaluator: Send + Sync {
         &self,
         entries: &[PriceHistoryEntryLOCF],
     ) -> std::result::Result<SignalAction, Box<dyn std::error::Error>>;
+}
+
+pub(crate) struct WrappedSignalEvaluator(Box<dyn SignalEvaluator>);
+
+impl WrappedSignalEvaluator {
+    pub fn name(&self) -> Result<&SignalName> {
+        panic::catch_unwind(AssertUnwindSafe(|| self.0.name()))
+            .map_err(|_| SignalError::Generic(format!("`SignalEvaluator::name` panicked")))
+    }
+
+    pub fn context_window_secs(&self) -> Result<usize> {
+        panic::catch_unwind(AssertUnwindSafe(|| self.0.context_window_secs())).map_err(|_| {
+            SignalError::Generic(format!("`SignalEvaluator::context_window_secs` panicked"))
+        })
+    }
+
+    pub async fn evaluate(&self, entries: &[PriceHistoryEntryLOCF]) -> Result<SignalAction> {
+        FutureExt::catch_unwind(AssertUnwindSafe(self.0.evaluate(entries)))
+            .await
+            .map_err(|_| SignalError::Generic(format!("`SignalEvaluator::evaluate` panicked")))?
+            .map_err(|e| {
+                SignalError::Generic(format!(
+                    "`SignalEvaluator::evaluate`   error {}",
+                    e.to_string()
+                ))
+            })
+    }
+}
+
+impl From<Box<dyn SignalEvaluator>> for WrappedSignalEvaluator {
+    fn from(value: Box<dyn SignalEvaluator>) -> Self {
+        Self(value)
+    }
 }
