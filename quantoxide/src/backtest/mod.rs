@@ -1,6 +1,10 @@
-use std::sync::Arc;
+use std::{
+    panic::{self, AssertUnwindSafe},
+    sync::Arc,
+};
 
 use chrono::{DateTime, Duration, Utc};
+use futures::FutureExt;
 use tokio::{
     sync::{Mutex, broadcast},
     task::JoinHandle,
@@ -280,7 +284,15 @@ impl Backtest {
                 ))
             })?;
 
-        let ctx_window_size = self.evaluator.context_window_secs() as usize;
+        // Handle potential panics from `SignalEvaluator::context_window_secs`
+        let ctx_window_size =
+            panic::catch_unwind(AssertUnwindSafe(|| self.evaluator.context_window_secs()))
+                .map_err(|_| {
+                    BacktestError::Generic(format!(
+                        "evaluator's context_window_secs method panicked"
+                    ))
+                })?;
+
         let buffer_size = self.config.buffer_size;
 
         let get_buffers = |time_cursor: DateTime<Utc>, ctx_window_size: usize| {
@@ -352,9 +364,10 @@ impl Backtest {
                 .await
                 .map_err(|e| BacktestError::Generic(e.to_string()))?;
 
-            operator
-                .consume_signal(signal)
+            // Handle `Operator::consume_signal` panics possibly inserted by consumers
+            FutureExt::catch_unwind(AssertUnwindSafe(operator.consume_signal(signal)))
                 .await
+                .map_err(|_| BacktestError::Generic(format!("operator's consume_signal panicked")))?
                 .map_err(|e| BacktestError::Generic(e.to_string()))?;
 
             time_cursor = time_cursor + Duration::seconds(1);
