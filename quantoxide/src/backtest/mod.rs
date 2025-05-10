@@ -1,10 +1,6 @@
-use std::{
-    panic::{self, AssertUnwindSafe},
-    sync::Arc,
-};
+use std::sync::Arc;
 
 use chrono::{DateTime, Duration, Utc};
-use futures::FutureExt;
 use tokio::{
     sync::{Mutex, broadcast},
     task::JoinHandle,
@@ -12,8 +8,11 @@ use tokio::{
 
 use crate::{
     db::DbContext,
-    signal::{Signal, eval::SignalEvaluator},
-    trade::{Operator, SimulatedTradesManager, TradesManager, TradesState},
+    signal::{
+        Signal,
+        eval::{SignalEvaluator, WrappedSignalEvaluator},
+    },
+    trade::{Operator, SimulatedTradesManager, TradesManager, TradesState, WrappedOperator},
     util::DateTimeExt,
 };
 
@@ -187,8 +186,8 @@ pub struct Backtest {
     db: Arc<DbContext>,
     start_time: DateTime<Utc>,
     end_time: DateTime<Utc>,
-    evaluator: Box<dyn SignalEvaluator>,
-    operator: Box<dyn Operator>,
+    evaluator: WrappedSignalEvaluator,
+    operator: WrappedOperator,
     state_manager: BacktestStateManager,
 }
 
@@ -243,8 +242,8 @@ impl Backtest {
             db,
             start_time,
             end_time,
-            evaluator,
-            operator,
+            evaluator: evaluator.into(),
+            operator: operator.into(),
             state_manager,
         })
     }
@@ -285,13 +284,9 @@ impl Backtest {
             })?;
 
         // Handle potential panics from `SignalEvaluator::context_window_secs`
-        let ctx_window_size =
-            panic::catch_unwind(AssertUnwindSafe(|| self.evaluator.context_window_secs()))
-                .map_err(|_| {
-                    BacktestError::Generic(format!(
-                        "evaluator's context_window_secs method panicked"
-                    ))
-                })?;
+        let ctx_window_size = self.evaluator.context_window_secs().map_err(|_| {
+            BacktestError::Generic(format!("evaluator's context_window_secs method panicked"))
+        })?;
 
         let buffer_size = self.config.buffer_size;
 
@@ -364,10 +359,9 @@ impl Backtest {
                 .await
                 .map_err(|e| BacktestError::Generic(e.to_string()))?;
 
-            // Handle `Operator::consume_signal` panics possibly inserted by consumers
-            FutureExt::catch_unwind(AssertUnwindSafe(operator.consume_signal(signal)))
+            operator
+                .consume_signal(signal)
                 .await
-                .map_err(|_| BacktestError::Generic(format!("operator's consume_signal panicked")))?
                 .map_err(|e| BacktestError::Generic(e.to_string()))?;
 
             time_cursor = time_cursor + Duration::seconds(1);
