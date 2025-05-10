@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 
@@ -187,12 +189,8 @@ pub trait TradesManager {
 pub trait Operator: Send + Sync {
     fn set_trades_manager(
         &mut self,
-        trades_manager: Box<dyn TradesManager + Send + Sync>,
+        trades_manager: Arc<dyn TradesManager + Send + Sync>,
     ) -> std::result::Result<(), Box<dyn std::error::Error>>;
-
-    fn trades_manager(
-        &self,
-    ) -> std::result::Result<&Box<dyn TradesManager + Send + Sync>, Box<dyn std::error::Error>>;
 
     async fn consume_signal(
         &self,
