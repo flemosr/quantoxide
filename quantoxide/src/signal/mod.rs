@@ -1,7 +1,6 @@
-use std::{panic::AssertUnwindSafe, sync::Arc};
+use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
-use futures::FutureExt;
 use tokio::{
     sync::{Mutex, broadcast},
     task::JoinHandle,
@@ -18,7 +17,7 @@ pub mod error;
 pub mod eval;
 
 use error::{Result, SignalError};
-use eval::{SignalAction, SignalEvaluator, SignalName};
+use eval::{SignalAction, SignalEvaluator, SignalName, WrappedSignalEvaluator};
 
 #[derive(Debug, PartialEq)]
 pub struct Signal {
@@ -29,18 +28,12 @@ pub struct Signal {
 
 impl Signal {
     pub(crate) async fn try_evaluate(
-        evaluator: &Box<dyn SignalEvaluator>,
+        evaluator: &WrappedSignalEvaluator,
         entries: &[PriceHistoryEntryLOCF],
     ) -> Result<Self> {
-        // Handle potential panics from `SignalEvaluator::evaluate`
-        let signal_action = FutureExt::catch_unwind(AssertUnwindSafe(evaluator.evaluate(entries)))
-            .await
-            .map_err(|_| SignalError::Generic(format!("evaluator's evaluate panicked")))?
-            .map_err(|e| SignalError::Generic(e.to_string()))?;
+        let signal_action = evaluator.evaluate(entries).await?;
 
-        // Handle potential panics from `SignalEvaluator::name`
-        let name = std::panic::catch_unwind(AssertUnwindSafe(|| evaluator.name()))
-            .map_err(|_| SignalError::Generic(format!("evaluator's name method panicked")))?;
+        let name = evaluator.name()?;
 
         let last_ctx_entry = entries
             .last()
@@ -134,7 +127,7 @@ struct SignalProcess {
     db: Arc<DbContext>,
     sync_controller: Arc<SyncController>,
     state_manager: SignalJobStateManager,
-    evaluators: Vec<Box<dyn SignalEvaluator>>,
+    evaluators: Vec<WrappedSignalEvaluator>,
 }
 
 impl SignalProcess {
@@ -154,7 +147,7 @@ impl SignalProcess {
             db,
             sync_controller,
             state_manager,
-            evaluators,
+            evaluators: evaluators.into_iter().map(|e| e.into()).collect(),
         })
     }
 
@@ -193,6 +186,8 @@ impl SignalProcess {
                 .evaluators
                 .iter()
                 .map(|evaluator| evaluator.context_window_secs())
+                .collect::<Result<Vec<_>>>()? // Collect results, propagate error if any
+                .into_iter()
                 .max()
                 .expect("evaluators can't be empty");
 
@@ -211,7 +206,7 @@ impl SignalProcess {
             }
 
             for evaluator in self.evaluators.iter() {
-                let ctx_size = evaluator.context_window_secs();
+                let ctx_size = evaluator.context_window_secs()?;
                 if all_ctx_entries.len() < ctx_size {
                     return Err(SignalError::Generic(
                         "evaluator with inconsistent window size".to_string(),
