@@ -210,17 +210,11 @@ impl SignalProcess {
                         "evaluator with inconsistent window size".to_string(),
                     ));
                 }
+
                 let start_idx = all_ctx_entries.len() - ctx_size;
                 let signal_ctx_entries = &all_ctx_entries[start_idx..];
-                let signal_action = evaluator.evaluate(signal_ctx_entries).await.map_err(|e| {
-                    SignalError::Generic(format!("signal evaluator error: {}", e.to_string()))
-                })?;
 
-                let signal = Signal {
-                    time: now,
-                    name: evaluator.name().clone(),
-                    action: signal_action,
-                };
+                let signal = Signal::try_evaluate(evaluator, signal_ctx_entries).await?;
 
                 self.state_manager
                     .update(SignalJobState::Running(signal))
