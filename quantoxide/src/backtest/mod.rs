@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Duration, Utc};
 use tokio::{
     sync::{Mutex, broadcast},
     task::JoinHandle,
@@ -8,8 +8,8 @@ use tokio::{
 
 use crate::{
     db::DbContext,
-    signal::eval::SignalEvaluator,
-    trade::{Operator, SimulatedTradesManager, TradesState},
+    signal::{Signal, eval::SignalEvaluator},
+    trade::{Operator, SimulatedTradesManager, TradesManager, TradesState},
     util::DateTimeExt,
 };
 
@@ -183,7 +183,7 @@ pub struct Backtest {
     db: Arc<DbContext>,
     start_time: DateTime<Utc>,
     end_time: DateTime<Utc>,
-    evaluators: Vec<Box<dyn SignalEvaluator>>,
+    evaluator: Box<dyn SignalEvaluator>,
     operator: Box<dyn Operator>,
     state_manager: BacktestStateManager,
 }
@@ -194,8 +194,8 @@ impl Backtest {
         db: Arc<DbContext>,
         start_time: DateTime<Utc>,
         end_time: DateTime<Utc>,
-        evaluators: Vec<Box<dyn SignalEvaluator>>,
-        mut operator: Box<dyn Operator>,
+        evaluator: Box<dyn SignalEvaluator>,
+        operator: Box<dyn Operator>,
     ) -> Result<Self> {
         if !start_time.is_round() || !end_time.is_round() {
             return Err(BacktestError::Generic(
@@ -210,45 +210,27 @@ impl Backtest {
             ));
         }
 
-        if evaluators.is_empty() {
-            return Err(BacktestError::Generic(
-                "At least one evaluator must be provided".to_string(),
-            ));
-        }
+        // TODO: multi-evaluator support
 
-        let max_ctx_window = evaluators
-            .iter()
-            .map(|evaluator| evaluator.context_window_secs())
-            .max()
-            .expect("evaluators can't be empty");
+        // if evaluators.is_empty() {
+        //     return Err(BacktestError::Generic(
+        //         "At least one evaluator must be provided".to_string(),
+        //     ));
+        // }
 
-        if config.buffer_size < max_ctx_window {
+        // let max_ctx_window = evaluators
+        //     .iter()
+        //     .map(|evaluator| evaluator.context_window_secs())
+        //     .max()
+        //     .expect("evaluators can't be empty");
+
+        if config.buffer_size < evaluator.context_window_secs() {
             return Err(BacktestError::Generic(format!(
                 "buffer size {} is incompatible with max ctx window {}",
-                config.buffer_size, max_ctx_window
+                config.buffer_size,
+                evaluator.context_window_secs()
             )));
         }
-
-        let trades_manager = {
-            let start_time_entry = db
-                .price_history
-                .get_latest_entry_at_or_before(start_time)
-                .await
-                .map_err(|e| BacktestError::Generic(e.to_string()))?
-                .ok_or(BacktestError::Generic(format!(
-                    "no entries before start_time"
-                )))?;
-
-            SimulatedTradesManager::new(
-                50,
-                0.1.try_into().unwrap(),
-                start_time,
-                start_time_entry.value,
-                1_000_000,
-            )
-        };
-
-        operator.set_trades_manager(Box::new(trades_manager));
 
         let state_manager = BacktestStateManager::new();
 
@@ -257,7 +239,7 @@ impl Backtest {
             db,
             start_time,
             end_time,
-            evaluators,
+            evaluator,
             operator,
             state_manager,
         })
@@ -265,13 +247,176 @@ impl Backtest {
 
     async fn run(self) -> Result<()> {
         self.state_manager.update(BacktestState::Starting).await?;
-        // let trades_manager = self.operator.trades_manager();
 
-        loop {
-            todo!()
+        let trades_manager = {
+            let start_time_entry = self
+                .db
+                .price_history
+                .get_latest_entry_at_or_before(self.start_time)
+                .await
+                .map_err(|e| BacktestError::Generic(e.to_string()))?
+                .ok_or(BacktestError::Generic(format!(
+                    "no entries before start_time"
+                )))?;
+
+            // TODO: Use config
+            Arc::new(SimulatedTradesManager::new(
+                50,
+                0.1.try_into().unwrap(),
+                self.start_time,
+                start_time_entry.value,
+                1_000_000,
+            ))
+        };
+
+        let mut operator = self.operator;
+
+        operator
+            .set_trades_manager(trades_manager.clone())
+            .map_err(|e| {
+                BacktestError::Generic(format!(
+                    "couldn't set the simulated trades manager {}",
+                    e.to_string()
+                ))
+            })?;
+
+        let ctx_window_size = self.evaluator.context_window_secs() as usize;
+        let buffer_size = self.config.buffer_size;
+
+        let get_buffers = |time_cursor: DateTime<Utc>, ctx_window_size: usize| {
+            let db = &self.db;
+            async move {
+                let locf_buffer_last_time = time_cursor
+                    .checked_add_signed(Duration::seconds(
+                        buffer_size as i64 - ctx_window_size as i64,
+                    ))
+                    .ok_or(BacktestError::Generic(
+                        "buffer date out of range".to_string(),
+                    ))?;
+
+                let locf_buffer = db
+                    .price_history
+                    .eval_entries_locf(&locf_buffer_last_time, buffer_size)
+                    .await
+                    .map_err(|e| BacktestError::Generic(e.to_string()))?;
+
+                let locf_buffer_cursor_idx = ctx_window_size - 1;
+
+                if locf_buffer.len() != buffer_size
+                    || locf_buffer[locf_buffer_cursor_idx].time != time_cursor
+                {
+                    return Err(BacktestError::Generic(
+                        "unexpected `eval_entries_locf` result".to_string(),
+                    ));
+                }
+
+                let price_ticks = db
+                    .price_history
+                    .get_entries_between(time_cursor, locf_buffer_last_time)
+                    .await
+                    .map_err(|e| BacktestError::Generic(e.to_string()))?;
+
+                Ok::<_, BacktestError>((locf_buffer, locf_buffer_cursor_idx, price_ticks, 0))
+            }
+        };
+
+        let mut time_cursor = self.start_time;
+
+        let (
+            mut locf_buffer,
+            mut locf_buffer_cursor_idx,
+            mut price_ticks,
+            mut price_ticks_cursor_idx,
+        ) = get_buffers(time_cursor, ctx_window_size).await?;
+
+        {
+            let trades_state = trades_manager
+                .state()
+                .await
+                .map_err(|e| BacktestError::Generic(e.to_string()))?;
+
+            self.state_manager
+                .update(BacktestState::Running(trades_state))
+                .await?;
         }
 
-        // self.state_manager.update(BacktestState::Finished).await?;
+        loop {
+            if time_cursor >= self.end_time {
+                trades_manager
+                    .as_ref()
+                    .close_all()
+                    .await
+                    .map_err(|e| BacktestError::Generic(e.to_string()))?;
+                break;
+            }
+
+            let ctx_entries =
+                &locf_buffer[locf_buffer_cursor_idx + 1 - ctx_window_size..=locf_buffer_cursor_idx];
+
+            let signal = Signal::try_evaluate(&self.evaluator, ctx_entries)
+                .await
+                .map_err(|e| BacktestError::Generic(e.to_string()))?;
+
+            operator
+                .consume_signal(signal)
+                .await
+                .map_err(|e| BacktestError::Generic(e.to_string()))?;
+
+            time_cursor = time_cursor + Duration::seconds(1);
+
+            if locf_buffer_cursor_idx < locf_buffer.len() - 1 {
+                locf_buffer_cursor_idx += 1;
+            } else {
+                // Reached the end of the current buffer
+
+                let trades_state = trades_manager
+                    .state()
+                    .await
+                    .map_err(|e| BacktestError::Generic(e.to_string()))?;
+
+                self.state_manager
+                    .update(BacktestState::Running(trades_state))
+                    .await?;
+
+                (
+                    locf_buffer,
+                    locf_buffer_cursor_idx,
+                    price_ticks,
+                    price_ticks_cursor_idx,
+                ) = get_buffers(time_cursor, ctx_window_size).await?;
+            }
+
+            // Update `SimulatedTradesManager` with all the price ticks with time lte
+            // the new `time_cursor`.
+            while let Some(next_price_tick) = price_ticks.get(price_ticks_cursor_idx) {
+                if next_price_tick.time <= time_cursor {
+                    trades_manager
+                        .tick_update(next_price_tick.time, next_price_tick.value)
+                        .await
+                        .map_err(|e| BacktestError::Generic(e.to_string()))?;
+
+                    price_ticks_cursor_idx += 1;
+                } else {
+                    break;
+                }
+            }
+        }
+
+        trades_manager
+            .close_all()
+            .await
+            .map_err(|e| BacktestError::Generic(e.to_string()))?;
+
+        let final_state = trades_manager
+            .state()
+            .await
+            .map_err(|e| BacktestError::Generic(e.to_string()))?;
+
+        self.state_manager
+            .update(BacktestState::Finished(final_state))
+            .await?;
+
+        Ok(())
     }
 
     pub fn start(self) -> Result<Arc<BacktestController>> {
