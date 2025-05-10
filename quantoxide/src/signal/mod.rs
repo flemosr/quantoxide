@@ -1,5 +1,7 @@
+use std::{panic::AssertUnwindSafe, sync::Arc};
+
 use chrono::{DateTime, Utc};
-use std::sync::Arc;
+use futures::FutureExt;
 use tokio::{
     sync::{Mutex, broadcast},
     task::JoinHandle,
@@ -30,10 +32,15 @@ impl Signal {
         evaluator: &Box<dyn SignalEvaluator>,
         entries: &[PriceHistoryEntryLOCF],
     ) -> Result<Self> {
-        let signal_action = evaluator
-            .evaluate(entries)
+        // Handle potential panics from `SignalEvaluator::evaluate`
+        let signal_action = FutureExt::catch_unwind(AssertUnwindSafe(evaluator.evaluate(entries)))
             .await
-            .map_err(|e| SignalError::Generic(format!("evaluator failed {}", e.to_string())))?;
+            .map_err(|_| SignalError::Generic(format!("evaluator's evaluate panicked")))?
+            .map_err(|e| SignalError::Generic(e.to_string()))?;
+
+        // Handle potential panics from `SignalEvaluator::name`
+        let name = std::panic::catch_unwind(AssertUnwindSafe(|| evaluator.name()))
+            .map_err(|_| SignalError::Generic(format!("evaluator's name method panicked")))?;
 
         let last_ctx_entry = entries
             .last()
@@ -41,7 +48,7 @@ impl Signal {
 
         let signal = Signal {
             time: last_ctx_entry.time,
-            name: evaluator.name().clone(),
+            name: name.clone(),
             action: signal_action,
         };
 
