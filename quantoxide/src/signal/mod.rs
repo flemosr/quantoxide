@@ -7,7 +7,7 @@ use tokio::{
 };
 
 use crate::{
-    db::DbContext,
+    db::{DbContext, models::PriceHistoryEntryLOCF},
     sync::{SyncController, SyncState},
     util::DateTimeExt,
 };
@@ -26,6 +26,28 @@ pub struct Signal {
 }
 
 impl Signal {
+    pub(crate) async fn try_evaluate(
+        evaluator: &Box<dyn SignalEvaluator>,
+        entries: &[PriceHistoryEntryLOCF],
+    ) -> Result<Self> {
+        let signal_action = evaluator
+            .evaluate(entries)
+            .await
+            .map_err(|e| SignalError::Generic(format!("evaluator failed {}", e.to_string())))?;
+
+        let last_ctx_entry = entries
+            .last()
+            .ok_or(SignalError::Generic("empty context".to_string()))?;
+
+        let signal = Signal {
+            time: last_ctx_entry.time,
+            name: evaluator.name().clone(),
+            action: signal_action,
+        };
+
+        Ok(signal)
+    }
+
     pub fn time(&self) -> DateTime<Utc> {
         self.time
     }
