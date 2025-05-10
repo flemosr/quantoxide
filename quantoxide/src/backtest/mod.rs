@@ -9,10 +9,7 @@ use tokio::{
 
 use crate::{
     db::DbContext,
-    signal::{
-        Signal,
-        eval::{SignalEvaluator, WrappedSignalEvaluator},
-    },
+    signal::{Signal, eval::ConfiguredSignalEvaluator},
     trade::{Operator, SimulatedTradesManager, TradesManager, TradesState, WrappedOperator},
     util::DateTimeExt,
 };
@@ -204,7 +201,7 @@ impl BacktestConfig {
 pub struct Backtest {
     config: BacktestConfig,
     db: Arc<DbContext>,
-    evaluator: WrappedSignalEvaluator,
+    evaluator: ConfiguredSignalEvaluator,
     operator: WrappedOperator,
     start_time: DateTime<Utc>,
     start_balance: u64,
@@ -216,7 +213,7 @@ impl Backtest {
     pub fn new(
         config: BacktestConfig,
         db: Arc<DbContext>,
-        evaluator: Box<dyn SignalEvaluator>,
+        evaluator: ConfiguredSignalEvaluator,
         operator: Box<dyn Operator>,
         start_time: DateTime<Utc>,
         start_balance: u64,
@@ -305,16 +302,12 @@ impl Backtest {
                 ))
             })?;
 
-        let ctx_window_size = self.evaluator.context_window_secs().map_err(|_| {
-            BacktestError::Generic(format!("evaluator's context_window_secs method panicked"))
-        })?;
-
+        let ctx_window_size = self.evaluator.context_window_secs();
         let buffer_size = self.config.buffer_size;
 
         let get_buffers = |time_cursor: DateTime<Utc>, ctx_window_size: usize| {
             let db = &self.db;
             async move {
-                let boo = Duration::seconds(buffer_size as i64 - ctx_window_size as i64);
                 let locf_buffer_last_time = time_cursor
                     .checked_add_signed(Duration::seconds(
                         buffer_size as i64 - ctx_window_size as i64,
