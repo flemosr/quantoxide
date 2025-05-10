@@ -1,7 +1,11 @@
-use std::sync::Arc;
+use std::{
+    panic::{self, AssertUnwindSafe},
+    sync::Arc,
+};
 
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
+use futures::FutureExt;
 
 use lnm_sdk::api::rest::models::{BoundedPercentage, Leverage, LowerBoundedPercentage};
 
@@ -10,7 +14,7 @@ use crate::signal::Signal;
 mod error;
 mod simulation;
 
-use error::Result;
+use error::{Result, TradeError};
 
 pub use simulation::SimulatedTradesManager;
 
@@ -196,4 +200,42 @@ pub trait Operator: Send + Sync {
         &self,
         signal: Signal,
     ) -> std::result::Result<(), Box<dyn std::error::Error>>;
+}
+
+pub(crate) struct WrappedOperator(Box<dyn Operator>);
+
+impl WrappedOperator {
+    pub fn set_trades_manager(
+        &mut self,
+        trades_manager: Arc<dyn TradesManager + Send + Sync>,
+    ) -> Result<()> {
+        panic::catch_unwind(AssertUnwindSafe(|| {
+            self.0.set_trades_manager(trades_manager)
+        }))
+        .map_err(|_| TradeError::Generic(format!("`Operator::set_trades_manager` panicked")))?
+        .map_err(|e| {
+            TradeError::Generic(format!(
+                "`Operator::set_trades_manager` error {}",
+                e.to_string()
+            ))
+        })
+    }
+
+    pub async fn consume_signal(&self, signal: Signal) -> Result<()> {
+        FutureExt::catch_unwind(AssertUnwindSafe(self.0.consume_signal(signal)))
+            .await
+            .map_err(|_| TradeError::Generic(format!("`Operator::consume_signal` panicked")))?
+            .map_err(|e| {
+                TradeError::Generic(format!(
+                    "`Operator::consume_signal`  error {}",
+                    e.to_string()
+                ))
+            })
+    }
+}
+
+impl From<Box<dyn Operator>> for WrappedOperator {
+    fn from(value: Box<dyn Operator>) -> Self {
+        Self(value)
+    }
 }
