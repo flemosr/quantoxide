@@ -202,18 +202,18 @@ impl SimulatedTradeRunning {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SimulatedTradeClosed {
-    pub side: TradeSide,
-    pub entry_time: DateTime<Utc>,
-    pub entry_price: Price,
-    pub stoploss: Price,
-    pub takeprofit: Price,
-    pub margin: Margin,
-    pub quantity: Quantity,
-    pub leverage: Leverage,
-    pub close_time: DateTime<Utc>,
-    pub close_price: Price,
-    pub opening_fee: u64,
-    pub closing_fee: u64,
+    side: TradeSide,
+    entry_time: DateTime<Utc>,
+    entry_price: Price,
+    stoploss: Price,
+    takeprofit: Price,
+    margin: Margin,
+    quantity: Quantity,
+    leverage: Leverage,
+    close_time: DateTime<Utc>,
+    close_price: Price,
+    opening_fee: u64,
+    closing_fee: u64,
 }
 
 impl SimulatedTradeClosed {
@@ -241,6 +241,54 @@ impl SimulatedTradeClosed {
             opening_fee: running.opening_fee,
             closing_fee,
         }
+    }
+
+    pub fn side(&self) -> TradeSide {
+        self.side
+    }
+
+    pub fn entry_time(&self) -> DateTime<Utc> {
+        self.entry_time
+    }
+
+    pub fn entry_price(&self) -> Price {
+        self.entry_price
+    }
+
+    pub fn stoploss(&self) -> Price {
+        self.stoploss
+    }
+
+    pub fn takeprofit(&self) -> Price {
+        self.takeprofit
+    }
+
+    pub fn margin(&self) -> Margin {
+        self.margin
+    }
+
+    pub fn quantity(&self) -> Quantity {
+        self.quantity
+    }
+
+    pub fn leverage(&self) -> Leverage {
+        self.leverage
+    }
+
+    pub fn close_time(&self) -> DateTime<Utc> {
+        self.close_time
+    }
+
+    pub fn close_price(&self) -> Price {
+        self.close_price
+    }
+
+    pub fn opening_fee(&self) -> u64 {
+        self.opening_fee
+    }
+
+    pub fn closing_fee(&self) -> u64 {
+        self.closing_fee
     }
 
     pub fn pl(&self) -> i64 {

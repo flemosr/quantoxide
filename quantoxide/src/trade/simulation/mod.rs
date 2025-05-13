@@ -144,11 +144,11 @@ impl SimulatedTradesManager {
             let closing_fee_reserved = trade.closing_fee_reserved() as i64;
             let trade = SimulatedTradeClosed::from_running(trade, time, close_price, self.fee_perc);
             let trade_pl = trade.pl();
-            let closing_fee_diff = closing_fee_reserved - trade.closing_fee as i64;
+            let closing_fee_diff = closing_fee_reserved - trade.closing_fee() as i64;
 
-            new_balance += trade.margin.into_i64() + trade_pl + closing_fee_diff;
+            new_balance += trade.margin().into_i64() + trade_pl + closing_fee_diff;
             new_closed_pl += trade_pl;
-            new_closed_fees += trade.opening_fee + trade.closing_fee;
+            new_closed_fees += trade.opening_fee() + trade.closing_fee();
             new_closed_trades.push(trade);
         };
 
@@ -201,11 +201,11 @@ impl SimulatedTradesManager {
             let trade =
                 SimulatedTradeClosed::from_running(trade, time, market_price, self.fee_perc);
             let trade_pl = trade.pl();
-            let closing_fee_diff = closing_fee_reserved - trade.closing_fee as i64;
+            let closing_fee_diff = closing_fee_reserved - trade.closing_fee() as i64;
 
-            new_balance += trade.margin.into_i64() + trade_pl + closing_fee_diff;
+            new_balance += trade.margin().into_i64() + trade_pl + closing_fee_diff;
             new_closed_pl += trade_pl;
-            new_closed_fees += trade.opening_fee + trade.closing_fee;
+            new_closed_fees += trade.opening_fee() + trade.closing_fee();
             new_closed_trades.push(trade);
         };
 
