@@ -350,8 +350,8 @@ impl TradesManager for SimulatedTradesManager {
         let mut running_short_qtd: usize = 0;
         let mut running_short_margin: u64 = 0;
         let mut running_pl: i64 = 0;
-        let mut running_fees_reserved: u64 = 0;
-        let mut running_fees_estimated: u64 = 0;
+        let mut running_fees: u64 = 0;
+        let mut running_maintenance_margin: u64 = 0;
 
         // Use `Price::round_down` for long trades and `Price::round_up` for
         // short trades, in order to obtain more conservative prices. It is
@@ -374,9 +374,8 @@ impl TradesManager for SimulatedTradesManager {
             };
 
             running_pl += trade.pl(market_price);
-            running_fees_reserved += trade.opening_fee + trade.closing_fee_reserved;
-            running_fees_estimated +=
-                trade.opening_fee + trade.closing_fee_est(self.fee_perc, market_price);
+            running_fees += trade.opening_fee;
+            running_maintenance_margin += trade.opening_fee + trade.closing_fee_reserved;
         }
 
         let trades_state = TradesState::new(
@@ -391,8 +390,8 @@ impl TradesManager for SimulatedTradesManager {
             running_short_qtd,
             running_short_margin,
             running_pl,
-            running_fees_reserved,
-            running_fees_estimated,
+            running_fees,
+            running_maintenance_margin,
             state_guard.closed.len(),
             state_guard.closed_pl,
             state_guard.closed_fees,
