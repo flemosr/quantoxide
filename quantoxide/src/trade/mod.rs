@@ -33,8 +33,8 @@ pub struct TradesState {
     running_short_qtd: usize,
     running_short_margin: u64,
     running_pl: i64,
-    running_fees_reserved: u64,
-    running_fees_estimated: u64,
+    running_fees: u64,
+    running_maintenance_margin: u64,
     closed_qtd: usize,
     closed_pl: i64,
     closed_fees: u64,
@@ -53,8 +53,8 @@ impl TradesState {
         running_short_qtd: usize,
         running_short_margin: u64,
         running_pl: i64,
-        running_fees_reserved: u64,
-        running_fees_estimated: u64,
+        running_fees: u64,
+        running_maintenance_margin: u64,
         closed_qtd: usize,
         closed_pl: i64,
         closed_fees: u64,
@@ -71,8 +71,8 @@ impl TradesState {
             running_short_qtd,
             running_short_margin,
             running_pl,
-            running_fees_reserved,
-            running_fees_estimated,
+            running_fees,
+            running_maintenance_margin,
             closed_qtd,
             closed_pl,
             closed_fees,
@@ -141,16 +141,16 @@ impl TradesState {
         self.running_pl
     }
 
-    pub fn running_fees_reserved(&self) -> u64 {
-        self.running_fees_reserved
+    pub fn running_fees(&self) -> u64 {
+        self.running_fees
     }
 
-    pub fn running_fees_estimated(&self) -> u64 {
-        self.running_fees_estimated
+    pub fn running_maintenance_margin(&self) -> u64 {
+        self.running_maintenance_margin
     }
 
     pub fn running_net_pl_estimated(&self) -> i64 {
-        self.running_pl - self.running_fees_estimated as i64
+        self.running_pl - self.running_fees as i64
     }
 
     pub fn closed_pl(&self) -> i64 {
@@ -170,7 +170,7 @@ impl TradesState {
     }
 
     pub fn fees_estimated(&self) -> u64 {
-        self.running_fees_estimated + self.closed_fees
+        self.running_fees + self.closed_fees
     }
 
     pub fn net_pl_estimated(&self) -> i64 {
