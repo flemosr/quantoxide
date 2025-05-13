@@ -25,12 +25,14 @@ pub struct TradesState {
     current_time: DateTime<Utc>,
     current_balance: u64,
     market_price: f64,
+    last_trade_time: Option<DateTime<Utc>>,
     running_long_qtd: usize,
     running_long_margin: u64,
     running_short_qtd: usize,
     running_short_margin: u64,
     running_pl: i64,
-    running_fees_est: u64,
+    running_fees_reserved: u64,
+    running_fees_estimated: u64,
     closed_qtd: usize,
     closed_pl: i64,
     closed_fees: u64,
@@ -43,12 +45,14 @@ impl TradesState {
         current_time: DateTime<Utc>,
         current_balance: u64,
         market_price: f64,
+        last_trade_time: Option<DateTime<Utc>>,
         running_long_qtd: usize,
         running_long_margin: u64,
         running_short_qtd: usize,
         running_short_margin: u64,
         running_pl: i64,
-        running_fees_est: u64,
+        running_fees_reserved: u64,
+        running_fees_estimated: u64,
         closed_qtd: usize,
         closed_pl: i64,
         closed_fees: u64,
@@ -59,12 +63,14 @@ impl TradesState {
             current_time,
             current_balance,
             market_price,
+            last_trade_time,
             running_long_qtd,
             running_long_margin,
             running_short_qtd,
             running_short_margin,
             running_pl,
-            running_fees_est,
+            running_fees_reserved,
+            running_fees_estimated,
             closed_qtd,
             closed_pl,
             closed_fees,
@@ -89,6 +95,10 @@ impl TradesState {
 
     pub fn market_price(&self) -> f64 {
         self.market_price
+    }
+
+    pub fn last_trade_time(&self) -> Option<DateTime<Utc>> {
+        self.last_trade_time
     }
 
     /// Returns the quantity of running long trades
@@ -129,12 +139,16 @@ impl TradesState {
         self.running_pl
     }
 
-    pub fn running_fees_est(&self) -> u64 {
-        self.running_fees_est
+    pub fn running_fees_reserved(&self) -> u64 {
+        self.running_fees_reserved
     }
 
-    pub fn running_net_pl(&self) -> i64 {
-        self.running_pl - self.running_fees_est as i64
+    pub fn running_fees_estimated(&self) -> u64 {
+        self.running_fees_estimated
+    }
+
+    pub fn running_net_pl_estimated(&self) -> i64 {
+        self.running_pl - self.running_fees_estimated as i64
     }
 
     pub fn closed_pl(&self) -> i64 {
@@ -153,12 +167,12 @@ impl TradesState {
         self.running_pl + self.closed_pl
     }
 
-    pub fn fees(&self) -> u64 {
-        self.running_fees_est + self.closed_fees
+    pub fn fees_estimated(&self) -> u64 {
+        self.running_fees_estimated + self.closed_fees
     }
 
-    pub fn net_pl(&self) -> i64 {
-        self.pl() - self.fees() as i64
+    pub fn net_pl_estimated(&self) -> i64 {
+        self.pl() - self.fees_estimated() as i64
     }
 }
 
