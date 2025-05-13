@@ -293,6 +293,7 @@ fn test_running_long_pl_calculation() {
     let current_price = Price::try_from(55_000.0).unwrap();
     let quantity = Quantity::try_from(10).unwrap();
     let leverage = Leverage::try_from(5.0).unwrap();
+    let fee = get_lnm_fee();
 
     let trade = SimulatedTradeRunning::new(
         TradeSide::Buy,
@@ -302,17 +303,15 @@ fn test_running_long_pl_calculation() {
         Price::try_from(60_000.0).unwrap(),
         quantity,
         leverage,
-        get_lnm_fee(),
+        fee,
     )
     .unwrap();
 
     let expected_pl = 1818;
+    let expected_net_pl = 1780;
 
     assert_eq!(trade.pl(current_price), expected_pl);
-    assert_eq!(
-        trade.net_pl(current_price),
-        expected_pl - trade.opening_fee as i64 - trade.closing_fee_reserved as i64
-    );
+    assert_eq!(trade.net_pl_est(fee, current_price), expected_net_pl);
 }
 
 #[test]
@@ -321,6 +320,7 @@ fn test_running_long_pl_loss() {
     let current_price = Price::try_from(45_000.0).unwrap();
     let quantity = Quantity::try_from(10).unwrap();
     let leverage = Leverage::try_from(5.0).unwrap();
+    let fee = get_lnm_fee();
 
     let trade = SimulatedTradeRunning::new(
         TradeSide::Buy,
@@ -330,17 +330,15 @@ fn test_running_long_pl_loss() {
         Price::try_from(60_000.0).unwrap(),
         quantity,
         leverage,
-        get_lnm_fee(),
+        fee,
     )
     .unwrap();
 
     let expected_pl = -2223;
+    let expected_net_pl = -2265;
 
     assert_eq!(trade.pl(current_price), expected_pl);
-    assert_eq!(
-        trade.net_pl(current_price),
-        expected_pl - trade.opening_fee as i64 - trade.closing_fee_reserved as i64
-    );
+    assert_eq!(trade.net_pl_est(fee, current_price), expected_net_pl);
 }
 
 #[test]
@@ -349,6 +347,7 @@ fn test_running_short_pl_calculation() {
     let current_price = Price::try_from(45_000.0).unwrap();
     let quantity = Quantity::try_from(10).unwrap();
     let leverage = Leverage::try_from(5.0).unwrap();
+    let fee = get_lnm_fee();
 
     let trade = SimulatedTradeRunning::new(
         TradeSide::Sell,
@@ -358,17 +357,15 @@ fn test_running_short_pl_calculation() {
         Price::try_from(45_000.0).unwrap(),
         quantity,
         leverage,
-        get_lnm_fee(),
+        fee,
     )
     .unwrap();
 
     let expected_pl = 2222;
+    let expected_net_pl = 2180;
 
     assert_eq!(trade.pl(current_price), expected_pl);
-    assert_eq!(
-        trade.net_pl(current_price),
-        expected_pl - trade.opening_fee as i64 - trade.closing_fee_reserved as i64
-    );
+    assert_eq!(trade.net_pl_est(fee, current_price), expected_net_pl);
 }
 
 #[test]
@@ -377,6 +374,7 @@ fn test_running_short_pl_loss() {
     let current_price = Price::try_from(55_000.0).unwrap();
     let quantity = Quantity::try_from(10).unwrap();
     let leverage = Leverage::try_from(5.0).unwrap();
+    let fee = get_lnm_fee();
 
     let trade = SimulatedTradeRunning::new(
         TradeSide::Sell,
@@ -386,17 +384,15 @@ fn test_running_short_pl_loss() {
         Price::try_from(45_000.0).unwrap(),
         quantity,
         leverage,
-        get_lnm_fee(),
+        fee,
     )
     .unwrap();
 
     let expected_pl = -1819;
+    let expected_net_pl = -1857;
 
     assert_eq!(trade.pl(current_price), expected_pl);
-    assert_eq!(
-        trade.net_pl(current_price),
-        expected_pl - trade.opening_fee as i64 - trade.closing_fee_reserved as i64
-    );
+    assert_eq!(trade.net_pl_est(fee, current_price), expected_net_pl);
 }
 
 #[test]
@@ -596,6 +592,7 @@ fn test_no_price_movement() {
     let current_price = entry_price;
     let quantity = Quantity::try_from(10).unwrap();
     let leverage = Leverage::try_from(5.0).unwrap();
+    let fee = get_lnm_fee();
 
     let trade = SimulatedTradeRunning::new(
         TradeSide::Buy,
@@ -605,10 +602,10 @@ fn test_no_price_movement() {
         Price::try_from(60_000.0).unwrap(),
         quantity,
         leverage,
-        get_lnm_fee(),
+        fee,
     )
     .unwrap();
 
     assert_eq!(trade.pl(current_price), 0);
-    assert_eq!(trade.net_pl(current_price), -44);
+    assert_eq!(trade.net_pl_est(fee, current_price), -40);
 }
