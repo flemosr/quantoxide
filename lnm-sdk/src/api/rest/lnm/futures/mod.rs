@@ -79,6 +79,33 @@ impl FuturesRepository for LnmFuturesRepository {
         Ok(trades)
     }
 
+    async fn get_trades_open(
+        &self,
+        from: Option<&DateTime<Utc>>,
+        to: Option<&DateTime<Utc>>,
+        limit: Option<usize>,
+    ) -> Result<Vec<Trade>> {
+        self.get_trades(TradeStatus::Open, from, to, limit).await
+    }
+
+    async fn get_trades_running(
+        &self,
+        from: Option<&DateTime<Utc>>,
+        to: Option<&DateTime<Utc>>,
+        limit: Option<usize>,
+    ) -> Result<Vec<Trade>> {
+        self.get_trades(TradeStatus::Running, from, to, limit).await
+    }
+
+    async fn get_trades_closed(
+        &self,
+        from: Option<&DateTime<Utc>>,
+        to: Option<&DateTime<Utc>>,
+        limit: Option<usize>,
+    ) -> Result<Vec<Trade>> {
+        self.get_trades(TradeStatus::Closed, from, to, limit).await
+    }
+
     async fn price_history(
         &self,
         from: Option<&DateTime<Utc>>,
