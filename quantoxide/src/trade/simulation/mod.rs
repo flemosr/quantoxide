@@ -38,8 +38,8 @@ impl Trigger {
     }
 
     fn update(&mut self, trade: &SimulatedTradeRunning) {
-        let mut new_min = trade.stoploss.min(trade.takeprofit);
-        let mut new_max = trade.stoploss.max(trade.takeprofit);
+        let mut new_min = trade.stoploss().min(trade.takeprofit());
+        let mut new_max = trade.stoploss().max(trade.takeprofit());
 
         if let Trigger::Set { min, max } = *self {
             new_min = new_min.max(min);
@@ -141,7 +141,7 @@ impl SimulatedTradesManager {
         let mut new_closed_trades = Vec::new();
 
         let mut close_trade = |trade: SimulatedTradeRunning, close_price: Price| {
-            let closing_fee_reserved = trade.closing_fee_reserved as i64;
+            let closing_fee_reserved = trade.closing_fee_reserved() as i64;
             let trade = SimulatedTradeClosed::from_running(trade, time, close_price, self.fee_perc);
             let trade_pl = trade.pl();
             let closing_fee_diff = closing_fee_reserved - trade.closing_fee as i64;
@@ -158,9 +158,9 @@ impl SimulatedTradesManager {
         for trade in state_guard.running.drain(..) {
             // Check if price reached stoploss or takeprofit
 
-            let (min, max) = match trade.side {
-                TradeSide::Buy => (trade.stoploss, trade.takeprofit),
-                TradeSide::Sell => (trade.takeprofit, trade.stoploss),
+            let (min, max) = match trade.side() {
+                TradeSide::Buy => (trade.stoploss(), trade.takeprofit()),
+                TradeSide::Sell => (trade.takeprofit(), trade.stoploss()),
             };
 
             if market_price <= min.into_f64() {
@@ -197,7 +197,7 @@ impl SimulatedTradesManager {
         let mut new_closed_trades = Vec::new();
 
         let mut close_trade = |trade: SimulatedTradeRunning| {
-            let closing_fee_reserved = trade.closing_fee_reserved as i64;
+            let closing_fee_reserved = trade.closing_fee_reserved() as i64;
             let trade =
                 SimulatedTradeClosed::from_running(trade, time, market_price, self.fee_perc);
             let trade_pl = trade.pl();
@@ -214,7 +214,7 @@ impl SimulatedTradesManager {
 
         for trade in state_guard.running.drain(..) {
             let should_be_closed = match &close {
-                Close::Side(side) if *side == trade.side => true,
+                Close::Side(side) if *side == trade.side() => true,
                 Close::All => true,
                 _ => false,
             };
@@ -275,8 +275,7 @@ impl SimulatedTradesManager {
             self.fee_perc,
         )?;
 
-        state_guard.balance -=
-            trade.margin.into_i64() + trade.opening_fee as i64 + trade.closing_fee_reserved as i64;
+        state_guard.balance -= trade.margin().into_i64() + trade.maintenance_margin() as i64;
 
         state_guard.last_trade_time = Some(state_guard.time);
         state_guard.trigger.update(&trade);
@@ -358,24 +357,24 @@ impl TradesManager for SimulatedTradesManager {
         // expected that prices won't need to be rounded most of the time.
 
         for trade in state_guard.running.iter() {
-            let market_price = match trade.side {
+            let market_price = match trade.side() {
                 TradeSide::Buy => {
                     running_long_qtd += 1;
-                    running_long_margin += trade.margin.into_u64();
+                    running_long_margin += trade.margin().into_u64();
 
                     Price::round_down(state_guard.market_price).map_err(SimulationError::from)?
                 }
                 TradeSide::Sell => {
                     running_short_qtd += 1;
-                    running_short_margin += trade.margin.into_u64();
+                    running_short_margin += trade.margin().into_u64();
 
                     Price::round_up(state_guard.market_price).map_err(SimulationError::from)?
                 }
             };
 
             running_pl += trade.pl(market_price);
-            running_fees += trade.opening_fee;
-            running_maintenance_margin += trade.opening_fee + trade.closing_fee_reserved;
+            running_fees += trade.opening_fee();
+            running_maintenance_margin += trade.maintenance_margin();
         }
 
         let trades_state = TradesState::new(

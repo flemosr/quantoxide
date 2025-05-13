@@ -45,17 +45,17 @@ impl RiskParams {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SimulatedTradeRunning {
-    pub side: TradeSide,
-    pub entry_time: DateTime<Utc>,
-    pub entry_price: Price,
-    pub stoploss: Price,
-    pub takeprofit: Price,
-    pub margin: Margin,
-    pub quantity: Quantity,
-    pub leverage: Leverage,
-    pub liquidation: Price,
-    pub opening_fee: u64,
-    pub closing_fee_reserved: u64,
+    side: TradeSide,
+    entry_time: DateTime<Utc>,
+    entry_price: Price,
+    stoploss: Price,
+    takeprofit: Price,
+    margin: Margin,
+    quantity: Quantity,
+    leverage: Leverage,
+    liquidation: Price,
+    opening_fee: u64,
+    closing_fee_reserved: u64,
 }
 
 impl SimulatedTradeRunning {
@@ -134,6 +134,54 @@ impl SimulatedTradeRunning {
             opening_fee,
             closing_fee_reserved,
         })
+    }
+
+    pub fn side(&self) -> TradeSide {
+        self.side
+    }
+
+    pub fn entry_time(&self) -> DateTime<Utc> {
+        self.entry_time
+    }
+
+    pub fn entry_price(&self) -> Price {
+        self.entry_price
+    }
+
+    pub fn stoploss(&self) -> Price {
+        self.stoploss
+    }
+
+    pub fn takeprofit(&self) -> Price {
+        self.takeprofit
+    }
+
+    pub fn margin(&self) -> Margin {
+        self.margin
+    }
+
+    pub fn quantity(&self) -> Quantity {
+        self.quantity
+    }
+
+    pub fn leverage(&self) -> Leverage {
+        self.leverage
+    }
+
+    pub fn liquidation(&self) -> Price {
+        self.liquidation
+    }
+
+    pub fn opening_fee(&self) -> u64 {
+        self.opening_fee
+    }
+
+    pub fn closing_fee_reserved(&self) -> u64 {
+        self.closing_fee_reserved
+    }
+
+    pub fn maintenance_margin(&self) -> u64 {
+        self.opening_fee + self.closing_fee_reserved
     }
 
     pub fn pl(&self, current_price: Price) -> i64 {
