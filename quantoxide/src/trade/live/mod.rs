@@ -1,12 +1,18 @@
-use std::sync::Arc;
+use std::{result, sync::Arc};
 
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
+use futures::future;
 use lnm_sdk::api::rest::{
     RestApiContext,
-    models::{BoundedPercentage, Leverage, LowerBoundedPercentage, Quantity, Ticker, TradeSide},
+    models::{
+        BoundedPercentage, Leverage, LowerBoundedPercentage, Quantity, SATS_PER_BTC, Ticker,
+        TradeExecution, TradeSide,
+    },
 };
 use tokio::sync::Mutex;
+
+use crate::trade::core::RiskParams;
 
 use super::{
     core::{TradesManager, TradesState},
@@ -23,14 +29,13 @@ struct LiveTradesState {
 
 pub struct LiveTradesManager {
     rest: Arc<RestApiContext>,
-    max_running_qtd: usize,
     start_time: DateTime<Utc>,
     start_balance: u64,
     state: Arc<Mutex<LiveTradesState>>,
 }
 
 impl LiveTradesManager {
-    pub async fn new(rest: Arc<RestApiContext>, max_running_qtd: usize) -> Result<Self> {
+    pub async fn new(rest: Arc<RestApiContext>) -> Result<Self> {
         rest.futures
             .cancel_all_trades()
             .await
@@ -53,7 +58,6 @@ impl LiveTradesManager {
 
         Ok(Self {
             rest,
-            max_running_qtd,
             start_time: Utc::now(),
             start_balance: user.balance(),
             state: Arc::new(Mutex::new(initial_state)),
@@ -81,10 +85,6 @@ impl LiveTradesManager {
 
         Ok(ticker)
     }
-
-    async fn eval_trade_quantity(&self, balance_perc: BoundedPercentage) -> Result<Quantity> {
-        todo!()
-    }
 }
 
 #[async_trait]
@@ -96,7 +96,43 @@ impl TradesManager for LiveTradesManager {
         balance_perc: BoundedPercentage,
         leverage: Leverage,
     ) -> Result<()> {
-        todo!()
+        let mut state_guard = self.state.lock().await;
+        state_guard.last_trade_time = Some(Utc::now());
+
+        let ticker = self.get_ticker().await?;
+        let balance = self.get_current_balance().await?;
+
+        let risk_params = RiskParams::Long {
+            stoploss_perc,
+            takeprofit_perc,
+        };
+
+        let (side, stoploss, takeprofit) = risk_params.into_trade_params(ticker.ask_price())?;
+
+        let quantity = {
+            let balance_usd = balance as f64 * ticker.ask_price().into_f64() / SATS_PER_BTC;
+            let quantity_target = balance_usd * balance_perc.into_f64() / 100.;
+            if quantity_target < 1. {
+                return Err(LiveError::Generic("balance is too low".to_string()))?;
+            }
+
+            Quantity::try_from(quantity_target.floor()).map_err(LiveError::QuantityValidation)?
+        };
+
+        self.rest
+            .futures
+            .create_new_trade(
+                side,
+                quantity.into(),
+                leverage,
+                TradeExecution::Market,
+                Some(stoploss),
+                Some(takeprofit),
+            )
+            .await
+            .map_err(LiveError::RestApi)?;
+
+        Ok(())
     }
 
     async fn open_short(
@@ -106,19 +142,134 @@ impl TradesManager for LiveTradesManager {
         balance_perc: BoundedPercentage,
         leverage: Leverage,
     ) -> Result<()> {
-        todo!()
+        let mut state_guard = self.state.lock().await;
+        state_guard.last_trade_time = Some(Utc::now());
+
+        let ticker = self.get_ticker().await?;
+        let balance = self.get_current_balance().await?;
+
+        let risk_params = RiskParams::Short {
+            stoploss_perc,
+            takeprofit_perc,
+        };
+
+        let (side, stoploss, takeprofit) = risk_params.into_trade_params(ticker.bid_price())?;
+
+        let quantity = {
+            let balance_usd = balance as f64 * ticker.ask_price().into_f64() / SATS_PER_BTC;
+            let quantity_target = balance_usd * balance_perc.into_f64() / 100.;
+            if quantity_target < 1. {
+                return Err(LiveError::Generic("balance is too low".to_string()))?;
+            }
+
+            Quantity::try_from(quantity_target.floor()).map_err(LiveError::QuantityValidation)?
+        };
+
+        self.rest
+            .futures
+            .create_new_trade(
+                side,
+                quantity.into(),
+                leverage,
+                TradeExecution::Market,
+                Some(stoploss),
+                Some(takeprofit),
+            )
+            .await
+            .map_err(LiveError::RestApi)?;
+
+        Ok(())
     }
 
     async fn close_longs(&self) -> Result<()> {
-        todo!()
+        let mut state_guard = self.state.lock().await;
+        state_guard.last_trade_time = Some(Utc::now());
+
+        let running = self
+            .rest
+            .futures
+            .get_trades_running(None, None, 1000.into())
+            .await
+            .map_err(LiveError::RestApi)?;
+
+        let long_trades = running
+            .into_iter()
+            .filter(|trade| trade.side() == TradeSide::Buy)
+            .collect::<Vec<_>>();
+
+        // Process in batches of 5
+        for chunk in long_trades.chunks(5) {
+            let close_futures = chunk
+                .iter()
+                .map(|trade| {
+                    let rest = &self.rest;
+                    async move { rest.futures.close_trade(trade.id()).await }
+                })
+                .collect::<Vec<_>>();
+
+            future::join_all(close_futures)
+                .await
+                .into_iter()
+                .collect::<result::Result<Vec<_>, _>>()
+                .map_err(LiveError::RestApi)?;
+        }
+
+        Ok(())
     }
 
     async fn close_shorts(&self) -> Result<()> {
-        todo!()
+        let mut state_guard = self.state.lock().await;
+        state_guard.last_trade_time = Some(Utc::now());
+
+        let running = self
+            .rest
+            .futures
+            .get_trades_running(None, None, 1000.into())
+            .await
+            .map_err(LiveError::RestApi)?;
+
+        let short_trades = running
+            .into_iter()
+            .filter(|trade| trade.side() == TradeSide::Sell)
+            .collect::<Vec<_>>();
+
+        // Process in batches of 5
+        for chunk in short_trades.chunks(5) {
+            let close_futures = chunk
+                .iter()
+                .map(|trade| {
+                    let rest = &self.rest;
+                    async move { rest.futures.close_trade(trade.id()).await }
+                })
+                .collect::<Vec<_>>();
+
+            future::join_all(close_futures)
+                .await
+                .into_iter()
+                .collect::<result::Result<Vec<_>, _>>()
+                .map_err(LiveError::RestApi)?;
+        }
+
+        Ok(())
     }
 
     async fn close_all(&self) -> Result<()> {
-        todo!()
+        let mut state_guard = self.state.lock().await;
+        state_guard.last_trade_time = Some(Utc::now());
+
+        self.rest
+            .futures
+            .cancel_all_trades()
+            .await
+            .map_err(LiveError::RestApi)?;
+
+        self.rest
+            .futures
+            .close_all_trades()
+            .await
+            .map_err(LiveError::RestApi)?;
+
+        Ok(())
     }
 
     async fn state(&self) -> Result<TradesState> {
@@ -127,16 +278,16 @@ impl TradesManager for LiveTradesManager {
         let running_trades = self
             .rest
             .futures
-            .get_trades_running(Some(&self.start_time), None, 1000.into())
+            .get_trades_running(None, None, 1000.into())
             .await
-            .map_err(|e| LiveError::Generic(e.to_string()))?;
+            .map_err(LiveError::RestApi)?;
 
         let closed_trades = self
             .rest
             .futures
             .get_trades_closed(Some(&self.start_time), None, 1000.into())
             .await
-            .map_err(|e| LiveError::Generic(e.to_string()))?;
+            .map_err(LiveError::RestApi)?;
 
         let ticker = self.get_ticker().await?;
         let balance = self.get_current_balance().await?;
