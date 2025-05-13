@@ -10,10 +10,13 @@ use crate::db::error::DbError;
 pub enum RealTimeCollectionError {
     #[error("[WebSocketApi] {0}")]
     WebSocketApi(#[from] WebSocketApiError),
+
     #[error("BadConnectionUpdate error, {0:?}")]
     BadConnectionUpdate(Arc<ConnectionState>),
+
     #[error("[Db] {0}")]
     Db(#[from] DbError),
+
     #[error("RealTimeCollection generic error: {0}")]
     Generic(String),
 }

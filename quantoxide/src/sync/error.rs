@@ -12,14 +12,19 @@ use super::{
 pub enum SyncError {
     #[error("[SyncPriceHistory] {0}")]
     SyncPriceHistory(#[from] SyncPriceHistoryError),
+
     #[error("[RealTimeCollection] {0}")]
     RealTimeCollection(#[from] RealTimeCollectionError),
+
     #[error("[SyncTransmiterFailed] {0}")]
     SyncTransmiterFailed(SendError<Arc<SyncState>>),
+
     #[error("[TaskJoin] {0}")]
     TaskJoin(JoinError),
+
     #[error("UnexpectedRealTimeCollectionShutdown error")]
     UnexpectedRealTimeCollectionShutdown,
+
     #[error("Generic error, {0}")]
     Generic(String),
 }
