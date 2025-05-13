@@ -8,7 +8,10 @@ use lnm_sdk::api::rest::models::{
     BoundedPercentage, Leverage, LowerBoundedPercentage, Price, Quantity, SATS_PER_BTC, TradeSide,
 };
 
-use super::{TradesManager, TradesState, error::Result};
+use super::{
+    core::{TradesManager, TradesState},
+    error::Result,
+};
 
 pub mod error;
 mod models;

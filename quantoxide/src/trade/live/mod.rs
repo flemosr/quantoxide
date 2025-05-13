@@ -8,7 +8,10 @@ use lnm_sdk::api::rest::{
 };
 use tokio::sync::Mutex;
 
-use super::{TradesManager, TradesState, error::Result};
+use super::{
+    core::{TradesManager, TradesState},
+    error::Result,
+};
 
 pub mod error;
 
