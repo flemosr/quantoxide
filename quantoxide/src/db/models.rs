@@ -1,6 +1,7 @@
+use std::fmt;
+
 use chrono::{DateTime, Utc};
 use sqlx::FromRow;
-use std::fmt;
 
 #[derive(Debug, FromRow)]
 pub struct PriceHistoryEntry {

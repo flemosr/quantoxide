@@ -1,5 +1,6 @@
-use chrono::Duration;
 use std::sync::Arc;
+
+use chrono::Duration;
 use tokio::{
     sync::{
         Mutex, broadcast,

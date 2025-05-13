@@ -1,6 +1,7 @@
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use sqlx::{Pool, Postgres};
-use std::sync::Arc;
 
 use lnm_sdk::api::websocket::models::PriceTickLNM;
 

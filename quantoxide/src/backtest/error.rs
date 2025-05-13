@@ -9,8 +9,10 @@ use super::BacktestState;
 pub enum BacktestError {
     #[error("TransmiterFailed error {0}")]
     TransmiterFailed(SendError<Arc<BacktestState>>),
+
     #[error("[TaskJoin] {0}")]
     TaskJoin(JoinError),
+
     #[error("Generic error, {0}")]
     Generic(String),
 }

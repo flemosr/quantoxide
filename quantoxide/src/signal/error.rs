@@ -1,4 +1,5 @@
 use std::{result, sync::Arc};
+
 use thiserror::Error;
 use tokio::{sync::broadcast::error::SendError, task::JoinError};
 
@@ -8,8 +9,10 @@ use super::SignalJobState;
 pub enum SignalError {
     #[error("Generic error, {0}")]
     Generic(String),
+
     #[error("SignalTransmiterFailed failed error {0}")]
     SignalTransmiterFailed(SendError<Arc<SignalJobState>>),
+
     #[error("TaskJoin error {0}")]
     TaskJoin(JoinError),
 }

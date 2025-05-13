@@ -1,5 +1,6 @@
-use sqlx::postgres::PgPoolOptions;
 use std::sync::Arc;
+
+use sqlx::postgres::PgPoolOptions;
 
 pub mod error;
 pub mod models;

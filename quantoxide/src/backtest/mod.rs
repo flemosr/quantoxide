@@ -1,11 +1,12 @@
 use std::sync::Arc;
 
 use chrono::{DateTime, Duration, Utc};
-use lnm_sdk::api::rest::models::BoundedPercentage;
 use tokio::{
     sync::{Mutex, broadcast},
     task::JoinHandle,
 };
+
+use lnm_sdk::api::rest::models::BoundedPercentage;
 
 use crate::{
     db::DbContext,

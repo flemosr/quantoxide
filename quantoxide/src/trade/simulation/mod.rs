@@ -1,6 +1,7 @@
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use std::sync::Arc;
 use tokio::sync::Mutex;
 
 use lnm_sdk::api::rest::models::{

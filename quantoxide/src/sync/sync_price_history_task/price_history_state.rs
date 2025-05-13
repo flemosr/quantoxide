@@ -1,5 +1,6 @@
-use chrono::{DateTime, Duration, Utc};
 use std::fmt;
+
+use chrono::{DateTime, Duration, Utc};
 
 use crate::db::DbContext;
 

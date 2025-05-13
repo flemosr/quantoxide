@@ -1,7 +1,8 @@
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use chrono::{DateTime, Duration, SubsecRound, Utc};
 use sqlx::{Pool, Postgres, Transaction};
-use std::sync::Arc;
 
 use lnm_sdk::api::rest::models::PriceEntryLNM;
 

@@ -1,5 +1,6 @@
-use chrono::{DateTime, Utc};
 use std::result;
+
+use chrono::{DateTime, Utc};
 use thiserror::Error;
 
 use lnm_sdk::api::rest::models::{
