@@ -21,6 +21,27 @@ pub trait FuturesRepository: Send + Sync {
         limit: Option<usize>,
     ) -> Result<Vec<Trade>>;
 
+    async fn get_trades_open(
+        &self,
+        from: Option<&DateTime<Utc>>,
+        to: Option<&DateTime<Utc>>,
+        limit: Option<usize>,
+    ) -> Result<Vec<Trade>>;
+
+    async fn get_trades_running(
+        &self,
+        from: Option<&DateTime<Utc>>,
+        to: Option<&DateTime<Utc>>,
+        limit: Option<usize>,
+    ) -> Result<Vec<Trade>>;
+
+    async fn get_trades_closed(
+        &self,
+        from: Option<&DateTime<Utc>>,
+        to: Option<&DateTime<Utc>>,
+        limit: Option<usize>,
+    ) -> Result<Vec<Trade>>;
+
     async fn price_history(
         &self,
         from: Option<&DateTime<Utc>>,
