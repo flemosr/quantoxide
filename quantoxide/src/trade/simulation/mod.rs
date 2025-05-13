@@ -368,7 +368,8 @@ impl TradesManager for SimulatedTradesManager {
             };
 
             running_pl += trade.pl(market_price);
-            running_fees_est += trade.opening_fee + trade.closing_fee_reserved;
+            running_fees_est +=
+                trade.opening_fee + trade.closing_fee_est(self.fee_perc, market_price);
         }
 
         let trades_state = TradesState::new(
