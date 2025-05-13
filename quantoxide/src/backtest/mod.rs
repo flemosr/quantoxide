@@ -201,7 +201,7 @@ impl BacktestConfig {
 pub struct Backtest {
     config: BacktestConfig,
     db: Arc<DbContext>,
-    evaluator: ConfiguredSignalEvaluator,
+    evaluators: Vec<ConfiguredSignalEvaluator>,
     operator: WrappedOperator,
     start_time: DateTime<Utc>,
     start_balance: u64,
@@ -213,7 +213,7 @@ impl Backtest {
     pub fn new(
         config: BacktestConfig,
         db: Arc<DbContext>,
-        evaluator: ConfiguredSignalEvaluator,
+        evaluators: Vec<ConfiguredSignalEvaluator>,
         operator: Box<dyn Operator>,
         start_time: DateTime<Utc>,
         start_balance: u64,
@@ -232,25 +232,22 @@ impl Backtest {
             ));
         }
 
-        // TODO: multi-evaluator support
+        if evaluators.is_empty() {
+            return Err(BacktestError::Generic(
+                "At least one evaluator must be provided".to_string(),
+            ));
+        }
 
-        // if evaluators.is_empty() {
-        //     return Err(BacktestError::Generic(
-        //         "At least one evaluator must be provided".to_string(),
-        //     ));
-        // }
+        let max_ctx_window = evaluators
+            .iter()
+            .map(|evaluator| evaluator.context_window_secs())
+            .max()
+            .expect("evaluators can't be empty");
 
-        // let max_ctx_window = evaluators
-        //     .iter()
-        //     .map(|evaluator| evaluator.context_window_secs())
-        //     .max()
-        //     .expect("evaluators can't be empty");
-
-        if config.buffer_size < evaluator.context_window_secs() {
+        if config.buffer_size < max_ctx_window {
             return Err(BacktestError::Generic(format!(
                 "buffer size {} is incompatible with max ctx window {}",
-                config.buffer_size,
-                evaluator.context_window_secs()
+                config.buffer_size, max_ctx_window
             )));
         }
 
@@ -259,7 +256,7 @@ impl Backtest {
         Ok(Self {
             config,
             db,
-            evaluator: evaluator.into(),
+            evaluators,
             operator: operator.into(),
             start_time,
             start_balance,
@@ -302,15 +299,21 @@ impl Backtest {
                 ))
             })?;
 
-        let ctx_window_size = self.evaluator.context_window_secs();
+        let max_ctx_window = self
+            .evaluators
+            .iter()
+            .map(|evaluator| evaluator.context_window_secs())
+            .max()
+            .expect("evaluators can't be empty");
+
         let buffer_size = self.config.buffer_size;
 
-        let get_buffers = |time_cursor: DateTime<Utc>, ctx_window_size: usize| {
+        let get_buffers = |time_cursor: DateTime<Utc>| {
             let db = &self.db;
             async move {
                 let locf_buffer_last_time = time_cursor
                     .checked_add_signed(Duration::seconds(
-                        buffer_size as i64 - ctx_window_size as i64,
+                        buffer_size as i64 - max_ctx_window as i64,
                     ))
                     .ok_or(BacktestError::Generic(
                         "buffer date out of range".to_string(),
@@ -322,7 +325,7 @@ impl Backtest {
                     .await
                     .map_err(|e| BacktestError::Generic(e.to_string()))?;
 
-                let locf_buffer_cursor_idx = ctx_window_size - 1;
+                let locf_buffer_cursor_idx = max_ctx_window - 1;
 
                 if locf_buffer.len() != buffer_size
                     || locf_buffer[locf_buffer_cursor_idx].time != time_cursor
@@ -349,7 +352,7 @@ impl Backtest {
             mut locf_buffer_cursor_idx,
             mut price_ticks,
             mut price_ticks_cursor_idx,
-        ) = get_buffers(time_cursor, ctx_window_size).await?;
+        ) = get_buffers(time_cursor).await?;
 
         {
             let trades_state = trades_manager
@@ -367,17 +370,21 @@ impl Backtest {
                 break;
             }
 
-            let ctx_entries =
-                &locf_buffer[locf_buffer_cursor_idx + 1 - ctx_window_size..=locf_buffer_cursor_idx];
+            for evaluator in &self.evaluators {
+                let ctx_window_size = evaluator.context_window_secs();
 
-            let signal = Signal::try_evaluate(&self.evaluator, ctx_entries)
-                .await
-                .map_err(|e| BacktestError::Generic(e.to_string()))?;
+                let ctx_entries = &locf_buffer
+                    [locf_buffer_cursor_idx + 1 - ctx_window_size..=locf_buffer_cursor_idx];
 
-            operator
-                .consume_signal(signal)
-                .await
-                .map_err(|e| BacktestError::Generic(e.to_string()))?;
+                let signal = Signal::try_evaluate(evaluator, ctx_entries)
+                    .await
+                    .map_err(|e| BacktestError::Generic(e.to_string()))?;
+
+                operator
+                    .consume_signal(signal)
+                    .await
+                    .map_err(|e| BacktestError::Generic(e.to_string()))?;
+            }
 
             time_cursor = time_cursor + Duration::seconds(1);
 
@@ -400,7 +407,7 @@ impl Backtest {
                     locf_buffer_cursor_idx,
                     price_ticks,
                     price_ticks_cursor_idx,
-                ) = get_buffers(time_cursor, ctx_window_size).await?;
+                ) = get_buffers(time_cursor).await?;
             }
 
             // Update `SimulatedTradesManager` with all the price ticks with time lte
