@@ -12,10 +12,12 @@ use lnm_sdk::api::rest::models::{BoundedPercentage, Leverage, LowerBoundedPercen
 use crate::signal::Signal;
 
 mod error;
+mod live;
 mod simulation;
 
 use error::{Result, TradeError};
 
+pub use live::LiveTradesManager;
 pub use simulation::SimulatedTradesManager;
 
 #[derive(Debug, Clone, PartialEq)]
