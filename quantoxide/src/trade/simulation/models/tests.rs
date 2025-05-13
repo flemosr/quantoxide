@@ -8,7 +8,6 @@ fn get_lnm_fee() -> BoundedPercentage {
 
 #[test]
 fn test_long_liquidation_calculation() {
-    // Create a long trade with known parameters
     let entry_price = Price::try_from(90_000.0).unwrap();
     let quantity = Quantity::try_from(10).unwrap();
     let leverage = Leverage::try_from(10.0).unwrap();
@@ -26,11 +25,12 @@ fn test_long_liquidation_calculation() {
     .unwrap();
 
     assert_eq!(trade.liquidation.into_f64(), 81_819.0);
+    assert_eq!(trade.opening_fee, 11);
+    assert_eq!(trade.closing_fee_reserved, 12);
 }
 
 #[test]
 fn test_short_liquidation_calculation() {
-    // Create a short trade with known parameters
     let entry_price = Price::try_from(90_000.0).unwrap();
     let quantity = Quantity::try_from(10).unwrap();
     let leverage = Leverage::try_from(10.0).unwrap();
@@ -48,21 +48,22 @@ fn test_short_liquidation_calculation() {
     .unwrap();
 
     assert_eq!(trade.liquidation.into_f64(), 99_999.0);
+    assert_eq!(trade.opening_fee, 11);
+    assert_eq!(trade.closing_fee_reserved, 10);
 }
 
 #[test]
 fn test_short_liquidation_calculation_max_price() {
-    // Create a short trade with known parameters
-    let entry_price = Price::try_from(58_954.00).unwrap();
-    let quantity = Quantity::try_from(5).unwrap();
+    let entry_price = Price::try_from(90_000.0).unwrap();
+    let quantity = Quantity::try_from(10).unwrap();
     let leverage = Leverage::try_from(1).unwrap();
 
     let trade = SimulatedTradeRunning::new(
         TradeSide::Sell,
         Utc::now(),
         entry_price,
-        Price::try_from(60_000.0).unwrap(),
-        Price::try_from(58_000.0).unwrap(),
+        Price::try_from(95_000.0).unwrap(),
+        Price::try_from(85_000.0).unwrap(),
         quantity,
         leverage,
         get_lnm_fee(),
@@ -70,6 +71,8 @@ fn test_short_liquidation_calculation_max_price() {
     .unwrap();
 
     assert_eq!(trade.liquidation, Price::MAX);
+    assert_eq!(trade.opening_fee, 11);
+    assert_eq!(trade.closing_fee_reserved, 0);
 }
 
 #[test]
