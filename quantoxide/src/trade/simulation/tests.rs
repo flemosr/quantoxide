@@ -26,12 +26,14 @@ async fn test_simulated_trades_manager_long_profit() -> Result<()> {
     assert_eq!(state.current_time, start_time);
     assert_eq!(state.current_balance, start_balance);
     assert_eq!(state.market_price, market_price);
+    assert_eq!(state.last_trade_time, None);
     assert_eq!(state.running_long_qtd, 0);
     assert_eq!(state.running_long_margin, 0);
     assert_eq!(state.running_short_qtd, 0);
     assert_eq!(state.running_short_margin, 0);
     assert_eq!(state.running_pl, 0);
-    assert_eq!(state.running_fees_est, 0);
+    assert_eq!(state.running_fees_reserved, 0);
+    assert_eq!(state.running_fees_estimated, 0);
     assert_eq!(state.closed_qtd, 0);
     assert_eq!(state.closed_pl, 0);
     assert_eq!(state.closed_fees, 0);
@@ -47,12 +49,14 @@ async fn test_simulated_trades_manager_long_profit() -> Result<()> {
     assert_eq!(state.current_time, time);
     assert_eq!(state.current_balance, start_balance);
     assert_eq!(state.market_price, market_price);
+    assert_eq!(state.last_trade_time, None);
     assert_eq!(state.running_long_qtd, 0);
     assert_eq!(state.running_long_margin, 0);
     assert_eq!(state.running_short_qtd, 0);
     assert_eq!(state.running_short_margin, 0);
     assert_eq!(state.running_pl, 0);
-    assert_eq!(state.running_fees_est, 0);
+    assert_eq!(state.running_fees_reserved, 0);
+    assert_eq!(state.running_fees_estimated, 0);
     assert_eq!(state.closed_qtd, 0);
     assert_eq!(state.closed_pl, 0);
     assert_eq!(state.closed_fees, 0);
@@ -68,13 +72,15 @@ async fn test_simulated_trades_manager_long_profit() -> Result<()> {
         .await?;
 
     let state = manager.state().await?;
-    let expected_balance = start_balance - state.running_long_margin - state.running_fees_est;
+    let exp_trade_time = time;
+    let expected_balance = start_balance - state.running_long_margin - state.running_fees_reserved;
 
     assert_eq!(state.start_time, start_time);
     assert_eq!(state.start_balance, start_balance);
     assert_eq!(state.current_time, time);
     assert_eq!(state.current_balance, expected_balance);
     assert_eq!(state.market_price, market_price);
+    assert_eq!(state.last_trade_time, Some(exp_trade_time));
     assert_eq!(state.running_long_qtd, 1);
     assert!(
         state.running_long_margin > 0,
@@ -84,8 +90,16 @@ async fn test_simulated_trades_manager_long_profit() -> Result<()> {
     assert_eq!(state.running_short_margin, 0);
     assert_eq!(state.running_pl, 0); // No PL yet since price hasn't changed
     assert!(
-        state.running_fees_est > 0,
+        state.running_fees_reserved > 0,
+        "Trading fees should be reserved"
+    );
+    assert!(
+        state.running_fees_estimated > 0,
         "Trading fees should be estimated"
+    );
+    assert!(
+        state.running_fees_estimated < state.running_fees_reserved,
+        "Estimated fees should be smaller than reserved"
     );
     assert_eq!(state.closed_qtd, 0);
     assert_eq!(state.closed_pl, 0);
@@ -102,6 +116,7 @@ async fn test_simulated_trades_manager_long_profit() -> Result<()> {
     assert_eq!(state.current_time, time);
     assert_eq!(state.current_balance, expected_balance);
     assert_eq!(state.market_price, market_price);
+    assert_eq!(state.last_trade_time, Some(exp_trade_time));
     assert_eq!(state.running_long_qtd, 1);
     assert!(
         state.running_long_margin > 0,
@@ -114,8 +129,16 @@ async fn test_simulated_trades_manager_long_profit() -> Result<()> {
         "Long position should be profitable after price increase"
     );
     assert!(
-        state.running_fees_est > 0,
+        state.running_fees_reserved > 0,
+        "Trading fees should be reserved"
+    );
+    assert!(
+        state.running_fees_estimated > 0,
         "Trading fees should be estimated"
+    );
+    assert!(
+        state.running_fees_estimated < state.running_fees_reserved,
+        "Estimated fees should be smaller than reserved"
     );
     assert_eq!(state.closed_qtd, 0);
     assert_eq!(state.closed_pl, 0);
@@ -125,6 +148,7 @@ async fn test_simulated_trades_manager_long_profit() -> Result<()> {
     manager.close_longs().await?;
 
     let state = manager.state().await?;
+    let exp_trade_time = time;
     let expected_balance =
         (start_balance as i64 + state.closed_pl - state.closed_fees as i64) as u64;
 
@@ -133,12 +157,14 @@ async fn test_simulated_trades_manager_long_profit() -> Result<()> {
     assert_eq!(state.current_time, time);
     assert_eq!(state.current_balance, expected_balance);
     assert_eq!(state.market_price, market_price);
+    assert_eq!(state.last_trade_time, Some(exp_trade_time));
     assert_eq!(state.running_long_qtd, 0);
     assert_eq!(state.running_long_margin, 0);
     assert_eq!(state.running_short_qtd, 0);
     assert_eq!(state.running_short_margin, 0);
     assert_eq!(state.running_pl, 0);
-    assert_eq!(state.running_fees_est, 0);
+    assert_eq!(state.running_fees_reserved, 0);
+    assert_eq!(state.running_fees_estimated, 0);
     assert_eq!(state.closed_qtd, 1);
     assert!(
         state.closed_pl > 0,
@@ -172,12 +198,14 @@ async fn test_simulated_trades_manager_long_loss() -> Result<()> {
     assert_eq!(state.current_time, start_time);
     assert_eq!(state.current_balance, start_balance);
     assert_eq!(state.market_price, market_price);
+    assert_eq!(state.last_trade_time, None);
     assert_eq!(state.running_long_qtd, 0);
     assert_eq!(state.running_long_margin, 0);
     assert_eq!(state.running_short_qtd, 0);
     assert_eq!(state.running_short_margin, 0);
     assert_eq!(state.running_pl, 0);
-    assert_eq!(state.running_fees_est, 0);
+    assert_eq!(state.running_fees_reserved, 0);
+    assert_eq!(state.running_fees_estimated, 0);
     assert_eq!(state.closed_qtd, 0);
     assert_eq!(state.closed_pl, 0);
     assert_eq!(state.closed_fees, 0);
@@ -193,10 +221,11 @@ async fn test_simulated_trades_manager_long_loss() -> Result<()> {
         .await?;
 
     let state = manager.state().await?;
-    let expected_balance = start_balance - state.running_long_margin - state.running_fees_est;
+    let expected_balance = start_balance - state.running_long_margin - state.running_fees_reserved;
 
     assert_eq!(state.current_time, start_time);
     assert_eq!(state.current_balance, expected_balance);
+    assert_eq!(state.last_trade_time, Some(start_time));
     assert_eq!(state.running_long_qtd, 1);
     assert!(
         state.running_long_margin > 0,
@@ -204,8 +233,16 @@ async fn test_simulated_trades_manager_long_loss() -> Result<()> {
     );
     assert_eq!(state.running_pl, 0);
     assert!(
-        state.running_fees_est > 0,
+        state.running_fees_reserved > 0,
+        "Trading fees should be reserved"
+    );
+    assert!(
+        state.running_fees_estimated > 0,
         "Trading fees should be estimated"
+    );
+    assert!(
+        state.running_fees_estimated < state.running_fees_reserved,
+        "Estimated fees should be smaller than reserved"
     );
     assert_eq!(state.closed_qtd, 0);
 
@@ -218,6 +255,7 @@ async fn test_simulated_trades_manager_long_loss() -> Result<()> {
     assert_eq!(state.current_time, time);
     assert_eq!(state.current_balance, expected_balance);
     assert_eq!(state.market_price, market_price);
+    assert_eq!(state.last_trade_time, Some(start_time));
     assert_eq!(state.running_long_qtd, 1);
     assert!(
         state.running_long_margin > 0,
@@ -241,10 +279,12 @@ async fn test_simulated_trades_manager_long_loss() -> Result<()> {
     assert_eq!(state.current_time, time);
     assert_eq!(state.current_balance, expected_balance);
     assert_eq!(state.market_price, market_price);
+    assert_eq!(state.last_trade_time, Some(start_time));
     assert_eq!(state.running_long_qtd, 0); // Trade should be closed by stoploss
     assert_eq!(state.running_long_margin, 0);
     assert_eq!(state.running_pl, 0);
-    assert_eq!(state.running_fees_est, 0);
+    assert_eq!(state.running_fees_reserved, 0);
+    assert_eq!(state.running_fees_estimated, 0);
     assert_eq!(state.closed_qtd, 1);
     assert!(
         state.closed_pl < 0,
@@ -278,12 +318,14 @@ async fn test_simulated_trades_manager_short_profit() -> Result<()> {
     assert_eq!(state.current_time, start_time);
     assert_eq!(state.current_balance, start_balance);
     assert_eq!(state.market_price, market_price);
+    assert_eq!(state.last_trade_time, None);
     assert_eq!(state.running_long_qtd, 0);
     assert_eq!(state.running_long_margin, 0);
     assert_eq!(state.running_short_qtd, 0);
     assert_eq!(state.running_short_margin, 0);
     assert_eq!(state.running_pl, 0);
-    assert_eq!(state.running_fees_est, 0);
+    assert_eq!(state.running_fees_reserved, 0);
+    assert_eq!(state.running_fees_estimated, 0);
     assert_eq!(state.closed_qtd, 0);
     assert_eq!(state.closed_pl, 0);
     assert_eq!(state.closed_fees, 0);
@@ -299,11 +341,13 @@ async fn test_simulated_trades_manager_short_profit() -> Result<()> {
         .await?;
 
     let state = manager.state().await?;
-    let expected_balance = start_balance - state.running_short_margin - state.running_fees_est;
+    let expected_balance = start_balance - state.running_short_margin - state.running_fees_reserved;
 
     assert_eq!(state.current_time, start_time);
     assert_eq!(state.current_balance, expected_balance);
+    assert_eq!(state.last_trade_time, Some(start_time));
     assert_eq!(state.market_price, market_price);
+    assert_eq!(state.last_trade_time, Some(start_time));
     assert_eq!(state.running_long_qtd, 0);
     assert_eq!(state.running_long_margin, 0);
     assert_eq!(state.running_short_qtd, 1);
@@ -313,8 +357,16 @@ async fn test_simulated_trades_manager_short_profit() -> Result<()> {
     );
     assert_eq!(state.running_pl, 0); // No PL yet since price hasn't changed
     assert!(
-        state.running_fees_est > 0,
+        state.running_fees_reserved > 0,
+        "Trading fees should be reserved"
+    );
+    assert!(
+        state.running_fees_estimated > 0,
         "Trading fees should be estimated"
+    );
+    assert!(
+        state.running_fees_estimated > state.running_fees_reserved,
+        "Estimated fees should be greater than reserved"
     );
     assert_eq!(state.closed_qtd, 0);
     assert_eq!(state.closed_pl, 0);
@@ -329,6 +381,7 @@ async fn test_simulated_trades_manager_short_profit() -> Result<()> {
     assert_eq!(state.current_time, time);
     assert_eq!(state.current_balance, expected_balance);
     assert_eq!(state.market_price, market_price);
+    assert_eq!(state.last_trade_time, Some(start_time));
     assert_eq!(state.running_short_qtd, 1);
     assert!(
         state.running_short_margin > 0,
@@ -339,8 +392,16 @@ async fn test_simulated_trades_manager_short_profit() -> Result<()> {
         "Short position should be profitable after price decrease"
     );
     assert!(
-        state.running_fees_est > 0,
+        state.running_fees_reserved > 0,
+        "Trading fees should be reserved"
+    );
+    assert!(
+        state.running_fees_estimated > 0,
         "Trading fees should be estimated"
+    );
+    assert!(
+        state.running_fees_estimated > state.running_fees_reserved,
+        "Estimated fees should be greater than reserved"
     );
     assert_eq!(state.closed_qtd, 0);
     assert_eq!(state.closed_pl, 0);
@@ -358,10 +419,12 @@ async fn test_simulated_trades_manager_short_profit() -> Result<()> {
     assert_eq!(state.current_time, time);
     assert_eq!(state.current_balance, expected_balance);
     assert_eq!(state.market_price, market_price);
+    assert_eq!(state.last_trade_time, Some(start_time));
     assert_eq!(state.running_short_qtd, 0); // Trade should be closed by takeprofit
     assert_eq!(state.running_short_margin, 0);
     assert_eq!(state.running_pl, 0);
-    assert_eq!(state.running_fees_est, 0);
+    assert_eq!(state.running_fees_reserved, 0);
+    assert_eq!(state.running_fees_estimated, 0);
     assert_eq!(state.closed_qtd, 1);
     assert!(
         state.closed_pl > 0,
@@ -395,12 +458,14 @@ async fn test_simulated_trades_manager_short_loss() -> Result<()> {
     assert_eq!(state.current_time, start_time);
     assert_eq!(state.current_balance, start_balance);
     assert_eq!(state.market_price, market_price);
+    assert_eq!(state.last_trade_time, None);
     assert_eq!(state.running_long_qtd, 0);
     assert_eq!(state.running_long_margin, 0);
     assert_eq!(state.running_short_qtd, 0);
     assert_eq!(state.running_short_margin, 0);
     assert_eq!(state.running_pl, 0);
-    assert_eq!(state.running_fees_est, 0);
+    assert_eq!(state.running_fees_reserved, 0);
+    assert_eq!(state.running_fees_estimated, 0);
     assert_eq!(state.closed_qtd, 0);
     assert_eq!(state.closed_pl, 0);
     assert_eq!(state.closed_fees, 0);
@@ -416,10 +481,11 @@ async fn test_simulated_trades_manager_short_loss() -> Result<()> {
         .await?;
 
     let state = manager.state().await?;
-    let expected_balance = start_balance - state.running_short_margin - state.running_fees_est;
+    let expected_balance = start_balance - state.running_short_margin - state.running_fees_reserved;
 
     assert_eq!(state.current_time, start_time);
     assert_eq!(state.current_balance, expected_balance);
+    assert_eq!(state.last_trade_time, Some(start_time));
     assert_eq!(state.running_short_qtd, 1);
     assert!(
         state.running_short_margin > 0,
@@ -427,8 +493,16 @@ async fn test_simulated_trades_manager_short_loss() -> Result<()> {
     );
     assert_eq!(state.running_pl, 0);
     assert!(
-        state.running_fees_est > 0,
+        state.running_fees_reserved > 0,
+        "Trading fees should be reserved"
+    );
+    assert!(
+        state.running_fees_estimated > 0,
         "Trading fees should be estimated"
+    );
+    assert!(
+        state.running_fees_estimated > state.running_fees_reserved,
+        "Estimated fees should be greater than reserved"
     );
     assert_eq!(state.closed_qtd, 0);
 
@@ -441,6 +515,7 @@ async fn test_simulated_trades_manager_short_loss() -> Result<()> {
     assert_eq!(state.current_time, time);
     assert_eq!(state.current_balance, expected_balance);
     assert_eq!(state.market_price, market_price);
+    assert_eq!(state.last_trade_time, Some(start_time));
     assert_eq!(state.running_short_qtd, 1);
     assert!(
         state.running_short_margin > 0,
@@ -464,10 +539,12 @@ async fn test_simulated_trades_manager_short_loss() -> Result<()> {
     assert_eq!(state.current_time, time);
     assert_eq!(state.current_balance, expected_balance);
     assert_eq!(state.market_price, market_price);
+    assert_eq!(state.last_trade_time, Some(start_time));
     assert_eq!(state.running_short_qtd, 0); // Trade should be closed by stoploss
     assert_eq!(state.running_short_margin, 0);
     assert_eq!(state.running_pl, 0);
-    assert_eq!(state.running_fees_est, 0);
+    assert_eq!(state.running_fees_reserved, 0);
+    assert_eq!(state.running_fees_estimated, 0);
     assert_eq!(state.closed_qtd, 1);
     assert!(
         state.closed_pl < 0,
