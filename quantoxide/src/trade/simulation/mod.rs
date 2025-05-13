@@ -65,6 +65,7 @@ struct SimulatedTradesState {
     time: DateTime<Utc>,
     market_price: f64,
     balance: i64,
+    last_trade_time: Option<DateTime<Utc>>,
     trigger: Trigger,
     running: Vec<SimulatedTradeRunning>,
     closed: Vec<SimulatedTradeClosed>,
@@ -92,6 +93,7 @@ impl SimulatedTradesManager {
             time: start_time,
             market_price,
             balance: start_balance as i64,
+            last_trade_time: None,
             trigger: Trigger::new(),
             running: Vec::new(),
             closed: Vec::new(),
@@ -226,6 +228,7 @@ impl SimulatedTradesManager {
 
         state_guard.balance = new_balance;
 
+        state_guard.last_trade_time = Some(state_guard.time);
         state_guard.trigger = new_trigger;
         state_guard.running = remaining_running_trades;
 
@@ -274,6 +277,7 @@ impl SimulatedTradesManager {
         state_guard.balance -=
             trade.margin.into_i64() + trade.opening_fee as i64 + trade.closing_fee_reserved as i64;
 
+        state_guard.last_trade_time = Some(state_guard.time);
         state_guard.trigger.update(&trade);
         state_guard.running.push(trade);
 
@@ -345,7 +349,8 @@ impl TradesManager for SimulatedTradesManager {
         let mut running_short_qtd: usize = 0;
         let mut running_short_margin: u64 = 0;
         let mut running_pl: i64 = 0;
-        let mut running_fees_est: u64 = 0;
+        let mut running_fees_reserved: u64 = 0;
+        let mut running_fees_estimated: u64 = 0;
 
         // Use `Price::round_down` for long trades and `Price::round_up` for
         // short trades, in order to obtain more conservative prices. It is
@@ -368,7 +373,8 @@ impl TradesManager for SimulatedTradesManager {
             };
 
             running_pl += trade.pl(market_price);
-            running_fees_est +=
+            running_fees_reserved += trade.opening_fee + trade.closing_fee_reserved;
+            running_fees_estimated +=
                 trade.opening_fee + trade.closing_fee_est(self.fee_perc, market_price);
         }
 
@@ -378,12 +384,14 @@ impl TradesManager for SimulatedTradesManager {
             state_guard.time,
             state_guard.balance.max(0) as u64,
             state_guard.market_price,
+            state_guard.last_trade_time,
             running_long_qtd,
             running_long_margin,
             running_short_qtd,
             running_short_margin,
             running_pl,
-            running_fees_est,
+            running_fees_reserved,
+            running_fees_estimated,
             state_guard.closed.len(),
             state_guard.closed_pl,
             state_guard.closed_fees,
