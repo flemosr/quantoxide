@@ -1,7 +1,6 @@
-use std::result;
+use thiserror::Error;
 
 use lnm_sdk::api::rest::models::error::QuantityValidationError;
-use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum LiveError {
@@ -11,5 +10,3 @@ pub enum LiveError {
     #[error("Generic error, {0}")]
     Generic(String),
 }
-
-pub type Result<T> = result::Result<T, LiveError>;

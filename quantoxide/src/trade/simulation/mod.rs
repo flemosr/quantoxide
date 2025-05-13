@@ -9,15 +9,15 @@ use lnm_sdk::api::rest::models::{
 };
 
 use super::{
-    core::{TradesManager, TradesState},
+    core::{RiskParams, TradesManager, TradesState},
     error::Result,
 };
 
 pub mod error;
 mod models;
 
-use error::{Result as SimulationResult, SimulationError};
-use models::{RiskParams, SimulatedTradeClosed, SimulatedTradeRunning};
+use error::SimulationError;
+use models::{SimulatedTradeClosed, SimulatedTradeRunning};
 
 enum Close {
     Side(TradeSide),
@@ -114,18 +114,14 @@ impl SimulatedTradesManager {
         }
     }
 
-    pub async fn tick_update(
-        &self,
-        time: DateTime<Utc>,
-        market_price: f64,
-    ) -> SimulationResult<()> {
+    pub async fn tick_update(&self, time: DateTime<Utc>, market_price: f64) -> Result<()> {
         let mut state_guard = self.state.lock().await;
 
         if time <= state_guard.time {
             return Err(SimulationError::TimeSequenceViolation {
                 new_time: time,
                 current_time: state_guard.time,
-            });
+            })?;
         }
 
         state_guard.time = time;
@@ -188,11 +184,12 @@ impl SimulatedTradesManager {
         Ok(())
     }
 
-    async fn close_running(&self, close: Close) -> SimulationResult<()> {
+    async fn close_running(&self, close: Close) -> Result<()> {
         let mut state_guard = self.state.lock().await;
 
         let time = state_guard.time;
-        let market_price = Price::round(state_guard.market_price)?;
+        let market_price =
+            Price::round(state_guard.market_price).map_err(SimulationError::PriceValidation)?;
 
         let mut new_balance = state_guard.balance as i64;
         let mut new_closed_pl = state_guard.closed_pl;
@@ -248,21 +245,27 @@ impl SimulatedTradesManager {
         balance_perc: BoundedPercentage,
         leverage: Leverage,
         risk_params: RiskParams,
-    ) -> SimulationResult<()> {
+    ) -> Result<()> {
         let mut state_guard = self.state.lock().await;
 
         if state_guard.running.len() >= self.max_running_qtd {
             return Err(SimulationError::MaxRunningTradesReached {
                 max_qtd: self.max_running_qtd,
-            });
+            })?;
         }
 
-        let market_price = Price::round(state_guard.market_price)?;
+        let market_price =
+            Price::round(state_guard.market_price).map_err(SimulationError::PriceValidation)?;
 
         let quantity = {
             let balance_usd = state_guard.balance as f64 * market_price.into_f64() / SATS_PER_BTC;
             let quantity_target = balance_usd * balance_perc.into_f64() / 100.;
-            Quantity::try_from(quantity_target.floor())?
+            if quantity_target < 1. {
+                return Err(SimulationError::Generic("balance is too low".to_string()))?;
+            }
+
+            Quantity::try_from(quantity_target.floor())
+                .map_err(SimulationError::QuantityValidation)?
         };
 
         let (side, stoploss, takeprofit) = risk_params.into_trade_params(market_price)?;

@@ -15,7 +15,7 @@ use super::{
 
 pub mod error;
 
-use error::{LiveError, Result as LiveResult};
+use error::LiveError;
 
 struct LiveTradesState {
     last_trade_time: Option<DateTime<Utc>>,
@@ -30,7 +30,7 @@ pub struct LiveTradesManager {
 }
 
 impl LiveTradesManager {
-    pub async fn new(rest: Arc<RestApiContext>, max_running_qtd: usize) -> LiveResult<Self> {
+    pub async fn new(rest: Arc<RestApiContext>, max_running_qtd: usize) -> Result<Self> {
         rest.futures
             .cancel_all_trades()
             .await
@@ -60,7 +60,7 @@ impl LiveTradesManager {
         })
     }
 
-    async fn get_current_balance(&self) -> LiveResult<u64> {
+    async fn get_current_balance(&self) -> Result<u64> {
         let user = self
             .rest
             .user
@@ -71,7 +71,7 @@ impl LiveTradesManager {
         Ok(user.balance())
     }
 
-    async fn get_ticker(&self) -> LiveResult<Ticker> {
+    async fn get_ticker(&self) -> Result<Ticker> {
         let ticker = self
             .rest
             .futures
@@ -82,7 +82,7 @@ impl LiveTradesManager {
         Ok(ticker)
     }
 
-    async fn eval_trade_quantity(&self, balance_perc: BoundedPercentage) -> LiveResult<Quantity> {
+    async fn eval_trade_quantity(&self, balance_perc: BoundedPercentage) -> Result<Quantity> {
         todo!()
     }
 }

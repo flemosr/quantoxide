@@ -7,7 +7,9 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use futures::FutureExt;
 
-use lnm_sdk::api::rest::models::{BoundedPercentage, Leverage, LowerBoundedPercentage};
+use lnm_sdk::api::rest::models::{
+    BoundedPercentage, Leverage, LowerBoundedPercentage, Price, TradeSide,
+};
 
 use crate::signal::Signal;
 
@@ -164,6 +166,50 @@ impl TradesState {
 
     pub fn net_pl_estimated(&self) -> i64 {
         self.pl() - self.fees_estimated() as i64
+    }
+}
+
+pub enum RiskParams {
+    Long {
+        stoploss_perc: BoundedPercentage,
+        takeprofit_perc: LowerBoundedPercentage,
+    },
+    Short {
+        stoploss_perc: BoundedPercentage,
+        takeprofit_perc: BoundedPercentage,
+    },
+}
+
+impl RiskParams {
+    pub fn into_trade_params(self, market_price: Price) -> Result<(TradeSide, Price, Price)> {
+        match self {
+            Self::Long {
+                stoploss_perc,
+                takeprofit_perc,
+            } => {
+                let stoploss = market_price
+                    .apply_discount(stoploss_perc)
+                    .map_err(TradeError::RiskParamsConversion)?;
+                let takeprofit = market_price
+                    .apply_gain(takeprofit_perc.into())
+                    .map_err(TradeError::RiskParamsConversion)?;
+
+                Ok((TradeSide::Buy, stoploss, takeprofit))
+            }
+            RiskParams::Short {
+                stoploss_perc,
+                takeprofit_perc,
+            } => {
+                let stoploss = market_price
+                    .apply_gain(stoploss_perc.into())
+                    .map_err(TradeError::RiskParamsConversion)?;
+                let takeprofit = market_price
+                    .apply_discount(takeprofit_perc)
+                    .map_err(TradeError::RiskParamsConversion)?;
+
+                Ok((TradeSide::Sell, stoploss, takeprofit))
+            }
+        }
     }
 }
 

@@ -1,47 +1,11 @@
 use chrono::{DateTime, Utc};
 
 use lnm_sdk::api::rest::models::{
-    BoundedPercentage, Leverage, LowerBoundedPercentage, Margin, Price, Quantity, SATS_PER_BTC,
-    TradeSide, estimate_liquidation_price, estimate_pl,
+    BoundedPercentage, Leverage, Margin, Price, Quantity, SATS_PER_BTC, TradeSide,
+    estimate_liquidation_price, estimate_pl,
 };
 
 use super::error::{Result, SimulationError};
-
-pub enum RiskParams {
-    Long {
-        stoploss_perc: BoundedPercentage,
-        takeprofit_perc: LowerBoundedPercentage,
-    },
-    Short {
-        stoploss_perc: BoundedPercentage,
-        takeprofit_perc: BoundedPercentage,
-    },
-}
-
-impl RiskParams {
-    pub fn into_trade_params(self, market_price: Price) -> Result<(TradeSide, Price, Price)> {
-        match self {
-            Self::Long {
-                stoploss_perc,
-                takeprofit_perc,
-            } => {
-                let stoploss = market_price.apply_discount(stoploss_perc)?;
-                let takeprofit = market_price.apply_gain(takeprofit_perc.into())?;
-
-                Ok((TradeSide::Buy, stoploss, takeprofit))
-            }
-            RiskParams::Short {
-                stoploss_perc,
-                takeprofit_perc,
-            } => {
-                let stoploss = market_price.apply_gain(stoploss_perc.into())?;
-                let takeprofit = market_price.apply_discount(takeprofit_perc)?;
-
-                Ok((TradeSide::Sell, stoploss, takeprofit))
-            }
-        }
-    }
-}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SimulatedTradeRunning {

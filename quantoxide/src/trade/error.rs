@@ -2,10 +2,15 @@ use std::result;
 
 use thiserror::Error;
 
+use lnm_sdk::api::rest::models::error::PriceValidationError;
+
 use super::{live::error::LiveError, simulation::error::SimulationError};
 
 #[derive(Error, Debug)]
 pub enum TradeError {
+    #[error("RiskParamsConversion error {0}")]
+    RiskParamsConversion(PriceValidationError),
+
     #[error("[Simulated] {0}")]
     Simulated(#[from] SimulationError),
 

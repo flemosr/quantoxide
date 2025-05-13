@@ -77,6 +77,9 @@ pub enum SimulationError {
         side: TradeSide,
         entry: PriceHistoryEntry,
     },
+
+    #[error("Generic error, {0}")]
+    Generic(String),
 }
 
 pub type Result<T> = result::Result<T, SimulationError>;
