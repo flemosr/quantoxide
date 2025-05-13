@@ -140,9 +140,15 @@ impl SimulatedTradeRunning {
         estimate_pl(self.side, self.quantity, self.entry_price, current_price)
     }
 
-    pub fn net_pl(&self, current_price: Price) -> i64 {
+    pub fn closing_fee_est(&self, fee_perc: BoundedPercentage, close_price: Price) -> u64 {
+        let fee_calc = SATS_PER_BTC * fee_perc.into_f64() / 100.;
+
+        (fee_calc * self.quantity.into_f64() / close_price.into_f64()).floor() as u64
+    }
+
+    pub fn net_pl_est(&self, fee_perc: BoundedPercentage, current_price: Price) -> i64 {
         let pl = self.pl(current_price);
-        pl - self.opening_fee as i64 - self.closing_fee_reserved as i64
+        pl - self.opening_fee as i64 - self.closing_fee_est(fee_perc, current_price) as i64
     }
 }
 
