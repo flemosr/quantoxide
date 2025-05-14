@@ -6,7 +6,7 @@ use futures::future;
 use lnm_sdk::api::rest::{
     RestApiContext,
     models::{
-        BoundedPercentage, Leverage, LowerBoundedPercentage, Quantity, SATS_PER_BTC, Ticker,
+        BoundedPercentage, Leverage, LowerBoundedPercentage, Price, Quantity, SATS_PER_BTC, Ticker,
         TradeExecution, TradeSide,
     },
 };
@@ -23,6 +23,21 @@ pub mod error;
 
 use error::LiveError;
 
+fn calculate_quantity(
+    balance: u64,
+    market_price: Price,
+    balance_perc: BoundedPercentage,
+) -> Result<Quantity> {
+    let balance_usd = balance as f64 * market_price.into_f64() / SATS_PER_BTC;
+    let quantity_target = balance_usd * balance_perc.into_f64() / 100.;
+
+    if quantity_target < 1. {
+        return Err(LiveError::Generic("balance is too low".to_string()))?;
+    }
+
+    Ok(Quantity::try_from(quantity_target.floor()).map_err(LiveError::QuantityValidation)?)
+}
+
 struct LiveTradesState {
     last_trade_time: Option<DateTime<Utc>>,
 }
@@ -36,21 +51,12 @@ pub struct LiveTradesManager {
 
 impl LiveTradesManager {
     pub async fn new(rest: Arc<RestApiContext>) -> Result<Self> {
-        rest.futures
-            .cancel_all_trades()
-            .await
-            .map_err(|e| LiveError::Generic(e.to_string()))?;
-
-        rest.futures
-            .close_all_trades()
-            .await
-            .map_err(|e| LiveError::Generic(e.to_string()))?;
-
-        let user = rest
-            .user
-            .get_user()
-            .await
-            .map_err(|e| LiveError::Generic(e.to_string()))?;
+        let (_, _, user) = futures::try_join!(
+            rest.futures.cancel_all_trades(),
+            rest.futures.close_all_trades(),
+            rest.user.get_user()
+        )
+        .map_err(LiveError::RestApi)?;
 
         let initial_state = LiveTradesState {
             last_trade_time: None,
@@ -64,26 +70,12 @@ impl LiveTradesManager {
         })
     }
 
-    async fn get_current_balance(&self) -> Result<u64> {
-        let user = self
-            .rest
-            .user
-            .get_user()
-            .await
-            .map_err(|e| LiveError::Generic(e.to_string()))?;
+    async fn get_ticker_and_balance(&self) -> Result<(Ticker, u64)> {
+        let (ticker, user) =
+            futures::try_join!(self.rest.futures.ticker(), self.rest.user.get_user())
+                .map_err(LiveError::RestApi)?;
 
-        Ok(user.balance())
-    }
-
-    async fn get_ticker(&self) -> Result<Ticker> {
-        let ticker = self
-            .rest
-            .futures
-            .ticker()
-            .await
-            .map_err(|e| LiveError::Generic(e.to_string()))?;
-
-        Ok(ticker)
+        Ok((ticker, user.balance()))
     }
 }
 
@@ -99,8 +91,7 @@ impl TradesManager for LiveTradesManager {
         let mut state_guard = self.state.lock().await;
         state_guard.last_trade_time = Some(Utc::now());
 
-        let ticker = self.get_ticker().await?;
-        let balance = self.get_current_balance().await?;
+        let (ticker, balance) = self.get_ticker_and_balance().await?;
 
         let risk_params = RiskParams::Long {
             stoploss_perc,
@@ -109,15 +100,7 @@ impl TradesManager for LiveTradesManager {
 
         let (side, stoploss, takeprofit) = risk_params.into_trade_params(ticker.ask_price())?;
 
-        let quantity = {
-            let balance_usd = balance as f64 * ticker.ask_price().into_f64() / SATS_PER_BTC;
-            let quantity_target = balance_usd * balance_perc.into_f64() / 100.;
-            if quantity_target < 1. {
-                return Err(LiveError::Generic("balance is too low".to_string()))?;
-            }
-
-            Quantity::try_from(quantity_target.floor()).map_err(LiveError::QuantityValidation)?
-        };
+        let quantity = calculate_quantity(balance, ticker.ask_price(), balance_perc)?;
 
         self.rest
             .futures
@@ -145,8 +128,7 @@ impl TradesManager for LiveTradesManager {
         let mut state_guard = self.state.lock().await;
         state_guard.last_trade_time = Some(Utc::now());
 
-        let ticker = self.get_ticker().await?;
-        let balance = self.get_current_balance().await?;
+        let (ticker, balance) = self.get_ticker_and_balance().await?;
 
         let risk_params = RiskParams::Short {
             stoploss_perc,
@@ -155,15 +137,7 @@ impl TradesManager for LiveTradesManager {
 
         let (side, stoploss, takeprofit) = risk_params.into_trade_params(ticker.bid_price())?;
 
-        let quantity = {
-            let balance_usd = balance as f64 * ticker.ask_price().into_f64() / SATS_PER_BTC;
-            let quantity_target = balance_usd * balance_perc.into_f64() / 100.;
-            if quantity_target < 1. {
-                return Err(LiveError::Generic("balance is too low".to_string()))?;
-            }
-
-            Quantity::try_from(quantity_target.floor()).map_err(LiveError::QuantityValidation)?
-        };
+        let quantity = calculate_quantity(balance, ticker.bid_price(), balance_perc)?;
 
         self.rest
             .futures
@@ -257,17 +231,11 @@ impl TradesManager for LiveTradesManager {
         let mut state_guard = self.state.lock().await;
         state_guard.last_trade_time = Some(Utc::now());
 
-        self.rest
-            .futures
-            .cancel_all_trades()
-            .await
-            .map_err(LiveError::RestApi)?;
-
-        self.rest
-            .futures
-            .close_all_trades()
-            .await
-            .map_err(LiveError::RestApi)?;
+        let (_, _) = futures::try_join!(
+            self.rest.futures.cancel_all_trades(),
+            self.rest.futures.close_all_trades(),
+        )
+        .map_err(LiveError::RestApi)?;
 
         Ok(())
     }
@@ -275,22 +243,17 @@ impl TradesManager for LiveTradesManager {
     async fn state(&self) -> Result<TradesState> {
         let state_guard = self.state.lock().await;
 
-        let running_trades = self
-            .rest
-            .futures
-            .get_trades_running(None, None, 1000.into())
-            .await
-            .map_err(LiveError::RestApi)?;
-
-        let closed_trades = self
-            .rest
-            .futures
-            .get_trades_closed(Some(&self.start_time), None, 1000.into())
-            .await
-            .map_err(LiveError::RestApi)?;
-
-        let ticker = self.get_ticker().await?;
-        let balance = self.get_current_balance().await?;
+        let (running_trades, closed_trades, ticker, user) = futures::try_join!(
+            self.rest
+                .futures
+                .get_trades_running(None, None, 1000.into()),
+            self.rest
+                .futures
+                .get_trades_closed(Some(&self.start_time), None, 1000.into()),
+            self.rest.futures.ticker(),
+            self.rest.user.get_user()
+        )
+        .map_err(LiveError::RestApi)?;
 
         let mut running_long_qtd: usize = 0;
         let mut running_long_margin: u64 = 0;
@@ -329,7 +292,7 @@ impl TradesManager for LiveTradesManager {
             self.start_time,
             self.start_balance,
             Utc::now(),
-            balance,
+            user.balance(),
             ticker.last_price().into_f64(),
             state_guard.last_trade_time,
             running_long_qtd,
