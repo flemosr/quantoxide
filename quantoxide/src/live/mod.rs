@@ -11,6 +11,7 @@ use tokio::{
 use crate::{
     db::DbContext,
     signal::eval::ConfiguredSignalEvaluator,
+    sync::{Sync, SyncConfig, SyncState},
     trade::core::{Operator, TradesState, WrappedOperator},
 };
 
@@ -22,6 +23,7 @@ use error::{LiveError, Result};
 pub enum LiveState {
     NotInitiated,
     Starting,
+    Syncing(Arc<SyncState>),
     Running(TradesState),
     Failed(LiveError),
     Restarting,
@@ -103,6 +105,30 @@ impl LiveProcess {
     }
 
     pub async fn run(&self) -> Result<()> {
+        let config = SyncConfig::from(&self.config);
+
+        let sync_controller = Sync::new(config, self.db.clone(), self.api.clone())
+            .start()
+            .map_err(|e| LiveError::Generic(e.to_string()))?;
+
+        while let Ok(res) = sync_controller.receiver().recv().await {
+            self.state_manager
+                .update(LiveState::Syncing(res.clone()))
+                .await?;
+
+            match res.as_ref() {
+                SyncState::Synced => {
+                    break;
+                }
+                SyncState::Aborted => {
+                    return Err(LiveError::Generic(
+                        "Sync process unexpectedly aborted".to_string(),
+                    ));
+                }
+                _ => {}
+            }
+        }
+
         todo!()
     }
 }
