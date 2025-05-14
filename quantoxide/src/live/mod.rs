@@ -190,6 +190,38 @@ impl Default for LiveConfig {
 }
 
 impl LiveConfig {
+    pub fn api_cooldown(&self) -> time::Duration {
+        self.api_cooldown
+    }
+
+    pub fn api_error_cooldown(&self) -> time::Duration {
+        self.api_error_cooldown
+    }
+
+    pub fn api_error_max_trials(&self) -> u32 {
+        self.api_error_max_trials
+    }
+
+    pub fn api_history_batch_size(&self) -> usize {
+        self.api_history_batch_size
+    }
+
+    pub fn sync_history_reach(&self) -> Duration {
+        self.sync_history_reach
+    }
+
+    pub fn re_sync_history_interval(&self) -> time::Duration {
+        self.re_sync_history_interval
+    }
+
+    pub fn signal_eval_interval(&self) -> time::Duration {
+        self.signal_eval_interval
+    }
+
+    pub fn restart_interval(&self) -> time::Duration {
+        self.restart_interval
+    }
+
     pub fn set_api_cooldown(mut self, secs: u64) -> Self {
         self.api_cooldown = time::Duration::from_secs(secs);
         self
