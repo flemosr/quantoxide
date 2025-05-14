@@ -311,11 +311,11 @@ impl SignalJobConfig {
     }
 }
 
-impl From<LiveConfig> for SignalJobConfig {
-    fn from(config: LiveConfig) -> Self {
+impl From<&LiveConfig> for SignalJobConfig {
+    fn from(value: &LiveConfig) -> Self {
         Self {
-            eval_interval: config.signal_eval_interval(),
-            restart_interval: config.restart_interval(),
+            eval_interval: value.signal_eval_interval(),
+            restart_interval: value.restart_interval(),
         }
     }
 }
