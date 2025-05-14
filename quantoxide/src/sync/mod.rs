@@ -12,7 +12,7 @@ use tokio::{
 
 use lnm_sdk::api::ApiContext;
 
-use crate::db::DbContext;
+use crate::{db::DbContext, live::LiveConfig};
 
 pub mod error;
 mod real_time_collection_task;
@@ -264,6 +264,34 @@ impl Default for SyncConfig {
 }
 
 impl SyncConfig {
+    pub fn api_cooldown(&self) -> time::Duration {
+        self.api_cooldown
+    }
+
+    pub fn api_error_cooldown(&self) -> time::Duration {
+        self.api_error_cooldown
+    }
+
+    pub fn api_error_max_trials(&self) -> u32 {
+        self.api_error_max_trials
+    }
+
+    pub fn api_history_batch_size(&self) -> usize {
+        self.api_history_batch_size
+    }
+
+    pub fn sync_history_reach(&self) -> Duration {
+        self.sync_history_reach
+    }
+
+    pub fn re_sync_history_interval(&self) -> time::Duration {
+        self.re_sync_history_interval
+    }
+
+    pub fn restart_interval(&self) -> time::Duration {
+        self.restart_interval
+    }
+
     pub fn set_api_cooldown(mut self, secs: u64) -> Self {
         self.api_cooldown = time::Duration::from_secs(secs);
         self
@@ -297,6 +325,20 @@ impl SyncConfig {
     pub fn set_restart_interval(mut self, secs: u64) -> Self {
         self.restart_interval = time::Duration::from_secs(secs);
         self
+    }
+}
+
+impl From<LiveConfig> for SyncConfig {
+    fn from(live_config: LiveConfig) -> Self {
+        SyncConfig {
+            api_cooldown: live_config.api_cooldown(),
+            api_error_cooldown: live_config.api_error_cooldown(),
+            api_error_max_trials: live_config.api_error_max_trials(),
+            api_history_batch_size: live_config.api_history_batch_size(),
+            sync_history_reach: live_config.sync_history_reach(),
+            re_sync_history_interval: live_config.re_sync_history_interval(),
+            restart_interval: live_config.restart_interval(),
+        }
     }
 }
 
