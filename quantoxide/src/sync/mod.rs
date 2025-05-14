@@ -328,16 +328,16 @@ impl SyncConfig {
     }
 }
 
-impl From<LiveConfig> for SyncConfig {
-    fn from(live_config: LiveConfig) -> Self {
+impl From<&LiveConfig> for SyncConfig {
+    fn from(value: &LiveConfig) -> Self {
         SyncConfig {
-            api_cooldown: live_config.api_cooldown(),
-            api_error_cooldown: live_config.api_error_cooldown(),
-            api_error_max_trials: live_config.api_error_max_trials(),
-            api_history_batch_size: live_config.api_history_batch_size(),
-            sync_history_reach: live_config.sync_history_reach(),
-            re_sync_history_interval: live_config.re_sync_history_interval(),
-            restart_interval: live_config.restart_interval(),
+            api_cooldown: value.api_cooldown(),
+            api_error_cooldown: value.api_error_cooldown(),
+            api_error_max_trials: value.api_error_max_trials(),
+            api_history_batch_size: value.api_history_batch_size(),
+            sync_history_reach: value.sync_history_reach(),
+            re_sync_history_interval: value.re_sync_history_interval(),
+            restart_interval: value.restart_interval(),
         }
     }
 }
