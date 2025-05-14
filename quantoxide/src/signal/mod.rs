@@ -9,6 +9,7 @@ use tokio::{
 
 use crate::{
     db::{DbContext, models::PriceHistoryEntryLOCF},
+    live::LiveConfig,
     sync::{SyncController, SyncState},
     util::DateTimeExt,
 };
@@ -291,6 +292,14 @@ impl Default for SignalJobConfig {
 }
 
 impl SignalJobConfig {
+    pub fn eval_interval(&self) -> time::Duration {
+        self.eval_interval
+    }
+
+    pub fn restart_interval(&self) -> time::Duration {
+        self.restart_interval
+    }
+
     pub fn set_eval_interval(mut self, secs: u64) -> Self {
         self.eval_interval = time::Duration::from_secs(secs);
         self
@@ -299,6 +308,15 @@ impl SignalJobConfig {
     pub fn set_restart_interval(mut self, secs: u64) -> Self {
         self.restart_interval = time::Duration::from_secs(secs);
         self
+    }
+}
+
+impl From<LiveConfig> for SignalJobConfig {
+    fn from(config: LiveConfig) -> Self {
+        Self {
+            eval_interval: config.signal_eval_interval(),
+            restart_interval: config.restart_interval(),
+        }
     }
 }
 
