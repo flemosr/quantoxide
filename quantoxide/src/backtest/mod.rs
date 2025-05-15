@@ -385,7 +385,7 @@ impl Backtest {
                     .map_err(|e| BacktestError::Generic(e.to_string()))?;
 
                 operator
-                    .consume_signal(signal)
+                    .process_signal(&signal)
                     .await
                     .map_err(|e| BacktestError::Generic(e.to_string()))?;
             }

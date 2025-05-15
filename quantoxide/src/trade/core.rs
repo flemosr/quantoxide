@@ -247,9 +247,9 @@ pub trait Operator: Send + Sync {
         trades_manager: Arc<dyn TradesManager + Send + Sync>,
     ) -> std::result::Result<(), Box<dyn std::error::Error>>;
 
-    async fn consume_signal(
+    async fn process_signal(
         &self,
-        signal: Signal,
+        signal: &Signal,
     ) -> std::result::Result<(), Box<dyn std::error::Error>>;
 }
 
@@ -272,8 +272,8 @@ impl WrappedOperator {
         })
     }
 
-    pub async fn consume_signal(&self, signal: Signal) -> Result<()> {
-        FutureExt::catch_unwind(AssertUnwindSafe(self.0.consume_signal(signal)))
+    pub async fn process_signal(&self, signal: &Signal) -> Result<()> {
+        FutureExt::catch_unwind(AssertUnwindSafe(self.0.process_signal(signal)))
             .await
             .map_err(|_| TradeError::Generic(format!("`Operator::consume_signal` panicked")))?
             .map_err(|e| {
