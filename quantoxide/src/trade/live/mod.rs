@@ -52,9 +52,9 @@ pub struct LiveTradesManager {
 impl LiveTradesManager {
     pub async fn new(api: Arc<ApiContext>) -> Result<Self> {
         let (_, _, user) = futures::try_join!(
-            api.rest().futures.cancel_all_trades(),
-            api.rest().futures.close_all_trades(),
-            api.rest().user.get_user()
+            api.rest().futures().cancel_all_trades(),
+            api.rest().futures().close_all_trades(),
+            api.rest().user().get_user()
         )
         .map_err(LiveError::RestApi)?;
 
@@ -72,8 +72,8 @@ impl LiveTradesManager {
 
     async fn get_ticker_and_balance(&self) -> Result<(Ticker, u64)> {
         let (ticker, user) = futures::try_join!(
-            self.api.rest().futures.ticker(),
-            self.api.rest().user.get_user()
+            self.api.rest().futures().ticker(),
+            self.api.rest().user().get_user()
         )
         .map_err(LiveError::RestApi)?;
 
@@ -106,7 +106,7 @@ impl TradesManager for LiveTradesManager {
 
         self.api
             .rest()
-            .futures
+            .futures()
             .create_new_trade(
                 side,
                 quantity.into(),
@@ -144,7 +144,7 @@ impl TradesManager for LiveTradesManager {
 
         self.api
             .rest()
-            .futures
+            .futures()
             .create_new_trade(
                 side,
                 quantity.into(),
@@ -166,7 +166,7 @@ impl TradesManager for LiveTradesManager {
         let running = self
             .api
             .rest()
-            .futures
+            .futures()
             .get_trades_running(None, None, 1000.into())
             .await
             .map_err(LiveError::RestApi)?;
@@ -181,8 +181,8 @@ impl TradesManager for LiveTradesManager {
             let close_futures = chunk
                 .iter()
                 .map(|trade| {
-                    let rest = self.api.rest();
-                    async move { rest.futures.close_trade(trade.id()).await }
+                    let rest_futures = self.api.rest().futures();
+                    async move { rest_futures.close_trade(trade.id()).await }
                 })
                 .collect::<Vec<_>>();
 
@@ -203,7 +203,7 @@ impl TradesManager for LiveTradesManager {
         let running = self
             .api
             .rest()
-            .futures
+            .futures()
             .get_trades_running(None, None, 1000.into())
             .await
             .map_err(LiveError::RestApi)?;
@@ -218,8 +218,8 @@ impl TradesManager for LiveTradesManager {
             let close_futures = chunk
                 .iter()
                 .map(|trade| {
-                    let rest = self.api.rest();
-                    async move { rest.futures.close_trade(trade.id()).await }
+                    let rest_futures = self.api.rest().futures();
+                    async move { rest_futures.close_trade(trade.id()).await }
                 })
                 .collect::<Vec<_>>();
 
@@ -238,8 +238,8 @@ impl TradesManager for LiveTradesManager {
         state_guard.last_trade_time = Some(Utc::now());
 
         let (_, _) = futures::try_join!(
-            self.api.rest().futures.cancel_all_trades(),
-            self.api.rest().futures.close_all_trades(),
+            self.api.rest().futures().cancel_all_trades(),
+            self.api.rest().futures().close_all_trades(),
         )
         .map_err(LiveError::RestApi)?;
 
@@ -252,14 +252,14 @@ impl TradesManager for LiveTradesManager {
         let (running_trades, closed_trades, ticker, user) = futures::try_join!(
             self.api
                 .rest()
-                .futures
+                .futures()
                 .get_trades_running(None, None, 1000.into()),
             self.api
                 .rest()
-                .futures
+                .futures()
                 .get_trades_closed(Some(&self.start_time), None, 1000.into()),
-            self.api.rest().futures.ticker(),
-            self.api.rest().user.get_user()
+            self.api.rest().futures().ticker(),
+            self.api.rest().user().get_user()
         )
         .map_err(LiveError::RestApi)?;
 
