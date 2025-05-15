@@ -8,8 +8,8 @@ use lnm::{base::LnmApiBase, futures::LnmFuturesRepository, user::LnmUserReposito
 use repositories::{FuturesRepository, UserRepository};
 
 pub struct RestApiContext {
-    pub futures: Box<dyn FuturesRepository>,
-    pub user: Box<dyn UserRepository>,
+    futures: Box<dyn FuturesRepository>,
+    user: Box<dyn UserRepository>,
 }
 
 impl RestApiContext {
@@ -20,5 +20,13 @@ impl RestApiContext {
         let user = Box::new(LnmUserRepository::new(base));
 
         Ok(Self { futures, user })
+    }
+
+    pub fn futures(&self) -> &Box<dyn FuturesRepository> {
+        &self.futures
+    }
+
+    pub fn user(&self) -> &Box<dyn UserRepository> {
+        &self.user
     }
 }
