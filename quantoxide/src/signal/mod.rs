@@ -126,7 +126,7 @@ struct SignalProcess {
     db: Arc<DbContext>,
     sync_controller: Arc<SyncController>,
     state_manager: SignalJobStateManager,
-    evaluators: Vec<ConfiguredSignalEvaluator>,
+    evaluators: Arc<Vec<ConfiguredSignalEvaluator>>,
 }
 
 impl SignalProcess {
@@ -135,7 +135,7 @@ impl SignalProcess {
         db: Arc<DbContext>,
         sync_controller: Arc<SyncController>,
         state_manager: SignalJobStateManager,
-        evaluators: Vec<ConfiguredSignalEvaluator>,
+        evaluators: Arc<Vec<ConfiguredSignalEvaluator>>,
     ) -> Result<Self> {
         if evaluators.is_empty() {
             return Err(SignalError::Generic("empty `evaluators`".to_string()));
@@ -331,7 +331,7 @@ impl SignalJob {
         config: SignalJobConfig,
         db: Arc<DbContext>,
         sync_controller: Arc<SyncController>,
-        evaluators: Vec<ConfiguredSignalEvaluator>,
+        evaluators: Arc<Vec<ConfiguredSignalEvaluator>>,
     ) -> Result<Self> {
         let state_manager = SignalJobStateManager::new();
         let restart_interval = config.restart_interval;
