@@ -10,9 +10,12 @@ use tokio::{
 
 use crate::{
     db::DbContext,
-    signal::eval::ConfiguredSignalEvaluator,
+    signal::{SignalJob, SignalJobConfig, SignalJobState, eval::ConfiguredSignalEvaluator},
     sync::{Sync, SyncConfig, SyncState},
-    trade::core::{Operator, TradesState, WrappedOperator},
+    trade::{
+        LiveTradesManager,
+        core::{Operator, TradesManager, TradesState, WrappedOperator},
+    },
 };
 
 pub mod error;
@@ -24,6 +27,8 @@ pub enum LiveState {
     NotInitiated,
     Starting,
     Syncing(Arc<SyncState>),
+    WaitingForSync,
+    WaitingForSignalJob(Arc<SignalJobState>),
     Running(TradesState),
     Failed(LiveError),
     Restarting,
@@ -80,7 +85,7 @@ struct LiveProcess {
     config: LiveConfig,
     db: Arc<DbContext>,
     api: Arc<ApiContext>,
-    evaluators: Vec<ConfiguredSignalEvaluator>,
+    evaluators: Arc<Vec<ConfiguredSignalEvaluator>>,
     operator: WrappedOperator,
     state_manager: LiveStateManager,
 }
@@ -98,15 +103,14 @@ impl LiveProcess {
             config,
             db,
             api,
-            evaluators,
+            evaluators: Arc::new(evaluators),
             operator,
             state_manager,
         }
     }
 
-    pub async fn run(&self) -> Result<()> {
+    pub async fn run(&mut self) -> Result<()> {
         let config = SyncConfig::from(&self.config);
-
         let sync_controller = Sync::new(config, self.db.clone(), self.api.clone())
             .start()
             .map_err(|e| LiveError::Generic(e.to_string()))?;
@@ -126,6 +130,62 @@ impl LiveProcess {
                     ));
                 }
                 _ => {}
+            }
+        }
+
+        let trades_manager = {
+            let manager = LiveTradesManager::new(self.api.clone())
+                .await
+                .map_err(|e| LiveError::Generic(e.to_string()))?;
+            Arc::new(manager)
+        };
+
+        self.operator
+            .set_trades_manager(trades_manager.clone())
+            .map_err(|e| {
+                LiveError::Generic(format!(
+                    "couldn't set the live trades manager {}",
+                    e.to_string()
+                ))
+            })?;
+
+        let config = SignalJobConfig::from(&self.config);
+        let signal_job_controller = SignalJob::new(
+            config,
+            self.db.clone(),
+            sync_controller.clone(),
+            self.evaluators.clone(),
+        )
+        .map_err(|e| LiveError::Generic(e.to_string()))?
+        .start()
+        .map_err(|e| LiveError::Generic(e.to_string()))?;
+
+        while let Ok(res) = signal_job_controller.receiver().recv().await {
+            match res.as_ref() {
+                SignalJobState::Running(last_signal) => {
+                    self.operator
+                        .process_signal(last_signal)
+                        .await
+                        .map_err(|e| LiveError::Generic(e.to_string()))?;
+
+                    let trades_state = trades_manager
+                        .state()
+                        .await
+                        .map_err(|e| LiveError::Generic(e.to_string()))?;
+
+                    self.state_manager
+                        .update(LiveState::Running(trades_state))
+                        .await?;
+                }
+
+                SignalJobState::WaitingForSync => {
+                    self.state_manager.update(LiveState::WaitingForSync).await?;
+                }
+                _ => {
+                    self.state_manager
+                        .update(LiveState::WaitingForSignalJob(res))
+                        .await?;
+                }
             }
         }
 
@@ -328,7 +388,7 @@ impl Live {
         })
     }
 
-    async fn process_recovery_loop(self) -> Result<()> {
+    async fn process_recovery_loop(mut self) -> Result<()> {
         loop {
             self.state_manager.update(LiveState::Starting).await?;
 
