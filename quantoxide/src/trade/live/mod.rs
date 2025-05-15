@@ -3,9 +3,9 @@ use std::{result, sync::Arc};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use futures::future;
-use lnm_sdk::api::rest::{
-    RestApiContext,
-    models::{
+use lnm_sdk::api::{
+    ApiContext,
+    rest::models::{
         BoundedPercentage, Leverage, LowerBoundedPercentage, Price, Quantity, SATS_PER_BTC, Ticker,
         TradeExecution, TradeSide,
     },
@@ -43,18 +43,18 @@ struct LiveTradesState {
 }
 
 pub struct LiveTradesManager {
-    rest: Arc<RestApiContext>,
+    api: Arc<ApiContext>,
     start_time: DateTime<Utc>,
     start_balance: u64,
     state: Arc<Mutex<LiveTradesState>>,
 }
 
 impl LiveTradesManager {
-    pub async fn new(rest: Arc<RestApiContext>) -> Result<Self> {
+    pub async fn new(api: Arc<ApiContext>) -> Result<Self> {
         let (_, _, user) = futures::try_join!(
-            rest.futures.cancel_all_trades(),
-            rest.futures.close_all_trades(),
-            rest.user.get_user()
+            api.rest().futures.cancel_all_trades(),
+            api.rest().futures.close_all_trades(),
+            api.rest().user.get_user()
         )
         .map_err(LiveError::RestApi)?;
 
@@ -63,7 +63,7 @@ impl LiveTradesManager {
         };
 
         Ok(Self {
-            rest,
+            api,
             start_time: Utc::now(),
             start_balance: user.balance(),
             state: Arc::new(Mutex::new(initial_state)),
@@ -71,9 +71,11 @@ impl LiveTradesManager {
     }
 
     async fn get_ticker_and_balance(&self) -> Result<(Ticker, u64)> {
-        let (ticker, user) =
-            futures::try_join!(self.rest.futures.ticker(), self.rest.user.get_user())
-                .map_err(LiveError::RestApi)?;
+        let (ticker, user) = futures::try_join!(
+            self.api.rest().futures.ticker(),
+            self.api.rest().user.get_user()
+        )
+        .map_err(LiveError::RestApi)?;
 
         Ok((ticker, user.balance()))
     }
@@ -102,7 +104,8 @@ impl TradesManager for LiveTradesManager {
 
         let quantity = calculate_quantity(balance, ticker.ask_price(), balance_perc)?;
 
-        self.rest
+        self.api
+            .rest()
             .futures
             .create_new_trade(
                 side,
@@ -139,7 +142,8 @@ impl TradesManager for LiveTradesManager {
 
         let quantity = calculate_quantity(balance, ticker.bid_price(), balance_perc)?;
 
-        self.rest
+        self.api
+            .rest()
             .futures
             .create_new_trade(
                 side,
@@ -160,7 +164,8 @@ impl TradesManager for LiveTradesManager {
         state_guard.last_trade_time = Some(Utc::now());
 
         let running = self
-            .rest
+            .api
+            .rest()
             .futures
             .get_trades_running(None, None, 1000.into())
             .await
@@ -176,7 +181,7 @@ impl TradesManager for LiveTradesManager {
             let close_futures = chunk
                 .iter()
                 .map(|trade| {
-                    let rest = &self.rest;
+                    let rest = self.api.rest();
                     async move { rest.futures.close_trade(trade.id()).await }
                 })
                 .collect::<Vec<_>>();
@@ -196,7 +201,8 @@ impl TradesManager for LiveTradesManager {
         state_guard.last_trade_time = Some(Utc::now());
 
         let running = self
-            .rest
+            .api
+            .rest()
             .futures
             .get_trades_running(None, None, 1000.into())
             .await
@@ -212,7 +218,7 @@ impl TradesManager for LiveTradesManager {
             let close_futures = chunk
                 .iter()
                 .map(|trade| {
-                    let rest = &self.rest;
+                    let rest = self.api.rest();
                     async move { rest.futures.close_trade(trade.id()).await }
                 })
                 .collect::<Vec<_>>();
@@ -232,8 +238,8 @@ impl TradesManager for LiveTradesManager {
         state_guard.last_trade_time = Some(Utc::now());
 
         let (_, _) = futures::try_join!(
-            self.rest.futures.cancel_all_trades(),
-            self.rest.futures.close_all_trades(),
+            self.api.rest().futures.cancel_all_trades(),
+            self.api.rest().futures.close_all_trades(),
         )
         .map_err(LiveError::RestApi)?;
 
@@ -244,14 +250,16 @@ impl TradesManager for LiveTradesManager {
         let state_guard = self.state.lock().await;
 
         let (running_trades, closed_trades, ticker, user) = futures::try_join!(
-            self.rest
+            self.api
+                .rest()
                 .futures
                 .get_trades_running(None, None, 1000.into()),
-            self.rest
+            self.api
+                .rest()
                 .futures
                 .get_trades_closed(Some(&self.start_time), None, 1000.into()),
-            self.rest.futures.ticker(),
-            self.rest.user.get_user()
+            self.api.rest().futures.ticker(),
+            self.api.rest().user.get_user()
         )
         .map_err(LiveError::RestApi)?;
 
