@@ -4,7 +4,7 @@ use thiserror::Error;
 
 use lnm_sdk::api::rest::models::error::PriceValidationError;
 
-use super::{manager::error::LiveError, simulation::error::SimulationError};
+use super::{live::error::LiveTradeError, simulation::error::SimulationError};
 
 #[derive(Error, Debug)]
 pub enum TradeError {
@@ -15,7 +15,7 @@ pub enum TradeError {
     Simulated(#[from] SimulationError),
 
     #[error("[Live] {0}")]
-    Live(#[from] LiveError),
+    Live(#[from] LiveTradeError),
 
     #[error("Generic error, {0}")]
     Generic(String),

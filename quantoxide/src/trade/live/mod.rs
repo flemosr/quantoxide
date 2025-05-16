@@ -15,15 +15,15 @@ use crate::{
         live::{LiveSignalConfig, LiveSignalEngine, LiveSignalState},
     },
     sync::{Sync, SyncConfig, SyncState},
-    trade::{
-        LiveTradesManager,
-        core::{Operator, TradesManager, TradesState, WrappedOperator},
-    },
 };
 
+use super::core::{Operator, TradesManager, TradesState, WrappedOperator};
+
 pub mod error;
+pub mod manager;
 
 use error::{LiveTradeError, Result};
+use manager::LiveTradesManager;
 
 #[derive(Debug, PartialEq)]
 pub enum LiveTradeState {
