@@ -3,7 +3,8 @@ use std::{result, sync::Arc};
 use thiserror::Error;
 use tokio::{sync::broadcast::error::SendError, task::JoinError};
 
-use super::{BacktestState, manager::error::SimulatedTradeManagerError};
+use super::BacktestState;
+pub use super::manager::error::SimulatedTradeManagerError;
 
 #[derive(Error, Debug)]
 pub enum BacktestError {

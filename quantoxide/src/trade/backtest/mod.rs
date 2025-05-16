@@ -17,7 +17,8 @@ use crate::{
 };
 
 pub mod error;
-pub mod manager;
+
+mod manager;
 
 use error::{BacktestError, Result};
 

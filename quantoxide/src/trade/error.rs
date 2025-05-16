@@ -5,7 +5,7 @@ use thiserror::Error;
 use lnm_sdk::api::rest::models::error::PriceValidationError;
 
 use super::{
-    backtest::{error::BacktestError, manager::error::SimulatedTradeManagerError},
+    backtest::error::{BacktestError, SimulatedTradeManagerError},
     live::error::LiveTradeError,
 };
 
