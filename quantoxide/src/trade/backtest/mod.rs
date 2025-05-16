@@ -202,7 +202,7 @@ impl BacktestConfig {
     }
 }
 
-pub struct Backtest {
+pub struct BacktestEngine {
     config: BacktestConfig,
     db: Arc<DbContext>,
     evaluators: Vec<ConfiguredSignalEvaluator>,
@@ -213,7 +213,7 @@ pub struct Backtest {
     state_manager: BacktestStateManager,
 }
 
-impl Backtest {
+impl BacktestEngine {
     pub fn new(
         config: BacktestConfig,
         db: Arc<DbContext>,
