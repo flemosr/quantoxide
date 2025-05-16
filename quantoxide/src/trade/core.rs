@@ -16,7 +16,7 @@ use crate::signal::core::Signal;
 use super::error::{Result, TradeError};
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct TradesState {
+pub struct TradeManagerState {
     start_time: DateTime<Utc>,
     start_balance: u64,
     current_time: DateTime<Utc>,
@@ -35,7 +35,7 @@ pub struct TradesState {
     closed_fees: u64,
 }
 
-impl TradesState {
+impl TradeManagerState {
     pub fn new(
         start_time: DateTime<Utc>,
         start_balance: u64,
@@ -214,7 +214,7 @@ impl RiskParams {
 }
 
 #[async_trait]
-pub trait TradesManager {
+pub trait TradeManager {
     async fn open_long(
         &self,
         stoploss_perc: BoundedPercentage,
@@ -237,14 +237,14 @@ pub trait TradesManager {
 
     async fn close_all(&self) -> Result<()>;
 
-    async fn state(&self) -> Result<TradesState>;
+    async fn state(&self) -> Result<TradeManagerState>;
 }
 
 #[async_trait]
 pub trait Operator: Send + Sync {
     fn set_trades_manager(
         &mut self,
-        trades_manager: Arc<dyn TradesManager + Send + Sync>,
+        trades_manager: Arc<dyn TradeManager + Send + Sync>,
     ) -> std::result::Result<(), Box<dyn std::error::Error>>;
 
     async fn process_signal(
@@ -258,7 +258,7 @@ pub(crate) struct WrappedOperator(Box<dyn Operator>);
 impl WrappedOperator {
     pub fn set_trades_manager(
         &mut self,
-        trades_manager: Arc<dyn TradesManager + Send + Sync>,
+        trades_manager: Arc<dyn TradeManager + Send + Sync>,
     ) -> Result<()> {
         panic::catch_unwind(AssertUnwindSafe(|| {
             self.0.set_trades_manager(trades_manager)

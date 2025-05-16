@@ -16,7 +16,7 @@ use crate::trade::core::RiskParams;
 
 use super::{
     super::{
-        core::{TradesManager, TradesState},
+        core::{TradeManager, TradeManagerState},
         error::Result,
     },
     error::LiveTradeError,
@@ -81,7 +81,7 @@ impl LiveTradeManager {
 }
 
 #[async_trait]
-impl TradesManager for LiveTradeManager {
+impl TradeManager for LiveTradeManager {
     async fn open_long(
         &self,
         stoploss_perc: BoundedPercentage,
@@ -245,7 +245,7 @@ impl TradesManager for LiveTradeManager {
         Ok(())
     }
 
-    async fn state(&self) -> Result<TradesState> {
+    async fn state(&self) -> Result<TradeManagerState> {
         let state_guard = self.state.lock().await;
 
         let (running_trades, closed_trades, ticker, user) = futures::try_join!(
@@ -295,7 +295,7 @@ impl TradesManager for LiveTradeManager {
             closed_fees += trade.opening_fee() + trade.closing_fee();
         }
 
-        let trades_state = TradesState::new(
+        let trades_state = TradeManagerState::new(
             self.start_time,
             self.start_balance,
             Utc::now(),

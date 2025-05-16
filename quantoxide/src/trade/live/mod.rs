@@ -17,7 +17,7 @@ use crate::{
     sync::{Sync, SyncConfig, SyncState},
 };
 
-use super::core::{Operator, TradesManager, TradesState, WrappedOperator};
+use super::core::{Operator, TradeManager, TradeManagerState, WrappedOperator};
 
 pub mod error;
 pub mod manager;
@@ -32,7 +32,7 @@ pub enum LiveTradeState {
     Syncing(Arc<SyncState>),
     WaitingForSync(Arc<SyncState>),
     WaitingForSignal(Arc<LiveSignalState>),
-    Running((Signal, TradesState)),
+    Running((Signal, TradeManagerState)),
     Failed(LiveTradeError),
     Restarting,
     Aborted,
