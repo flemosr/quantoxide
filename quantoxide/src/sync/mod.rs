@@ -12,7 +12,7 @@ use tokio::{
 
 use lnm_sdk::api::ApiContext;
 
-use crate::{db::DbContext, live::LiveTradeConfig};
+use crate::{db::DbContext, trade::live::LiveTradeConfig};
 
 pub mod error;
 mod real_time_collection_task;

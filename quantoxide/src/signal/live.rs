@@ -9,8 +9,8 @@ use tokio::{
 
 use crate::{
     db::DbContext,
-    live::LiveTradeConfig,
     sync::{SyncController, SyncState},
+    trade::live::LiveTradeConfig,
     util::DateTimeExt,
 };
 
