@@ -65,7 +65,7 @@ pub enum SignalJobState {
     NotInitiated,
     Starting,
     Running(Signal),
-    WaitingForSync,
+    WaitingForSync(Arc<SyncState>),
     Failed(SignalError),
     Restarting,
     Aborted,
@@ -175,7 +175,7 @@ impl SignalProcess {
 
             if *sync_state != SyncState::Synced {
                 self.state_manager
-                    .update(SignalJobState::WaitingForSync)
+                    .update(SignalJobState::WaitingForSync(sync_state))
                     .await?;
 
                 continue;
