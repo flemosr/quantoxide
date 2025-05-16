@@ -20,7 +20,7 @@ pub mod eval;
 use error::{Result, SignalError};
 use eval::{ConfiguredSignalEvaluator, SignalAction, SignalName};
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Signal {
     time: DateTime<Utc>,
     name: SignalName,

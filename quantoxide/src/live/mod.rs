@@ -10,7 +10,7 @@ use tokio::{
 
 use crate::{
     db::DbContext,
-    signal::{SignalJob, SignalJobConfig, SignalJobState, eval::ConfiguredSignalEvaluator},
+    signal::{Signal, SignalJob, SignalJobConfig, SignalJobState, eval::ConfiguredSignalEvaluator},
     sync::{Sync, SyncConfig, SyncState},
     trade::{
         LiveTradesManager,
@@ -29,7 +29,7 @@ pub enum LiveState {
     Syncing(Arc<SyncState>),
     WaitingForSync(Arc<SyncState>),
     WaitingForSignalJob(Arc<SignalJobState>),
-    Running(TradesState),
+    Running((Signal, TradesState)),
     Failed(LiveError),
     Restarting,
     Aborted,
@@ -174,7 +174,7 @@ impl LiveProcess {
                         .map_err(|e| LiveError::Generic(e.to_string()))?;
 
                     self.state_manager
-                        .update(LiveState::Running(trades_state))
+                        .update(LiveState::Running((last_signal.clone(), trades_state)))
                         .await?;
                 }
                 SignalJobState::WaitingForSync(sync_state) => {
