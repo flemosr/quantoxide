@@ -61,7 +61,7 @@ impl Signal {
 }
 
 #[derive(Debug, PartialEq)]
-pub enum SignalJobState {
+pub enum LiveSignalState {
     NotInitiated,
     Starting,
     Running(Signal),
@@ -71,32 +71,32 @@ pub enum SignalJobState {
     Aborted,
 }
 
-pub type SignalJobTransmiter = broadcast::Sender<Arc<SignalJobState>>;
-pub type SignalJobReceiver = broadcast::Receiver<Arc<SignalJobState>>;
+pub type LiveSignalTransmiter = broadcast::Sender<Arc<LiveSignalState>>;
+pub type LiveSignalReceiver = broadcast::Receiver<Arc<LiveSignalState>>;
 
 #[derive(Clone)]
-struct SignalJobStateManager {
-    state: Arc<Mutex<Arc<SignalJobState>>>,
-    state_tx: SignalJobTransmiter,
+struct LiveSignalStateManager {
+    state: Arc<Mutex<Arc<LiveSignalState>>>,
+    state_tx: LiveSignalTransmiter,
 }
 
-impl SignalJobStateManager {
+impl LiveSignalStateManager {
     pub fn new() -> Self {
-        let state = Arc::new(Mutex::new(Arc::new(SignalJobState::NotInitiated)));
-        let (state_tx, _) = broadcast::channel::<Arc<SignalJobState>>(100);
+        let state = Arc::new(Mutex::new(Arc::new(LiveSignalState::NotInitiated)));
+        let (state_tx, _) = broadcast::channel::<Arc<LiveSignalState>>(100);
 
         Self { state, state_tx }
     }
 
-    pub async fn snapshot(&self) -> Arc<SignalJobState> {
+    pub async fn snapshot(&self) -> Arc<LiveSignalState> {
         self.state.lock().await.clone()
     }
 
-    pub fn receiver(&self) -> SignalJobReceiver {
+    pub fn receiver(&self) -> LiveSignalReceiver {
         self.state_tx.subscribe()
     }
 
-    async fn try_send_state_update(&self, new_state: Arc<SignalJobState>) -> Result<()> {
+    async fn try_send_state_update(&self, new_state: Arc<LiveSignalState>) -> Result<()> {
         if self.state_tx.receiver_count() > 0 {
             self.state_tx
                 .send(new_state)
@@ -106,7 +106,7 @@ impl SignalJobStateManager {
         Ok(())
     }
 
-    pub async fn update(&self, new_state: SignalJobState) -> Result<()> {
+    pub async fn update(&self, new_state: LiveSignalState) -> Result<()> {
         let new_state = Arc::new(new_state);
 
         let mut state_guard = self.state.lock().await;
@@ -121,20 +121,20 @@ impl SignalJobStateManager {
     }
 }
 
-struct SignalProcess {
-    config: SignalJobConfig,
+struct LiveSignalProcess {
+    config: LiveSignalConfig,
     db: Arc<DbContext>,
     sync_controller: Arc<SyncController>,
-    state_manager: SignalJobStateManager,
+    state_manager: LiveSignalStateManager,
     evaluators: Arc<Vec<ConfiguredSignalEvaluator>>,
 }
 
-impl SignalProcess {
+impl LiveSignalProcess {
     fn new(
-        config: SignalJobConfig,
+        config: LiveSignalConfig,
         db: Arc<DbContext>,
         sync_controller: Arc<SyncController>,
-        state_manager: SignalJobStateManager,
+        state_manager: LiveSignalStateManager,
         evaluators: Arc<Vec<ConfiguredSignalEvaluator>>,
     ) -> Result<Self> {
         if evaluators.is_empty() {
@@ -175,7 +175,7 @@ impl SignalProcess {
 
             if *sync_state != SyncState::Synced {
                 self.state_manager
-                    .update(SignalJobState::WaitingForSync(sync_state))
+                    .update(LiveSignalState::WaitingForSync(sync_state))
                     .await?;
 
                 continue;
@@ -216,39 +216,39 @@ impl SignalProcess {
                 let signal = Signal::try_evaluate(evaluator, signal_ctx_entries).await?;
 
                 self.state_manager
-                    .update(SignalJobState::Running(signal))
+                    .update(LiveSignalState::Running(signal))
                     .await?;
             }
         }
     }
 }
 
-pub struct SignalJobController {
-    state_manager: SignalJobStateManager,
+pub struct LiveSignalController {
+    state_manager: LiveSignalStateManager,
     handle: Arc<Mutex<Option<JoinHandle<Result<()>>>>>,
 }
 
-impl SignalJobController {
-    fn new(state_manager: SignalJobStateManager, handle: JoinHandle<Result<()>>) -> Self {
+impl LiveSignalController {
+    fn new(state_manager: LiveSignalStateManager, handle: JoinHandle<Result<()>>) -> Self {
         Self {
             state_manager,
             handle: Arc::new(Mutex::new(Some(handle))),
         }
     }
 
-    pub fn receiver(&self) -> SignalJobReceiver {
+    pub fn receiver(&self) -> LiveSignalReceiver {
         self.state_manager.receiver()
     }
 
-    pub async fn state_snapshot(&self) -> Arc<SignalJobState> {
+    pub async fn state_snapshot(&self) -> Arc<LiveSignalState> {
         match self.handle.lock().await.as_ref() {
             Some(handle) if handle.is_finished() => {
-                return Arc::new(SignalJobState::Failed(SignalError::Generic(
+                return Arc::new(LiveSignalState::Failed(SignalError::Generic(
                     "Signal job process terminated unexpectedly".to_string(),
                 )));
             }
             None => {
-                return Arc::new(SignalJobState::Failed(SignalError::Generic(
+                return Arc::new(LiveSignalState::Failed(SignalError::Generic(
                     "Signal job process has been aborted".to_string(),
                 )));
             }
@@ -264,7 +264,7 @@ impl SignalJobController {
         if let Some(handle) = handle_guard.take() {
             if !handle.is_finished() {
                 handle.abort();
-                self.state_manager.update(SignalJobState::Aborted).await?;
+                self.state_manager.update(LiveSignalState::Aborted).await?;
             }
 
             return handle.await.map_err(SignalError::TaskJoin)?;
@@ -277,12 +277,12 @@ impl SignalJobController {
 }
 
 #[derive(Clone, Debug)]
-pub struct SignalJobConfig {
+pub struct LiveSignalConfig {
     eval_interval: time::Duration,
     restart_interval: time::Duration,
 }
 
-impl Default for SignalJobConfig {
+impl Default for LiveSignalConfig {
     fn default() -> Self {
         Self {
             eval_interval: time::Duration::from_secs(1),
@@ -291,7 +291,7 @@ impl Default for SignalJobConfig {
     }
 }
 
-impl SignalJobConfig {
+impl LiveSignalConfig {
     pub fn eval_interval(&self) -> time::Duration {
         self.eval_interval
     }
@@ -311,7 +311,7 @@ impl SignalJobConfig {
     }
 }
 
-impl From<&LiveTradeConfig> for SignalJobConfig {
+impl From<&LiveTradeConfig> for LiveSignalConfig {
     fn from(value: &LiveTradeConfig) -> Self {
         Self {
             eval_interval: value.signal_eval_interval(),
@@ -320,22 +320,22 @@ impl From<&LiveTradeConfig> for SignalJobConfig {
     }
 }
 
-pub struct SignalJob {
-    state_manager: SignalJobStateManager,
-    process: SignalProcess,
+pub struct LiveSignalEngine {
+    state_manager: LiveSignalStateManager,
+    process: LiveSignalProcess,
     restart_interval: time::Duration,
 }
 
-impl SignalJob {
+impl LiveSignalEngine {
     pub fn new(
-        config: SignalJobConfig,
+        config: LiveSignalConfig,
         db: Arc<DbContext>,
         sync_controller: Arc<SyncController>,
         evaluators: Arc<Vec<ConfiguredSignalEvaluator>>,
     ) -> Result<Self> {
-        let state_manager = SignalJobStateManager::new();
+        let state_manager = LiveSignalStateManager::new();
         let restart_interval = config.restart_interval;
-        let process = SignalProcess::new(
+        let process = LiveSignalProcess::new(
             config,
             db,
             sync_controller,
@@ -352,24 +352,26 @@ impl SignalJob {
 
     async fn process_recovery_loop(self) -> Result<()> {
         loop {
-            self.state_manager.update(SignalJobState::Starting).await?;
+            self.state_manager.update(LiveSignalState::Starting).await?;
 
             if let Err(e) = self.process.run().await {
-                self.state_manager.update(SignalJobState::Failed(e)).await?
+                self.state_manager
+                    .update(LiveSignalState::Failed(e))
+                    .await?
             }
 
             self.state_manager
-                .update(SignalJobState::Restarting)
+                .update(LiveSignalState::Restarting)
                 .await?;
             time::sleep(self.restart_interval).await;
         }
     }
 
-    pub fn start(self) -> Result<Arc<SignalJobController>> {
+    pub fn start(self) -> Result<Arc<LiveSignalController>> {
         let state_manager = self.state_manager.clone();
         let handle = tokio::spawn(self.process_recovery_loop());
 
-        let signal_controller = SignalJobController::new(state_manager, handle);
+        let signal_controller = LiveSignalController::new(state_manager, handle);
 
         Ok(Arc::new(signal_controller))
     }

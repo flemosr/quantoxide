@@ -10,7 +10,10 @@ use tokio::{
 
 use crate::{
     db::DbContext,
-    signal::{Signal, SignalJob, SignalJobConfig, SignalJobState, eval::ConfiguredSignalEvaluator},
+    signal::{
+        LiveSignalConfig, LiveSignalEngine, LiveSignalState, Signal,
+        eval::ConfiguredSignalEvaluator,
+    },
     sync::{Sync, SyncConfig, SyncState},
     trade::{
         LiveTradesManager,
@@ -28,7 +31,7 @@ pub enum LiveTradeState {
     Starting,
     Syncing(Arc<SyncState>),
     WaitingForSync(Arc<SyncState>),
-    WaitingForSignalJob(Arc<SignalJobState>),
+    WaitingForSignal(Arc<LiveSignalState>),
     Running((Signal, TradesState)),
     Failed(LiveTradeError),
     Restarting,
@@ -149,8 +152,8 @@ impl LiveTradeProcess {
                 ))
             })?;
 
-        let config = SignalJobConfig::from(&self.config);
-        let signal_job_controller = SignalJob::new(
+        let config = LiveSignalConfig::from(&self.config);
+        let signal_job_controller = LiveSignalEngine::new(
             config,
             self.db.clone(),
             sync_controller.clone(),
@@ -162,7 +165,7 @@ impl LiveTradeProcess {
 
         while let Ok(res) = signal_job_controller.receiver().recv().await {
             match res.as_ref() {
-                SignalJobState::Running(last_signal) => {
+                LiveSignalState::Running(last_signal) => {
                     self.operator
                         .process_signal(last_signal)
                         .await
@@ -177,14 +180,14 @@ impl LiveTradeProcess {
                         .update(LiveTradeState::Running((last_signal.clone(), trades_state)))
                         .await?;
                 }
-                SignalJobState::WaitingForSync(sync_state) => {
+                LiveSignalState::WaitingForSync(sync_state) => {
                     self.state_manager
                         .update(LiveTradeState::WaitingForSync(sync_state.clone()))
                         .await?;
                 }
                 _ => {
                     self.state_manager
-                        .update(LiveTradeState::WaitingForSignalJob(res))
+                        .update(LiveTradeState::WaitingForSignal(res))
                         .await?;
                 }
             }
