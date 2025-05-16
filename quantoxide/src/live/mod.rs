@@ -11,8 +11,8 @@ use tokio::{
 use crate::{
     db::DbContext,
     signal::{
-        LiveSignalConfig, LiveSignalEngine, LiveSignalState,
         core::{ConfiguredSignalEvaluator, Signal},
+        live::{LiveSignalConfig, LiveSignalEngine, LiveSignalState},
     },
     sync::{Sync, SyncConfig, SyncState},
     trade::{

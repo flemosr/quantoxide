@@ -3,7 +3,7 @@ use std::{result, sync::Arc};
 use thiserror::Error;
 use tokio::{sync::broadcast::error::SendError, task::JoinError};
 
-use super::LiveSignalState;
+use super::live::LiveSignalState;
 
 #[derive(Error, Debug)]
 pub enum SignalError {
