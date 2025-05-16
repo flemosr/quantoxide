@@ -37,18 +37,18 @@ fn calculate_quantity(
     Ok(Quantity::try_from(quantity_target.floor()).map_err(LiveTradeError::QuantityValidation)?)
 }
 
-struct LiveTradesState {
+struct LiveTradeManagerState {
     last_trade_time: Option<DateTime<Utc>>,
 }
 
-pub struct LiveTradesManager {
+pub struct LiveTradeManager {
     api: Arc<ApiContext>,
     start_time: DateTime<Utc>,
     start_balance: u64,
-    state: Arc<Mutex<LiveTradesState>>,
+    state: Arc<Mutex<LiveTradeManagerState>>,
 }
 
-impl LiveTradesManager {
+impl LiveTradeManager {
     pub async fn new(api: Arc<ApiContext>) -> Result<Self> {
         let (_, _, user) = futures::try_join!(
             api.rest().futures().cancel_all_trades(),
@@ -57,7 +57,7 @@ impl LiveTradesManager {
         )
         .map_err(LiveTradeError::RestApi)?;
 
-        let initial_state = LiveTradesState {
+        let initial_state = LiveTradeManagerState {
             last_trade_time: None,
         };
 
@@ -81,7 +81,7 @@ impl LiveTradesManager {
 }
 
 #[async_trait]
-impl TradesManager for LiveTradesManager {
+impl TradesManager for LiveTradeManager {
     async fn open_long(
         &self,
         stoploss_perc: BoundedPercentage,

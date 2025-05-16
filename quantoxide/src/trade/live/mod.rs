@@ -23,7 +23,7 @@ pub mod error;
 pub mod manager;
 
 use error::{LiveTradeError, Result};
-use manager::LiveTradesManager;
+use manager::LiveTradeManager;
 
 #[derive(Debug, PartialEq)]
 pub enum LiveTradeState {
@@ -137,7 +137,7 @@ impl LiveTradeProcess {
         }
 
         let trades_manager = {
-            let manager = LiveTradesManager::new(self.api.clone())
+            let manager = LiveTradeManager::new(self.api.clone())
                 .await
                 .map_err(|e| LiveTradeError::Generic(e.to_string()))?;
             Arc::new(manager)
