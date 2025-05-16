@@ -4,7 +4,7 @@ use thiserror::Error;
 
 use lnm_sdk::api::rest::models::error::PriceValidationError;
 
-use super::{live::error::LiveTradeError, simulation::error::SimulationError};
+use super::{live::error::LiveTradeError, manager::error::SimulationError};
 
 #[derive(Error, Debug)]
 pub enum TradeError {
