@@ -343,13 +343,13 @@ impl From<&LiveTradeConfig> for SyncConfig {
 }
 
 #[derive(Clone)]
-pub struct Sync {
+pub struct SyncEngine {
     state_manager: SyncStateManager,
     process: SyncProcess,
     restart_interval: time::Duration,
 }
 
-impl Sync {
+impl SyncEngine {
     pub fn new(config: SyncConfig, db: Arc<DbContext>, api: Arc<ApiContext>) -> Self {
         let state_manager = SyncStateManager::new();
         let restart_interval = config.restart_interval;

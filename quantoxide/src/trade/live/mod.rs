@@ -14,7 +14,7 @@ use crate::{
         core::{ConfiguredSignalEvaluator, Signal},
         live::{LiveSignalConfig, LiveSignalEngine, LiveSignalState},
     },
-    sync::{Sync, SyncConfig, SyncState},
+    sync::{SyncConfig, SyncEngine, SyncState},
 };
 
 use super::core::{Operator, TradeManager, TradeManagerState, WrappedOperator};
@@ -114,7 +114,7 @@ impl LiveTradeProcess {
 
     pub async fn run(&mut self) -> Result<()> {
         let config = SyncConfig::from(&self.config);
-        let sync_controller = Sync::new(config, self.db.clone(), self.api.clone())
+        let sync_controller = SyncEngine::new(config, self.db.clone(), self.api.clone())
             .start()
             .map_err(|e| LiveTradeError::Generic(e.to_string()))?;
 
