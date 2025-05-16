@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use chrono::{DateTime, Utc};
+use chrono::Utc;
 use tokio::{
     sync::{Mutex, broadcast},
     task::JoinHandle,
@@ -8,7 +8,7 @@ use tokio::{
 };
 
 use crate::{
-    db::{DbContext, models::PriceHistoryEntryLOCF},
+    db::DbContext,
     live::LiveTradeConfig,
     sync::{SyncController, SyncState},
     util::DateTimeExt,
@@ -17,48 +17,8 @@ use crate::{
 pub mod core;
 pub mod error;
 
-use core::{ConfiguredSignalEvaluator, SignalAction, SignalName};
+use core::{ConfiguredSignalEvaluator, Signal};
 use error::{Result, SignalError};
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct Signal {
-    time: DateTime<Utc>,
-    name: SignalName,
-    action: SignalAction,
-}
-
-impl Signal {
-    pub(crate) async fn try_evaluate(
-        evaluator: &ConfiguredSignalEvaluator,
-        entries: &[PriceHistoryEntryLOCF],
-    ) -> Result<Self> {
-        let signal_action = evaluator.evaluate(entries).await?;
-
-        let last_ctx_entry = entries
-            .last()
-            .ok_or(SignalError::Generic("empty context".to_string()))?;
-
-        let signal = Signal {
-            time: last_ctx_entry.time,
-            name: evaluator.name().clone(),
-            action: signal_action,
-        };
-
-        Ok(signal)
-    }
-
-    pub fn time(&self) -> DateTime<Utc> {
-        self.time
-    }
-
-    pub fn name(&self) -> &SignalName {
-        &self.name
-    }
-
-    pub fn action(&self) -> SignalAction {
-        self.action
-    }
-}
 
 #[derive(Debug, PartialEq)]
 pub enum LiveSignalState {

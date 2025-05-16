@@ -1,6 +1,7 @@
 use std::{fmt, panic::AssertUnwindSafe};
 
 use async_trait::async_trait;
+use chrono::{DateTime, Utc};
 use futures::FutureExt;
 
 use crate::db::models::PriceHistoryEntryLOCF;
@@ -123,5 +124,45 @@ impl SignalEvaluator<Box<dyn SignalActionEvaluator>> {
             context_window_secs,
             action_evaluator: Box::new(action_evaluator),
         }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Signal {
+    time: DateTime<Utc>,
+    name: SignalName,
+    action: SignalAction,
+}
+
+impl Signal {
+    pub(crate) async fn try_evaluate(
+        evaluator: &ConfiguredSignalEvaluator,
+        entries: &[PriceHistoryEntryLOCF],
+    ) -> Result<Self> {
+        let signal_action = evaluator.evaluate(entries).await?;
+
+        let last_ctx_entry = entries
+            .last()
+            .ok_or(SignalError::Generic("empty context".to_string()))?;
+
+        let signal = Signal {
+            time: last_ctx_entry.time,
+            name: evaluator.name().clone(),
+            action: signal_action,
+        };
+
+        Ok(signal)
+    }
+
+    pub fn time(&self) -> DateTime<Utc> {
+        self.time
+    }
+
+    pub fn name(&self) -> &SignalName {
+        &self.name
+    }
+
+    pub fn action(&self) -> SignalAction {
+        self.action
     }
 }

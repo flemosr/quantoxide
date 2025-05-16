@@ -11,7 +11,7 @@ use lnm_sdk::api::rest::models::{
     BoundedPercentage, Leverage, LowerBoundedPercentage, Price, TradeSide,
 };
 
-use crate::signal::Signal;
+use crate::signal::core::Signal;
 
 use super::error::{Result, TradeError};
 

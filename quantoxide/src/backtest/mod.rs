@@ -10,7 +10,7 @@ use lnm_sdk::api::rest::models::BoundedPercentage;
 
 use crate::{
     db::DbContext,
-    signal::{Signal, core::ConfiguredSignalEvaluator},
+    signal::core::{ConfiguredSignalEvaluator, Signal},
     trade::{
         SimulatedTradesManager,
         core::{Operator, TradesManager, TradesState, WrappedOperator},
