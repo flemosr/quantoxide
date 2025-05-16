@@ -9,7 +9,7 @@ use tokio::{
 
 use crate::{
     db::{DbContext, models::PriceHistoryEntryLOCF},
-    live::LiveConfig,
+    live::LiveTradeConfig,
     sync::{SyncController, SyncState},
     util::DateTimeExt,
 };
@@ -311,8 +311,8 @@ impl SignalJobConfig {
     }
 }
 
-impl From<&LiveConfig> for SignalJobConfig {
-    fn from(value: &LiveConfig) -> Self {
+impl From<&LiveTradeConfig> for SignalJobConfig {
+    fn from(value: &LiveTradeConfig) -> Self {
         Self {
             eval_interval: value.signal_eval_interval(),
             restart_interval: value.restart_interval(),

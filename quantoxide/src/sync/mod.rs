@@ -12,7 +12,7 @@ use tokio::{
 
 use lnm_sdk::api::ApiContext;
 
-use crate::{db::DbContext, live::LiveConfig};
+use crate::{db::DbContext, live::LiveTradeConfig};
 
 pub mod error;
 mod real_time_collection_task;
@@ -328,8 +328,8 @@ impl SyncConfig {
     }
 }
 
-impl From<&LiveConfig> for SyncConfig {
-    fn from(value: &LiveConfig) -> Self {
+impl From<&LiveTradeConfig> for SyncConfig {
+    fn from(value: &LiveTradeConfig) -> Self {
         SyncConfig {
             api_cooldown: value.api_cooldown(),
             api_error_cooldown: value.api_error_cooldown(),

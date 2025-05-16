@@ -3,17 +3,17 @@ use std::result;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
-pub enum LiveError {
+pub enum LiveTradeError {
     #[error("Generic error, {0}")]
     Generic(String),
 }
 
-impl PartialEq for LiveError {
+impl PartialEq for LiveTradeError {
     fn eq(&self, other: &Self) -> bool {
         self.to_string() == other.to_string()
     }
 }
 
-impl Eq for LiveError {}
+impl Eq for LiveTradeError {}
 
-pub type Result<T> = result::Result<T, LiveError>;
+pub type Result<T> = result::Result<T, LiveTradeError>;
