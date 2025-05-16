@@ -8,7 +8,7 @@ use lnm_sdk::api::rest::models::{
     BoundedPercentage, Leverage, LowerBoundedPercentage, Price, Quantity, SATS_PER_BTC, TradeSide,
 };
 
-use super::{
+use super::super::{
     core::{RiskParams, TradesManager, TradesState},
     error::Result,
 };

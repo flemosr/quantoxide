@@ -2,8 +2,14 @@ mod error;
 
 pub mod core;
 
-mod manager;
+// mod manager;
+
+// mod manager;
 
 pub mod live;
 
-pub use manager::SimulatedTradesManager;
+pub mod backtest;
+
+// pub use manager::LiveTradesManager;
+
+// pub use manager::SimulatedTradesManager;

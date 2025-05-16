@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use chrono::{DateTime, Duration, Utc};
+use manager::SimulatedTradesManager;
 use tokio::{
     sync::{Mutex, broadcast},
     task::JoinHandle,
@@ -11,14 +12,12 @@ use lnm_sdk::api::rest::models::BoundedPercentage;
 use crate::{
     db::DbContext,
     signal::core::{ConfiguredSignalEvaluator, Signal},
-    trade::{
-        SimulatedTradesManager,
-        core::{Operator, TradesManager, TradesState, WrappedOperator},
-    },
+    trade::core::{Operator, TradesManager, TradesState, WrappedOperator},
     util::DateTimeExt,
 };
 
 pub mod error;
+pub mod manager;
 
 use error::{BacktestError, Result};
 
