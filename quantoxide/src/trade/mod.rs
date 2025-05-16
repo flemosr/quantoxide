@@ -2,10 +2,10 @@ mod error;
 
 pub mod core;
 
-mod live;
+mod manager;
 
 mod simulation;
 
-pub use live::LiveTradesManager;
+pub use manager::LiveTradesManager;
 
 pub use simulation::SimulatedTradesManager;
