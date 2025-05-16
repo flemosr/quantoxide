@@ -27,7 +27,7 @@ pub enum LiveState {
     NotInitiated,
     Starting,
     Syncing(Arc<SyncState>),
-    WaitingForSync,
+    WaitingForSync(Arc<SyncState>),
     WaitingForSignalJob(Arc<SignalJobState>),
     Running(TradesState),
     Failed(LiveError),
@@ -177,9 +177,10 @@ impl LiveProcess {
                         .update(LiveState::Running(trades_state))
                         .await?;
                 }
-
-                SignalJobState::WaitingForSync => {
-                    self.state_manager.update(LiveState::WaitingForSync).await?;
+                SignalJobState::WaitingForSync(sync_state) => {
+                    self.state_manager
+                        .update(LiveState::WaitingForSync(sync_state.clone()))
+                        .await?;
                 }
                 _ => {
                     self.state_manager
