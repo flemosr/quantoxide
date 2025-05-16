@@ -14,11 +14,11 @@ use crate::{
     util::DateTimeExt,
 };
 
+pub mod core;
 pub mod error;
-pub mod eval;
 
+use core::{ConfiguredSignalEvaluator, SignalAction, SignalName};
 use error::{Result, SignalError};
-use eval::{ConfiguredSignalEvaluator, SignalAction, SignalName};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Signal {

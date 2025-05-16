@@ -12,7 +12,7 @@ use crate::{
     db::DbContext,
     signal::{
         LiveSignalConfig, LiveSignalEngine, LiveSignalState, Signal,
-        eval::ConfiguredSignalEvaluator,
+        core::ConfiguredSignalEvaluator,
     },
     sync::{Sync, SyncConfig, SyncState},
     trade::{
