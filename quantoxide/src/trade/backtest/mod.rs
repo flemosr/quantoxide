@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use chrono::{DateTime, Duration, Utc};
-use manager::SimulatedTradesManager;
+use manager::SimulatedTradeManager;
 use tokio::{
     sync::{Mutex, broadcast},
     task::JoinHandle,
@@ -282,7 +282,7 @@ impl Backtest {
                     "no entries before start_time"
                 )))?;
 
-            Arc::new(SimulatedTradesManager::new(
+            Arc::new(SimulatedTradeManager::new(
                 self.config.max_running_qtd,
                 self.config.fee_perc,
                 self.start_time,

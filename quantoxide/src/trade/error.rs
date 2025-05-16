@@ -5,7 +5,7 @@ use thiserror::Error;
 use lnm_sdk::api::rest::models::error::PriceValidationError;
 
 use super::{
-    backtest::{error::BacktestError, manager::error::SimulationError},
+    backtest::{error::BacktestError, manager::error::SimulatedTradeManagerError},
     live::error::LiveTradeError,
 };
 
@@ -24,8 +24,8 @@ pub enum TradeError {
     Generic(String),
 }
 
-impl From<SimulationError> for TradeError {
-    fn from(value: SimulationError) -> Self {
+impl From<SimulatedTradeManagerError> for TradeError {
+    fn from(value: SimulatedTradeManagerError) -> Self {
         Self::Backtest(BacktestError::Manager(value))
     }
 }

@@ -3,12 +3,12 @@ use std::{result, sync::Arc};
 use thiserror::Error;
 use tokio::{sync::broadcast::error::SendError, task::JoinError};
 
-use super::{BacktestState, manager::error::SimulationError};
+use super::{BacktestState, manager::error::SimulatedTradeManagerError};
 
 #[derive(Error, Debug)]
 pub enum BacktestError {
     #[error("[Manager] {0}")]
-    Manager(#[from] SimulationError),
+    Manager(#[from] SimulatedTradeManagerError),
 
     #[error("TransmiterFailed error {0}")]
     TransmiterFailed(SendError<Arc<BacktestState>>),

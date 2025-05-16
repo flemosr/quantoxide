@@ -5,7 +5,7 @@ use lnm_sdk::api::rest::models::{
     estimate_liquidation_price, estimate_pl,
 };
 
-use super::error::{Result, SimulationError};
+use super::error::{Result, SimulatedTradeManagerError};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SimulatedTradeRunning {
@@ -38,19 +38,19 @@ impl SimulatedTradeRunning {
         match side {
             TradeSide::Buy => {
                 if stoploss < liquidation {
-                    return Err(SimulationError::StoplossBelowLiquidationLong {
+                    return Err(SimulatedTradeManagerError::StoplossBelowLiquidationLong {
                         stoploss,
                         liquidation,
                     });
                 }
                 if stoploss >= entry_price {
-                    return Err(SimulationError::StoplossAboveEntryForLong {
+                    return Err(SimulatedTradeManagerError::StoplossAboveEntryForLong {
                         stoploss,
                         entry_price,
                     });
                 }
                 if takeprofit <= entry_price {
-                    return Err(SimulationError::TakeprofitBelowEntryForLong {
+                    return Err(SimulatedTradeManagerError::TakeprofitBelowEntryForLong {
                         takeprofit,
                         entry_price,
                     });
@@ -58,19 +58,19 @@ impl SimulatedTradeRunning {
             }
             TradeSide::Sell => {
                 if stoploss > liquidation {
-                    return Err(SimulationError::StoplossAboveLiquidationShort {
+                    return Err(SimulatedTradeManagerError::StoplossAboveLiquidationShort {
                         stoploss,
                         liquidation,
                     });
                 }
                 if stoploss <= entry_price {
-                    return Err(SimulationError::StoplossBelowEntryForShort {
+                    return Err(SimulatedTradeManagerError::StoplossBelowEntryForShort {
                         stoploss,
                         entry_price,
                     });
                 }
                 if takeprofit >= entry_price {
-                    return Err(SimulationError::TakeprofitAboveEntryForShort {
+                    return Err(SimulatedTradeManagerError::TakeprofitAboveEntryForShort {
                         takeprofit,
                         entry_price,
                     });

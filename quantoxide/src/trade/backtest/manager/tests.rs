@@ -13,7 +13,7 @@ async fn test_simulated_trades_manager_long_profit() -> Result<()> {
     let fee_perc = BoundedPercentage::try_from(0.1).unwrap(); // 0.1% fee
     let max_running_qtd = 10;
 
-    let manager = SimulatedTradesManager::new(
+    let manager = SimulatedTradeManager::new(
         max_running_qtd,
         fee_perc,
         start_time,
@@ -180,7 +180,7 @@ async fn test_simulated_trades_manager_long_loss() -> Result<()> {
     let fee_perc = BoundedPercentage::try_from(0.1).unwrap(); // 0.1% fee
     let max_running_qtd = 10;
 
-    let manager = SimulatedTradesManager::new(
+    let manager = SimulatedTradeManager::new(
         max_running_qtd,
         fee_perc,
         start_time,
@@ -298,7 +298,7 @@ async fn test_simulated_trades_manager_short_profit() -> Result<()> {
     let fee_perc = BoundedPercentage::try_from(0.1).unwrap(); // 0.1% fee
     let max_running_qtd = 10;
 
-    let manager = SimulatedTradesManager::new(
+    let manager = SimulatedTradeManager::new(
         max_running_qtd,
         fee_perc,
         start_time,
@@ -427,7 +427,7 @@ async fn test_simulated_trades_manager_short_loss() -> Result<()> {
     let fee_perc = BoundedPercentage::try_from(0.1).unwrap(); // 0.1% fee
     let max_running_qtd = 10;
 
-    let manager = SimulatedTradesManager::new(
+    let manager = SimulatedTradeManager::new(
         max_running_qtd,
         fee_perc,
         start_time,
