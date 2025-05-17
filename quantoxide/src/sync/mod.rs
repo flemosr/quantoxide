@@ -2,10 +2,7 @@ use std::sync::Arc;
 
 use chrono::Duration;
 use tokio::{
-    sync::{
-        Mutex, broadcast,
-        mpsc::{self, Receiver},
-    },
+    sync::{Mutex, broadcast, mpsc},
     task::JoinHandle,
     time,
 };
@@ -32,7 +29,8 @@ pub enum SyncState {
     Synced,
     Failed(SyncError),
     Restarting,
-    Aborted,
+    ShutdownInitiated,
+    Shutdown,
 }
 
 pub type SyncTransmiter = broadcast::Sender<Arc<SyncState>>;
@@ -60,30 +58,26 @@ impl SyncStateManager {
         self.state_tx.subscribe()
     }
 
-    async fn try_send_state_update(&self, new_state: Arc<SyncState>) -> Result<()> {
-        if self.state_tx.receiver_count() > 0 {
-            self.state_tx
-                .send(new_state)
-                .map_err(SyncError::SyncTransmiterFailed)?;
-        }
-
-        Ok(())
+    async fn send_state_update(&self, new_state: Arc<SyncState>) {
+        // We can safely ignore errors since they only mean that there are no
+        // receivers.
+        let _ = self.state_tx.send(new_state);
     }
 
-    pub async fn update(&self, new_state: SyncState) -> Result<()> {
+    pub async fn update(&self, new_state: SyncState) {
         let new_state = Arc::new(new_state);
 
         let mut state_guard = self.state.lock().await;
         *state_guard = new_state.clone();
         drop(state_guard);
 
-        self.try_send_state_update(new_state).await
+        self.send_state_update(new_state).await;
     }
 
     pub async fn handle_history_state_updates(
         self,
-        mut history_state_rx: Receiver<PriceHistoryState>,
-    ) -> Result<()> {
+        mut history_state_rx: mpsc::Receiver<PriceHistoryState>,
+    ) {
         while let Some(new_history_state) = history_state_rx.recv().await {
             let mut state_guard = self.state.lock().await;
             if let SyncState::Starting | SyncState::InProgress(_) = **state_guard {
@@ -92,11 +86,9 @@ impl SyncStateManager {
                 *state_guard = new_state.clone();
                 drop(state_guard);
 
-                self.try_send_state_update(new_state).await?;
+                self.send_state_update(new_state).await;
             }
         }
-
-        Ok(())
     }
 }
 
@@ -139,7 +131,7 @@ impl SyncProcess {
         RealTimeCollectionTask::new(self.db.clone(), self.api.clone())
     }
 
-    pub async fn run(&self) -> Result<()> {
+    pub async fn run(&self, shutdown_rx: broadcast::Receiver<()>) -> Result<()> {
         // Initial price history sync
 
         let (history_state_tx, history_state_rx) = mpsc::channel::<PriceHistoryState>(100);
@@ -168,7 +160,7 @@ impl SyncProcess {
 
         // Sync achieved
 
-        self.state_manager.update(SyncState::Synced).await?;
+        self.state_manager.update(SyncState::Synced).await;
 
         loop {
             tokio::select! {
@@ -186,15 +178,24 @@ impl SyncProcess {
 }
 
 pub struct SyncController {
+    handle: Arc<Mutex<Option<JoinHandle<()>>>>,
+    shutdown_tx: broadcast::Sender<()>,
+    shutdown_timeout: time::Duration,
     state_manager: SyncStateManager,
-    handle: Arc<Mutex<Option<JoinHandle<Result<()>>>>>,
 }
 
 impl SyncController {
-    fn new(state_manager: SyncStateManager, handle: JoinHandle<Result<()>>) -> Self {
+    fn new(
+        handle: JoinHandle<()>,
+        shutdown_tx: broadcast::Sender<()>,
+        shutdown_timeout: time::Duration,
+        state_manager: SyncStateManager,
+    ) -> Self {
         Self {
-            state_manager,
             handle: Arc::new(Mutex::new(Some(handle))),
+            shutdown_tx,
+            shutdown_timeout,
+            state_manager,
         }
     }
 
@@ -203,37 +204,47 @@ impl SyncController {
     }
 
     pub async fn state_snapshot(&self) -> Arc<SyncState> {
-        match self.handle.lock().await.as_ref() {
-            Some(handle) if handle.is_finished() => {
-                return Arc::new(SyncState::Failed(SyncError::Generic(
-                    "Sync process terminated unexpectedly".to_string(),
-                )));
-            }
-            None => {
-                return Arc::new(SyncState::Failed(SyncError::Generic(
-                    "Sync process has been aborted".to_string(),
-                )));
-            }
-            _ => self.state_manager.snapshot().await,
-        }
+        self.state_manager.snapshot().await
     }
 
-    /// Aborts the sync process and consumes the task handle.
+    /// Tries to perform a clean shutdown of the sync process and consumes the
+    /// task handle. If a clean shutdown fails, the process is aborted.
     /// This method can only be called once per controller instance.
-    /// Returns the result of the aborted sync process.
-    pub async fn abort(&self) -> Result<()> {
+    /// Returns an error if the process had to be aborted, or if it the handle
+    /// was already consumed.
+    pub async fn shutdown(&self) -> Result<()> {
         let mut handle_guard = self.handle.lock().await;
-        if let Some(handle) = handle_guard.take() {
-            if !handle.is_finished() {
+        if let Some(mut handle) = handle_guard.take() {
+            if let Err(e) = self.shutdown_tx.send(()) {
                 handle.abort();
-                self.state_manager.update(SyncState::Aborted).await?;
+
+                self.state_manager.update(SyncState::Shutdown).await;
+
+                return Err(SyncError::Generic(format!(
+                    "Failed to send shutdown request, {e}",
+                )));
             }
 
-            return handle.await.map_err(SyncError::TaskJoin)?;
+            self.state_manager
+                .update(SyncState::ShutdownInitiated)
+                .await;
+
+            let shutdown_res = tokio::select! {
+                join_res = &mut handle => {
+                    join_res.map_err(SyncError::TaskJoin)
+                }
+                _ = time::sleep(self.shutdown_timeout) => {
+                    handle.abort();
+                    Err(SyncError::Generic("Shutdown timeout".to_string()))
+                }
+            };
+
+            self.state_manager.update(SyncState::Shutdown).await;
+            return shutdown_res;
         }
 
         return Err(SyncError::Generic(
-            "Sync process was already aborted".to_string(),
+            "Sync process handle was already shutdown".to_string(),
         ));
     }
 }
@@ -247,6 +258,7 @@ pub struct SyncConfig {
     sync_history_reach: Duration,
     re_sync_history_interval: time::Duration,
     restart_interval: time::Duration,
+    shutdown_timeout: time::Duration,
 }
 
 impl Default for SyncConfig {
@@ -259,6 +271,7 @@ impl Default for SyncConfig {
             sync_history_reach: Duration::hours(24),
             re_sync_history_interval: time::Duration::from_secs(3000),
             restart_interval: time::Duration::from_secs(10),
+            shutdown_timeout: time::Duration::from_secs(6),
         }
     }
 }
@@ -290,6 +303,10 @@ impl SyncConfig {
 
     pub fn restart_interval(&self) -> time::Duration {
         self.restart_interval
+    }
+
+    pub fn shutdown_timeout(&self) -> time::Duration {
+        self.shutdown_timeout
     }
 
     pub fn set_api_cooldown(mut self, secs: u64) -> Self {
@@ -326,6 +343,11 @@ impl SyncConfig {
         self.restart_interval = time::Duration::from_secs(secs);
         self
     }
+
+    pub fn set_shutdown_timeout(mut self, secs: u64) -> Self {
+        self.shutdown_timeout = time::Duration::from_secs(secs);
+        self
+    }
 }
 
 impl From<&LiveTradeConfig> for SyncConfig {
@@ -338,6 +360,7 @@ impl From<&LiveTradeConfig> for SyncConfig {
             sync_history_reach: value.sync_history_reach(),
             re_sync_history_interval: value.re_sync_history_interval(),
             restart_interval: value.restart_interval(),
+            shutdown_timeout: value.shutdown_timeout(),
         }
     }
 }
@@ -347,12 +370,15 @@ pub struct SyncEngine {
     state_manager: SyncStateManager,
     process: SyncProcess,
     restart_interval: time::Duration,
+    shutdown_timeout: time::Duration,
 }
 
 impl SyncEngine {
     pub fn new(config: SyncConfig, db: Arc<DbContext>, api: Arc<ApiContext>) -> Self {
         let state_manager = SyncStateManager::new();
-        let restart_interval = config.restart_interval;
+
+        let restart_interval = config.restart_interval();
+        let shutdown_timeout = config.shutdown_timeout();
 
         let process = SyncProcess::new(config, db, api, state_manager.clone());
 
@@ -360,27 +386,36 @@ impl SyncEngine {
             state_manager,
             process,
             restart_interval,
+            shutdown_timeout,
         }
     }
 
-    async fn process_recovery_loop(self) -> Result<()> {
+    async fn process_recovery_loop(self, shutdown_tx: broadcast::Sender<()>) {
         loop {
-            self.state_manager.update(SyncState::Starting).await?;
+            self.state_manager.update(SyncState::Starting).await;
 
-            if let Err(e) = self.process.run().await {
-                self.state_manager.update(SyncState::Failed(e)).await?
+            let shutdown_rx = shutdown_tx.subscribe();
+
+            if let Err(e) = self.process.run(shutdown_rx).await {
+                self.state_manager.update(SyncState::Failed(e)).await;
             }
 
-            self.state_manager.update(SyncState::Restarting).await?;
+            self.state_manager.update(SyncState::Restarting).await;
             time::sleep(self.restart_interval).await;
         }
     }
 
     pub fn start(self) -> Result<Arc<SyncController>> {
-        let state_manager = self.state_manager.clone();
-        let handle = tokio::spawn(self.process_recovery_loop());
+        // Internal channel for shutdown signal
+        let (shutdown_tx, _) = broadcast::channel::<()>(1);
 
-        let sync_controller = SyncController::new(state_manager, handle);
+        let state_manager = self.state_manager.clone();
+        let shutdown_timeout = self.shutdown_timeout;
+
+        let handle = tokio::spawn(self.process_recovery_loop(shutdown_tx.clone()));
+
+        let sync_controller =
+            SyncController::new(handle, shutdown_tx, shutdown_timeout, state_manager);
 
         Ok(Arc::new(sync_controller))
     }
