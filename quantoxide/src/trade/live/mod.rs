@@ -127,9 +127,9 @@ impl LiveTradeProcess {
                 SyncState::Synced => {
                     break;
                 }
-                SyncState::Aborted => {
+                SyncState::Shutdown => {
                     return Err(LiveTradeError::Generic(
-                        "Sync process unexpectedly aborted".to_string(),
+                        "Sync process unexpectedly shutdown".to_string(),
                     ));
                 }
                 _ => {}
@@ -193,7 +193,7 @@ impl LiveTradeProcess {
             }
         }
 
-        todo!()
+        Ok(())
     }
 }
 
@@ -262,6 +262,7 @@ pub struct LiveTradeConfig {
     re_sync_history_interval: time::Duration,
     signal_eval_interval: time::Duration,
     restart_interval: time::Duration,
+    shutdown_timeout: time::Duration,
 }
 
 impl Default for LiveTradeConfig {
@@ -275,6 +276,7 @@ impl Default for LiveTradeConfig {
             re_sync_history_interval: time::Duration::from_secs(3000),
             signal_eval_interval: time::Duration::from_secs(1),
             restart_interval: time::Duration::from_secs(10),
+            shutdown_timeout: time::Duration::from_secs(6),
         }
     }
 }
@@ -310,6 +312,10 @@ impl LiveTradeConfig {
 
     pub fn restart_interval(&self) -> time::Duration {
         self.restart_interval
+    }
+
+    pub fn shutdown_timeout(&self) -> time::Duration {
+        self.shutdown_timeout
     }
 
     pub fn set_api_cooldown(mut self, secs: u64) -> Self {
@@ -349,6 +355,11 @@ impl LiveTradeConfig {
 
     pub fn set_restart_interval(mut self, secs: u64) -> Self {
         self.restart_interval = time::Duration::from_secs(secs);
+        self
+    }
+
+    pub fn set_shutdown_timeout(mut self, secs: u64) -> Self {
+        self.shutdown_timeout = time::Duration::from_secs(secs);
         self
     }
 }
