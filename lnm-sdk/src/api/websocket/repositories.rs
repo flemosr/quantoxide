@@ -9,7 +9,7 @@ use super::{
 
 #[async_trait]
 pub trait WebSocketRepository: Send + Sync {
-    fn is_connected(&self) -> bool;
+    async fn is_connected(&self) -> bool;
 
     async fn connection_state(&self) -> Arc<ConnectionState>;
 

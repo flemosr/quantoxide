@@ -6,10 +6,14 @@ use std::{
 use tokio::{
     sync::{Mutex, oneshot},
     task::JoinHandle,
+    time,
 };
 
-use super::models::{LnmJsonRpcReqMethod, LnmJsonRpcRequest, LnmWebSocketChannel};
 use super::repositories::WebSocketRepository;
+use super::{
+    WebSocketApiConfig,
+    models::{LnmJsonRpcReqMethod, LnmJsonRpcRequest, LnmWebSocketChannel},
+};
 use super::{
     error::{Result, WebSocketApiError},
     models::ConnectionState,
@@ -29,8 +33,9 @@ pub enum ChannelStatus {
 }
 
 pub struct LnmWebSocketRepo {
-    manager_task_handle: JoinHandle<Result<()>>,
-    shutdown_tx: ShutdownTransmiter,
+    config: WebSocketApiConfig,
+    manager_task_handle: Mutex<Option<JoinHandle<Result<()>>>>,
+    disconnect_tx: ShutdownTransmiter,
     requests_tx: RequestTransmiter,
     responses_tx: ResponseTransmiter,
     connection_state: Arc<Mutex<Arc<ConnectionState>>>,
@@ -38,7 +43,7 @@ pub struct LnmWebSocketRepo {
 }
 
 impl LnmWebSocketRepo {
-    pub async fn new(api_domain: String) -> Result<Self> {
+    pub async fn new(config: WebSocketApiConfig, api_domain: String) -> Result<Self> {
         let (manager_task, shutdown_tx, requests_tx, responses_tx, connection_state) =
             ManagerTask::new(api_domain).await?;
 
@@ -47,9 +52,10 @@ impl LnmWebSocketRepo {
         let subscriptions = Arc::new(Mutex::new(HashMap::new()));
 
         Ok(Self {
-            manager_task_handle,
+            config,
+            manager_task_handle: Mutex::new(Some(manager_task_handle)),
             connection_state,
-            shutdown_tx,
+            disconnect_tx: shutdown_tx,
             requests_tx,
             responses_tx,
             subscriptions,
@@ -69,8 +75,12 @@ impl LnmWebSocketRepo {
 
 #[async_trait]
 impl WebSocketRepository for LnmWebSocketRepo {
-    fn is_connected(&self) -> bool {
-        !self.manager_task_handle.is_finished()
+    async fn is_connected(&self) -> bool {
+        let manager_task_handle_guard = self.manager_task_handle.lock().await;
+        if let Some(handle) = manager_task_handle_guard.as_ref() {
+            return !handle.is_finished();
+        }
+        false
     }
 
     async fn connection_state(&self) -> Arc<ConnectionState> {
@@ -253,15 +263,29 @@ impl WebSocketRepository for LnmWebSocketRepo {
     }
 
     async fn shutdown(&self) -> Result<()> {
-        if self.manager_task_handle.is_finished() {
-            return self.evaluate_manager_status().await;
+        let mut handle_guard = self.manager_task_handle.lock().await;
+        if let Some(mut handle) = handle_guard.take() {
+            if let Err(e) = self.disconnect_tx.send(()).await {
+                handle.abort();
+
+                return Err(WebSocketApiError::SendShutdownRequest(e));
+            }
+
+            let shutdown_res = tokio::select! {
+                join_res = &mut handle => {
+                    join_res.map_err(WebSocketApiError::TaskJoin)
+                }
+                _ = time::sleep(self.config.shutdown_timeout()) => {
+                    handle.abort();
+                    Err(WebSocketApiError::Generic("Shutdown timeout".to_string()))
+                }
+            };
+
+            return shutdown_res?;
         }
 
-        self.shutdown_tx
-            .send(())
-            .await
-            .map_err(WebSocketApiError::SendShutdownRequest)?;
-
-        Ok(())
+        return Err(WebSocketApiError::Generic(
+            "websocket was already shutdown".to_string(),
+        ));
     }
 }
