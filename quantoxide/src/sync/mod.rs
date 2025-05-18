@@ -9,7 +9,7 @@ use tokio::{
 
 use lnm_sdk::api::ApiContext;
 
-use crate::{db::DbContext, trade::live::LiveTradeConfig};
+use crate::{db::DbContext, trade::live::LiveTradeConfig, util::Never};
 
 pub mod error;
 mod real_time_collection_task;
@@ -98,6 +98,7 @@ struct SyncProcess {
     db: Arc<DbContext>,
     api: Arc<ApiContext>,
     state_manager: SyncStateManager,
+    shutdown_tx: broadcast::Sender<()>,
 }
 
 impl SyncProcess {
@@ -106,12 +107,14 @@ impl SyncProcess {
         db: Arc<DbContext>,
         api: Arc<ApiContext>,
         state_manager: SyncStateManager,
+        shutdown_tx: broadcast::Sender<()>,
     ) -> Self {
         Self {
             config,
             db,
             api,
             state_manager,
+            shutdown_tx,
         }
     }
 
@@ -128,10 +131,10 @@ impl SyncProcess {
     }
 
     fn real_time_collection_task(&self) -> RealTimeCollectionTask {
-        RealTimeCollectionTask::new(self.db.clone(), self.api.clone())
+        RealTimeCollectionTask::new(self.db.clone(), self.api.clone(), self.shutdown_tx.clone())
     }
 
-    pub async fn run(&self, shutdown_rx: broadcast::Receiver<()>) -> Result<()> {
+    pub async fn run(&self) -> Result<Never> {
         // Initial price history sync
 
         let (history_state_tx, history_state_rx) = mpsc::channel::<PriceHistoryState>(100);
@@ -371,6 +374,7 @@ pub struct SyncEngine {
     process: SyncProcess,
     restart_interval: time::Duration,
     shutdown_timeout: time::Duration,
+    shutdown_tx: broadcast::Sender<()>,
 }
 
 impl SyncEngine {
@@ -380,25 +384,38 @@ impl SyncEngine {
         let restart_interval = config.restart_interval();
         let shutdown_timeout = config.shutdown_timeout();
 
-        let process = SyncProcess::new(config, db, api, state_manager.clone());
+        // Internal channel for shutdown signal
+        let (shutdown_tx, _) = broadcast::channel::<()>(1);
+
+        let process = SyncProcess::new(config, db, api, state_manager.clone(), shutdown_tx.clone());
 
         Self {
             state_manager,
             process,
             restart_interval,
             shutdown_timeout,
+            shutdown_tx,
         }
     }
 
-    async fn process_recovery_loop(self, shutdown_tx: broadcast::Sender<()>) {
+    async fn process_recovery_loop(self) {
         loop {
             self.state_manager.update(SyncState::Starting).await;
 
-            let shutdown_rx = shutdown_tx.subscribe();
+            let mut shutdown_rx = self.shutdown_tx.subscribe();
 
-            if let Err(e) = self.process.run(shutdown_rx).await {
-                self.state_manager.update(SyncState::Failed(e)).await;
-            }
+            tokio::select! {
+                run_res = self.process.run() => {
+                    let Err(sync_error) = run_res;
+                    self.state_manager.update(SyncState::Failed(sync_error)).await;
+                }
+                shutdown_res = shutdown_rx.recv() => {
+                    if let Err(e) = shutdown_res {
+                        self.state_manager.update(SyncState::Failed(SyncError::ShutdownRecv(e))).await;
+                    }
+                    return;
+                }
+            };
 
             self.state_manager.update(SyncState::Restarting).await;
             time::sleep(self.restart_interval).await;
@@ -406,13 +423,11 @@ impl SyncEngine {
     }
 
     pub fn start(self) -> Result<Arc<SyncController>> {
-        // Internal channel for shutdown signal
-        let (shutdown_tx, _) = broadcast::channel::<()>(1);
-
         let state_manager = self.state_manager.clone();
+        let shutdown_tx = self.shutdown_tx.clone();
         let shutdown_timeout = self.shutdown_timeout;
 
-        let handle = tokio::spawn(self.process_recovery_loop(shutdown_tx.clone()));
+        let handle = tokio::spawn(self.process_recovery_loop());
 
         let sync_controller =
             SyncController::new(handle, shutdown_tx, shutdown_timeout, state_manager);
