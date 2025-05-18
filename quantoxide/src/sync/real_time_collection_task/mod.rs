@@ -4,6 +4,7 @@ use lnm_sdk::api::{
     ApiContext,
     websocket::models::{ConnectionState, LnmWebSocketChannel, WebSocketApiRes},
 };
+use tokio::sync::broadcast;
 
 use crate::db::DbContext;
 
@@ -14,36 +15,57 @@ use error::{RealTimeCollectionError, Result};
 pub struct RealTimeCollectionTask {
     db: Arc<DbContext>,
     api: Arc<ApiContext>,
+    shutdown_tx: broadcast::Sender<()>,
 }
 
 impl RealTimeCollectionTask {
-    pub fn new(db: Arc<DbContext>, api: Arc<ApiContext>) -> Self {
-        Self { db, api }
+    pub fn new(
+        db: Arc<DbContext>,
+        api: Arc<ApiContext>,
+        shutdown_tx: broadcast::Sender<()>,
+    ) -> Self {
+        Self {
+            db,
+            api,
+            shutdown_tx,
+        }
     }
 
     pub async fn run(self) -> Result<()> {
         let ws = self.api.connect_ws().await?;
 
-        let mut receiver = ws.receiver().await?;
+        let mut ws_rx = ws.receiver().await?;
 
-        let channels = vec![LnmWebSocketChannel::FuturesBtcUsdLastPrice];
-        ws.subscribe(channels).await?;
+        ws.subscribe(vec![LnmWebSocketChannel::FuturesBtcUsdLastPrice])
+            .await?;
+
+        let mut shutdown_rx = self.shutdown_tx.subscribe();
 
         loop {
-            match receiver.recv().await {
-                Ok(res) => match res {
-                    WebSocketApiRes::PriceTick(tick) => {
-                        self.db.price_ticks.add_tick(&tick).await?;
+            tokio::select! {
+                ws_res = ws_rx.recv() => {
+                    match ws_res {
+                        Ok(res) => match res {
+                            WebSocketApiRes::PriceTick(tick) => {
+                                self.db.price_ticks.add_tick(&tick).await?;
+                            }
+                            WebSocketApiRes::PriceIndex(_index) => {}
+                            WebSocketApiRes::ConnectionUpdate(new_state) => match new_state.as_ref() {
+                                ConnectionState::Connected => {}
+                                ConnectionState::Disconnected | ConnectionState::Failed(_) => {
+                                    return Err(RealTimeCollectionError::BadConnectionUpdate(new_state));
+                                }
+                            },
+                        },
+                        Err(err) => return Err(RealTimeCollectionError::Generic(err.to_string())),
                     }
-                    WebSocketApiRes::PriceIndex(_index) => {}
-                    WebSocketApiRes::ConnectionUpdate(new_state) => match new_state.as_ref() {
-                        ConnectionState::Connected => {}
-                        ConnectionState::Disconnected | ConnectionState::Failed(_) => {
-                            return Err(RealTimeCollectionError::BadConnectionUpdate(new_state));
-                        }
-                    },
-                },
-                Err(err) => return Err(RealTimeCollectionError::Generic(err.to_string())),
+                }
+                shutdown_res = shutdown_rx.recv() => {
+                    if let Err(e) = shutdown_res {
+                        return Err(RealTimeCollectionError::Generic(format!("shutdown_rx error {e}")));
+                    }
+                    return Ok(());
+                }
             }
         }
     }
