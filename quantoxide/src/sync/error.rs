@@ -1,7 +1,10 @@
 use std::{result, sync::Arc};
 
 use thiserror::Error;
-use tokio::{sync::broadcast::error::SendError, task::JoinError};
+use tokio::{
+    sync::broadcast::error::{RecvError, SendError},
+    task::JoinError,
+};
 
 use super::{
     SyncState, real_time_collection_task::error::RealTimeCollectionError,
@@ -21,6 +24,9 @@ pub enum SyncError {
 
     #[error("[TaskJoin] {0}")]
     TaskJoin(JoinError),
+
+    #[error("[ShutdownRecv] {0}")]
+    ShutdownRecv(RecvError),
 
     #[error("UnexpectedRealTimeCollectionShutdown error")]
     UnexpectedRealTimeCollectionShutdown,
