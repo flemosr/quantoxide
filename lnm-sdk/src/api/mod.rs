@@ -5,7 +5,9 @@ pub mod rest;
 pub mod websocket;
 
 use rest::RestApiContext;
-use websocket::{WebSocketApiContext, error::Result};
+use websocket::{WebSocketApiConfig, WebSocketApiContext, error::Result};
+
+// TODO: Handle config properly
 
 pub struct ApiContext {
     domain: String,
@@ -37,13 +39,14 @@ impl ApiContext {
         let mut ws_guard = self.ws.lock().await;
 
         if let Some(ws) = ws_guard.as_ref() {
-            if ws.is_connected() {
+            if ws.is_connected().await {
                 return Ok(ws.clone());
             }
         }
 
         let domain = self.domain.clone();
-        let new_ws = Arc::new(websocket::new(domain).await?);
+        let ws_config = WebSocketApiConfig::default();
+        let new_ws = Arc::new(websocket::new(ws_config, domain).await?);
 
         *ws_guard = Some(new_ws.clone());
 
