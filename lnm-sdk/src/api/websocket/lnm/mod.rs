@@ -34,7 +34,7 @@ pub enum ChannelStatus {
 
 pub struct LnmWebSocketRepo {
     config: WebSocketApiConfig,
-    manager_task_handle: Mutex<Option<JoinHandle<Result<()>>>>,
+    manager_handle: Mutex<Option<JoinHandle<Result<()>>>>,
     disconnect_tx: ShutdownTransmiter,
     requests_tx: RequestTransmiter,
     responses_tx: ResponseTransmiter,
@@ -47,13 +47,13 @@ impl LnmWebSocketRepo {
         let (manager_task, shutdown_tx, requests_tx, responses_tx, connection_state) =
             ManagerTask::new(api_domain).await?;
 
-        let manager_task_handle = tokio::spawn(manager_task.run());
+        let manager_handle = tokio::spawn(manager_task.run());
 
         let subscriptions = Arc::new(Mutex::new(HashMap::new()));
 
         Ok(Self {
             config,
-            manager_task_handle: Mutex::new(Some(manager_task_handle)),
+            manager_handle: Mutex::new(Some(manager_handle)),
             connection_state,
             disconnect_tx: shutdown_tx,
             requests_tx,
@@ -76,8 +76,8 @@ impl LnmWebSocketRepo {
 #[async_trait]
 impl WebSocketRepository for LnmWebSocketRepo {
     async fn is_connected(&self) -> bool {
-        let manager_task_handle_guard = self.manager_task_handle.lock().await;
-        if let Some(handle) = manager_task_handle_guard.as_ref() {
+        let handle_guard = self.manager_handle.lock().await;
+        if let Some(handle) = handle_guard.as_ref() {
             return !handle.is_finished();
         }
         false
@@ -263,8 +263,21 @@ impl WebSocketRepository for LnmWebSocketRepo {
     }
 
     async fn shutdown(&self) -> Result<()> {
-        let mut handle_guard = self.manager_task_handle.lock().await;
+        let mut handle_guard = self.manager_handle.lock().await;
         if let Some(mut handle) = handle_guard.take() {
+            if handle.is_finished() {
+                let ws_res = handle.await.map_err(WebSocketApiError::TaskJoin)?;
+                if let Err(e) = ws_res {
+                    return Err(WebSocketApiError::Generic(format!(
+                        "websocket was already disconnected with error {e}"
+                    )));
+                }
+
+                return Err(WebSocketApiError::Generic(
+                    "websocket disconnected unexpectedly".to_string(),
+                ));
+            }
+
             if let Err(e) = self.disconnect_tx.send(()).await {
                 handle.abort();
 
@@ -273,7 +286,7 @@ impl WebSocketRepository for LnmWebSocketRepo {
 
             let shutdown_res = tokio::select! {
                 join_res = &mut handle => {
-                    join_res.map_err(WebSocketApiError::TaskJoin)
+                    join_res.map_err(WebSocketApiError::TaskJoin)?
                 }
                 _ = time::sleep(self.config.shutdown_timeout()) => {
                     handle.abort();
@@ -281,7 +294,7 @@ impl WebSocketRepository for LnmWebSocketRepo {
                 }
             };
 
-            return shutdown_res?;
+            return shutdown_res;
         }
 
         return Err(WebSocketApiError::Generic(
