@@ -181,7 +181,7 @@ impl SyncProcess {
 }
 
 pub struct SyncController {
-    handle: Arc<Mutex<Option<JoinHandle<()>>>>,
+    handle: Mutex<Option<JoinHandle<()>>>,
     shutdown_tx: broadcast::Sender<()>,
     shutdown_timeout: time::Duration,
     state_manager: SyncStateManager,
@@ -195,7 +195,7 @@ impl SyncController {
         state_manager: SyncStateManager,
     ) -> Self {
         Self {
-            handle: Arc::new(Mutex::new(Some(handle))),
+            handle: Mutex::new(Some(handle)),
             shutdown_tx,
             shutdown_timeout,
             state_manager,
