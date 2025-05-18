@@ -1,5 +1,8 @@
 use chrono::{DateTime, Duration, SubsecRound, Utc};
 
+/// A type that can not be instantiated
+pub enum Never {}
+
 pub trait DateTimeExt {
     fn ceil_sec(&self) -> DateTime<Utc>;
 
