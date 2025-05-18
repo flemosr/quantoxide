@@ -112,22 +112,15 @@ impl ManagerTask {
                                             if let Some((req, oneshot_tx)) = pending.remove(&id) {
                                                 let is_success = req.check_confirmation(&id, &channels);
 
-                                                oneshot_tx
-                                                    .send(is_success)
-                                                    .map_err(|_| WebSocketApiError::SendSubscriptionConfirmation)?;
+                                                // Ignore errors resulting from dropped receivers
+                                                let _ = oneshot_tx.send(is_success);
                                             }
 
                                             // Ignore unknown ids
                                         }
                                         LnmJsonRpcResponse::Subscription(data) => {
-                                            if responses_tx.receiver_count() == 0 {
-                                                // No external receivers. Ignore message
-                                                continue;
-                                            }
-
-                                            responses_tx
-                                                .send(data.into())
-                                                .map_err(WebSocketApiError::SendSubscriptionMessage)?;
+                                            // Ignore errors resulting from no receivers
+                                            let _ = responses_tx.send(data.into());
                                         }
                                     }
                                 }
@@ -143,8 +136,6 @@ impl ManagerTask {
                                     }
 
                                     // Server requested shutdown. Attempt to send close confirmation response
-                                    // but don't handle potential errors since `WebSocketApiError::Generic`
-                                    // will be returned bellow.
                                     let _ = ws.send_close().await;
 
                                     return Err(WebSocketApiError::ServerRequestedShutdown);
@@ -186,16 +177,14 @@ impl ManagerTask {
 
         // Notify all pending RPC requests of failure on shutdown
         for (_, (_, oneshot_tx)) in pending {
+            // Ignore errors resulting from dropped receivers
             let _ = oneshot_tx.send(false);
         }
 
         let connection_update = WebSocketApiRes::from(new_connection_state);
 
-        if self.responses_tx.receiver_count() > 0 {
-            self.responses_tx
-                .send(connection_update)
-                .map_err(WebSocketApiError::SendConnectionUpdate)?;
-        }
+        // Ignore errors resulting from no receivers
+        let _ = self.responses_tx.send(connection_update);
 
         Ok(())
     }
