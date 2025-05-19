@@ -13,10 +13,12 @@ mod connection;
 
 use connection::{LnmWebSocketResponse, WebSocketApiConnection};
 
+const WS_HEARTBEAT_SECS: u64 = 5;
+
 type PendingMap = HashMap<String, (LnmJsonRpcRequest, oneshot::Sender<bool>)>;
 
-pub type ShutdownTransmiter = mpsc::Sender<()>; // select! doesn't handle oneshot well
-type ShutdownReceiver = mpsc::Receiver<()>;
+pub type DisconnectTransmiter = mpsc::Sender<()>;
+type DisconnectReceiver = mpsc::Receiver<()>;
 
 pub type RequestTransmiter = mpsc::Sender<(LnmJsonRpcRequest, oneshot::Sender<bool>)>;
 type RequestReceiver = mpsc::Receiver<(LnmJsonRpcRequest, oneshot::Sender<bool>)>;
@@ -26,7 +28,7 @@ pub type ResponseReceiver = broadcast::Receiver<WebSocketApiRes>;
 
 pub struct ManagerTask {
     ws: WebSocketApiConnection,
-    shutdown_rx: ShutdownReceiver,
+    disconnect_rx: DisconnectReceiver,
     request_rx: RequestReceiver,
     responses_tx: ResponseTransmiter,
     connection_state: Arc<Mutex<Arc<ConnectionState>>>,
@@ -37,15 +39,15 @@ impl ManagerTask {
         api_domain: String,
     ) -> Result<(
         Self,
-        ShutdownTransmiter,
+        DisconnectTransmiter,
         RequestTransmiter,
         ResponseTransmiter,
         Arc<Mutex<Arc<ConnectionState>>>,
     )> {
         let ws = WebSocketApiConnection::new(api_domain).await?;
 
-        // Internal channel for shutdown signal
-        let (shutdown_tx, shutdown_rx) = mpsc::channel::<()>(1);
+        // Internal channel for disconnect signal
+        let (disconnect_tx, disconnect_rx) = mpsc::channel::<()>(1);
 
         // Internal channel for JSON RPC requests
         let (request_tx, request_rx) =
@@ -58,7 +60,7 @@ impl ManagerTask {
 
         let manager = Self {
             ws,
-            shutdown_rx,
+            disconnect_rx,
             request_rx,
             responses_tx: responses_tx.clone(),
             connection_state: connection_state.clone(),
@@ -66,7 +68,7 @@ impl ManagerTask {
 
         Ok((
             manager,
-            shutdown_tx,
+            disconnect_tx,
             request_tx,
             responses_tx,
             connection_state,
@@ -83,15 +85,16 @@ impl ManagerTask {
             let responses_tx = &self.responses_tx;
 
             async move {
-                let new_heartbeat_timer = || Box::pin(time::sleep(time::Duration::from_secs(5)));
+                let new_heartbeat_timer =
+                    || Box::pin(time::sleep(time::Duration::from_secs(WS_HEARTBEAT_SECS)));
                 let mut heartbeat_timer = new_heartbeat_timer();
                 let mut waiting_for_pong = false;
-                let mut shutdown_initiated = false;
+                let mut close_initiated = false;
 
                 loop {
                     tokio::select! {
-                        Some(_) = self.shutdown_rx.recv() => {
-                            shutdown_initiated = true;
+                        Some(_) = self.disconnect_rx.recv() => {
+                            close_initiated = true;
                             heartbeat_timer = new_heartbeat_timer();
 
                             ws.send_close().await?;
@@ -130,24 +133,24 @@ impl ManagerTask {
                                 }
                                 // Closes are handled at `manager_task`
                                 LnmWebSocketResponse::Close => {
-                                    if shutdown_initiated {
-                                        // Shutdown confirmation response received
+                                    if close_initiated {
+                                        // Close confirmation response received
                                         return Ok(());
                                     }
 
-                                    // Server requested shutdown. Attempt to send close confirmation response
+                                    // Server requested close. Attempt to send close confirmation response
                                     let _ = ws.send_close().await;
 
-                                    return Err(WebSocketApiError::ServerRequestedShutdown);
+                                    return Err(WebSocketApiError::ServerRequestedClose);
                                 }
                                 // Pongs can be ignored since heartbeat mechanism is reset after any message
                                 LnmWebSocketResponse::Pong => {}
                             };
                         }
                         _ = &mut heartbeat_timer => {
-                            if shutdown_initiated {
-                                // No shutdown confirmation after a heartbeat, timeout
-                                return Err(WebSocketApiError::NoServerShutdownConfirmation);
+                            if close_initiated {
+                                // No close confirmation after a heartbeat, timeout
+                                return Err(WebSocketApiError::NoServerCloseConfirmation);
                             }
 
                             if waiting_for_pong {

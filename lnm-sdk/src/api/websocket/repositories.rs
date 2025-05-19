@@ -21,5 +21,5 @@ pub trait WebSocketRepository: Send + Sync {
 
     async fn receiver(&self) -> Result<Receiver<WebSocketApiRes>>;
 
-    async fn shutdown(&self) -> Result<()>;
+    async fn disconnect(&self) -> Result<()>;
 }

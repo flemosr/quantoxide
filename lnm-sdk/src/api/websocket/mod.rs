@@ -10,24 +10,24 @@ use tokio::time;
 
 #[derive(Clone, Debug)]
 pub struct WebSocketApiConfig {
-    shutdown_timeout: time::Duration,
+    disconnect_timeout: time::Duration,
 }
 
 impl Default for WebSocketApiConfig {
     fn default() -> Self {
         Self {
-            shutdown_timeout: time::Duration::from_secs(6),
+            disconnect_timeout: time::Duration::from_secs(6),
         }
     }
 }
 
 impl WebSocketApiConfig {
-    pub fn shutdown_timeout(&self) -> time::Duration {
-        self.shutdown_timeout
+    pub fn disconnect_timeout(&self) -> time::Duration {
+        self.disconnect_timeout
     }
 
-    pub fn set_shutdown_timeout(mut self, secs: u64) -> Self {
-        self.shutdown_timeout = time::Duration::from_secs(secs);
+    pub fn set_disconnect_timeout(mut self, secs: u64) -> Self {
+        self.disconnect_timeout = time::Duration::from_secs(secs);
         self
     }
 }

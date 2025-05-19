@@ -54,11 +54,11 @@ pub enum WebSocketApiError {
     #[error("UnhandledOpCode error, {0:?}")]
     UnhandledOpCode(OpCode),
 
-    #[error("ServerRequestedShutdown error")]
-    ServerRequestedShutdown,
+    #[error("ServerRequestedClose error")]
+    ServerRequestedClose,
 
-    #[error("NoServerShutdownConfirmation error")]
-    NoServerShutdownConfirmation,
+    #[error("NoServerCloseConfirmation error")]
+    NoServerCloseConfirmation,
 
     #[error("NoServerPong error")]
     NoServerPong,
@@ -93,8 +93,8 @@ pub enum WebSocketApiError {
     #[error("ReceiveUnsubscriptionConfirmation error")]
     ReceiveUnsubscriptionConfirmation(oneshot::error::RecvError),
 
-    #[error("SendShutdownRequest error, {0}")]
-    SendShutdownRequest(mpsc::error::SendError<()>),
+    #[error("SendDisconnectRequest error, {0}")]
+    SendDisconnectRequest(mpsc::error::SendError<()>),
 
     #[error("UnexpectedJsonRpcResponse error, {0:?}")]
     UnexpectedJsonRpcResponse(JsonRpcResponse),

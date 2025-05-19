@@ -1,17 +1,17 @@
-use fastwebsockets::{handshake, FragmentCollector, Frame, OpCode, WebSocketError};
+use fastwebsockets::{FragmentCollector, Frame, OpCode, WebSocketError, handshake};
 use http_body_util::Empty;
 use hyper::{
+    Request,
     body::Bytes,
     header::{CONNECTION, UPGRADE},
     upgrade::Upgraded,
-    Request,
 };
 use hyper_util::rt::TokioIo;
 use std::{future::Future, sync::Arc};
 use tokio::net::TcpStream;
 use tokio_rustls::{
-    rustls::{pki_types::ServerName, ClientConfig, RootCertStore},
     TlsConnector,
+    rustls::{ClientConfig, RootCertStore, pki_types::ServerName},
 };
 use webpki_roots::TLS_SERVER_ROOTS;
 
@@ -117,7 +117,7 @@ impl WebSocketApiConnection {
     pub async fn read_respose(&mut self) -> Result<LnmWebSocketResponse> {
         let frame = match self.0.read_frame().await {
             Ok(frame) => frame,
-            // Expect scenario where connection is closed before shutdown confirmation response
+            // Expect scenario where connection is closed before close confirmation response
             Err(WebSocketError::ConnectionClosed) => return Ok(LnmWebSocketResponse::Close),
             Err(e) => return Err(WebSocketApiError::ReadFrame(e)),
         };
