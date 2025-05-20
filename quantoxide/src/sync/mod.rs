@@ -9,7 +9,11 @@ use tokio::{
 
 use lnm_sdk::api::ApiContext;
 
-use crate::{db::DbContext, trade::live::LiveTradeConfig, util::Never};
+use crate::{
+    db::DbContext,
+    trade::live::LiveTradeConfig,
+    util::{Never, ShutdownForwarder},
+};
 
 pub mod error;
 mod real_time_collection_task;
@@ -368,12 +372,12 @@ impl From<&LiveTradeConfig> for SyncConfig {
     }
 }
 
-#[derive(Clone)]
 pub struct SyncEngine {
     process: SyncProcess,
     restart_interval: time::Duration,
     shutdown_tx: broadcast::Sender<()>,
     shutdown_timeout: time::Duration,
+    external_shutdown_rx: Option<broadcast::Receiver<()>>,
     state_manager: SyncStateManager,
 }
 
@@ -394,11 +398,20 @@ impl SyncEngine {
             restart_interval,
             shutdown_tx,
             shutdown_timeout,
+            external_shutdown_rx: None,
             state_manager,
         }
     }
 
+    pub fn set_external_shutdown_trigger(&mut self, shutdown_rx: broadcast::Receiver<()>) {
+        self.external_shutdown_rx = Some(shutdown_rx);
+    }
+
     async fn process_recovery_loop(self) {
+        let _shutdown_forwarder = self
+            .external_shutdown_rx
+            .map(|ext_rx| ShutdownForwarder::new(ext_rx, self.shutdown_tx.clone()));
+
         loop {
             self.state_manager.update(SyncState::Starting).await;
 
