@@ -36,7 +36,8 @@ pub enum LiveTradeState {
     Running((Signal, TradeManagerState)),
     Failed(LiveTradeError),
     Restarting,
-    Aborted,
+    ShutdownInitiated,
+    Shutdown,
 }
 
 pub type LiveTradeTransmiter = broadcast::Sender<Arc<LiveTradeState>>;
@@ -197,15 +198,24 @@ impl LiveTradeProcess {
 }
 
 pub struct LiveTradeController {
+    handle: Arc<Mutex<Option<JoinHandle<()>>>>,
+    shutdown_tx: broadcast::Sender<()>,
+    shutdown_timeout: time::Duration,
     state_manager: LiveTradeStateManager,
-    handle: Arc<Mutex<Option<JoinHandle<Result<()>>>>>,
 }
 
 impl LiveTradeController {
-    fn new(state_manager: LiveTradeStateManager, handle: JoinHandle<Result<()>>) -> Self {
+    fn new(
+        handle: JoinHandle<()>,
+        shutdown_tx: broadcast::Sender<()>,
+        shutdown_timeout: time::Duration,
+        state_manager: LiveTradeStateManager,
+    ) -> Self {
         Self {
-            state_manager,
             handle: Arc::new(Mutex::new(Some(handle))),
+            shutdown_tx,
+            shutdown_timeout,
+            state_manager,
         }
     }
 
@@ -229,24 +239,44 @@ impl LiveTradeController {
         }
     }
 
-    /// Aborts the live process and consumes the task handle.
+    /// Tries to perform a clean shutdown of the live trade process and consumes
+    /// the task handle. If a clean shutdown fails, the process is aborted.
     /// This method can only be called once per controller instance.
-    /// Returns the result of the aborted sync process.
-    pub async fn abort(&self) -> Result<()> {
+    /// Returns an error if the process had to be aborted, or if it the handle
+    /// was already consumed.
+    pub async fn shutdown(&self) -> Result<()> {
         let mut handle_guard = self.handle.lock().await;
-        if let Some(handle) = handle_guard.take() {
-            if !handle.is_finished() {
+        if let Some(mut handle) = handle_guard.take() {
+            if let Err(e) = self.shutdown_tx.send(()) {
                 handle.abort();
-                self.state_manager.update(LiveTradeState::Aborted).await;
+
+                self.state_manager.update(LiveTradeState::Shutdown).await;
+
+                return Err(LiveTradeError::Generic(format!(
+                    "Failed to send shutdown request, {e}",
+                )));
             }
 
-            return handle
-                .await
-                .map_err(|e| LiveTradeError::Generic(e.to_string()))?;
+            self.state_manager
+                .update(LiveTradeState::ShutdownInitiated)
+                .await;
+
+            let shutdown_res = tokio::select! {
+                join_res = &mut handle => {
+                    join_res.map_err(LiveTradeError::TaskJoin)
+                }
+                _ = time::sleep(self.shutdown_timeout) => {
+                    handle.abort();
+                    Err(LiveTradeError::Generic("Shutdown timeout".to_string()))
+                }
+            };
+
+            self.state_manager.update(LiveTradeState::Shutdown).await;
+            return shutdown_res;
         }
 
         return Err(LiveTradeError::Generic(
-            "Live process was already aborted".to_string(),
+            "Live trade process was already shutdown".to_string(),
         ));
     }
 }
@@ -364,9 +394,11 @@ impl LiveTradeConfig {
 }
 
 pub struct LiveTradeEngine {
-    state_manager: LiveTradeStateManager,
     process: LiveTradeProcess,
     restart_interval: time::Duration,
+    shutdown_tx: broadcast::Sender<()>,
+    shutdown_timeout: time::Duration,
+    state_manager: LiveTradeStateManager,
 }
 
 impl LiveTradeEngine {
@@ -383,8 +415,10 @@ impl LiveTradeEngine {
             ));
         }
 
+        let restart_interval = config.restart_interval();
+        let shutdown_timeout = config.shutdown_timeout();
+
         let state_manager = LiveTradeStateManager::new();
-        let restart_interval = config.restart_interval;
 
         let process = LiveTradeProcess::new(
             config,
@@ -395,20 +429,36 @@ impl LiveTradeEngine {
             state_manager.clone(),
         );
 
+        // Internal channel for shutdown signal
+        let (shutdown_tx, _) = broadcast::channel::<()>(1);
+
         Ok(Self {
-            state_manager,
             process,
             restart_interval,
+            shutdown_tx,
+            shutdown_timeout,
+            state_manager,
         })
     }
 
-    async fn process_recovery_loop(mut self) -> Result<()> {
+    async fn process_recovery_loop(mut self) {
         loop {
             self.state_manager.update(LiveTradeState::Starting).await;
 
-            let Err(e) = self.process.run().await;
+            let mut shutdown_rx = self.shutdown_tx.subscribe();
 
-            self.state_manager.update(LiveTradeState::Failed(e)).await;
+            tokio::select! {
+                run_res = self.process.run() => {
+                    let Err(e) = run_res;
+                    self.state_manager.update(LiveTradeState::Failed(e)).await;
+                }
+                shutdown_res = shutdown_rx.recv() => {
+                    if let Err(e) = shutdown_res {
+                        self.state_manager.update(LiveTradeState::Failed(LiveTradeError::Generic(e.to_string()))).await;
+                    }
+                    return;
+                }
+            };
 
             self.state_manager.update(LiveTradeState::Restarting).await;
 
@@ -417,11 +467,14 @@ impl LiveTradeEngine {
     }
 
     pub fn start(self) -> Result<Arc<LiveTradeController>> {
+        let shutdown_tx = self.shutdown_tx.clone();
+        let shutdown_timeout = self.shutdown_timeout;
         let state_manager = self.state_manager.clone();
 
         let handle = tokio::spawn(self.process_recovery_loop());
 
-        let controller = LiveTradeController::new(state_manager, handle);
+        let controller =
+            LiveTradeController::new(handle, shutdown_tx, shutdown_timeout, state_manager);
 
         Ok(Arc::new(controller))
     }
