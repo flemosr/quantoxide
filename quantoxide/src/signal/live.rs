@@ -34,7 +34,7 @@ pub enum LiveSignalState {
 pub type LiveSignalTransmiter = broadcast::Sender<Arc<LiveSignalState>>;
 pub type LiveSignalReceiver = broadcast::Receiver<Arc<LiveSignalState>>;
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 struct LiveSignalStateManager {
     state: Arc<Mutex<Arc<LiveSignalState>>>,
     state_tx: LiveSignalTransmiter,
@@ -175,6 +175,7 @@ impl LiveSignalProcess {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct LiveSignalController {
     handle: Arc<Mutex<Option<JoinHandle<()>>>>,
     shutdown_tx: broadcast::Sender<()>,
@@ -202,19 +203,7 @@ impl LiveSignalController {
     }
 
     pub async fn state_snapshot(&self) -> Arc<LiveSignalState> {
-        match self.handle.lock().await.as_ref() {
-            Some(handle) if handle.is_finished() => {
-                return Arc::new(LiveSignalState::Failed(SignalError::Generic(
-                    "Signal job process terminated unexpectedly".to_string(),
-                )));
-            }
-            None => {
-                return Arc::new(LiveSignalState::Failed(SignalError::Generic(
-                    "Signal job process has been aborted".to_string(),
-                )));
-            }
-            _ => self.state_manager.snapshot().await,
-        }
+        self.state_manager.snapshot().await
     }
 
     /// Tries to perform a clean shutdown of the live signal process and consumes
