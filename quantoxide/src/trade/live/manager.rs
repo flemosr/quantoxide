@@ -41,6 +41,7 @@ struct LiveTradeManagerState {
     last_trade_time: Option<DateTime<Utc>>,
 }
 
+#[derive(Clone)]
 pub struct LiveTradeManager {
     api: Arc<ApiContext>,
     start_time: DateTime<Utc>,
