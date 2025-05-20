@@ -75,9 +75,13 @@ impl LiveTradeStateManager {
         let new_state = Arc::new(new_state);
 
         let mut state_guard = self.state.lock().await;
-        *state_guard = new_state.clone();
-        drop(state_guard);
+        match state_guard.as_ref() {
+            // Ignore eventual errors resulting from the shutdown of subprocesses
+            LiveTradeState::ShutdownInitiated if *new_state != LiveTradeState::Shutdown => return,
+            _ => *state_guard = new_state.clone(),
+        }
 
+        drop(state_guard);
         self.send_state_update(new_state).await
     }
 }
@@ -88,6 +92,7 @@ struct LiveTradeProcess {
     api: Arc<ApiContext>,
     evaluators: Arc<Vec<ConfiguredSignalEvaluator>>,
     operator: WrappedOperator,
+    shutdown_tx: broadcast::Sender<()>,
     state_manager: LiveTradeStateManager,
 }
 
@@ -98,6 +103,7 @@ impl LiveTradeProcess {
         api: Arc<ApiContext>,
         evaluators: Vec<ConfiguredSignalEvaluator>,
         operator: WrappedOperator,
+        shutdown_tx: broadcast::Sender<()>,
         state_manager: LiveTradeStateManager,
     ) -> Self {
         Self {
@@ -106,6 +112,7 @@ impl LiveTradeProcess {
             api,
             evaluators: Arc::new(evaluators),
             operator,
+            shutdown_tx,
             state_manager,
         }
     }
@@ -113,6 +120,7 @@ impl LiveTradeProcess {
     pub async fn run(&mut self) -> Result<Never> {
         let config = SyncConfig::from(&self.config);
         let sync_controller = SyncEngine::new(config, self.db.clone(), self.api.clone())
+            .set_external_shutdown_trigger(self.shutdown_tx.subscribe())
             .start()
             .map_err(|e| LiveTradeError::Generic(e.to_string()))?;
 
@@ -418,6 +426,9 @@ impl LiveTradeEngine {
         let restart_interval = config.restart_interval();
         let shutdown_timeout = config.shutdown_timeout();
 
+        // Internal channel for shutdown signal
+        let (shutdown_tx, _) = broadcast::channel::<()>(1);
+
         let state_manager = LiveTradeStateManager::new();
 
         let process = LiveTradeProcess::new(
@@ -426,11 +437,9 @@ impl LiveTradeEngine {
             api,
             evaluators,
             operator.into(),
+            shutdown_tx.clone(),
             state_manager.clone(),
         );
-
-        // Internal channel for shutdown signal
-        let (shutdown_tx, _) = broadcast::channel::<()>(1);
 
         Ok(Self {
             process,
