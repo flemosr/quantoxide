@@ -40,7 +40,7 @@ pub enum SyncState {
 pub type SyncTransmiter = broadcast::Sender<Arc<SyncState>>;
 pub type SyncReceiver = broadcast::Receiver<Arc<SyncState>>;
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 struct SyncStateManager {
     state: Arc<Mutex<Arc<SyncState>>>,
     state_tx: SyncTransmiter,
@@ -184,8 +184,9 @@ impl SyncProcess {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct SyncController {
-    handle: Mutex<Option<JoinHandle<()>>>,
+    handle: Arc<Mutex<Option<JoinHandle<()>>>>,
     shutdown_tx: broadcast::Sender<()>,
     shutdown_timeout: time::Duration,
     state_manager: SyncStateManager,
@@ -199,7 +200,7 @@ impl SyncController {
         state_manager: SyncStateManager,
     ) -> Self {
         Self {
-            handle: Mutex::new(Some(handle)),
+            handle: Arc::new(Mutex::new(Some(handle))),
             shutdown_tx,
             shutdown_timeout,
             state_manager,
