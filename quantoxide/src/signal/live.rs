@@ -55,28 +55,20 @@ impl LiveSignalStateManager {
         self.state_tx.subscribe()
     }
 
-    async fn try_send_state_update(&self, new_state: Arc<LiveSignalState>) -> Result<()> {
-        if self.state_tx.receiver_count() > 0 {
-            self.state_tx
-                .send(new_state)
-                .map_err(SignalError::SignalTransmiterFailed)?;
-        }
-
-        Ok(())
+    async fn send_state_update(&self, new_state: Arc<LiveSignalState>) {
+        // We can safely ignore errors since they only mean that there are no
+        // receivers.
+        let _ = self.state_tx.send(new_state);
     }
 
-    pub async fn update(&self, new_state: LiveSignalState) -> Result<()> {
+    pub async fn update(&self, new_state: LiveSignalState) {
         let new_state = Arc::new(new_state);
 
         let mut state_guard = self.state.lock().await;
-        if **state_guard == *new_state {
-            return Ok(());
-        }
-
         *state_guard = new_state.clone();
         drop(state_guard);
 
-        self.try_send_state_update(new_state).await
+        self.send_state_update(new_state).await
     }
 }
 
