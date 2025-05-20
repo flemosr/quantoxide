@@ -12,9 +12,9 @@ use crate::{
     db::DbContext,
     signal::{
         core::{ConfiguredSignalEvaluator, Signal},
-        live::{LiveSignalConfig, LiveSignalEngine, LiveSignalState},
+        live::{LiveSignalConfig, LiveSignalController, LiveSignalEngine, LiveSignalState},
     },
-    sync::{SyncConfig, SyncEngine, SyncState},
+    sync::{SyncConfig, SyncController, SyncEngine, SyncState},
     util::Never,
 };
 
@@ -87,60 +87,60 @@ impl LiveTradeStateManager {
 }
 
 struct LiveTradeProcess {
-    config: LiveTradeConfig,
-    db: Arc<DbContext>,
+    // config: LiveTradeConfig,
+    // db: Arc<DbContext>,
     api: Arc<ApiContext>,
-    evaluators: Arc<Vec<ConfiguredSignalEvaluator>>,
+    // evaluators: Arc<Vec<ConfiguredSignalEvaluator>>,
     operator: WrappedOperator,
-    shutdown_tx: broadcast::Sender<()>,
+    // shutdown_tx: broadcast::Sender<()>,
     state_manager: LiveTradeStateManager,
 }
 
 impl LiveTradeProcess {
     pub fn new(
-        config: LiveTradeConfig,
-        db: Arc<DbContext>,
+        // config: LiveTradeConfig,
+        // db: Arc<DbContext>,
         api: Arc<ApiContext>,
-        evaluators: Vec<ConfiguredSignalEvaluator>,
+        // evaluators: Vec<ConfiguredSignalEvaluator>,
         operator: WrappedOperator,
-        shutdown_tx: broadcast::Sender<()>,
+        // shutdown_tx: broadcast::Sender<()>,
         state_manager: LiveTradeStateManager,
     ) -> Self {
         Self {
-            config,
-            db,
+            // config,
+            // db,
             api,
-            evaluators: Arc::new(evaluators),
+            // evaluators: Arc::new(evaluators),
             operator,
-            shutdown_tx,
+            // shutdown_tx,
             state_manager,
         }
     }
 
-    pub async fn run(&mut self) -> Result<Never> {
-        let config = SyncConfig::from(&self.config);
-        let sync_controller = SyncEngine::new(config, self.db.clone(), self.api.clone())
-            .set_external_shutdown_trigger(self.shutdown_tx.subscribe())
-            .start()
-            .map_err(|e| LiveTradeError::Generic(e.to_string()))?;
+    pub async fn run(&mut self, signal_controller: Arc<LiveSignalController>) -> Result<Never> {
+        // let config = SyncConfig::from(&self.config);
+        // let sync_controller = SyncEngine::new(config, self.db.clone(), self.api.clone())
+        //     .set_external_shutdown_trigger(self.shutdown_tx.subscribe())
+        //     .start()
+        //     .map_err(|e| LiveTradeError::Generic(e.to_string()))?;
 
-        while let Ok(res) = sync_controller.receiver().recv().await {
-            self.state_manager
-                .update(LiveTradeState::Syncing(res.clone()))
-                .await;
+        // while let Ok(res) = sync_controller.receiver().recv().await {
+        //     self.state_manager
+        //         .update(LiveTradeState::Syncing(res.clone()))
+        //         .await;
 
-            match res.as_ref() {
-                SyncState::Synced => {
-                    break;
-                }
-                SyncState::Shutdown => {
-                    return Err(LiveTradeError::Generic(
-                        "Sync process unexpectedly shutdown".to_string(),
-                    ));
-                }
-                _ => {}
-            }
-        }
+        //     match res.as_ref() {
+        //         SyncState::Synced => {
+        //             break;
+        //         }
+        //         SyncState::Shutdown => {
+        //             return Err(LiveTradeError::Generic(
+        //                 "Sync process unexpectedly shutdown".to_string(),
+        //             ));
+        //         }
+        //         _ => {}
+        //     }
+        // }
 
         let trades_manager = {
             let manager = LiveTradeManager::new(self.api.clone())
@@ -158,18 +158,18 @@ impl LiveTradeProcess {
                 ))
             })?;
 
-        let config = LiveSignalConfig::from(&self.config);
-        let signal_job_controller = LiveSignalEngine::new(
-            config,
-            self.db.clone(),
-            sync_controller.clone(),
-            self.evaluators.clone(),
-        )
-        .map_err(|e| LiveTradeError::Generic(e.to_string()))?
-        .start()
-        .map_err(|e| LiveTradeError::Generic(e.to_string()))?;
+        // let config = LiveSignalConfig::from(&self.config);
+        // let signal_job_controller = LiveSignalEngine::new(
+        //     config,
+        //     self.db.clone(),
+        //     sync_controller.clone(),
+        //     self.evaluators.clone(),
+        // )
+        // .map_err(|e| LiveTradeError::Generic(e.to_string()))?
+        // .start()
+        // .map_err(|e| LiveTradeError::Generic(e.to_string()))?;
 
-        while let Ok(res) = signal_job_controller.receiver().recv().await {
+        while let Ok(res) = signal_controller.receiver().recv().await {
             match res.as_ref() {
                 LiveSignalState::Running(last_signal) => {
                     self.operator
@@ -207,6 +207,8 @@ impl LiveTradeProcess {
 
 #[derive(Debug, Clone)]
 pub struct LiveTradeController {
+    sync_controller: Arc<SyncController>,
+    signal_controller: Arc<LiveSignalController>,
     handle: Arc<Mutex<Option<JoinHandle<()>>>>,
     shutdown_tx: broadcast::Sender<()>,
     shutdown_timeout: time::Duration,
@@ -215,12 +217,16 @@ pub struct LiveTradeController {
 
 impl LiveTradeController {
     fn new(
+        sync_controller: Arc<SyncController>,
+        signal_controller: Arc<LiveSignalController>,
         handle: JoinHandle<()>,
         shutdown_tx: broadcast::Sender<()>,
         shutdown_timeout: time::Duration,
         state_manager: LiveTradeStateManager,
     ) -> Self {
         Self {
+            sync_controller,
+            signal_controller,
             handle: Arc::new(Mutex::new(Some(handle))),
             shutdown_tx,
             shutdown_timeout,
@@ -391,10 +397,12 @@ impl LiveTradeConfig {
 }
 
 pub struct LiveTradeEngine {
+    config: LiveTradeConfig,
+    db: Arc<DbContext>,
+    api: Arc<ApiContext>,
     process: LiveTradeProcess,
-    restart_interval: time::Duration,
     shutdown_tx: broadcast::Sender<()>,
-    shutdown_timeout: time::Duration,
+    evaluators: Arc<Vec<ConfiguredSignalEvaluator>>,
     state_manager: LiveTradeStateManager,
 }
 
@@ -412,8 +420,8 @@ impl LiveTradeEngine {
             ));
         }
 
-        let restart_interval = config.restart_interval();
-        let shutdown_timeout = config.shutdown_timeout();
+        // let restart_interval = config.restart_interval();
+        // let shutdown_timeout = config.shutdown_timeout();
 
         // Internal channel for shutdown signal
         let (shutdown_tx, _) = broadcast::channel::<()>(1);
@@ -421,32 +429,34 @@ impl LiveTradeEngine {
         let state_manager = LiveTradeStateManager::new();
 
         let process = LiveTradeProcess::new(
-            config,
-            db,
-            api,
-            evaluators,
+            // config.clone(),
+            // db.clone(),
+            api.clone(),
+            // evaluators,
             operator.into(),
-            shutdown_tx.clone(),
+            // shutdown_tx.clone(),
             state_manager.clone(),
         );
 
         Ok(Self {
+            config,
+            db,
+            api,
             process,
-            restart_interval,
             shutdown_tx,
-            shutdown_timeout,
+            evaluators: Arc::new(evaluators),
             state_manager,
         })
     }
 
-    async fn process_recovery_loop(mut self) {
+    async fn process_recovery_loop(mut self, signal_controller: Arc<LiveSignalController>) {
         loop {
             self.state_manager.update(LiveTradeState::Starting).await;
 
             let mut shutdown_rx = self.shutdown_tx.subscribe();
 
             tokio::select! {
-                run_res = self.process.run() => {
+                run_res = self.process.run(signal_controller.clone()) => {
                     let Err(e) = run_res;
                     self.state_manager.update(LiveTradeState::Failed(e)).await;
                 }
@@ -460,19 +470,41 @@ impl LiveTradeEngine {
 
             self.state_manager.update(LiveTradeState::Restarting).await;
 
-            time::sleep(self.restart_interval).await;
+            time::sleep(self.config.restart_interval()).await;
         }
     }
 
     pub fn start(self) -> Result<Arc<LiveTradeController>> {
+        let config = SyncConfig::from(&self.config);
+        let sync_controller = SyncEngine::new(config, self.db.clone(), self.api.clone())
+            .start()
+            .map_err(|e| LiveTradeError::Generic(e.to_string()))?;
+
+        let config = LiveSignalConfig::from(&self.config);
+        let signal_controller = LiveSignalEngine::new(
+            config,
+            self.db.clone(),
+            sync_controller.clone(),
+            self.evaluators.clone(),
+        )
+        .map_err(|e| LiveTradeError::Generic(e.to_string()))?
+        .start()
+        .map_err(|e| LiveTradeError::Generic(e.to_string()))?;
+
         let shutdown_tx = self.shutdown_tx.clone();
-        let shutdown_timeout = self.shutdown_timeout;
+        let shutdown_timeout = self.config.shutdown_timeout();
         let state_manager = self.state_manager.clone();
 
-        let handle = tokio::spawn(self.process_recovery_loop());
+        let handle = tokio::spawn(self.process_recovery_loop(signal_controller.clone()));
 
-        let controller =
-            LiveTradeController::new(handle, shutdown_tx, shutdown_timeout, state_manager);
+        let controller = LiveTradeController::new(
+            sync_controller,
+            signal_controller,
+            handle,
+            shutdown_tx,
+            shutdown_timeout,
+            state_manager,
+        );
 
         Ok(Arc::new(controller))
     }
