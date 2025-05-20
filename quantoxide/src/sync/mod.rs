@@ -97,8 +97,8 @@ struct SyncProcess {
     config: SyncConfig,
     db: Arc<DbContext>,
     api: Arc<ApiContext>,
-    state_manager: SyncStateManager,
     shutdown_tx: broadcast::Sender<()>,
+    state_manager: SyncStateManager,
 }
 
 impl SyncProcess {
@@ -106,15 +106,15 @@ impl SyncProcess {
         config: SyncConfig,
         db: Arc<DbContext>,
         api: Arc<ApiContext>,
-        state_manager: SyncStateManager,
         shutdown_tx: broadcast::Sender<()>,
+        state_manager: SyncStateManager,
     ) -> Self {
         Self {
             config,
             db,
             api,
-            state_manager,
             shutdown_tx,
+            state_manager,
         }
     }
 
@@ -247,7 +247,7 @@ impl SyncController {
         }
 
         return Err(SyncError::Generic(
-            "Sync process handle was already shutdown".to_string(),
+            "Sync process was already shutdown".to_string(),
         ));
     }
 }
@@ -370,31 +370,31 @@ impl From<&LiveTradeConfig> for SyncConfig {
 
 #[derive(Clone)]
 pub struct SyncEngine {
-    state_manager: SyncStateManager,
     process: SyncProcess,
     restart_interval: time::Duration,
-    shutdown_timeout: time::Duration,
     shutdown_tx: broadcast::Sender<()>,
+    shutdown_timeout: time::Duration,
+    state_manager: SyncStateManager,
 }
 
 impl SyncEngine {
     pub fn new(config: SyncConfig, db: Arc<DbContext>, api: Arc<ApiContext>) -> Self {
-        let state_manager = SyncStateManager::new();
-
         let restart_interval = config.restart_interval();
         let shutdown_timeout = config.shutdown_timeout();
 
         // Internal channel for shutdown signal
         let (shutdown_tx, _) = broadcast::channel::<()>(1);
 
-        let process = SyncProcess::new(config, db, api, state_manager.clone(), shutdown_tx.clone());
+        let state_manager = SyncStateManager::new();
+
+        let process = SyncProcess::new(config, db, api, shutdown_tx.clone(), state_manager.clone());
 
         Self {
-            state_manager,
             process,
             restart_interval,
-            shutdown_timeout,
             shutdown_tx,
+            shutdown_timeout,
+            state_manager,
         }
     }
 
@@ -423,9 +423,9 @@ impl SyncEngine {
     }
 
     pub fn start(self) -> Result<Arc<SyncController>> {
-        let state_manager = self.state_manager.clone();
         let shutdown_tx = self.shutdown_tx.clone();
         let shutdown_timeout = self.shutdown_timeout;
+        let state_manager = self.state_manager.clone();
 
         let handle = tokio::spawn(self.process_recovery_loop());
 
