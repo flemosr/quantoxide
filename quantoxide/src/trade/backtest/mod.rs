@@ -74,17 +74,17 @@ impl BacktestStateManager {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct BacktestController {
+    handle: Arc<Mutex<Option<JoinHandle<()>>>>,
     state_manager: BacktestStateManager,
-    handle: Arc<Mutex<Option<JoinHandle<Result<()>>>>>,
 }
 
 impl BacktestController {
-    fn new(state_manager: BacktestStateManager, handle: JoinHandle<Result<()>>) -> Self {
+    fn new(handle: JoinHandle<()>, state_manager: BacktestStateManager) -> Self {
         Self {
-            state_manager,
             handle: Arc::new(Mutex::new(Some(handle))),
+            state_manager,
         }
     }
 
@@ -129,9 +129,9 @@ impl BacktestController {
         ));
     }
 
-    /// Aborts the backtest and consumes the task handle.
+    /// Consumes the task handle and aborts the backtest.
     /// This method can only be called once per controller instance.
-    /// Returns the result of the aborted backtest.
+    /// Returns an error if the internal task was not properly handled.
     pub async fn abort(&self) -> Result<()> {
         let mut handle_guard = self.handle.lock().await;
         if let Some(handle) = handle_guard.take() {
@@ -447,10 +447,9 @@ impl BacktestEngine {
             if let Err(e) = self.run().await {
                 state_manager.update(BacktestState::Failed(e)).await;
             }
-            Ok(())
         });
 
-        let backtest_controller = BacktestController::new(state_manager, handle);
+        let backtest_controller = BacktestController::new(handle, state_manager);
 
         Ok(Arc::new(backtest_controller))
     }
