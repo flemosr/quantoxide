@@ -15,6 +15,7 @@ use crate::{
         live::{LiveSignalConfig, LiveSignalEngine, LiveSignalState},
     },
     sync::{SyncConfig, SyncEngine, SyncState},
+    util::Never,
 };
 
 use super::core::{Operator, TradeManager, TradeManagerState, WrappedOperator};
@@ -63,24 +64,20 @@ impl LiveTradeStateManager {
         self.state_tx.subscribe()
     }
 
-    async fn try_send_state_update(&self, new_state: Arc<LiveTradeState>) -> Result<()> {
-        if self.state_tx.receiver_count() > 0 {
-            self.state_tx
-                .send(new_state)
-                .map_err(|e| LiveTradeError::Generic(e.to_string()))?;
-        }
-
-        Ok(())
+    async fn send_state_update(&self, new_state: Arc<LiveTradeState>) {
+        // We can safely ignore errors since they only mean that there are no
+        // receivers.
+        let _ = self.state_tx.send(new_state);
     }
 
-    pub async fn update(&self, new_state: LiveTradeState) -> Result<()> {
+    pub async fn update(&self, new_state: LiveTradeState) {
         let new_state = Arc::new(new_state);
 
         let mut state_guard = self.state.lock().await;
         *state_guard = new_state.clone();
         drop(state_guard);
 
-        self.try_send_state_update(new_state).await
+        self.send_state_update(new_state).await
     }
 }
 
@@ -112,7 +109,7 @@ impl LiveTradeProcess {
         }
     }
 
-    pub async fn run(&mut self) -> Result<()> {
+    pub async fn run(&mut self) -> Result<Never> {
         let config = SyncConfig::from(&self.config);
         let sync_controller = SyncEngine::new(config, self.db.clone(), self.api.clone())
             .start()
@@ -121,7 +118,7 @@ impl LiveTradeProcess {
         while let Ok(res) = sync_controller.receiver().recv().await {
             self.state_manager
                 .update(LiveTradeState::Syncing(res.clone()))
-                .await?;
+                .await;
 
             match res.as_ref() {
                 SyncState::Synced => {
@@ -178,22 +175,24 @@ impl LiveTradeProcess {
 
                     self.state_manager
                         .update(LiveTradeState::Running((last_signal.clone(), trades_state)))
-                        .await?;
+                        .await;
                 }
                 LiveSignalState::WaitingForSync(sync_state) => {
                     self.state_manager
                         .update(LiveTradeState::WaitingForSync(sync_state.clone()))
-                        .await?;
+                        .await;
                 }
                 _ => {
                     self.state_manager
                         .update(LiveTradeState::WaitingForSignal(res))
-                        .await?;
+                        .await;
                 }
             }
         }
 
-        Ok(())
+        Err(LiveTradeError::Generic(
+            "Live signals job transmitter was dropped unexpectedly".to_string(),
+        ))
     }
 }
 
@@ -238,7 +237,7 @@ impl LiveTradeController {
         if let Some(handle) = handle_guard.take() {
             if !handle.is_finished() {
                 handle.abort();
-                self.state_manager.update(LiveTradeState::Aborted).await?;
+                self.state_manager.update(LiveTradeState::Aborted).await;
             }
 
             return handle
@@ -405,15 +404,14 @@ impl LiveTradeEngine {
 
     async fn process_recovery_loop(mut self) -> Result<()> {
         loop {
-            self.state_manager.update(LiveTradeState::Starting).await?;
+            self.state_manager.update(LiveTradeState::Starting).await;
 
-            if let Err(e) = self.process.run().await {
-                self.state_manager.update(LiveTradeState::Failed(e)).await?
-            }
+            let Err(e) = self.process.run().await;
 
-            self.state_manager
-                .update(LiveTradeState::Restarting)
-                .await?;
+            self.state_manager.update(LiveTradeState::Failed(e)).await;
+
+            self.state_manager.update(LiveTradeState::Restarting).await;
+
             time::sleep(self.restart_interval).await;
         }
     }
