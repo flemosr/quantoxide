@@ -87,42 +87,35 @@ impl LiveTradeStateManager {
 }
 
 struct LiveTradeProcess {
-    api: Arc<ApiContext>,
+    restart_interval: time::Duration,
     operator: WrappedOperator,
+    shutdown_tx: broadcast::Sender<()>,
+    signal_controller: Arc<LiveSignalController>,
+    trades_manager: Arc<LiveTradeManager>,
     state_manager: LiveTradeStateManager,
 }
 
 impl LiveTradeProcess {
     pub fn new(
-        api: Arc<ApiContext>,
+        restart_interval: time::Duration,
         operator: WrappedOperator,
+        shutdown_tx: broadcast::Sender<()>,
+        signal_controller: Arc<LiveSignalController>,
+        trades_manager: Arc<LiveTradeManager>,
         state_manager: LiveTradeStateManager,
     ) -> Self {
         Self {
-            api,
+            restart_interval,
             operator,
+            shutdown_tx,
+            signal_controller,
+            trades_manager,
             state_manager,
         }
     }
 
-    pub async fn run(&mut self, signal_controller: Arc<LiveSignalController>) -> Result<Never> {
-        let trades_manager = {
-            let manager = LiveTradeManager::new(self.api.clone())
-                .await
-                .map_err(|e| LiveTradeError::Generic(e.to_string()))?;
-            Arc::new(manager)
-        };
-
-        self.operator
-            .set_trades_manager(trades_manager.clone())
-            .map_err(|e| {
-                LiveTradeError::Generic(format!(
-                    "couldn't set the live trades manager {}",
-                    e.to_string()
-                ))
-            })?;
-
-        while let Ok(res) = signal_controller.receiver().recv().await {
+    async fn run(&mut self) -> Result<Never> {
+        while let Ok(res) = self.signal_controller.receiver().recv().await {
             match res.as_ref() {
                 LiveSignalState::Running(last_signal) => {
                     self.operator
@@ -130,7 +123,8 @@ impl LiveTradeProcess {
                         .await
                         .map_err(|e| LiveTradeError::Generic(e.to_string()))?;
 
-                    let trades_state = trades_manager
+                    let trades_state = self
+                        .trades_manager
                         .state()
                         .await
                         .map_err(|e| LiveTradeError::Generic(e.to_string()))?;
@@ -155,6 +149,31 @@ impl LiveTradeProcess {
         Err(LiveTradeError::Generic(
             "Live signals job transmitter was dropped unexpectedly".to_string(),
         ))
+    }
+
+    pub async fn start_recovery_loop(mut self) {
+        loop {
+            self.state_manager.update(LiveTradeState::Starting).await;
+
+            let mut shutdown_rx = self.shutdown_tx.subscribe();
+
+            tokio::select! {
+                run_res = self.run() => {
+                    let Err(e) = run_res;
+                    self.state_manager.update(LiveTradeState::Failed(e)).await;
+                }
+                shutdown_res = shutdown_rx.recv() => {
+                    if let Err(e) = shutdown_res {
+                        self.state_manager.update(LiveTradeState::Failed(LiveTradeError::Generic(e.to_string()))).await;
+                    }
+                    return;
+                }
+            };
+
+            self.state_manager.update(LiveTradeState::Restarting).await;
+
+            time::sleep(self.restart_interval).await;
+        }
     }
 }
 
@@ -364,9 +383,8 @@ pub struct LiveTradeEngine {
     config: LiveTradeConfig,
     db: Arc<DbContext>,
     api: Arc<ApiContext>,
-    process: LiveTradeProcess,
-    shutdown_tx: broadcast::Sender<()>,
     evaluators: Arc<Vec<ConfiguredSignalEvaluator>>,
+    operator: WrappedOperator,
     state_manager: LiveTradeStateManager,
 }
 
@@ -385,49 +403,19 @@ impl LiveTradeEngine {
         }
 
         let state_manager = LiveTradeStateManager::new();
-
-        let process = LiveTradeProcess::new(api.clone(), operator.into(), state_manager.clone());
-
-        // Internal channel for shutdown signal
-        let (shutdown_tx, _) = broadcast::channel::<()>(1);
+        let operator = WrappedOperator::from(operator);
 
         Ok(Self {
             config,
             db,
             api,
-            process,
-            shutdown_tx,
             evaluators: Arc::new(evaluators),
+            operator,
             state_manager,
         })
     }
 
-    async fn process_recovery_loop(mut self, signal_controller: Arc<LiveSignalController>) {
-        loop {
-            self.state_manager.update(LiveTradeState::Starting).await;
-
-            let mut shutdown_rx = self.shutdown_tx.subscribe();
-
-            tokio::select! {
-                run_res = self.process.run(signal_controller.clone()) => {
-                    let Err(e) = run_res;
-                    self.state_manager.update(LiveTradeState::Failed(e)).await;
-                }
-                shutdown_res = shutdown_rx.recv() => {
-                    if let Err(e) = shutdown_res {
-                        self.state_manager.update(LiveTradeState::Failed(LiveTradeError::Generic(e.to_string()))).await;
-                    }
-                    return;
-                }
-            };
-
-            self.state_manager.update(LiveTradeState::Restarting).await;
-
-            time::sleep(self.config.restart_interval()).await;
-        }
-    }
-
-    pub fn start(self) -> Result<Arc<LiveTradeController>> {
+    pub async fn start(mut self) -> Result<Arc<LiveTradeController>> {
         let config = SyncConfig::from(&self.config);
         let sync_controller = SyncEngine::new(config, self.db.clone(), self.api.clone())
             .start()
@@ -444,19 +432,43 @@ impl LiveTradeEngine {
         .start()
         .map_err(|e| LiveTradeError::Generic(e.to_string()))?;
 
-        let shutdown_tx = self.shutdown_tx.clone();
-        let shutdown_timeout = self.config.shutdown_timeout();
-        let state_manager = self.state_manager.clone();
+        let trades_manager = {
+            let manager = LiveTradeManager::new(self.api.clone())
+                .await
+                .map_err(|e| LiveTradeError::Generic(e.to_string()))?;
+            Arc::new(manager)
+        };
 
-        let handle = tokio::spawn(self.process_recovery_loop(signal_controller.clone()));
+        self.operator
+            .set_trades_manager(trades_manager.clone())
+            .map_err(|e| {
+                LiveTradeError::Generic(format!(
+                    "couldn't set the live trades manager {}",
+                    e.to_string()
+                ))
+            })?;
+
+        // Internal channel for shutdown signal
+        let (shutdown_tx, _) = broadcast::channel::<()>(1);
+
+        let process = LiveTradeProcess::new(
+            self.config.restart_interval(),
+            self.operator,
+            shutdown_tx.clone(),
+            signal_controller.clone(),
+            trades_manager,
+            self.state_manager.clone(),
+        );
+
+        let handle = tokio::spawn(process.start_recovery_loop());
 
         let controller = LiveTradeController::new(
             sync_controller,
             signal_controller,
             handle,
             shutdown_tx,
-            shutdown_timeout,
-            state_manager,
+            self.config.shutdown_timeout(),
+            self.state_manager,
         );
 
         Ok(Arc::new(controller))
