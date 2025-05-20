@@ -43,7 +43,7 @@ pub enum LiveTradeState {
 pub type LiveTradeTransmiter = broadcast::Sender<Arc<LiveTradeState>>;
 pub type LiveTradeReceiver = broadcast::Receiver<Arc<LiveTradeState>>;
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 struct LiveTradeStateManager {
     state: Arc<Mutex<Arc<LiveTradeState>>>,
     state_tx: LiveTradeTransmiter,
@@ -205,6 +205,7 @@ impl LiveTradeProcess {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct LiveTradeController {
     handle: Arc<Mutex<Option<JoinHandle<()>>>>,
     shutdown_tx: broadcast::Sender<()>,
@@ -232,19 +233,7 @@ impl LiveTradeController {
     }
 
     pub async fn state_snapshot(&self) -> Arc<LiveTradeState> {
-        match self.handle.lock().await.as_ref() {
-            Some(handle) if handle.is_finished() => {
-                return Arc::new(LiveTradeState::Failed(LiveTradeError::Generic(
-                    "Live process terminated unexpectedly".to_string(),
-                )));
-            }
-            None => {
-                return Arc::new(LiveTradeState::Failed(LiveTradeError::Generic(
-                    "Live process has been aborted".to_string(),
-                )));
-            }
-            _ => self.state_manager.snapshot().await,
-        }
+        self.state_manager.snapshot().await
     }
 
     /// Tries to perform a clean shutdown of the live trade process and consumes
