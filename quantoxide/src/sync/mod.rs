@@ -403,8 +403,9 @@ impl SyncEngine {
         }
     }
 
-    pub fn set_external_shutdown_trigger(&mut self, shutdown_rx: broadcast::Receiver<()>) {
+    pub fn set_external_shutdown_trigger(mut self, shutdown_rx: broadcast::Receiver<()>) -> Self {
         self.external_shutdown_rx = Some(shutdown_rx);
+        self
     }
 
     async fn process_recovery_loop(self) {
