@@ -221,21 +221,16 @@ impl LiveTradeController {
     pub async fn shutdown(&self) -> Result<()> {
         let mut handle_guard = self.handle.lock().await;
         if let Some(mut handle) = handle_guard.take() {
-            if let Err(e) = self.shutdown_tx.send(()) {
-                handle.abort();
-
-                self.state_manager.update(LiveTradeState::Shutdown).await;
-
-                return Err(LiveTradeError::Generic(format!(
-                    "Failed to send shutdown request, {e}",
-                )));
-            }
-
             self.state_manager
                 .update(LiveTradeState::ShutdownInitiated)
                 .await;
 
             // Stop live trade process
+
+            let shutdown_send_res = self.shutdown_tx.send(()).map_err(|e| {
+                handle.abort();
+                LiveTradeError::Generic(format!("Failed to send shutdown request, {e}"))
+            });
 
             let shutdown_res = tokio::select! {
                 join_res = &mut handle => {
@@ -269,7 +264,8 @@ impl LiveTradeController {
 
             self.state_manager.update(LiveTradeState::Shutdown).await;
 
-            return shutdown_res
+            return shutdown_send_res
+                .and(shutdown_res)
                 .and(close_all_res)
                 .and(signal_shutdown_res)
                 .and(sync_shutdown_res);
