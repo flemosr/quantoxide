@@ -57,28 +57,20 @@ impl BacktestStateManager {
         self.state_tx.subscribe()
     }
 
-    async fn try_send_state_update(&self, new_state: Arc<BacktestState>) -> Result<()> {
-        if self.state_tx.receiver_count() > 0 {
-            self.state_tx
-                .send(new_state)
-                .map_err(BacktestError::TransmiterFailed)?;
-        }
-
-        Ok(())
+    async fn send_state_update(&self, new_state: Arc<BacktestState>) {
+        // We can safely ignore errors since they only mean that there are no
+        // receivers.
+        let _ = self.state_tx.send(new_state);
     }
 
-    pub async fn update(&self, new_state: BacktestState) -> Result<()> {
+    pub async fn update(&self, new_state: BacktestState) {
         let new_state = Arc::new(new_state);
 
         let mut state_guard = self.state.lock().await;
-        if **state_guard == *new_state {
-            return Ok(());
-        }
-
         *state_guard = new_state.clone();
         drop(state_guard);
 
-        self.try_send_state_update(new_state).await
+        self.send_state_update(new_state).await
     }
 }
 
@@ -125,11 +117,11 @@ impl BacktestController {
 
     /// Consumes the task handle and waits for the backtest to complete.
     /// This method can only be called once per controller instance.
-    /// Returns the final result of the backtest.
+    /// Returns an error if the internal task was not properly handled.
     pub async fn wait_for_completion(&self) -> Result<()> {
         let mut handle_guard = self.handle.lock().await;
         if let Some(handle) = handle_guard.take() {
-            return handle.await.map_err(BacktestError::TaskJoin)?;
+            return handle.await.map_err(BacktestError::TaskJoin);
         }
 
         return Err(BacktestError::Generic(
@@ -145,10 +137,10 @@ impl BacktestController {
         if let Some(handle) = handle_guard.take() {
             if !handle.is_finished() {
                 handle.abort();
-                self.state_manager.update(BacktestState::Aborted).await?;
+                self.state_manager.update(BacktestState::Aborted).await;
             }
 
-            return handle.await.map_err(BacktestError::TaskJoin)?;
+            return handle.await.map_err(BacktestError::TaskJoin);
         }
 
         return Err(BacktestError::Generic(
@@ -270,7 +262,7 @@ impl BacktestEngine {
     }
 
     async fn run(self) -> Result<()> {
-        self.state_manager.update(BacktestState::Starting).await?;
+        self.state_manager.update(BacktestState::Starting).await;
 
         let trades_manager = {
             let start_time_entry = self
@@ -366,7 +358,7 @@ impl BacktestEngine {
 
             self.state_manager
                 .update(BacktestState::Running(trades_state))
-                .await?;
+                .await;
         }
 
         loop {
@@ -404,7 +396,7 @@ impl BacktestEngine {
 
                 self.state_manager
                     .update(BacktestState::Running(trades_state))
-                    .await?;
+                    .await;
 
                 (
                     locf_buffer,
@@ -442,7 +434,7 @@ impl BacktestEngine {
 
         self.state_manager
             .update(BacktestState::Finished(final_state))
-            .await?;
+            .await;
 
         Ok(())
     }
@@ -453,7 +445,7 @@ impl BacktestEngine {
         let handle = tokio::spawn(async move {
             let state_manager = self.state_manager.clone();
             if let Err(e) = self.run().await {
-                return state_manager.update(BacktestState::Failed(e)).await;
+                state_manager.update(BacktestState::Failed(e)).await;
             }
             Ok(())
         });
