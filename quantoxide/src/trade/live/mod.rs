@@ -75,13 +75,9 @@ impl LiveTradeStateManager {
         let new_state = Arc::new(new_state);
 
         let mut state_guard = self.state.lock().await;
-        match state_guard.as_ref() {
-            // Ignore eventual errors resulting from the shutdown of subprocesses
-            LiveTradeState::ShutdownInitiated if *new_state != LiveTradeState::Shutdown => return,
-            _ => *state_guard = new_state.clone(),
-        }
-
+        *state_guard = new_state.clone();
         drop(state_guard);
+
         self.send_state_update(new_state).await
     }
 }
@@ -177,7 +173,7 @@ impl LiveTradeProcess {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct LiveTradeController {
     sync_controller: Arc<SyncController>,
     signal_controller: Arc<LiveSignalController>,
@@ -185,6 +181,7 @@ pub struct LiveTradeController {
     shutdown_tx: broadcast::Sender<()>,
     shutdown_timeout: time::Duration,
     state_manager: LiveTradeStateManager,
+    trade_manager: Arc<LiveTradeManager>,
 }
 
 impl LiveTradeController {
@@ -195,6 +192,7 @@ impl LiveTradeController {
         shutdown_tx: broadcast::Sender<()>,
         shutdown_timeout: time::Duration,
         state_manager: LiveTradeStateManager,
+        trade_manager: Arc<LiveTradeManager>,
     ) -> Self {
         Self {
             sync_controller,
@@ -203,6 +201,7 @@ impl LiveTradeController {
             shutdown_tx,
             shutdown_timeout,
             state_manager,
+            trade_manager,
         }
     }
 
@@ -236,6 +235,8 @@ impl LiveTradeController {
                 .update(LiveTradeState::ShutdownInitiated)
                 .await;
 
+            // Stop live trade process
+
             let shutdown_res = tokio::select! {
                 join_res = &mut handle => {
                     join_res.map_err(LiveTradeError::TaskJoin)
@@ -246,19 +247,32 @@ impl LiveTradeController {
                 }
             };
 
+            // Close and cancel all trades
+
+            let close_all_res = self
+                .trade_manager
+                .close_all()
+                .await
+                .map_err(|e| LiveTradeError::Generic(e.to_string()));
+
+            let signal_shutdown_res = self
+                .signal_controller
+                .shutdown()
+                .await
+                .map_err(|e| LiveTradeError::Generic(e.to_string()));
+
+            let sync_shutdown_res = self
+                .sync_controller
+                .shutdown()
+                .await
+                .map_err(|e| LiveTradeError::Generic(e.to_string()));
+
             self.state_manager.update(LiveTradeState::Shutdown).await;
 
-            self.signal_controller
-                .shutdown()
-                .await
-                .map_err(|e| LiveTradeError::Generic(e.to_string()))?;
-
-            self.sync_controller
-                .shutdown()
-                .await
-                .map_err(|e| LiveTradeError::Generic(e.to_string()))?;
-
-            return shutdown_res;
+            return shutdown_res
+                .and(close_all_res)
+                .and(signal_shutdown_res)
+                .and(sync_shutdown_res);
         }
 
         return Err(LiveTradeError::Generic(
@@ -433,7 +447,7 @@ impl LiveTradeEngine {
         .map_err(|e| LiveTradeError::Generic(e.to_string()))?;
 
         let trades_manager = {
-            let manager = LiveTradeManager::new(self.api.clone())
+            let manager = LiveTradeManager::new(self.api)
                 .await
                 .map_err(|e| LiveTradeError::Generic(e.to_string()))?;
             Arc::new(manager)
@@ -456,7 +470,7 @@ impl LiveTradeEngine {
             self.operator,
             shutdown_tx.clone(),
             signal_controller.clone(),
-            trades_manager,
+            trades_manager.clone(),
             self.state_manager.clone(),
         );
 
@@ -469,6 +483,7 @@ impl LiveTradeEngine {
             shutdown_tx,
             self.config.shutdown_timeout(),
             self.state_manager,
+            trades_manager,
         );
 
         Ok(Arc::new(controller))
