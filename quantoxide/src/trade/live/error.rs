@@ -1,6 +1,7 @@
 use std::result;
 
 use thiserror::Error;
+use tokio::task::JoinError;
 
 use lnm_sdk::api::rest::{error::RestApiError, models::error::QuantityValidationError};
 
@@ -11,6 +12,9 @@ pub enum LiveTradeError {
 
     #[error("[RestApi] {0}")]
     RestApi(#[from] RestApiError),
+
+    #[error("[TaskJoin] {0}")]
+    TaskJoin(JoinError),
 
     #[error("Generic error, {0}")]
     Generic(String),
