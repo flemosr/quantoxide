@@ -1,5 +1,7 @@
-use dotenv::dotenv;
 use std::env;
+use std::time::Instant;
+
+use dotenv::dotenv;
 
 use crate::api::rest::models::{BoundedPercentage, LowerBoundedPercentage};
 
@@ -381,43 +383,102 @@ async fn test_cash_in(repo: &LnmFuturesRepository, trade: Trade) -> Trade {
 async fn test_api() {
     let repo = init_repository_from_env();
 
+    macro_rules! time_test {
+        ($test_name: expr, $test_block: expr) => {{
+            println!("Starting test: {}", $test_name);
+            let start = Instant::now();
+            let result = $test_block;
+            let elapsed = start.elapsed();
+            println!("Test '{}' took: {:?}", $test_name, elapsed);
+            result
+        }};
+    }
+
     // Initial clean-up
 
-    let _ = repo.cancel_all_trades().await.expect("must cancel trades");
+    time_test!(
+        "cancel_all_trades (cleanup)",
+        repo.cancel_all_trades().await.expect("must cancel trades")
+    );
 
-    let _ = repo.close_all_trades().await.expect("must close trades");
+    time_test!(
+        "close_all_trades (cleanup)",
+        repo.close_all_trades().await.expect("must close trades")
+    );
 
     // Start tests
 
-    let ticker = test_ticker(&repo).await;
+    let ticker = time_test!("test_ticker", test_ticker(&repo).await);
 
-    let limit_trade_a = test_create_new_trade_quantity_limit(&repo, &ticker).await;
+    let limit_trade_a = time_test!(
+        "test_create_new_trade_quantity_limit",
+        test_create_new_trade_quantity_limit(&repo, &ticker).await
+    );
 
-    let limit_trade_b = test_create_new_trade_margin_limit(&repo, &ticker).await;
+    let limit_trade_b = time_test!(
+        "test_create_new_trade_margin_limit",
+        test_create_new_trade_margin_limit(&repo, &ticker).await
+    );
 
-    test_get_trades_open(&repo, vec![&limit_trade_a, &limit_trade_b]).await;
+    time_test!(
+        "test_get_trades_open",
+        test_get_trades_open(&repo, vec![&limit_trade_a, &limit_trade_b]).await
+    );
 
-    test_update_trade_stoploss(&repo, limit_trade_a.id(), limit_trade_a.price()).await;
+    time_test!(
+        "test_update_trade_stoploss",
+        test_update_trade_stoploss(&repo, limit_trade_a.id(), limit_trade_a.price()).await
+    );
 
-    test_update_trade_takeprofit(&repo, limit_trade_a.id(), limit_trade_a.price()).await;
+    time_test!(
+        "test_update_trade_takeprofit",
+        test_update_trade_takeprofit(&repo, limit_trade_a.id(), limit_trade_a.price()).await
+    );
 
-    test_cancel_trade(&repo, limit_trade_a.id()).await;
+    time_test!(
+        "test_cancel_trade",
+        test_cancel_trade(&repo, limit_trade_a.id()).await
+    );
 
-    test_cancel_all_trades(&repo, vec![&limit_trade_b]).await;
+    time_test!(
+        "test_cancel_all_trades",
+        test_cancel_all_trades(&repo, vec![&limit_trade_b]).await
+    );
 
-    let market_trade_a = test_create_new_trade_quantity_market(&repo, &ticker).await;
+    let market_trade_a = time_test!(
+        "test_create_new_trade_quantity_market",
+        test_create_new_trade_quantity_market(&repo, &ticker).await
+    );
 
-    let market_trade_a = test_add_margin(&repo, market_trade_a).await;
+    let market_trade_a = time_test!(
+        "test_add_margin",
+        test_add_margin(&repo, market_trade_a).await
+    );
 
-    let market_trade_a = test_cash_in(&repo, market_trade_a).await;
+    let market_trade_a = time_test!("test_cash_in", test_cash_in(&repo, market_trade_a).await);
 
-    let market_trade_b = test_create_new_trade_margin_market(&repo, &ticker).await;
+    let market_trade_b = time_test!(
+        "test_create_new_trade_margin_market",
+        test_create_new_trade_margin_market(&repo, &ticker).await
+    );
 
-    test_get_trades_running(&repo, vec![&market_trade_a, &market_trade_b]).await;
+    time_test!(
+        "test_get_trades_running",
+        test_get_trades_running(&repo, vec![&market_trade_a, &market_trade_b]).await
+    );
 
-    test_close_trade(&repo, market_trade_a.id()).await;
+    time_test!(
+        "test_close_trade",
+        test_close_trade(&repo, market_trade_a.id()).await
+    );
 
-    test_close_all_trades(&repo, vec![&market_trade_b]).await;
+    time_test!(
+        "test_close_all_trades",
+        test_close_all_trades(&repo, vec![&market_trade_b]).await
+    );
 
-    test_get_trades_closed(&repo, vec![&market_trade_a, &market_trade_b]).await;
+    time_test!(
+        "test_get_trades_closed",
+        test_get_trades_closed(&repo, vec![&market_trade_a, &market_trade_b]).await
+    );
 }
