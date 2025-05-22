@@ -59,6 +59,8 @@ pub trait FuturesRepository: Send + Sync {
         takeprofit: Option<Price>,
     ) -> Result<Trade>;
 
+    async fn get_trade(&self, id: Uuid) -> Result<Trade>;
+
     async fn cancel_trade(&self, id: Uuid) -> Result<Trade>;
 
     async fn cancel_all_trades(&self) -> Result<Vec<Trade>>;
