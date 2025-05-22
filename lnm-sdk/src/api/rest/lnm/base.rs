@@ -1,3 +1,5 @@
+use std::{sync::Arc, time::Duration};
+
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
 use chrono::Utc;
 use hmac::{Hmac, Mac};
@@ -7,13 +9,15 @@ use reqwest::{
 };
 use serde::{Serialize, de::DeserializeOwned};
 use sha2::Sha256;
-use std::{sync::Arc, time::Duration};
+use uuid::Uuid;
 
 use super::super::error::{RestApiError, Result};
 
+#[derive(Clone)]
 pub enum ApiPath {
     FuturesPriceHistory,
     FuturesTrade,
+    FuturesGetTrade(Uuid),
     FuturesTicker,
     FuturesCancelTrade,
     FuturesCancelAllTrades,
@@ -23,18 +27,19 @@ pub enum ApiPath {
     UserGetUser,
 }
 
-impl ApiPath {
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            Self::FuturesPriceHistory => "/v2/futures/history/price",
-            Self::FuturesTrade => "/v2/futures",
-            Self::FuturesTicker => "/v2/futures/ticker",
-            Self::FuturesCancelTrade => "/v2/futures/cancel",
-            Self::FuturesCancelAllTrades => "/v2/futures/all/cancel",
-            Self::FuturesCloseAllTrades => "/v2/futures/all/close",
-            Self::FuturesAddMargin => "/v2/futures/add-margin",
-            Self::FuturesCashIn => "/v2/futures/cash-in",
-            Self::UserGetUser => "/v2/user",
+impl From<ApiPath> for String {
+    fn from(value: ApiPath) -> Self {
+        match value {
+            ApiPath::FuturesPriceHistory => "/v2/futures/history/price".into(),
+            ApiPath::FuturesTrade => "/v2/futures".into(),
+            ApiPath::FuturesGetTrade(id) => format!("/v2/futures/trades/{id}"),
+            ApiPath::FuturesTicker => "/v2/futures/ticker".into(),
+            ApiPath::FuturesCancelTrade => "/v2/futures/cancel".into(),
+            ApiPath::FuturesCancelAllTrades => "/v2/futures/all/cancel".into(),
+            ApiPath::FuturesCloseAllTrades => "/v2/futures/all/close".into(),
+            ApiPath::FuturesAddMargin => "/v2/futures/add-margin".into(),
+            ApiPath::FuturesCashIn => "/v2/futures/cash-in".into(),
+            ApiPath::UserGetUser => "/v2/user".into(),
         }
     }
 }
