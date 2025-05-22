@@ -216,6 +216,44 @@ async fn test_create_new_trade_margin_market(
     created_trade
 }
 
+async fn test_get_trade(repo: &LnmFuturesRepository, exp_trade: &Trade) {
+    let trade = repo
+        .get_trade(exp_trade.id())
+        .await
+        .expect("must get trade");
+
+    assert_eq!(trade.id(), exp_trade.id());
+    assert_eq!(trade.uid(), exp_trade.uid());
+    assert_eq!(trade.trade_type(), exp_trade.trade_type());
+    assert_eq!(trade.side(), exp_trade.side());
+    assert_eq!(trade.opening_fee(), exp_trade.opening_fee());
+    assert_eq!(trade.closing_fee(), exp_trade.closing_fee());
+    assert_eq!(trade.maintenance_margin(), exp_trade.maintenance_margin());
+    assert_eq!(trade.quantity(), exp_trade.quantity());
+    assert_eq!(trade.margin(), exp_trade.margin());
+    assert_eq!(trade.leverage(), exp_trade.leverage());
+    assert_eq!(trade.price(), exp_trade.price());
+    assert_eq!(trade.liquidation(), exp_trade.liquidation());
+    assert_eq!(trade.stoploss(), exp_trade.stoploss());
+    assert_eq!(trade.takeprofit(), exp_trade.takeprofit());
+    assert_eq!(trade.exit_price(), exp_trade.exit_price());
+    assert_eq!(trade.creation_ts(), exp_trade.creation_ts());
+    assert_eq!(trade.market_filled_ts(), exp_trade.market_filled_ts());
+    assert_eq!(trade.closed_ts(), exp_trade.closed_ts());
+    assert_eq!(trade.entry_price(), exp_trade.entry_price());
+    assert_eq!(trade.entry_margin(), exp_trade.entry_margin());
+    assert_eq!(trade.open(), exp_trade.open());
+    assert_eq!(trade.running(), exp_trade.running());
+    assert_eq!(trade.canceled(), exp_trade.canceled());
+    assert_eq!(trade.closed(), exp_trade.closed());
+
+    if trade.open() {
+        // If the trade was never executed
+        assert_eq!(trade.pl(), exp_trade.pl());
+        assert_eq!(trade.sum_carry_fees(), exp_trade.sum_carry_fees());
+    }
+}
+
 async fn test_get_trades_open(repo: &LnmFuturesRepository, exp_open_trades: Vec<&Trade>) {
     let open_trades = repo
         .get_trades(TradeStatus::Open, None, None, None)
@@ -415,6 +453,11 @@ async fn test_api() {
         test_create_new_trade_quantity_limit(&repo, &ticker).await
     );
 
+    time_test!(
+        "test_get_trade",
+        test_get_trade(&repo, &limit_trade_a).await
+    );
+
     let limit_trade_b = time_test!(
         "test_create_new_trade_margin_limit",
         test_create_new_trade_margin_limit(&repo, &ticker).await
@@ -448,6 +491,11 @@ async fn test_api() {
     let market_trade_a = time_test!(
         "test_create_new_trade_quantity_market",
         test_create_new_trade_quantity_market(&repo, &ticker).await
+    );
+
+    time_test!(
+        "test_get_trade",
+        test_get_trade(&repo, &market_trade_a).await
     );
 
     let market_trade_a = time_test!(
