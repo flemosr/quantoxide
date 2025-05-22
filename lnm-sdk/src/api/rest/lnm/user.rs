@@ -20,12 +20,9 @@ impl LnmUserRepository {
 #[async_trait]
 impl UserRepository for LnmUserRepository {
     async fn get_user(&self) -> Result<User> {
-        let user: User = self
-            .base
-            .make_request_without_params(Method::GET, &ApiPath::UserGetUser, true)
-            .await?;
-
-        Ok(user)
+        self.base
+            .make_request_without_params(Method::GET, ApiPath::UserGetUser, true)
+            .await
     }
 }
 
