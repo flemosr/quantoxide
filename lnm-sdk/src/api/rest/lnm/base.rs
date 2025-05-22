@@ -73,12 +73,12 @@ impl LnmApiBase {
         }))
     }
 
-    fn get_url(&self, path: &ApiPath, query_params: Option<String>) -> Result<Url> {
+    fn get_url(&self, path: ApiPath, query_params: Option<String>) -> Result<Url> {
         let query_str = query_params
             .map(|v| format!("?{v}"))
             .unwrap_or("".to_string());
 
-        let url_str = format!("https://{}{}{}", self.domain, path.as_str(), query_str);
+        let url_str = format!("https://{}{}{}", self.domain, String::from(path), query_str);
         let url = Url::parse(&url_str).map_err(|e| RestApiError::UrlParse(e.to_string()))?;
 
         Ok(url)
@@ -88,7 +88,7 @@ impl LnmApiBase {
         &self,
         timestamp_str: &str,
         method: &Method,
-        path: &ApiPath,
+        path: ApiPath,
         params_str: Option<impl AsRef<str>>,
     ) -> Result<String> {
         let params_str = params_str.as_ref().map(|v| v.as_ref()).unwrap_or("");
@@ -97,7 +97,7 @@ impl LnmApiBase {
             "{}{}{}{}",
             timestamp_str,
             method.as_str(),
-            path.as_str(),
+            String::from(path),
             params_str
         );
 
@@ -114,7 +114,7 @@ impl LnmApiBase {
     async fn make_request<T>(
         &self,
         method: Method,
-        path: &ApiPath,
+        path: ApiPath,
         params_str: Option<String>,
         authenticated: bool,
     ) -> Result<T>
@@ -127,7 +127,7 @@ impl LnmApiBase {
             let timestamp = Utc::now().timestamp_millis().to_string();
 
             let signature =
-                self.generate_signature(&timestamp, &method, path, params_str.as_ref())?;
+                self.generate_signature(&timestamp, &method, path.clone(), params_str.as_ref())?;
 
             headers.insert(
                 HeaderName::from_static("lnm-access-key"),
@@ -202,7 +202,7 @@ impl LnmApiBase {
     pub async fn make_request_with_body<T, B>(
         &self,
         method: Method,
-        path: &ApiPath,
+        path: ApiPath,
         body: B,
         authenticated: bool,
     ) -> Result<T>
@@ -220,7 +220,7 @@ impl LnmApiBase {
     pub async fn make_request_with_query_params<I, K, V, T>(
         &self,
         method: Method,
-        path: &ApiPath,
+        path: ApiPath,
         query_params: I,
         authenticated: bool,
     ) -> Result<T>
@@ -243,7 +243,7 @@ impl LnmApiBase {
     pub async fn make_request_without_params<T>(
         &self,
         method: Method,
-        path: &ApiPath,
+        path: ApiPath,
         authenticated: bool,
     ) -> Result<T>
     where
