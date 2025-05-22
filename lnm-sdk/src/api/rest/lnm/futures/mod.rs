@@ -39,12 +39,9 @@ impl LnmFuturesRepository {
     ) -> Result<Trade> {
         let body = FuturesUpdateTradeRequestBody::new(id, update_type, value);
 
-        let updated_trade: Trade = self
-            .base
-            .make_request_with_body(Method::PUT, &ApiPath::FuturesTrade, body, true)
-            .await?;
-
-        Ok(updated_trade)
+        self.base
+            .make_request_with_body(Method::PUT, ApiPath::FuturesTrade, body, true)
+            .await
     }
 }
 
@@ -71,12 +68,9 @@ impl FuturesRepository for LnmFuturesRepository {
             query_params.push(("limit", limit.to_string()));
         }
 
-        let trades: Vec<Trade> = self
-            .base
-            .make_request_with_query_params(Method::GET, &ApiPath::FuturesTrade, query_params, true)
-            .await?;
-
-        Ok(trades)
+        self.base
+            .make_request_with_query_params(Method::GET, ApiPath::FuturesTrade, query_params, true)
+            .await
     }
 
     async fn get_trades_open(
@@ -123,17 +117,14 @@ impl FuturesRepository for LnmFuturesRepository {
             query_params.push(("limit", limit.to_string()));
         }
 
-        let price_history: Vec<PriceEntryLNM> = self
-            .base
+        self.base
             .make_request_with_query_params(
                 Method::GET,
-                &ApiPath::FuturesPriceHistory,
+                ApiPath::FuturesPriceHistory,
                 query_params,
                 false,
             )
-            .await?;
-
-        Ok(price_history)
+            .await
     }
 
     async fn create_new_trade(
@@ -149,29 +140,29 @@ impl FuturesRepository for LnmFuturesRepository {
             FuturesTradeRequestBody::new(leverage, stoploss, takeprofit, side, size, execution)
                 .map_err(|e| RestApiError::Generic(e.to_string()))?;
 
-        let created_trade: Trade = self
-            .base
-            .make_request_with_body(Method::POST, &ApiPath::FuturesTrade, body, true)
-            .await?;
+        self.base
+            .make_request_with_body(Method::POST, ApiPath::FuturesTrade, body, true)
+            .await
+    }
 
-        Ok(created_trade)
+    async fn get_trade(&self, id: Uuid) -> Result<Trade> {
+        self.base
+            .make_request_without_params(Method::GET, ApiPath::FuturesGetTrade(id), true)
+            .await
     }
 
     async fn cancel_trade(&self, id: Uuid) -> Result<Trade> {
         let body = json!({"id": id.to_string()});
 
-        let canceled_trade: Trade = self
-            .base
-            .make_request_with_body(Method::POST, &ApiPath::FuturesCancelTrade, body, true)
-            .await?;
-
-        Ok(canceled_trade)
+        self.base
+            .make_request_with_body(Method::POST, ApiPath::FuturesCancelTrade, body, true)
+            .await
     }
 
     async fn cancel_all_trades(&self) -> Result<Vec<Trade>> {
         let res: NestedTradesResponse = self
             .base
-            .make_request_without_params(Method::DELETE, &ApiPath::FuturesCancelAllTrades, true)
+            .make_request_without_params(Method::DELETE, ApiPath::FuturesCancelAllTrades, true)
             .await?;
 
         Ok(res.trades)
@@ -180,35 +171,29 @@ impl FuturesRepository for LnmFuturesRepository {
     async fn close_trade(&self, id: Uuid) -> Result<Trade> {
         let query_params = vec![("id", id.to_string())];
 
-        let deleted_trade: Trade = self
-            .base
+        self.base
             .make_request_with_query_params(
                 Method::DELETE,
-                &ApiPath::FuturesTrade,
+                ApiPath::FuturesTrade,
                 query_params,
                 true,
             )
-            .await?;
-
-        Ok(deleted_trade)
+            .await
     }
 
     async fn close_all_trades(&self) -> Result<Vec<Trade>> {
         let res: NestedTradesResponse = self
             .base
-            .make_request_without_params(Method::DELETE, &ApiPath::FuturesCloseAllTrades, true)
+            .make_request_without_params(Method::DELETE, ApiPath::FuturesCloseAllTrades, true)
             .await?;
 
         Ok(res.trades)
     }
 
     async fn ticker(&self) -> Result<Ticker> {
-        let ticker: Ticker = self
-            .base
-            .make_request_without_params(Method::GET, &ApiPath::FuturesTicker, true)
-            .await?;
-
-        Ok(ticker)
+        self.base
+            .make_request_without_params(Method::GET, ApiPath::FuturesTicker, true)
+            .await
     }
 
     async fn update_trade_stoploss(&self, id: Uuid, stoploss: Price) -> Result<Trade> {
@@ -224,15 +209,12 @@ impl FuturesRepository for LnmFuturesRepository {
     async fn add_margin(&self, id: Uuid, amount: NonZeroU64) -> Result<Trade> {
         let body = json!({
             "id": id.to_string(),
-            "amount": amount.get(),
+            "amount": amount,
         });
 
-        let updated_trade: Trade = self
-            .base
-            .make_request_with_body(Method::POST, &ApiPath::FuturesAddMargin, body, true)
-            .await?;
-
-        Ok(updated_trade)
+        self.base
+            .make_request_with_body(Method::POST, ApiPath::FuturesAddMargin, body, true)
+            .await
     }
 
     async fn cash_in(&self, id: Uuid, amount: NonZeroU64) -> Result<Trade> {
@@ -241,11 +223,8 @@ impl FuturesRepository for LnmFuturesRepository {
             "amount": amount,
         });
 
-        let updated_trade: Trade = self
-            .base
-            .make_request_with_body(Method::POST, &ApiPath::FuturesCashIn, body, true)
-            .await?;
-
-        Ok(updated_trade)
+        self.base
+            .make_request_with_body(Method::POST, ApiPath::FuturesCashIn, body, true)
+            .await
     }
 }
