@@ -1,5 +1,4 @@
 use chrono::{DateTime, Utc};
-use uuid::Uuid;
 
 use lnm_sdk::api::rest::models::{
     BoundedPercentage, Leverage, Margin, Price, Quantity, SATS_PER_BTC, Trade, TradeExecutionType,
@@ -10,8 +9,6 @@ use super::error::{Result, SimulatedTradeManagerError};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SimulatedTradeRunning {
-    id: Uuid,
-    uid: Uuid,
     side: TradeSide,
     entry_time: DateTime<Utc>,
     entry_price: Price,
@@ -89,8 +86,6 @@ impl SimulatedTradeRunning {
             (fee_calc * quantity.into_f64() / liquidation.into_f64()).floor() as u64;
 
         Ok(Self {
-            id: Uuid::new_v4(),
-            uid: Uuid::new_v4(),
             side,
             entry_time,
             entry_price,
@@ -126,14 +121,6 @@ impl SimulatedTradeRunning {
 }
 
 impl Trade for SimulatedTradeRunning {
-    fn id(&self) -> Uuid {
-        self.id
-    }
-
-    fn uid(&self) -> Uuid {
-        self.uid
-    }
-
     fn trade_type(&self) -> TradeExecutionType {
         TradeExecutionType::Market
     }
@@ -228,6 +215,7 @@ pub struct SimulatedTradeClosed {
     side: TradeSide,
     entry_time: DateTime<Utc>,
     entry_price: Price,
+    liquidation: Price,
     stoploss: Price,
     takeprofit: Price,
     margin: Margin,
@@ -254,6 +242,7 @@ impl SimulatedTradeClosed {
             side: running.side,
             entry_time: running.entry_time,
             entry_price: running.entry_price,
+            liquidation: running.liquidation,
             stoploss: running.stoploss,
             takeprofit: running.takeprofit,
             margin: running.margin,
@@ -266,54 +255,6 @@ impl SimulatedTradeClosed {
         }
     }
 
-    pub fn side(&self) -> TradeSide {
-        self.side
-    }
-
-    pub fn entry_time(&self) -> DateTime<Utc> {
-        self.entry_time
-    }
-
-    pub fn entry_price(&self) -> Price {
-        self.entry_price
-    }
-
-    pub fn stoploss(&self) -> Price {
-        self.stoploss
-    }
-
-    pub fn takeprofit(&self) -> Price {
-        self.takeprofit
-    }
-
-    pub fn margin(&self) -> Margin {
-        self.margin
-    }
-
-    pub fn quantity(&self) -> Quantity {
-        self.quantity
-    }
-
-    pub fn leverage(&self) -> Leverage {
-        self.leverage
-    }
-
-    pub fn close_time(&self) -> DateTime<Utc> {
-        self.close_time
-    }
-
-    pub fn close_price(&self) -> Price {
-        self.close_price
-    }
-
-    pub fn opening_fee(&self) -> u64 {
-        self.opening_fee
-    }
-
-    pub fn closing_fee(&self) -> u64 {
-        self.closing_fee
-    }
-
     pub fn pl(&self) -> i64 {
         estimate_pl(self.side, self.quantity, self.entry_price, self.close_price)
     }
@@ -321,6 +262,96 @@ impl SimulatedTradeClosed {
     pub fn net_pl(&self) -> i64 {
         let pl = self.pl();
         pl - self.opening_fee as i64 - self.closing_fee as i64
+    }
+}
+
+impl Trade for SimulatedTradeClosed {
+    fn trade_type(&self) -> TradeExecutionType {
+        TradeExecutionType::Market
+    }
+
+    fn side(&self) -> TradeSide {
+        self.side
+    }
+
+    fn opening_fee(&self) -> u64 {
+        self.opening_fee
+    }
+
+    fn closing_fee(&self) -> u64 {
+        self.closing_fee
+    }
+
+    fn maintenance_margin(&self) -> u64 {
+        self.opening_fee + self.closing_fee
+    }
+
+    fn quantity(&self) -> Quantity {
+        self.quantity
+    }
+
+    fn margin(&self) -> Margin {
+        self.margin
+    }
+
+    fn leverage(&self) -> Leverage {
+        self.leverage
+    }
+
+    fn price(&self) -> Price {
+        self.entry_price
+    }
+
+    fn liquidation(&self) -> Price {
+        self.liquidation
+    }
+
+    fn stoploss(&self) -> Option<Price> {
+        Some(self.stoploss)
+    }
+
+    fn takeprofit(&self) -> Option<Price> {
+        Some(self.takeprofit)
+    }
+
+    fn exit_price(&self) -> Option<Price> {
+        Some(self.close_price)
+    }
+
+    fn creation_ts(&self) -> DateTime<Utc> {
+        self.entry_time
+    }
+
+    fn market_filled_ts(&self) -> Option<DateTime<Utc>> {
+        Some(self.entry_time)
+    }
+
+    fn closed_ts(&self) -> Option<DateTime<Utc>> {
+        Some(self.close_time)
+    }
+
+    fn entry_price(&self) -> Option<Price> {
+        Some(self.entry_price)
+    }
+
+    fn entry_margin(&self) -> Option<Margin> {
+        Some(self.margin)
+    }
+
+    fn open(&self) -> bool {
+        false
+    }
+
+    fn running(&self) -> bool {
+        false
+    }
+
+    fn canceled(&self) -> bool {
+        false
+    }
+
+    fn closed(&self) -> bool {
+        true
     }
 }
 
