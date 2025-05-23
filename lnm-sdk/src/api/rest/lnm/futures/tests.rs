@@ -5,7 +5,7 @@ use dotenv::dotenv;
 
 use crate::api::rest::models::{BoundedPercentage, LowerBoundedPercentage};
 
-use super::super::super::models::{Margin, Quantity};
+use super::super::super::models::{Margin, Quantity, Trade};
 use super::*;
 
 fn init_repository_from_env() -> LnmFuturesRepository {
@@ -35,7 +35,7 @@ async fn test_ticker(repo: &LnmFuturesRepository) -> Ticker {
 async fn test_create_new_trade_quantity_limit(
     repo: &LnmFuturesRepository,
     ticker: &Ticker,
-) -> Trade {
+) -> LnmTrade {
     let side = TradeSide::Buy;
     let quantity = Quantity::try_from(1).unwrap();
     let leverage = Leverage::try_from(1).unwrap();
@@ -83,7 +83,7 @@ async fn test_create_new_trade_quantity_limit(
 async fn test_create_new_trade_quantity_market(
     repo: &LnmFuturesRepository,
     ticker: &Ticker,
-) -> Trade {
+) -> LnmTrade {
     let side = TradeSide::Buy;
     let quantity = Quantity::try_from(1).unwrap();
     let leverage = Leverage::try_from(2).unwrap();
@@ -124,7 +124,10 @@ async fn test_create_new_trade_quantity_market(
     created_trade
 }
 
-async fn test_create_new_trade_margin_limit(repo: &LnmFuturesRepository, ticker: &Ticker) -> Trade {
+async fn test_create_new_trade_margin_limit(
+    repo: &LnmFuturesRepository,
+    ticker: &Ticker,
+) -> LnmTrade {
     let side = TradeSide::Buy;
     let leverage = Leverage::try_from(1).unwrap();
     let discount = BoundedPercentage::try_from(30).unwrap();
@@ -171,7 +174,7 @@ async fn test_create_new_trade_margin_limit(repo: &LnmFuturesRepository, ticker:
 async fn test_create_new_trade_margin_market(
     repo: &LnmFuturesRepository,
     ticker: &Ticker,
-) -> Trade {
+) -> LnmTrade {
     let discount = BoundedPercentage::try_from(5).unwrap();
     let est_min_price = ticker.ask_price().apply_discount(discount).unwrap();
 
@@ -216,7 +219,7 @@ async fn test_create_new_trade_margin_market(
     created_trade
 }
 
-async fn test_get_trade(repo: &LnmFuturesRepository, exp_trade: &Trade) {
+async fn test_get_trade(repo: &LnmFuturesRepository, exp_trade: &LnmTrade) {
     let trade = repo
         .get_trade(exp_trade.id())
         .await
@@ -254,7 +257,7 @@ async fn test_get_trade(repo: &LnmFuturesRepository, exp_trade: &Trade) {
     }
 }
 
-async fn test_get_trades_open(repo: &LnmFuturesRepository, exp_open_trades: Vec<&Trade>) {
+async fn test_get_trades_open(repo: &LnmFuturesRepository, exp_open_trades: Vec<&LnmTrade>) {
     let open_trades = repo
         .get_trades(TradeStatus::Open, None, None, None)
         .await
@@ -270,7 +273,7 @@ async fn test_get_trades_open(repo: &LnmFuturesRepository, exp_open_trades: Vec<
     }
 }
 
-async fn test_get_trades_running(repo: &LnmFuturesRepository, exp_running_trades: Vec<&Trade>) {
+async fn test_get_trades_running(repo: &LnmFuturesRepository, exp_running_trades: Vec<&LnmTrade>) {
     let running_trades = repo
         .get_trades(TradeStatus::Running, None, None, None)
         .await
@@ -286,7 +289,7 @@ async fn test_get_trades_running(repo: &LnmFuturesRepository, exp_running_trades
     }
 }
 
-async fn test_get_trades_closed(repo: &LnmFuturesRepository, exp_closed_trades: Vec<&Trade>) {
+async fn test_get_trades_closed(repo: &LnmFuturesRepository, exp_closed_trades: Vec<&LnmTrade>) {
     let closed_trades = repo
         .get_trades(
             TradeStatus::Closed,
@@ -327,7 +330,7 @@ async fn test_close_trade(repo: &LnmFuturesRepository, id: Uuid) {
     assert!(!closed_trade.canceled());
 }
 
-async fn test_cancel_all_trades(repo: &LnmFuturesRepository, exp_open_trades: Vec<&Trade>) {
+async fn test_cancel_all_trades(repo: &LnmFuturesRepository, exp_open_trades: Vec<&LnmTrade>) {
     let cancelled_trades = repo.cancel_all_trades().await.expect("must cancel trades");
 
     assert_eq!(cancelled_trades.len(), exp_open_trades.len());
@@ -340,7 +343,7 @@ async fn test_cancel_all_trades(repo: &LnmFuturesRepository, exp_open_trades: Ve
     }
 }
 
-async fn test_close_all_trades(repo: &LnmFuturesRepository, exp_running_trades: Vec<&Trade>) {
+async fn test_close_all_trades(repo: &LnmFuturesRepository, exp_running_trades: Vec<&LnmTrade>) {
     let closed_trades = repo.close_all_trades().await.expect("must close trades");
 
     assert_eq!(closed_trades.len(), exp_running_trades.len());
@@ -377,7 +380,7 @@ async fn test_update_trade_takeprofit(repo: &LnmFuturesRepository, id: Uuid, pri
     assert_eq!(updated_trade.takeprofit(), Some(takeprofit));
 }
 
-async fn test_add_margin(repo: &LnmFuturesRepository, trade: Trade) -> Trade {
+async fn test_add_margin(repo: &LnmFuturesRepository, trade: LnmTrade) -> LnmTrade {
     assert!(trade.leverage().into_f64() > 1.6);
 
     let target_leverage = Leverage::try_from(1.5).unwrap();
@@ -397,7 +400,7 @@ async fn test_add_margin(repo: &LnmFuturesRepository, trade: Trade) -> Trade {
     updated_trade
 }
 
-async fn test_cash_in(repo: &LnmFuturesRepository, trade: Trade) -> Trade {
+async fn test_cash_in(repo: &LnmFuturesRepository, trade: LnmTrade) -> LnmTrade {
     assert!(trade.leverage().into_f64() < 1.9);
 
     let target_leverage = Leverage::try_from(2).unwrap();

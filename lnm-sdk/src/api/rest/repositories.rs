@@ -6,7 +6,7 @@ use uuid::Uuid;
 use super::{
     error::Result,
     models::{
-        Leverage, Price, PriceEntryLNM, Ticker, Trade, TradeExecution, TradeSide, TradeSize,
+        Leverage, Price, PriceEntryLNM, Ticker, LnmTrade, TradeExecution, TradeSide, TradeSize,
         TradeStatus, User,
     },
 };
@@ -19,28 +19,28 @@ pub trait FuturesRepository: Send + Sync {
         from: Option<&DateTime<Utc>>,
         to: Option<&DateTime<Utc>>,
         limit: Option<usize>,
-    ) -> Result<Vec<Trade>>;
+    ) -> Result<Vec<LnmTrade>>;
 
     async fn get_trades_open(
         &self,
         from: Option<&DateTime<Utc>>,
         to: Option<&DateTime<Utc>>,
         limit: Option<usize>,
-    ) -> Result<Vec<Trade>>;
+    ) -> Result<Vec<LnmTrade>>;
 
     async fn get_trades_running(
         &self,
         from: Option<&DateTime<Utc>>,
         to: Option<&DateTime<Utc>>,
         limit: Option<usize>,
-    ) -> Result<Vec<Trade>>;
+    ) -> Result<Vec<LnmTrade>>;
 
     async fn get_trades_closed(
         &self,
         from: Option<&DateTime<Utc>>,
         to: Option<&DateTime<Utc>>,
         limit: Option<usize>,
-    ) -> Result<Vec<Trade>>;
+    ) -> Result<Vec<LnmTrade>>;
 
     async fn price_history(
         &self,
@@ -57,30 +57,30 @@ pub trait FuturesRepository: Send + Sync {
         execution: TradeExecution,
         stoploss: Option<Price>,
         takeprofit: Option<Price>,
-    ) -> Result<Trade>;
+    ) -> Result<LnmTrade>;
 
-    async fn get_trade(&self, id: Uuid) -> Result<Trade>;
+    async fn get_trade(&self, id: Uuid) -> Result<LnmTrade>;
 
-    async fn cancel_trade(&self, id: Uuid) -> Result<Trade>;
+    async fn cancel_trade(&self, id: Uuid) -> Result<LnmTrade>;
 
-    async fn cancel_all_trades(&self) -> Result<Vec<Trade>>;
+    async fn cancel_all_trades(&self) -> Result<Vec<LnmTrade>>;
 
-    async fn close_trade(&self, id: Uuid) -> Result<Trade>;
+    async fn close_trade(&self, id: Uuid) -> Result<LnmTrade>;
 
-    async fn close_all_trades(&self) -> Result<Vec<Trade>>;
+    async fn close_all_trades(&self) -> Result<Vec<LnmTrade>>;
 
     async fn ticker(&self) -> Result<Ticker>;
 
-    async fn update_trade_stoploss(&self, id: Uuid, stoploss: Price) -> Result<Trade>;
+    async fn update_trade_stoploss(&self, id: Uuid, stoploss: Price) -> Result<LnmTrade>;
 
-    async fn update_trade_takeprofit(&self, id: Uuid, takeprofit: Price) -> Result<Trade>;
+    async fn update_trade_takeprofit(&self, id: Uuid, takeprofit: Price) -> Result<LnmTrade>;
 
     /// Adds margin to a trade, increasing the collateral.
     ///
     /// The resulting `Leverage` (`Quantity` * 100000000 / (`Margin` * `Price`))
     /// must be valid (≥ 1) after the update.
     /// Beware of potential rounding issues when evaluating the new leverage.
-    async fn add_margin(&self, id: Uuid, amount: NonZeroU64) -> Result<Trade>;
+    async fn add_margin(&self, id: Uuid, amount: NonZeroU64) -> Result<LnmTrade>;
 
     /// Removes funds from a trade, decreasing the collateral.
     ///
@@ -88,7 +88,7 @@ pub trait FuturesRepository: Send + Sync {
     /// The resulting `Leverage` (`Quantity` * 100000000 / (`Margin` * `Price`))
     /// must be valid (≥ 1 and ≤ 100) after the update.
     /// Beware of potential rounding issues when evaluating the new leverage.
-    async fn cash_in(&self, id: Uuid, amount: NonZeroU64) -> Result<Trade>;
+    async fn cash_in(&self, id: Uuid, amount: NonZeroU64) -> Result<LnmTrade>;
 }
 
 #[async_trait]
