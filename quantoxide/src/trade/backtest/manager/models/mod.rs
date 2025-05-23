@@ -1,17 +1,17 @@
 use chrono::{DateTime, Utc};
+use uuid::Uuid;
 
 use lnm_sdk::api::rest::models::{
-    BoundedPercentage, Leverage, Margin, Price, Quantity, SATS_PER_BTC, TradeSide,
-    estimate_liquidation_price, estimate_pl,
+    BoundedPercentage, Leverage, Margin, Price, Quantity, SATS_PER_BTC, Trade, TradeExecutionType,
+    TradeSide, estimate_liquidation_price, estimate_pl,
 };
 
-use super::{
-    super::super::core::TradeGetters,
-    error::{Result, SimulatedTradeManagerError},
-};
+use super::error::{Result, SimulatedTradeManagerError};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SimulatedTradeRunning {
+    id: Uuid,
+    uid: Uuid,
     side: TradeSide,
     entry_time: DateTime<Utc>,
     entry_price: Price,
@@ -89,6 +89,8 @@ impl SimulatedTradeRunning {
             (fee_calc * quantity.into_f64() / liquidation.into_f64()).floor() as u64;
 
         Ok(Self {
+            id: Uuid::new_v4(),
+            uid: Uuid::new_v4(),
             side,
             entry_time,
             entry_price,
@@ -123,21 +125,33 @@ impl SimulatedTradeRunning {
     }
 }
 
-impl TradeGetters for SimulatedTradeRunning {
+impl Trade for SimulatedTradeRunning {
+    fn id(&self) -> Uuid {
+        self.id
+    }
+
+    fn uid(&self) -> Uuid {
+        self.uid
+    }
+
+    fn trade_type(&self) -> TradeExecutionType {
+        TradeExecutionType::Market
+    }
+
     fn side(&self) -> TradeSide {
         self.side
     }
 
-    fn price(&self) -> Price {
-        self.entry_price
+    fn opening_fee(&self) -> u64 {
+        self.opening_fee
     }
 
-    fn stoploss(&self) -> Option<Price> {
-        Some(self.stoploss)
+    fn closing_fee(&self) -> u64 {
+        0
     }
 
-    fn takeprofit(&self) -> Option<Price> {
-        Some(self.takeprofit)
+    fn maintenance_margin(&self) -> u64 {
+        self.opening_fee + self.closing_fee_reserved
     }
 
     fn quantity(&self) -> Quantity {
@@ -152,20 +166,60 @@ impl TradeGetters for SimulatedTradeRunning {
         self.leverage
     }
 
+    fn price(&self) -> Price {
+        self.entry_price
+    }
+
     fn liquidation(&self) -> Price {
         self.liquidation
     }
 
-    fn opening_fee(&self) -> u64 {
-        self.opening_fee
+    fn stoploss(&self) -> Option<Price> {
+        Some(self.stoploss)
     }
 
-    fn maintenance_margin(&self) -> u64 {
-        self.opening_fee + self.closing_fee_reserved
+    fn takeprofit(&self) -> Option<Price> {
+        Some(self.takeprofit)
+    }
+
+    fn exit_price(&self) -> Option<Price> {
+        None
+    }
+
+    fn creation_ts(&self) -> DateTime<Utc> {
+        self.entry_time
     }
 
     fn market_filled_ts(&self) -> Option<DateTime<Utc>> {
         Some(self.entry_time)
+    }
+
+    fn closed_ts(&self) -> Option<DateTime<Utc>> {
+        None
+    }
+
+    fn entry_price(&self) -> Option<Price> {
+        Some(self.entry_price)
+    }
+
+    fn entry_margin(&self) -> Option<Margin> {
+        Some(self.margin)
+    }
+
+    fn open(&self) -> bool {
+        false
+    }
+
+    fn running(&self) -> bool {
+        true
+    }
+
+    fn canceled(&self) -> bool {
+        false
+    }
+
+    fn closed(&self) -> bool {
+        false
     }
 }
 
