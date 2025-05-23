@@ -5,11 +5,12 @@ use chrono::{DateTime, Utc};
 use tokio::sync::Mutex;
 
 use lnm_sdk::api::rest::models::{
-    BoundedPercentage, Leverage, LowerBoundedPercentage, Price, Quantity, SATS_PER_BTC, TradeSide,
+    BoundedPercentage, Leverage, LowerBoundedPercentage, Price, Quantity, SATS_PER_BTC, Trade,
+    TradeSide,
 };
 
 use super::super::{
-    core::{PriceTrigger, RiskParams, TradeGetters, TradeManager, TradeManagerState},
+    core::{PriceTrigger, RiskParams, TradeManager, TradeManagerState},
     error::Result,
 };
 
