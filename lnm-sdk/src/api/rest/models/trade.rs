@@ -210,8 +210,6 @@ impl TradeStatus {
 }
 
 pub trait Trade {
-    fn id(&self) -> Uuid;
-    fn uid(&self) -> Uuid;
     fn trade_type(&self) -> TradeExecutionType;
     fn side(&self) -> TradeSide;
     fn opening_fee(&self) -> u64;
@@ -275,6 +273,14 @@ pub struct LnmTrade {
 }
 
 impl LnmTrade {
+    pub fn id(&self) -> Uuid {
+        self.id
+    }
+
+    pub fn uid(&self) -> Uuid {
+        self.uid
+    }
+
     pub fn pl(&self) -> i64 {
         self.pl
     }
@@ -285,14 +291,6 @@ impl LnmTrade {
 }
 
 impl Trade for LnmTrade {
-    fn id(&self) -> Uuid {
-        self.id
-    }
-
-    fn uid(&self) -> Uuid {
-        self.uid
-    }
-
     fn trade_type(&self) -> TradeExecutionType {
         self.trade_type
     }
