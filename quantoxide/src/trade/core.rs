@@ -8,7 +8,7 @@ use chrono::{DateTime, Utc};
 use futures::FutureExt;
 
 use lnm_sdk::api::rest::models::{
-    BoundedPercentage, Leverage, LowerBoundedPercentage, Price, TradeSide,
+    BoundedPercentage, Leverage, LowerBoundedPercentage, Margin, Price, Quantity, TradeSide,
 };
 
 use crate::signal::core::Signal;
@@ -288,5 +288,74 @@ impl WrappedOperator {
 impl From<Box<dyn Operator>> for WrappedOperator {
     fn from(value: Box<dyn Operator>) -> Self {
         Self(value)
+    }
+}
+
+pub trait TradeGetters {
+    fn side(&self) -> TradeSide;
+
+    fn price(&self) -> Price;
+
+    fn stoploss(&self) -> Option<Price>;
+
+    fn takeprofit(&self) -> Option<Price>;
+
+    fn quantity(&self) -> Quantity;
+
+    fn margin(&self) -> Margin;
+
+    fn leverage(&self) -> Leverage;
+
+    fn liquidation(&self) -> Price;
+
+    fn opening_fee(&self) -> u64;
+
+    fn maintenance_margin(&self) -> u64;
+
+    fn market_filled_ts(&self) -> Option<DateTime<Utc>>;
+}
+
+pub enum PriceTrigger {
+    NotSet,
+    Set { min: Price, max: Price },
+}
+
+impl PriceTrigger {
+    pub fn new() -> Self {
+        Self::NotSet
+    }
+
+    pub fn update(&mut self, trade: &impl TradeGetters) {
+        let (mut new_min, mut new_max) = match (trade.stoploss(), trade.takeprofit()) {
+            (None, None) => return,
+            (Some(sl), None) => match trade.side() {
+                TradeSide::Buy => (sl, Price::MAX),
+                TradeSide::Sell => (Price::MIN, sl),
+            },
+            (None, Some(tp)) => match trade.side() {
+                TradeSide::Buy => (Price::MIN, tp),
+                TradeSide::Sell => (tp, Price::MAX),
+            },
+            (Some(sl), Some(tp)) => (sl.min(tp), sl.max(tp)),
+        };
+
+        if let PriceTrigger::Set { min, max } = *self {
+            new_min = new_min.max(min);
+            new_max = new_max.min(max);
+        }
+
+        *self = PriceTrigger::Set {
+            min: new_min,
+            max: new_max,
+        };
+    }
+
+    pub fn was_reached(&self, market_price: f64) -> bool {
+        match self {
+            PriceTrigger::NotSet => false,
+            PriceTrigger::Set { min, max } => {
+                market_price <= min.into_f64() || market_price >= max.into_f64()
+            }
+        }
     }
 }
