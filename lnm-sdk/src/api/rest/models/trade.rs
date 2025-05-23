@@ -209,8 +209,35 @@ impl TradeStatus {
     }
 }
 
+pub trait Trade {
+    fn id(&self) -> Uuid;
+    fn uid(&self) -> Uuid;
+    fn trade_type(&self) -> TradeExecutionType;
+    fn side(&self) -> TradeSide;
+    fn opening_fee(&self) -> u64;
+    fn closing_fee(&self) -> u64;
+    fn maintenance_margin(&self) -> u64;
+    fn quantity(&self) -> Quantity;
+    fn margin(&self) -> Margin;
+    fn leverage(&self) -> Leverage;
+    fn price(&self) -> Price;
+    fn liquidation(&self) -> Price;
+    fn stoploss(&self) -> Option<Price>;
+    fn takeprofit(&self) -> Option<Price>;
+    fn exit_price(&self) -> Option<Price>;
+    fn creation_ts(&self) -> DateTime<Utc>;
+    fn market_filled_ts(&self) -> Option<DateTime<Utc>>;
+    fn closed_ts(&self) -> Option<DateTime<Utc>>;
+    fn entry_price(&self) -> Option<Price>;
+    fn entry_margin(&self) -> Option<Margin>;
+    fn open(&self) -> bool;
+    fn running(&self) -> bool;
+    fn canceled(&self) -> bool;
+    fn closed(&self) -> bool;
+}
+
 #[derive(Deserialize, Debug, Clone)]
-pub struct Trade {
+pub struct LnmTrade {
     id: Uuid,
     uid: Uuid,
     #[serde(rename = "type")]
@@ -247,105 +274,9 @@ pub struct Trade {
     sum_carry_fees: u64,
 }
 
-impl Trade {
-    pub fn id(&self) -> Uuid {
-        self.id
-    }
-
-    pub fn uid(&self) -> Uuid {
-        self.uid
-    }
-
-    pub fn trade_type(&self) -> TradeExecutionType {
-        self.trade_type
-    }
-
-    pub fn side(&self) -> TradeSide {
-        self.side
-    }
-
-    pub fn opening_fee(&self) -> u64 {
-        self.opening_fee
-    }
-
-    pub fn closing_fee(&self) -> u64 {
-        self.closing_fee
-    }
-
-    pub fn maintenance_margin(&self) -> u64 {
-        self.maintenance_margin
-    }
-
-    pub fn quantity(&self) -> Quantity {
-        self.quantity
-    }
-
-    pub fn margin(&self) -> Margin {
-        self.margin
-    }
-
-    pub fn leverage(&self) -> Leverage {
-        self.leverage
-    }
-
-    pub fn price(&self) -> Price {
-        self.price
-    }
-
-    pub fn liquidation(&self) -> Price {
-        self.liquidation
-    }
-
-    pub fn stoploss(&self) -> Option<Price> {
-        self.stoploss
-    }
-
-    pub fn takeprofit(&self) -> Option<Price> {
-        self.takeprofit
-    }
-
-    pub fn exit_price(&self) -> Option<Price> {
-        self.exit_price
-    }
-
+impl LnmTrade {
     pub fn pl(&self) -> i64 {
         self.pl
-    }
-
-    pub fn creation_ts(&self) -> DateTime<Utc> {
-        self.creation_ts
-    }
-
-    pub fn market_filled_ts(&self) -> Option<DateTime<Utc>> {
-        self.market_filled_ts
-    }
-
-    pub fn closed_ts(&self) -> Option<DateTime<Utc>> {
-        self.closed_ts
-    }
-
-    pub fn entry_price(&self) -> Option<Price> {
-        self.entry_price
-    }
-
-    pub fn entry_margin(&self) -> Option<Margin> {
-        self.entry_margin
-    }
-
-    pub fn open(&self) -> bool {
-        self.open
-    }
-
-    pub fn running(&self) -> bool {
-        self.running
-    }
-
-    pub fn canceled(&self) -> bool {
-        self.canceled
-    }
-
-    pub fn closed(&self) -> bool {
-        self.closed
     }
 
     pub fn sum_carry_fees(&self) -> u64 {
@@ -353,9 +284,107 @@ impl Trade {
     }
 }
 
+impl Trade for LnmTrade {
+    fn id(&self) -> Uuid {
+        self.id
+    }
+
+    fn uid(&self) -> Uuid {
+        self.uid
+    }
+
+    fn trade_type(&self) -> TradeExecutionType {
+        self.trade_type
+    }
+
+    fn side(&self) -> TradeSide {
+        self.side
+    }
+
+    fn opening_fee(&self) -> u64 {
+        self.opening_fee
+    }
+
+    fn closing_fee(&self) -> u64 {
+        self.closing_fee
+    }
+
+    fn maintenance_margin(&self) -> u64 {
+        self.maintenance_margin
+    }
+
+    fn quantity(&self) -> Quantity {
+        self.quantity
+    }
+
+    fn margin(&self) -> Margin {
+        self.margin
+    }
+
+    fn leverage(&self) -> Leverage {
+        self.leverage
+    }
+
+    fn price(&self) -> Price {
+        self.price
+    }
+
+    fn liquidation(&self) -> Price {
+        self.liquidation
+    }
+
+    fn stoploss(&self) -> Option<Price> {
+        self.stoploss
+    }
+
+    fn takeprofit(&self) -> Option<Price> {
+        self.takeprofit
+    }
+
+    fn exit_price(&self) -> Option<Price> {
+        self.exit_price
+    }
+
+    fn creation_ts(&self) -> DateTime<Utc> {
+        self.creation_ts
+    }
+
+    fn market_filled_ts(&self) -> Option<DateTime<Utc>> {
+        self.market_filled_ts
+    }
+
+    fn closed_ts(&self) -> Option<DateTime<Utc>> {
+        self.closed_ts
+    }
+
+    fn entry_price(&self) -> Option<Price> {
+        self.entry_price
+    }
+
+    fn entry_margin(&self) -> Option<Margin> {
+        self.entry_margin
+    }
+
+    fn open(&self) -> bool {
+        self.open
+    }
+
+    fn running(&self) -> bool {
+        self.running
+    }
+
+    fn canceled(&self) -> bool {
+        self.canceled
+    }
+
+    fn closed(&self) -> bool {
+        self.closed
+    }
+}
+
 #[derive(Deserialize)]
 pub struct NestedTradesResponse {
-    pub trades: Vec<Trade>,
+    pub trades: Vec<LnmTrade>,
 }
 
 #[derive(Serialize, Debug)]
