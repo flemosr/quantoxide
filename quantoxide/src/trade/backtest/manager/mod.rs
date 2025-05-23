@@ -9,7 +9,7 @@ use lnm_sdk::api::rest::models::{
 };
 
 use super::super::{
-    core::{RiskParams, TradeManager, TradeManagerState},
+    core::{PriceTrigger, RiskParams, TradeGetters, TradeManager, TradeManagerState},
     error::Result,
 };
 
@@ -30,47 +30,12 @@ impl From<TradeSide> for Close {
     }
 }
 
-enum Trigger {
-    NotSet,
-    Set { min: Price, max: Price },
-}
-
-impl Trigger {
-    fn new() -> Self {
-        Self::NotSet
-    }
-
-    fn update(&mut self, trade: &SimulatedTradeRunning) {
-        let mut new_min = trade.stoploss().min(trade.takeprofit());
-        let mut new_max = trade.stoploss().max(trade.takeprofit());
-
-        if let Trigger::Set { min, max } = *self {
-            new_min = new_min.max(min);
-            new_max = new_max.min(max);
-        }
-
-        *self = Trigger::Set {
-            min: new_min,
-            max: new_max,
-        };
-    }
-
-    fn was_reached(&self, market_price: f64) -> bool {
-        match self {
-            Trigger::NotSet => false,
-            Trigger::Set { min, max } => {
-                market_price <= min.into_f64() || market_price >= max.into_f64()
-            }
-        }
-    }
-}
-
 struct SimulatedTradeManagerState {
     time: DateTime<Utc>,
     market_price: f64,
     balance: i64,
     last_trade_time: Option<DateTime<Utc>>,
-    trigger: Trigger,
+    trigger: PriceTrigger,
     running: Vec<SimulatedTradeRunning>,
     closed: Vec<SimulatedTradeClosed>,
     closed_pl: i64,
@@ -98,7 +63,7 @@ impl SimulatedTradeManager {
             market_price,
             balance: start_balance as i64,
             last_trade_time: None,
-            trigger: Trigger::new(),
+            trigger: PriceTrigger::new(),
             running: Vec::new(),
             closed: Vec::new(),
             closed_pl: 0,
@@ -151,25 +116,33 @@ impl SimulatedTradeManager {
             new_closed_trades.push(trade);
         };
 
-        let mut new_trigger = Trigger::new();
+        let mut new_trigger = PriceTrigger::new();
         let mut remaining_running_trades = Vec::new();
 
         for trade in state_guard.running.drain(..) {
             // Check if price reached stoploss or takeprofit
 
-            let (min, max) = match trade.side() {
+            let (trade_min_opt, trade_max_opt) = match trade.side() {
                 TradeSide::Buy => (trade.stoploss(), trade.takeprofit()),
                 TradeSide::Sell => (trade.takeprofit(), trade.stoploss()),
             };
 
-            if market_price <= min.into_f64() {
-                close_trade(trade, min);
-            } else if market_price >= max.into_f64() {
-                close_trade(trade, max);
-            } else {
-                new_trigger.update(&trade);
-                remaining_running_trades.push(trade);
+            if let Some(trade_min) = trade_min_opt {
+                if market_price <= trade_min.into_f64() {
+                    close_trade(trade, trade_min);
+                    continue;
+                }
             }
+
+            if let Some(trade_max) = trade_max_opt {
+                if market_price >= trade_max.into_f64() {
+                    close_trade(trade, trade_max);
+                    continue;
+                }
+            }
+
+            new_trigger.update(&trade);
+            remaining_running_trades.push(trade);
         }
 
         state_guard.balance = new_balance;
@@ -209,7 +182,7 @@ impl SimulatedTradeManager {
             new_closed_trades.push(trade);
         };
 
-        let mut new_trigger = Trigger::new();
+        let mut new_trigger = PriceTrigger::new();
         let mut remaining_running_trades = Vec::new();
 
         for trade in state_guard.running.drain(..) {
