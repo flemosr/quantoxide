@@ -5,7 +5,10 @@ use lnm_sdk::api::rest::models::{
     estimate_liquidation_price, estimate_pl,
 };
 
-use super::error::{Result, SimulatedTradeManagerError};
+use super::{
+    super::super::core::TradeGetters,
+    error::{Result, SimulatedTradeManagerError},
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SimulatedTradeRunning {
@@ -100,52 +103,8 @@ impl SimulatedTradeRunning {
         })
     }
 
-    pub fn side(&self) -> TradeSide {
-        self.side
-    }
-
-    pub fn entry_time(&self) -> DateTime<Utc> {
-        self.entry_time
-    }
-
-    pub fn entry_price(&self) -> Price {
-        self.entry_price
-    }
-
-    pub fn stoploss(&self) -> Price {
-        self.stoploss
-    }
-
-    pub fn takeprofit(&self) -> Price {
-        self.takeprofit
-    }
-
-    pub fn margin(&self) -> Margin {
-        self.margin
-    }
-
-    pub fn quantity(&self) -> Quantity {
-        self.quantity
-    }
-
-    pub fn leverage(&self) -> Leverage {
-        self.leverage
-    }
-
-    pub fn liquidation(&self) -> Price {
-        self.liquidation
-    }
-
-    pub fn opening_fee(&self) -> u64 {
-        self.opening_fee
-    }
-
     pub fn closing_fee_reserved(&self) -> u64 {
         self.closing_fee_reserved
-    }
-
-    pub fn maintenance_margin(&self) -> u64 {
-        self.opening_fee + self.closing_fee_reserved
     }
 
     pub fn pl(&self, current_price: Price) -> i64 {
@@ -161,6 +120,52 @@ impl SimulatedTradeRunning {
     pub fn net_pl_est(&self, fee_perc: BoundedPercentage, current_price: Price) -> i64 {
         let pl = self.pl(current_price);
         pl - self.opening_fee as i64 - self.closing_fee_est(fee_perc, current_price) as i64
+    }
+}
+
+impl TradeGetters for SimulatedTradeRunning {
+    fn side(&self) -> TradeSide {
+        self.side
+    }
+
+    fn price(&self) -> Price {
+        self.entry_price
+    }
+
+    fn stoploss(&self) -> Option<Price> {
+        Some(self.stoploss)
+    }
+
+    fn takeprofit(&self) -> Option<Price> {
+        Some(self.takeprofit)
+    }
+
+    fn quantity(&self) -> Quantity {
+        self.quantity
+    }
+
+    fn margin(&self) -> Margin {
+        self.margin
+    }
+
+    fn leverage(&self) -> Leverage {
+        self.leverage
+    }
+
+    fn liquidation(&self) -> Price {
+        self.liquidation
+    }
+
+    fn opening_fee(&self) -> u64 {
+        self.opening_fee
+    }
+
+    fn maintenance_margin(&self) -> u64 {
+        self.opening_fee + self.closing_fee_reserved
+    }
+
+    fn market_filled_ts(&self) -> Option<DateTime<Utc>> {
+        Some(self.entry_time)
     }
 }
 
