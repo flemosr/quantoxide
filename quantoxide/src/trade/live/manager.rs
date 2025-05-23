@@ -7,7 +7,7 @@ use lnm_sdk::api::{
     ApiContext,
     rest::models::{
         BoundedPercentage, Leverage, LowerBoundedPercentage, Price, Quantity, SATS_PER_BTC, Ticker,
-        TradeExecution, TradeSide,
+        Trade, TradeExecution, TradeSide,
     },
 };
 use tokio::sync::Mutex;
