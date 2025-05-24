@@ -9,7 +9,11 @@ use tokio::{
 
 use lnm_sdk::api::ApiContext;
 
-use crate::{db::DbContext, trade::live::LiveTradeConfig, util::Never};
+use crate::{
+    db::{DbContext, models::PriceTick},
+    trade::live::LiveTradeConfig,
+    util::Never,
+};
 
 pub mod error;
 mod real_time_collection_task;
@@ -21,12 +25,12 @@ use sync_price_history_task::{
     PriceHistoryState, PriceHistoryStateTransmiter, SyncPriceHistoryTask,
 };
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq)]
 pub enum SyncState {
     NotInitiated,
     Starting,
     InProgress(PriceHistoryState),
-    Synced,
+    Synced(Option<PriceTick>),
     Failed(SyncError),
     Restarting,
     ShutdownInitiated,
@@ -130,8 +134,16 @@ impl SyncProcess {
         )
     }
 
-    fn real_time_collection_task(&self) -> RealTimeCollectionTask {
-        RealTimeCollectionTask::new(self.db.clone(), self.api.clone(), self.shutdown_tx.clone())
+    fn real_time_collection_task(
+        &self,
+        price_tick_tx: broadcast::Sender<PriceTick>,
+    ) -> RealTimeCollectionTask {
+        RealTimeCollectionTask::new(
+            self.db.clone(),
+            self.api.clone(),
+            self.shutdown_tx.clone(),
+            price_tick_tx,
+        )
     }
 
     pub async fn run(&self) -> Result<Never> {
@@ -147,7 +159,9 @@ impl SyncProcess {
 
         // Start to collect real-time data
 
-        let real_time_collection_task = self.real_time_collection_task();
+        let (price_tick_tx, _) = broadcast::channel::<PriceTick>(100);
+
+        let real_time_collection_task = self.real_time_collection_task(price_tick_tx.clone());
         let mut real_time_handle = tokio::spawn(real_time_collection_task.run());
 
         // Additional price history sync to ensure overlap with real-time data
@@ -163,13 +177,21 @@ impl SyncProcess {
 
         // Sync achieved
 
-        self.state_manager.update(SyncState::Synced).await;
+        self.state_manager.update(SyncState::Synced(None)).await;
+
+        let mut price_tick_rx = price_tick_tx.subscribe();
 
         loop {
             tokio::select! {
                 rt_res = &mut real_time_handle => {
                     rt_res.map_err(SyncError::TaskJoin)??;
                     return Err(SyncError::UnexpectedRealTimeCollectionShutdown);
+                }
+                tick_res = price_tick_rx.recv() => {
+                    match tick_res {
+                        Ok(tick) => self.state_manager.update(SyncState::Synced(Some(tick))).await,
+                        Err(e) => return Err(SyncError::Generic(e.to_string()))
+                    }
                 }
                 _ = time::sleep(self.config.re_sync_history_interval) => {
                     let sync_price_history_task = self.price_history_task(None);
