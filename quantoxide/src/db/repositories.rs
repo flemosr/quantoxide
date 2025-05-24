@@ -5,7 +5,7 @@ use lnm_sdk::api::{rest::models::PriceEntryLNM, websocket::models::PriceTickLNM}
 
 use super::{
     error::Result,
-    models::{PriceHistoryEntry, PriceHistoryEntryLOCF},
+    models::{PriceHistoryEntry, PriceHistoryEntryLOCF, PriceTick},
 };
 
 #[async_trait]
@@ -143,7 +143,17 @@ pub trait PriceHistoryRepository: Send + Sync {
 
 #[async_trait]
 pub trait PriceTicksRepository: Send + Sync {
-    async fn add_tick(&self, tick: &PriceTickLNM) -> Result<()>;
+    /// Adds a new price tick to the database.
+    /// Uses INSERT ON CONFLICT DO NOTHING to avoid duplicate entries for the same timestamp.
+    ///
+    /// Parameters:
+    ///   - `tick`: The price tick data to insert
+    ///
+    /// Returns:
+    ///   - `Ok(Some(PriceTick))` if the tick was successfully inserted (new entry)
+    ///   - `Ok(None)` if the tick already existed in the database (no insertion occurred)
+    ///   - `Err` on database errors
+    async fn add_tick(&self, tick: &PriceTickLNM) -> Result<Option<PriceTick>>;
 
     async fn get_latest_entry(&self) -> Result<Option<(DateTime<Utc>, f64)>>;
 
