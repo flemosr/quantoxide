@@ -145,6 +145,8 @@ pub trait PriceHistoryRepository: Send + Sync {
 pub trait PriceTicksRepository: Send + Sync {
     async fn add_tick(&self, tick: &PriceTickLNM) -> Result<()>;
 
+    async fn get_latest_entry(&self) -> Result<Option<(DateTime<Utc>, f64)>>;
+
     /// Evaluates Last-Observation-Carried-Forward (LOCF) entries around a specific time.
     /// Calculates the LOCF price values and related moving averages for a time window.
     ///
