@@ -48,7 +48,7 @@ impl fmt::Display for PriceHistoryEntryLOCF {
     }
 }
 
-#[derive(Debug, FromRow)]
+#[derive(Debug, Clone, FromRow, PartialEq)]
 pub struct PriceTick {
     pub time: DateTime<Utc>,
     pub last_price: f64,
