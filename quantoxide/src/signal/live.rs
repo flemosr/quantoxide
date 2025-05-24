@@ -125,7 +125,7 @@ impl LiveSignalProcess {
 
             let sync_state = self.sync_controller.state_snapshot().await;
 
-            if *sync_state != SyncState::Synced {
+            if !matches!(sync_state.as_ref(), SyncState::Synced(_)) {
                 self.state_manager
                     .update(LiveSignalState::WaitingForSync(sync_state))
                     .await;
