@@ -6,7 +6,7 @@ use sqlx::{Pool, Postgres};
 
 use lnm_sdk::api::websocket::models::PriceTickLNM;
 
-// use crate::db::error::DbError;
+use crate::db::models::PriceTick;
 
 use super::super::{
     error::{DbError, Result},
@@ -35,21 +35,23 @@ struct UnionPriceEntry {
 
 #[async_trait]
 impl PriceTicksRepository for PgPriceTicksRepo {
-    async fn add_tick(&self, tick: &PriceTickLNM) -> Result<()> {
-        sqlx::query!(
+    async fn add_tick(&self, tick: &PriceTickLNM) -> Result<Option<PriceTick>> {
+        let price_tick = sqlx::query_as!(
+            PriceTick,
             r#"
                 INSERT INTO price_ticks (time, last_price)
                 VALUES ($1, $2)
-                ON CONFLICT DO NOTHING
+                ON CONFLICT (time) DO NOTHING
+                RETURNING time, last_price, created_at
             "#,
             tick.time(),
             tick.last_price(),
         )
-        .execute(self.pool())
+        .fetch_optional(self.pool())
         .await
         .map_err(DbError::Query)?;
 
-        Ok(())
+        Ok(price_tick)
     }
 
     async fn get_latest_entry(&self) -> Result<Option<(DateTime<Utc>, f64)>> {
