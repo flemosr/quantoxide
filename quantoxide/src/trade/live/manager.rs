@@ -3,17 +3,18 @@ use std::{result, sync::Arc};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use futures::future;
+use tokio::sync::Mutex;
+
 use lnm_sdk::api::{
     ApiContext,
     rest::models::{
-        BoundedPercentage, Leverage, LowerBoundedPercentage, Price, Quantity, SATS_PER_BTC, Ticker,
-        Trade, TradeExecution, TradeSide,
+        BoundedPercentage, Leverage, LnmTrade, LowerBoundedPercentage, Price, Quantity,
+        SATS_PER_BTC, Ticker, Trade, TradeExecution, TradeSide,
     },
-    websocket::models::PriceTickLNM,
 };
-use tokio::sync::Mutex;
 
 use crate::{
+    db::DbContext,
     sync::{SyncController, SyncState},
     trade::core::RiskParams,
 };
@@ -65,10 +66,15 @@ impl From<Arc<SyncState>> for LiveTradeManagerStatus {
 
 struct LiveTradeManagerState {
     last_trade_time: Option<DateTime<Utc>>,
-    last_tick: Option<PriceTickLNM>,
+    balance: u64,
+    running: Vec<LnmTrade>,
+    closed: Vec<LnmTrade>,
+    closed_pl: i64,
+    closed_fees: u64,
 }
 
 pub struct LiveTradeManager {
+    db: Arc<DbContext>,
     api: Arc<ApiContext>,
     sync_controller: Arc<SyncController>,
     start_time: DateTime<Utc>,
@@ -77,7 +83,13 @@ pub struct LiveTradeManager {
 }
 
 impl LiveTradeManager {
-    pub async fn new(api: Arc<ApiContext>, sync_controller: Arc<SyncController>) -> Result<Self> {
+    pub async fn new(
+        db: Arc<DbContext>,
+        api: Arc<ApiContext>,
+        sync_controller: Arc<SyncController>,
+    ) -> Result<Self> {
+        let start_time = Utc::now();
+
         let (_, _, user) = futures::try_join!(
             api.rest().futures().cancel_all_trades(),
             api.rest().futures().close_all_trades(),
@@ -85,17 +97,24 @@ impl LiveTradeManager {
         )
         .map_err(LiveTradeError::RestApi)?;
 
-        let state = Arc::new(Mutex::new(LiveTradeManagerState {
+        let start_balance = user.balance();
+
+        let initial_state = LiveTradeManagerState {
             last_trade_time: None,
-            last_tick: None,
-        }));
+            balance: start_balance,
+            running: Vec::new(),
+            closed: Vec::new(),
+            closed_pl: 0,
+            closed_fees: 0,
+        };
 
         Ok(Self {
+            db,
             api,
             sync_controller,
-            start_time: Utc::now(),
-            start_balance: user.balance(),
-            state,
+            start_time,
+            start_balance,
+            state: Arc::new(Mutex::new(initial_state)),
         })
     }
 
@@ -135,6 +154,8 @@ impl TradeManager for LiveTradeManager {
         balance_perc: BoundedPercentage,
         leverage: Leverage,
     ) -> Result<()> {
+        self.check_if_ready().await?;
+
         let mut state_guard = self.state.lock().await;
         state_guard.last_trade_time = Some(Utc::now());
 
@@ -173,6 +194,8 @@ impl TradeManager for LiveTradeManager {
         balance_perc: BoundedPercentage,
         leverage: Leverage,
     ) -> Result<()> {
+        self.check_if_ready().await?;
+
         let mut state_guard = self.state.lock().await;
         state_guard.last_trade_time = Some(Utc::now());
 
@@ -187,7 +210,8 @@ impl TradeManager for LiveTradeManager {
 
         let quantity = calculate_quantity(balance, ticker.bid_price(), balance_perc)?;
 
-        self.api
+        let trade = self
+            .api
             .rest()
             .futures()
             .create_new_trade(
