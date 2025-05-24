@@ -28,6 +28,11 @@ impl PgPriceTicksRepo {
     }
 }
 
+struct UnionPriceEntry {
+    time: Option<DateTime<Utc>>,
+    price: Option<f64>,
+}
+
 #[async_trait]
 impl PriceTicksRepository for PgPriceTicksRepo {
     async fn add_tick(&self, tick: &PriceTickLNM) -> Result<()> {
@@ -45,6 +50,44 @@ impl PriceTicksRepository for PgPriceTicksRepo {
         .map_err(DbError::Query)?;
 
         Ok(())
+    }
+
+    async fn get_latest_entry(&self) -> Result<Option<(DateTime<Utc>, f64)>> {
+        let latest_entry_opt = sqlx::query_as!(
+            UnionPriceEntry,
+            r#"
+                WITH latest_tick AS (
+                    SELECT time, last_price as price
+                    FROM price_ticks
+                    ORDER BY time DESC
+                    LIMIT 1
+                ),
+                latest_history AS (
+                    SELECT time, value as price
+                    FROM price_history
+                    ORDER BY time DESC
+                    LIMIT 1
+                )
+                SELECT time, price
+                FROM (
+                    SELECT time, price FROM latest_tick
+                    UNION ALL
+                    SELECT time, price FROM latest_history
+                ) combined
+                ORDER BY time DESC
+                LIMIT 1
+            "#
+        )
+        .fetch_optional(self.pool())
+        .await
+        .map_err(DbError::Query)?;
+
+        let latest_entry_opt = latest_entry_opt.and_then(|entry| match (entry.time, entry.price) {
+            (Some(time), Some(price)) => Some((time, price)),
+            _ => None,
+        });
+
+        Ok(latest_entry_opt)
     }
 
     async fn eval_entries_locf(
