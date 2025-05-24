@@ -123,23 +123,6 @@ pub trait PriceHistoryRepository: Send + Sync {
         next_observed_time: Option<&DateTime<Utc>>,
     ) -> Result<()>;
 
-    /// Evaluates Last-Observation-Carried-Forward (LOCF) entries around a specific time.
-    /// Calculates the LOCF price values and related moving averages for a time window.
-    ///
-    /// Parameters:
-    ///   - `time`: The reference time point
-    ///   - `range_secs`: Number of seconds to include in the range
-    ///
-    /// Returns:
-    ///   - `Ok(Vec<PriceHistoryEntryLOCF>)` containing the LOCF entries with indicators
-    ///   - Empty vector if no valid data exists for the requested range
-    ///   - `Err` on database errors
-    async fn eval_entries_locf(
-        &self,
-        time: &DateTime<Utc>,
-        range_secs: usize,
-    ) -> Result<Vec<PriceHistoryEntryLOCF>>;
-
     /// Updates the "next" pointer for a price history entry.
     /// Used to establish continuity between entries in the price history.
     ///
@@ -161,4 +144,21 @@ pub trait PriceHistoryRepository: Send + Sync {
 #[async_trait]
 pub trait PriceTicksRepository: Send + Sync {
     async fn add_tick(&self, tick: &PriceTickLNM) -> Result<()>;
+
+    /// Evaluates Last-Observation-Carried-Forward (LOCF) entries around a specific time.
+    /// Calculates the LOCF price values and related moving averages for a time window.
+    ///
+    /// Parameters:
+    ///   - `time`: The reference time point
+    ///   - `range_secs`: Number of seconds to include in the range
+    ///
+    /// Returns:
+    ///   - `Ok(Vec<PriceHistoryEntryLOCF>)` containing the LOCF entries with indicators
+    ///   - Empty vector if no valid data exists for the requested range
+    ///   - `Err` on database errors
+    async fn eval_entries_locf(
+        &self,
+        time: &DateTime<Utc>,
+        range_secs: usize,
+    ) -> Result<Vec<PriceHistoryEntryLOCF>>;
 }
