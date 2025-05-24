@@ -142,7 +142,7 @@ impl LiveSignalProcess {
 
             let all_ctx_entries = self
                 .db
-                .price_history
+                .price_ticks
                 .eval_entries_locf(&now, max_ctx_window)
                 .await
                 .map_err(|_| SignalError::Generic("db error".to_string()))?;
