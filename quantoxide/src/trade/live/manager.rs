@@ -9,19 +9,13 @@ use lnm_sdk::api::{
         BoundedPercentage, Leverage, LowerBoundedPercentage, Price, Quantity, SATS_PER_BTC, Ticker,
         Trade, TradeExecution, TradeSide,
     },
-    websocket::models::{LnmWebSocketChannel, PriceTickLNM, WebSocketApiRes},
+    websocket::models::PriceTickLNM,
 };
-use tokio::{
-    sync::{
-        Mutex,
-        broadcast::{self, Receiver, Sender},
-    },
-    task::JoinHandle,
-};
+use tokio::sync::Mutex;
 
 use crate::{
-    trade::{core::RiskParams, error::TradeError},
-    util::Never,
+    sync::{SyncController, SyncState},
+    trade::core::RiskParams,
 };
 
 use super::{
@@ -47,6 +41,28 @@ fn calculate_quantity(
     Ok(Quantity::try_from(quantity_target.floor()).map_err(LiveTradeError::QuantityValidation)?)
 }
 
+pub enum LiveTradeManagerStatus {
+    WaitingForSync(Arc<SyncState>),
+    Ready,
+    NotViable(Arc<SyncState>),
+}
+
+impl From<Arc<SyncState>> for LiveTradeManagerStatus {
+    fn from(value: Arc<SyncState>) -> Self {
+        match value.as_ref() {
+            SyncState::NotInitiated
+            | SyncState::Starting
+            | SyncState::InProgress(_)
+            | SyncState::Failed(_)
+            | SyncState::Restarting => LiveTradeManagerStatus::WaitingForSync(value),
+            SyncState::Synced => LiveTradeManagerStatus::Ready,
+            SyncState::ShutdownInitiated | SyncState::Shutdown => {
+                LiveTradeManagerStatus::NotViable(value)
+            }
+        }
+    }
+}
+
 struct LiveTradeManagerState {
     last_trade_time: Option<DateTime<Utc>>,
     last_tick: Option<PriceTickLNM>,
@@ -54,70 +70,14 @@ struct LiveTradeManagerState {
 
 pub struct LiveTradeManager {
     api: Arc<ApiContext>,
+    sync_controller: Arc<SyncController>,
     start_time: DateTime<Utc>,
     start_balance: u64,
     state: Arc<Mutex<LiveTradeManagerState>>,
-    market_data_task_handle: JoinHandle<Never>,
-    market_data_task_err_tx: Sender<Arc<LiveTradeError>>,
 }
 
 impl LiveTradeManager {
-    async fn handle_price_tick(
-        state: &Mutex<LiveTradeManagerState>,
-        new_tick: PriceTickLNM,
-    ) -> LiveTradeResult<()> {
-        let mut state_guard = state.lock().await;
-        state_guard.last_tick = Some(new_tick);
-        // TODO
-        Ok(())
-    }
-
-    async fn handle_price_tick_stream(
-        api: Arc<ApiContext>,
-        state: Arc<Mutex<LiveTradeManagerState>>,
-    ) -> LiveTradeResult<Never> {
-        let ws = api
-            .connect_ws()
-            .await
-            .map_err(|e| LiveTradeError::Generic(e.to_string()))?;
-        ws.subscribe(vec![LnmWebSocketChannel::FuturesBtcUsdLastPrice])
-            .await
-            .map_err(|e| LiveTradeError::Generic(e.to_string()))?;
-        let mut ws_rx = ws
-            .receiver()
-            .await
-            .map_err(|e| LiveTradeError::Generic(e.to_string()))?;
-
-        while let Ok(res) = ws_rx.recv().await {
-            match res {
-                WebSocketApiRes::PriceTick(tick) => {
-                    Self::handle_price_tick(state.as_ref(), tick).await?;
-                }
-                _ => {}
-            }
-        }
-
-        Err(LiveTradeError::Generic("ws connection closed".to_string()))
-    }
-
-    fn start_market_data_task(
-        api: Arc<ApiContext>,
-        state: Arc<Mutex<LiveTradeManagerState>>,
-    ) -> (JoinHandle<Never>, Sender<Arc<LiveTradeError>>) {
-        let (err_tx, _) = broadcast::channel::<Arc<LiveTradeError>>(100);
-
-        let err_tx_int = err_tx.clone();
-        let handle = tokio::spawn(async move {
-            loop {
-                let Err(err) = Self::handle_price_tick_stream(api.clone(), state.clone()).await;
-                let _ = err_tx_int.send(Arc::new(err));
-            }
-        });
-
-        (handle, err_tx)
-    }
-
-    pub async fn new(api: Arc<ApiContext>) -> Result<Self> {
+    pub async fn new(api: Arc<ApiContext>, sync_controller: Arc<SyncController>) -> Result<Self> {
         let (_, _, user) = futures::try_join!(
             api.rest().futures().cancel_all_trades(),
             api.rest().futures().close_all_trades(),
@@ -130,21 +90,29 @@ impl LiveTradeManager {
             last_tick: None,
         }));
 
-        let (market_data_task_handle, market_data_task_err_tx) =
-            Self::start_market_data_task(api.clone(), state.clone());
-
         Ok(Self {
             api,
+            sync_controller,
             start_time: Utc::now(),
             start_balance: user.balance(),
             state,
-            market_data_task_handle,
-            market_data_task_err_tx,
         })
     }
 
-    pub fn subscribe_to_market_data_task_err(&self) -> Receiver<Arc<LiveTradeError>> {
-        self.market_data_task_err_tx.subscribe()
+    pub async fn status(&self) -> LiveTradeManagerStatus {
+        self.sync_controller.state_snapshot().await.into()
+    }
+
+    async fn check_if_ready(&self) -> LiveTradeResult<()> {
+        match self.status().await {
+            LiveTradeManagerStatus::WaitingForSync(sync_state) => {
+                Err(LiveTradeError::ManagerNotReady(sync_state))
+            }
+            LiveTradeManagerStatus::Ready => Ok(()),
+            LiveTradeManagerStatus::NotViable(sync_state) => {
+                Err(LiveTradeError::ManagerNotViable(sync_state))
+            }
+        }
     }
 
     async fn get_ticker_and_balance(&self) -> Result<(Ticker, u64)> {
