@@ -1,12 +1,13 @@
 use std::sync::Arc;
 
+use tokio::sync::broadcast;
+
 use lnm_sdk::api::{
     ApiContext,
     websocket::models::{ConnectionState, LnmWebSocketChannel, WebSocketApiRes},
 };
-use tokio::sync::broadcast;
 
-use crate::db::DbContext;
+use crate::db::{DbContext, models::PriceTick};
 
 pub mod error;
 
@@ -16,6 +17,7 @@ pub struct RealTimeCollectionTask {
     db: Arc<DbContext>,
     api: Arc<ApiContext>,
     shutdown_tx: broadcast::Sender<()>,
+    price_tick_tx: broadcast::Sender<PriceTick>,
 }
 
 impl RealTimeCollectionTask {
@@ -23,11 +25,13 @@ impl RealTimeCollectionTask {
         db: Arc<DbContext>,
         api: Arc<ApiContext>,
         shutdown_tx: broadcast::Sender<()>,
+        price_tick_tx: broadcast::Sender<PriceTick>,
     ) -> Self {
         Self {
             db,
             api,
             shutdown_tx,
+            price_tick_tx,
         }
     }
 
@@ -47,7 +51,9 @@ impl RealTimeCollectionTask {
                     match ws_res {
                         Ok(res) => match res {
                             WebSocketApiRes::PriceTick(tick) => {
-                                self.db.price_ticks.add_tick(&tick).await?;
+                                if let Some(new_tick) = self.db.price_ticks.add_tick(&tick).await? {
+                                    let _ = self.price_tick_tx.send(new_tick);
+                                }
                             }
                             WebSocketApiRes::PriceIndex(_index) => {}
                             WebSocketApiRes::ConnectionUpdate(new_state) => match new_state.as_ref() {
