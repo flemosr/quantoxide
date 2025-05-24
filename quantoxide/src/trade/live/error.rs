@@ -1,9 +1,11 @@
-use std::result;
+use std::{result, sync::Arc};
 
 use thiserror::Error;
 use tokio::task::JoinError;
 
 use lnm_sdk::api::rest::{error::RestApiError, models::error::QuantityValidationError};
+
+use crate::sync::SyncState;
 
 #[derive(Error, Debug)]
 pub enum LiveTradeError {
@@ -15,6 +17,12 @@ pub enum LiveTradeError {
 
     #[error("[TaskJoin] {0}")]
     TaskJoin(JoinError),
+
+    #[error("ManagerNotReady error {:?}", 0)]
+    ManagerNotReady(Arc<SyncState>),
+
+    #[error("ManagerNotViable error {:?}", 0)]
+    ManagerNotViable(Arc<SyncState>),
 
     #[error("Generic error, {0}")]
     Generic(String),
