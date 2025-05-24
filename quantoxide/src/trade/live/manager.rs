@@ -9,7 +9,7 @@ use lnm_sdk::api::{
     ApiContext,
     rest::models::{
         BoundedPercentage, Leverage, LnmTrade, LowerBoundedPercentage, Price, Quantity,
-        SATS_PER_BTC, Ticker, Trade, TradeExecution, TradeSide,
+        SATS_PER_BTC, Trade, TradeExecution, TradeSide,
     },
 };
 
@@ -134,14 +134,23 @@ impl LiveTradeManager {
         }
     }
 
-    async fn get_ticker_and_balance(&self) -> Result<(Ticker, u64)> {
-        let (ticker, user) = futures::try_join!(
-            self.api.rest().futures().ticker(),
-            self.api.rest().user().get_user()
-        )
-        .map_err(LiveTradeError::RestApi)?;
+    async fn get_estimated_market_price(&self) -> Result<Price> {
+        self.check_if_ready().await?;
 
-        Ok((ticker, user.balance()))
+        // We can assume that the db is up-to-date
+
+        let (_, last_entry_price) = self
+            .db
+            .price_ticks
+            .get_latest_entry()
+            .await
+            .map_err(|e| LiveTradeError::Generic(e.to_string()))?
+            .ok_or(LiveTradeError::Generic("db is empty".to_string()))?;
+
+        let price =
+            Price::round(last_entry_price).map_err(|e| LiveTradeError::Generic(e.to_string()))?;
+
+        Ok(price)
     }
 }
 
@@ -154,61 +163,18 @@ impl TradeManager for LiveTradeManager {
         balance_perc: BoundedPercentage,
         leverage: Leverage,
     ) -> Result<()> {
-        self.check_if_ready().await?;
-
         let mut state_guard = self.state.lock().await;
-        state_guard.last_trade_time = Some(Utc::now());
 
-        let (ticker, balance) = self.get_ticker_and_balance().await?;
+        let est_price = self.get_estimated_market_price().await?;
 
         let risk_params = RiskParams::Long {
             stoploss_perc,
             takeprofit_perc,
         };
 
-        let (side, stoploss, takeprofit) = risk_params.into_trade_params(ticker.ask_price())?;
+        let (side, stoploss, takeprofit) = risk_params.into_trade_params(est_price)?;
 
-        let quantity = calculate_quantity(balance, ticker.ask_price(), balance_perc)?;
-
-        self.api
-            .rest()
-            .futures()
-            .create_new_trade(
-                side,
-                quantity.into(),
-                leverage,
-                TradeExecution::Market,
-                Some(stoploss),
-                Some(takeprofit),
-            )
-            .await
-            .map_err(LiveTradeError::RestApi)?;
-
-        Ok(())
-    }
-
-    async fn open_short(
-        &self,
-        stoploss_perc: BoundedPercentage,
-        takeprofit_perc: BoundedPercentage,
-        balance_perc: BoundedPercentage,
-        leverage: Leverage,
-    ) -> Result<()> {
-        self.check_if_ready().await?;
-
-        let mut state_guard = self.state.lock().await;
-        state_guard.last_trade_time = Some(Utc::now());
-
-        let (ticker, balance) = self.get_ticker_and_balance().await?;
-
-        let risk_params = RiskParams::Short {
-            stoploss_perc,
-            takeprofit_perc,
-        };
-
-        let (side, stoploss, takeprofit) = risk_params.into_trade_params(ticker.bid_price())?;
-
-        let quantity = calculate_quantity(balance, ticker.bid_price(), balance_perc)?;
+        let quantity = calculate_quantity(state_guard.balance, est_price, balance_perc)?;
 
         let trade = self
             .api
@@ -224,6 +190,62 @@ impl TradeManager for LiveTradeManager {
             )
             .await
             .map_err(LiveTradeError::RestApi)?;
+
+        state_guard.last_trade_time = Some(Utc::now());
+
+        let new_balance = state_guard.balance as i64
+            - trade.margin().into_i64()
+            - trade.maintenance_margin() as i64;
+        state_guard.balance = new_balance.min(0) as u64;
+
+        state_guard.running.push(trade);
+
+        Ok(())
+    }
+
+    async fn open_short(
+        &self,
+        stoploss_perc: BoundedPercentage,
+        takeprofit_perc: BoundedPercentage,
+        balance_perc: BoundedPercentage,
+        leverage: Leverage,
+    ) -> Result<()> {
+        let mut state_guard = self.state.lock().await;
+
+        let est_price = self.get_estimated_market_price().await?;
+
+        let risk_params = RiskParams::Short {
+            stoploss_perc,
+            takeprofit_perc,
+        };
+
+        let (side, stoploss, takeprofit) = risk_params.into_trade_params(est_price)?;
+
+        let quantity = calculate_quantity(state_guard.balance, est_price, balance_perc)?;
+
+        let trade = self
+            .api
+            .rest()
+            .futures()
+            .create_new_trade(
+                side,
+                quantity.into(),
+                leverage,
+                TradeExecution::Market,
+                Some(stoploss),
+                Some(takeprofit),
+            )
+            .await
+            .map_err(LiveTradeError::RestApi)?;
+
+        state_guard.last_trade_time = Some(Utc::now());
+
+        let new_balance = state_guard.balance as i64
+            - trade.margin().into_i64()
+            - trade.maintenance_margin() as i64;
+        state_guard.balance = new_balance.min(0) as u64;
+
+        state_guard.running.push(trade);
 
         Ok(())
     }
