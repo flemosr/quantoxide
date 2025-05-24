@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use chrono::{DateTime, Duration, SubsecRound, Utc};
+use chrono::{DateTime, Duration, Utc};
 use sqlx::{Pool, Postgres, Transaction};
 
 use lnm_sdk::api::rest::models::PriceEntryLNM;
@@ -10,7 +10,7 @@ use crate::util::DateTimeExt;
 
 use super::super::{
     error::{DbError, Result},
-    models::{PriceHistoryEntry, PriceHistoryEntryLOCF},
+    models::PriceHistoryEntry,
     repositories::PriceHistoryRepository,
 };
 
