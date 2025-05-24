@@ -316,7 +316,7 @@ impl BacktestEngine {
                     ))?;
 
                 let locf_buffer = db
-                    .price_history
+                    .price_ticks
                     .eval_entries_locf(&locf_buffer_last_time, buffer_size)
                     .await
                     .map_err(|e| BacktestError::Generic(e.to_string()))?;
