@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use chrono::{DateTime, Duration, Utc};
-use manager::SimulatedTradeManager;
 use tokio::{
     sync::{Mutex, broadcast},
     task::JoinHandle,
@@ -18,8 +17,9 @@ use crate::{
 
 pub mod error;
 
-mod manager;
+mod controller;
 
+use controller::SimulatedTradeManager;
 use error::{BacktestError, Result};
 
 #[derive(Debug, PartialEq)]

@@ -4,7 +4,7 @@ use thiserror::Error;
 use tokio::{sync::broadcast::error::SendError, task::JoinError};
 
 use super::BacktestState;
-pub use super::manager::error::SimulatedTradeManagerError;
+pub use super::controller::error::SimulatedTradeManagerError;
 
 #[derive(Error, Debug)]
 pub enum BacktestError {
