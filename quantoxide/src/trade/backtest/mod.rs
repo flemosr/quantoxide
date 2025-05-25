@@ -19,7 +19,7 @@ pub mod error;
 
 mod controller;
 
-use controller::SimulatedTradeManager;
+use controller::SimulatedTradeController;
 use error::{BacktestError, Result};
 
 #[derive(Debug, PartialEq)]
@@ -275,7 +275,7 @@ impl BacktestEngine {
                     "no entries before start_time"
                 )))?;
 
-            Arc::new(SimulatedTradeManager::new(
+            Arc::new(SimulatedTradeController::new(
                 self.config.max_running_qtd,
                 self.config.fee_perc,
                 self.start_time,

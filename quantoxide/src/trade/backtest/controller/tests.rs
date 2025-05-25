@@ -5,15 +5,15 @@ use chrono::Duration;
 use lnm_sdk::api::rest::models::{BoundedPercentage, Leverage, LowerBoundedPercentage};
 
 #[tokio::test]
-async fn test_simulated_trades_manager_long_profit() -> Result<()> {
-    // Step 1: Create a new manager with market price as 99_000, balance of 1_000_000
+async fn test_simulated_trade_controller_long_profit() -> Result<()> {
+    // Step 1: Create a new controller with market price as 99_000, balance of 1_000_000
     let start_time = Utc::now();
     let market_price = 99_000.0;
     let start_balance = 1_000_000;
     let fee_perc = BoundedPercentage::try_from(0.1).unwrap(); // 0.1% fee
     let max_running_qtd = 10;
 
-    let manager = SimulatedTradeManager::new(
+    let controller = SimulatedTradeController::new(
         max_running_qtd,
         fee_perc,
         start_time,
@@ -21,7 +21,7 @@ async fn test_simulated_trades_manager_long_profit() -> Result<()> {
         start_balance,
     );
 
-    let state = manager.state().await?;
+    let state = controller.state().await?;
     assert_eq!(state.start_time(), start_time);
     assert_eq!(state.start_balance(), start_balance);
     assert_eq!(state.current_time(), start_time);
@@ -42,9 +42,9 @@ async fn test_simulated_trades_manager_long_profit() -> Result<()> {
     // Step 2: Update market price to 100_000
     let time = start_time + Duration::seconds(1);
     let market_price = 100_000.0;
-    manager.tick_update(time, market_price).await?;
+    controller.tick_update(time, market_price).await?;
 
-    let state = manager.state().await?;
+    let state = controller.state().await?;
     assert_eq!(state.start_time(), start_time);
     assert_eq!(state.start_balance(), start_balance);
     assert_eq!(state.current_time(), time);
@@ -68,11 +68,11 @@ async fn test_simulated_trades_manager_long_profit() -> Result<()> {
     let balance_perc = BoundedPercentage::try_from(5.0).unwrap(); // 5% of balance
     let leverage = Leverage::try_from(1).unwrap(); // 1x leverage
 
-    manager
+    controller
         .open_long(stoploss_perc, takeprofit_perc, balance_perc, leverage)
         .await?;
 
-    let state = manager.state().await?;
+    let state = controller.state().await?;
     let exp_trade_time = time;
     let expected_balance =
         start_balance - state.running_long_margin() - state.running_maintenance_margin();
@@ -107,9 +107,9 @@ async fn test_simulated_trades_manager_long_profit() -> Result<()> {
     // Step 4: Update price to 101_000
     let time = time + Duration::seconds(1);
     let market_price = 101_000.0;
-    manager.tick_update(time, market_price).await?;
+    controller.tick_update(time, market_price).await?;
 
-    let state = manager.state().await?;
+    let state = controller.state().await?;
     assert_eq!(state.start_time(), start_time);
     assert_eq!(state.start_balance(), start_balance);
     assert_eq!(state.current_time(), time);
@@ -141,9 +141,9 @@ async fn test_simulated_trades_manager_long_profit() -> Result<()> {
     assert_eq!(state.closed_fees(), 0);
 
     // Step 5: Close all running long trades
-    manager.close_longs().await?;
+    controller.close_longs().await?;
 
-    let state = manager.state().await?;
+    let state = controller.state().await?;
     let exp_trade_time = time;
     let expected_balance =
         (start_balance as i64 + state.closed_pl() - state.closed_fees() as i64) as u64;
@@ -172,15 +172,15 @@ async fn test_simulated_trades_manager_long_profit() -> Result<()> {
 }
 
 #[tokio::test]
-async fn test_simulated_trades_manager_long_loss() -> Result<()> {
-    // Step 1: Create a new manager with market price as 100_000, balance of 1_000_000
+async fn test_simulated_trade_controller_long_loss() -> Result<()> {
+    // Step 1: Create a new controller with market price as 100_000, balance of 1_000_000
     let start_time = Utc::now();
     let market_price = 100_000.0;
     let start_balance = 1_000_000;
     let fee_perc = BoundedPercentage::try_from(0.1).unwrap(); // 0.1% fee
     let max_running_qtd = 10;
 
-    let manager = SimulatedTradeManager::new(
+    let controller = SimulatedTradeController::new(
         max_running_qtd,
         fee_perc,
         start_time,
@@ -188,7 +188,7 @@ async fn test_simulated_trades_manager_long_loss() -> Result<()> {
         start_balance,
     );
 
-    let state = manager.state().await?;
+    let state = controller.state().await?;
     assert_eq!(state.start_time(), start_time);
     assert_eq!(state.start_balance(), start_balance);
     assert_eq!(state.current_time(), start_time);
@@ -212,11 +212,11 @@ async fn test_simulated_trades_manager_long_loss() -> Result<()> {
     let balance_perc = BoundedPercentage::try_from(5.0).unwrap(); // 5% of balance
     let leverage = Leverage::try_from(1).unwrap(); // 1x leverage
 
-    manager
+    controller
         .open_long(stoploss_perc, takeprofit_perc, balance_perc, leverage)
         .await?;
 
-    let state = manager.state().await?;
+    let state = controller.state().await?;
     let expected_balance =
         start_balance - state.running_long_margin() - state.running_maintenance_margin();
 
@@ -243,9 +243,9 @@ async fn test_simulated_trades_manager_long_loss() -> Result<()> {
     // Step 3: Update price to 99_000 (1% drop)
     let time = start_time + Duration::seconds(1);
     let market_price = 99_000.0;
-    manager.tick_update(time, market_price).await?;
+    controller.tick_update(time, market_price).await?;
 
-    let state = manager.state().await?;
+    let state = controller.state().await?;
     assert_eq!(state.current_time(), time);
     assert_eq!(state.current_balance(), expected_balance);
     assert_eq!(state.market_price(), market_price);
@@ -264,9 +264,9 @@ async fn test_simulated_trades_manager_long_loss() -> Result<()> {
     // Step 4: Update price to trigger stoploss (98_000, 2% drop from entry)
     let time = time + Duration::seconds(1);
     let market_price = 98_000.0;
-    manager.tick_update(time, market_price).await?;
+    controller.tick_update(time, market_price).await?;
 
-    let state = manager.state().await?;
+    let state = controller.state().await?;
     let expected_balance =
         (start_balance as i64 + state.closed_pl() - state.closed_fees() as i64) as u64;
 
@@ -290,15 +290,15 @@ async fn test_simulated_trades_manager_long_loss() -> Result<()> {
 }
 
 #[tokio::test]
-async fn test_simulated_trades_manager_short_profit() -> Result<()> {
-    // Step 1: Create a new manager with market price as 100_000, balance of 1_000_000
+async fn test_simulated_trade_controller_short_profit() -> Result<()> {
+    // Step 1: Create a new controller with market price as 100_000, balance of 1_000_000
     let start_time = Utc::now();
     let market_price = 100_000.0;
     let start_balance = 1_000_000;
     let fee_perc = BoundedPercentage::try_from(0.1).unwrap(); // 0.1% fee
     let max_running_qtd = 10;
 
-    let manager = SimulatedTradeManager::new(
+    let controller = SimulatedTradeController::new(
         max_running_qtd,
         fee_perc,
         start_time,
@@ -306,7 +306,7 @@ async fn test_simulated_trades_manager_short_profit() -> Result<()> {
         start_balance,
     );
 
-    let state = manager.state().await?;
+    let state = controller.state().await?;
     assert_eq!(state.start_time(), start_time);
     assert_eq!(state.start_balance(), start_balance);
     assert_eq!(state.current_time(), start_time);
@@ -330,11 +330,11 @@ async fn test_simulated_trades_manager_short_profit() -> Result<()> {
     let balance_perc = BoundedPercentage::try_from(5.0).unwrap(); // 5% of balance
     let leverage = Leverage::try_from(1).unwrap(); // 1x leverage
 
-    manager
+    controller
         .open_short(stoploss_perc, takeprofit_perc, balance_perc, leverage)
         .await?;
 
-    let state = manager.state().await?;
+    let state = controller.state().await?;
     let expected_balance =
         start_balance - state.running_short_margin() - state.running_maintenance_margin();
 
@@ -364,9 +364,9 @@ async fn test_simulated_trades_manager_short_profit() -> Result<()> {
     // Step 3: Update price to 98_000 (2% drop)
     let time = start_time + Duration::seconds(1);
     let market_price = 98_000.0;
-    manager.tick_update(time, market_price).await?;
+    controller.tick_update(time, market_price).await?;
 
-    let state = manager.state().await?;
+    let state = controller.state().await?;
     assert_eq!(state.current_time(), time);
     assert_eq!(state.current_balance(), expected_balance);
     assert_eq!(state.market_price(), market_price);
@@ -393,9 +393,9 @@ async fn test_simulated_trades_manager_short_profit() -> Result<()> {
     // Step 4: Update price to trigger takeprofit (96_000, 4% drop from entry)
     let time = time + Duration::seconds(1);
     let market_price = 96_000.0;
-    manager.tick_update(time, market_price).await?;
+    controller.tick_update(time, market_price).await?;
 
-    let state = manager.state().await?;
+    let state = controller.state().await?;
     let expected_balance =
         (start_balance as i64 + state.closed_pl() - state.closed_fees() as i64) as u64;
 
@@ -419,15 +419,15 @@ async fn test_simulated_trades_manager_short_profit() -> Result<()> {
 }
 
 #[tokio::test]
-async fn test_simulated_trades_manager_short_loss() -> Result<()> {
-    // Step 1: Create a new manager with market price as 100_000, balance of 1_000_000
+async fn test_simulated_trade_controller_short_loss() -> Result<()> {
+    // Step 1: Create a new controller with market price as 100_000, balance of 1_000_000
     let start_time = Utc::now();
     let market_price = 100_000.0;
     let start_balance = 1_000_000;
     let fee_perc = BoundedPercentage::try_from(0.1).unwrap(); // 0.1% fee
     let max_running_qtd = 10;
 
-    let manager = SimulatedTradeManager::new(
+    let controller = SimulatedTradeController::new(
         max_running_qtd,
         fee_perc,
         start_time,
@@ -435,7 +435,7 @@ async fn test_simulated_trades_manager_short_loss() -> Result<()> {
         start_balance,
     );
 
-    let state = manager.state().await?;
+    let state = controller.state().await?;
     assert_eq!(state.start_time(), start_time);
     assert_eq!(state.start_balance(), start_balance);
     assert_eq!(state.current_time(), start_time);
@@ -459,11 +459,11 @@ async fn test_simulated_trades_manager_short_loss() -> Result<()> {
     let balance_perc = BoundedPercentage::try_from(5.0).unwrap(); // 5% of balance
     let leverage = Leverage::try_from(1).unwrap(); // 1x leverage
 
-    manager
+    controller
         .open_short(stoploss_perc, takeprofit_perc, balance_perc, leverage)
         .await?;
 
-    let state = manager.state().await?;
+    let state = controller.state().await?;
     let expected_balance =
         start_balance - state.running_short_margin() - state.running_maintenance_margin();
 
@@ -487,9 +487,9 @@ async fn test_simulated_trades_manager_short_loss() -> Result<()> {
     // Step 3: Update price to 101_000 (1% increase)
     let time = start_time + Duration::seconds(1);
     let market_price = 101_000.0;
-    manager.tick_update(time, market_price).await?;
+    controller.tick_update(time, market_price).await?;
 
-    let state = manager.state().await?;
+    let state = controller.state().await?;
     assert_eq!(state.current_time(), time);
     assert_eq!(state.current_balance(), expected_balance);
     assert_eq!(state.market_price(), market_price);
@@ -508,9 +508,9 @@ async fn test_simulated_trades_manager_short_loss() -> Result<()> {
     // Step 4: Update price to trigger stoploss (102_000, 2% increase from entry)
     let time = time + Duration::seconds(1);
     let market_price = 102_000.0;
-    manager.tick_update(time, market_price).await?;
+    controller.tick_update(time, market_price).await?;
 
-    let state = manager.state().await?;
+    let state = controller.state().await?;
     let expected_balance =
         (start_balance as i64 + state.closed_pl() - state.closed_fees() as i64) as u64;
 

@@ -11,7 +11,7 @@ use lnm_sdk::api::rest::models::{
 use crate::db::{error::DbError, models::PriceHistoryEntry};
 
 #[derive(Error, Debug)]
-pub enum SimulatedTradeManagerError {
+pub enum SimulatedTradeControllerError {
     #[error("[MarginValidation] {0}")]
     MarginValidation(#[from] MarginValidationError),
 
@@ -82,4 +82,4 @@ pub enum SimulatedTradeManagerError {
     Generic(String),
 }
 
-pub type Result<T> = result::Result<T, SimulatedTradeManagerError>;
+pub type Result<T> = result::Result<T, SimulatedTradeControllerError>;

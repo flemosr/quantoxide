@@ -17,7 +17,7 @@ use super::super::{
 pub mod error;
 mod models;
 
-use error::SimulatedTradeManagerError;
+use error::SimulatedTradeControllerError;
 use models::{SimulatedTradeClosed, SimulatedTradeRunning};
 
 enum Close {
@@ -31,7 +31,7 @@ impl From<TradeSide> for Close {
     }
 }
 
-struct SimulatedTradeManagerState {
+struct SimulatedTradeControllerState {
     time: DateTime<Utc>,
     market_price: f64,
     balance: i64,
@@ -43,15 +43,15 @@ struct SimulatedTradeManagerState {
     closed_fees: u64,
 }
 
-pub struct SimulatedTradeManager {
+pub struct SimulatedTradeController {
     max_running_qtd: usize,
     fee_perc: BoundedPercentage,
     start_time: DateTime<Utc>,
     start_balance: u64,
-    state: Arc<Mutex<SimulatedTradeManagerState>>,
+    state: Arc<Mutex<SimulatedTradeControllerState>>,
 }
 
-impl SimulatedTradeManager {
+impl SimulatedTradeController {
     pub fn new(
         max_running_qtd: usize,
         fee_perc: BoundedPercentage,
@@ -59,7 +59,7 @@ impl SimulatedTradeManager {
         market_price: f64,
         start_balance: u64,
     ) -> Self {
-        let initial_state = SimulatedTradeManagerState {
+        let initial_state = SimulatedTradeControllerState {
             time: start_time,
             market_price,
             balance: start_balance as i64,
@@ -84,7 +84,7 @@ impl SimulatedTradeManager {
         let mut state_guard = self.state.lock().await;
 
         if time <= state_guard.time {
-            return Err(SimulatedTradeManagerError::TimeSequenceViolation {
+            return Err(SimulatedTradeControllerError::TimeSequenceViolation {
                 new_time: time,
                 current_time: state_guard.time,
             })?;
@@ -163,7 +163,7 @@ impl SimulatedTradeManager {
 
         let time = state_guard.time;
         let market_price = Price::round(state_guard.market_price)
-            .map_err(SimulatedTradeManagerError::PriceValidation)?;
+            .map_err(SimulatedTradeControllerError::PriceValidation)?;
 
         let mut new_balance = state_guard.balance as i64;
         let mut new_closed_pl = state_guard.closed_pl;
@@ -223,25 +223,25 @@ impl SimulatedTradeManager {
         let mut state_guard = self.state.lock().await;
 
         if state_guard.running.len() >= self.max_running_qtd {
-            return Err(SimulatedTradeManagerError::MaxRunningTradesReached {
+            return Err(SimulatedTradeControllerError::MaxRunningTradesReached {
                 max_qtd: self.max_running_qtd,
             })?;
         }
 
         let market_price = Price::round(state_guard.market_price)
-            .map_err(SimulatedTradeManagerError::PriceValidation)?;
+            .map_err(SimulatedTradeControllerError::PriceValidation)?;
 
         let quantity = {
             let balance_usd = state_guard.balance as f64 * market_price.into_f64() / SATS_PER_BTC;
             let quantity_target = balance_usd * balance_perc.into_f64() / 100.;
             if quantity_target < 1. {
-                return Err(SimulatedTradeManagerError::Generic(
+                return Err(SimulatedTradeControllerError::Generic(
                     "balance is too low".to_string(),
                 ))?;
             }
 
             Quantity::try_from(quantity_target.floor())
-                .map_err(SimulatedTradeManagerError::QuantityValidation)?
+                .map_err(SimulatedTradeControllerError::QuantityValidation)?
         };
 
         let (side, stoploss, takeprofit) = risk_params.into_trade_params(market_price)?;
@@ -268,7 +268,7 @@ impl SimulatedTradeManager {
 }
 
 #[async_trait]
-impl TradeController for SimulatedTradeManager {
+impl TradeController for SimulatedTradeController {
     async fn open_long(
         &self,
         stoploss_perc: BoundedPercentage,
@@ -345,14 +345,14 @@ impl TradeController for SimulatedTradeManager {
                     running_long_margin += trade.margin().into_u64();
 
                     Price::round_down(state_guard.market_price)
-                        .map_err(SimulatedTradeManagerError::from)?
+                        .map_err(SimulatedTradeControllerError::from)?
                 }
                 TradeSide::Sell => {
                     running_short_qtd += 1;
                     running_short_margin += trade.margin().into_u64();
 
                     Price::round_up(state_guard.market_price)
-                        .map_err(SimulatedTradeManagerError::from)?
+                        .map_err(SimulatedTradeControllerError::from)?
                 }
             };
 

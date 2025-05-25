@@ -4,12 +4,12 @@ use thiserror::Error;
 use tokio::{sync::broadcast::error::SendError, task::JoinError};
 
 use super::BacktestState;
-pub use super::controller::error::SimulatedTradeManagerError;
+pub use super::controller::error::SimulatedTradeControllerError;
 
 #[derive(Error, Debug)]
 pub enum BacktestError {
     #[error("[Manager] {0}")]
-    Manager(#[from] SimulatedTradeManagerError),
+    Manager(#[from] SimulatedTradeControllerError),
 
     #[error("TransmiterFailed error {0}")]
     TransmiterFailed(SendError<Arc<BacktestState>>),
