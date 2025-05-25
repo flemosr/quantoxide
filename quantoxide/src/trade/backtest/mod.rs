@@ -287,7 +287,7 @@ impl BacktestEngine {
         let mut operator = self.operator;
 
         operator
-            .set_trades_manager(trades_manager.clone())
+            .set_trade_controller(trades_manager.clone())
             .map_err(|e| {
                 BacktestError::Generic(format!(
                     "couldn't set the simulated trades manager {}",

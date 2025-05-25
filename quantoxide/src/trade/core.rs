@@ -242,9 +242,9 @@ pub trait TradeController {
 
 #[async_trait]
 pub trait Operator: Send + Sync {
-    fn set_trades_manager(
+    fn set_trade_controller(
         &mut self,
-        trades_manager: Arc<dyn TradeController + Send + Sync>,
+        trade_controller: Arc<dyn TradeController + Send + Sync>,
     ) -> std::result::Result<(), Box<dyn std::error::Error>>;
 
     async fn process_signal(
@@ -256,17 +256,17 @@ pub trait Operator: Send + Sync {
 pub(crate) struct WrappedOperator(Box<dyn Operator>);
 
 impl WrappedOperator {
-    pub fn set_trades_manager(
+    pub fn set_trade_controller(
         &mut self,
-        trades_manager: Arc<dyn TradeController + Send + Sync>,
+        trade_controller: Arc<dyn TradeController + Send + Sync>,
     ) -> Result<()> {
         panic::catch_unwind(AssertUnwindSafe(|| {
-            self.0.set_trades_manager(trades_manager)
+            self.0.set_trade_controller(trade_controller)
         }))
-        .map_err(|_| TradeError::Generic(format!("`Operator::set_trades_manager` panicked")))?
+        .map_err(|_| TradeError::Generic(format!("`Operator::set_trade_controller` panicked")))?
         .map_err(|e| {
             TradeError::Generic(format!(
-                "`Operator::set_trades_manager` error {}",
+                "`Operator::set_trade_controller` error {}",
                 e.to_string()
             ))
         })
