@@ -20,11 +20,11 @@ use crate::{
 
 use super::core::{Operator, TradeManager, TradeManagerState, WrappedOperator};
 
+pub mod controller;
 pub mod error;
-pub mod manager;
 
+use controller::LiveTradeManager;
 use error::{LiveTradeError, Result};
-use manager::LiveTradeManager;
 
 #[derive(Debug, PartialEq)]
 pub enum LiveTradeState {
