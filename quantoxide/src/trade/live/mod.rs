@@ -23,7 +23,7 @@ use super::core::{Operator, TradeController, TradeControllerState, WrappedOperat
 pub mod controller;
 pub mod error;
 
-use controller::LiveTradeManager;
+use controller::LiveTradeController;
 use error::{LiveError, Result};
 
 #[derive(Debug, PartialEq)]
@@ -86,7 +86,7 @@ struct LiveProcess {
     operator: WrappedOperator,
     shutdown_tx: broadcast::Sender<()>,
     signal_controller: Arc<LiveSignalController>,
-    trades_manager: Arc<LiveTradeManager>,
+    trades_manager: Arc<LiveTradeController>,
     state_manager: LiveStateManager,
 }
 
@@ -96,7 +96,7 @@ impl LiveProcess {
         operator: WrappedOperator,
         shutdown_tx: broadcast::Sender<()>,
         signal_controller: Arc<LiveSignalController>,
-        trades_manager: Arc<LiveTradeManager>,
+        trades_manager: Arc<LiveTradeController>,
         state_manager: LiveStateManager,
     ) -> Self {
         Self {
@@ -180,7 +180,7 @@ pub struct LiveController {
     shutdown_tx: broadcast::Sender<()>,
     shutdown_timeout: time::Duration,
     state_manager: LiveStateManager,
-    trade_manager: Arc<LiveTradeManager>,
+    trade_manager: Arc<LiveTradeController>,
 }
 
 impl LiveController {
@@ -191,7 +191,7 @@ impl LiveController {
         shutdown_tx: broadcast::Sender<()>,
         shutdown_timeout: time::Duration,
         state_manager: LiveStateManager,
-        trade_manager: Arc<LiveTradeManager>,
+        trade_manager: Arc<LiveTradeController>,
     ) -> Self {
         Self {
             sync_controller,
@@ -442,7 +442,7 @@ impl LiveEngine {
         .map_err(|e| LiveError::Generic(e.to_string()))?;
 
         let trades_manager = {
-            let manager = LiveTradeManager::new(self.db, self.api, sync_controller.clone())
+            let manager = LiveTradeController::new(self.db, self.api, sync_controller.clone())
                 .await
                 .map_err(|e| LiveError::Generic(e.to_string()))?;
             Arc::new(manager)

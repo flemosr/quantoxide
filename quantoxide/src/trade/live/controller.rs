@@ -27,7 +27,7 @@ use super::{
         core::{TradeController, TradeControllerState},
         error::Result,
     },
-    error::{LiveError, Result as LiveTradeResult},
+    error::{LiveError, Result as LiveResult},
 };
 
 fn calculate_quantity(
@@ -45,23 +45,23 @@ fn calculate_quantity(
     Ok(Quantity::try_from(quantity_target.floor()).map_err(LiveError::QuantityValidation)?)
 }
 
-pub enum LiveTradeManagerStatus {
+pub enum LiveTradeControllerStatus {
     WaitingForSync(Arc<SyncState>),
     Ready,
     NotViable(LiveError),
 }
 
-impl From<Arc<SyncState>> for LiveTradeManagerStatus {
+impl From<Arc<SyncState>> for LiveTradeControllerStatus {
     fn from(value: Arc<SyncState>) -> Self {
         match value.as_ref() {
             SyncState::NotInitiated
             | SyncState::Starting
             | SyncState::InProgress(_)
             | SyncState::Failed(_)
-            | SyncState::Restarting => LiveTradeManagerStatus::WaitingForSync(value),
-            SyncState::Synced(_) => LiveTradeManagerStatus::Ready,
+            | SyncState::Restarting => LiveTradeControllerStatus::WaitingForSync(value),
+            SyncState::Synced(_) => LiveTradeControllerStatus::Ready,
             SyncState::ShutdownInitiated | SyncState::Shutdown => {
-                LiveTradeManagerStatus::NotViable(LiveError::Generic(
+                LiveTradeControllerStatus::NotViable(LiveError::Generic(
                     "sync process was shutdown".to_string(),
                 ))
             }
@@ -69,8 +69,8 @@ impl From<Arc<SyncState>> for LiveTradeManagerStatus {
     }
 }
 
-struct LiveTradeManagerState {
-    status: LiveTradeManagerStatus,
+struct LiveTradeControllerState {
+    status: LiveTradeControllerStatus,
     last_trade_time: Option<DateTime<Utc>>,
     balance: u64,
     running: Vec<LnmTrade>,
@@ -79,20 +79,20 @@ struct LiveTradeManagerState {
     closed_fees: u64,
 }
 
-pub struct LiveTradeManager {
+pub struct LiveTradeController {
     db: Arc<DbContext>,
     api: Arc<ApiContext>,
     sync_controller: Arc<SyncController>,
     start_time: DateTime<Utc>,
     start_balance: u64,
-    state: Arc<Mutex<LiveTradeManagerState>>,
+    state: Arc<Mutex<LiveTradeControllerState>>,
     handle: JoinHandle<()>,
 }
 
-impl LiveTradeManager {
+impl LiveTradeController {
     fn monitor_running_trades(
         mut sync_rx: broadcast::Receiver<Arc<SyncState>>,
-        state: Arc<Mutex<LiveTradeManagerState>>,
+        state: Arc<Mutex<LiveTradeControllerState>>,
     ) -> JoinHandle<()> {
         tokio::spawn(async move {
             loop {
@@ -101,18 +101,20 @@ impl LiveTradeManager {
 
                 let new_status = match res {
                     Ok(sync_state) => {
-                        let new_status = LiveTradeManagerStatus::from(sync_state);
-                        if matches!(new_status, LiveTradeManagerStatus::Ready) {
+                        let new_status = LiveTradeControllerStatus::from(sync_state);
+                        if matches!(new_status, LiveTradeControllerStatus::Ready) {
                             // TODO: Trigger proper state update
                         }
                         new_status
                     }
-                    Err(e) => LiveTradeManagerStatus::NotViable(LiveError::Generic(e.to_string())),
+                    Err(e) => {
+                        LiveTradeControllerStatus::NotViable(LiveError::Generic(e.to_string()))
+                    }
                 };
 
                 state_guard.status = new_status;
 
-                if matches!(state_guard.status, LiveTradeManagerStatus::NotViable(_)) {
+                if matches!(state_guard.status, LiveTradeControllerStatus::NotViable(_)) {
                     return;
                 }
             }
@@ -137,8 +139,8 @@ impl LiveTradeManager {
 
         let initial_sync_state = sync_controller.state_snapshot().await;
 
-        let state = Arc::new(Mutex::new(LiveTradeManagerState {
-            status: LiveTradeManagerStatus::from(initial_sync_state),
+        let state = Arc::new(Mutex::new(LiveTradeControllerState {
+            status: LiveTradeControllerStatus::from(initial_sync_state),
             last_trade_time: None,
             balance: start_balance,
             running: Vec::new(),
@@ -148,7 +150,7 @@ impl LiveTradeManager {
         }));
 
         let handle =
-            LiveTradeManager::monitor_running_trades(sync_controller.receiver(), state.clone());
+            LiveTradeController::monitor_running_trades(sync_controller.receiver(), state.clone());
 
         Ok(Self {
             db,
@@ -161,17 +163,17 @@ impl LiveTradeManager {
         })
     }
 
-    pub async fn status(&self) -> LiveTradeManagerStatus {
+    pub async fn status(&self) -> LiveTradeControllerStatus {
         self.sync_controller.state_snapshot().await.into()
     }
 
-    async fn check_if_ready(&self) -> LiveTradeResult<()> {
+    async fn check_if_ready(&self) -> LiveResult<()> {
         match self.status().await {
-            LiveTradeManagerStatus::WaitingForSync(sync_state) => {
+            LiveTradeControllerStatus::WaitingForSync(sync_state) => {
                 Err(LiveError::ManagerNotReady(sync_state))
             }
-            LiveTradeManagerStatus::Ready => Ok(()),
-            LiveTradeManagerStatus::NotViable(err) => Err(err),
+            LiveTradeControllerStatus::Ready => Ok(()),
+            LiveTradeControllerStatus::NotViable(err) => Err(err),
         }
     }
 
@@ -196,7 +198,7 @@ impl LiveTradeManager {
 }
 
 #[async_trait]
-impl TradeController for LiveTradeManager {
+impl TradeController for LiveTradeController {
     async fn open_long(
         &self,
         stoploss_perc: BoundedPercentage,
