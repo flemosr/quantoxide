@@ -3,7 +3,10 @@ use std::{result, sync::Arc};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use futures::future;
-use tokio::sync::Mutex;
+use tokio::{
+    sync::{Mutex, broadcast},
+    task::JoinHandle,
+};
 
 use lnm_sdk::api::{
     ApiContext,
@@ -45,7 +48,7 @@ fn calculate_quantity(
 pub enum LiveTradeManagerStatus {
     WaitingForSync(Arc<SyncState>),
     Ready,
-    NotViable(Arc<SyncState>),
+    NotViable(LiveTradeError),
 }
 
 impl From<Arc<SyncState>> for LiveTradeManagerStatus {
@@ -56,15 +59,18 @@ impl From<Arc<SyncState>> for LiveTradeManagerStatus {
             | SyncState::InProgress(_)
             | SyncState::Failed(_)
             | SyncState::Restarting => LiveTradeManagerStatus::WaitingForSync(value),
-            SyncState::Synced => LiveTradeManagerStatus::Ready,
+            SyncState::Synced(_) => LiveTradeManagerStatus::Ready,
             SyncState::ShutdownInitiated | SyncState::Shutdown => {
-                LiveTradeManagerStatus::NotViable(value)
+                LiveTradeManagerStatus::NotViable(LiveTradeError::Generic(
+                    "sync process was shutdown".to_string(),
+                ))
             }
         }
     }
 }
 
 struct LiveTradeManagerState {
+    status: LiveTradeManagerStatus,
     last_trade_time: Option<DateTime<Utc>>,
     balance: u64,
     running: Vec<LnmTrade>,
@@ -80,9 +86,41 @@ pub struct LiveTradeManager {
     start_time: DateTime<Utc>,
     start_balance: u64,
     state: Arc<Mutex<LiveTradeManagerState>>,
+    handle: JoinHandle<()>,
 }
 
 impl LiveTradeManager {
+    fn monitor_running_trades(
+        mut sync_rx: broadcast::Receiver<Arc<SyncState>>,
+        state: Arc<Mutex<LiveTradeManagerState>>,
+    ) -> JoinHandle<()> {
+        tokio::spawn(async move {
+            loop {
+                let res = sync_rx.recv().await;
+                let mut state_guard = state.lock().await;
+
+                let new_status = match res {
+                    Ok(sync_state) => {
+                        let new_status = LiveTradeManagerStatus::from(sync_state);
+                        if matches!(new_status, LiveTradeManagerStatus::Ready) {
+                            // TODO: Trigger proper state update
+                        }
+                        new_status
+                    }
+                    Err(e) => {
+                        LiveTradeManagerStatus::NotViable(LiveTradeError::Generic(e.to_string()))
+                    }
+                };
+
+                state_guard.status = new_status;
+
+                if matches!(state_guard.status, LiveTradeManagerStatus::NotViable(_)) {
+                    return;
+                }
+            }
+        })
+    }
+
     pub async fn new(
         db: Arc<DbContext>,
         api: Arc<ApiContext>,
@@ -99,14 +137,20 @@ impl LiveTradeManager {
 
         let start_balance = user.balance();
 
-        let initial_state = LiveTradeManagerState {
+        let initial_sync_state = sync_controller.state_snapshot().await;
+
+        let state = Arc::new(Mutex::new(LiveTradeManagerState {
+            status: LiveTradeManagerStatus::from(initial_sync_state),
             last_trade_time: None,
             balance: start_balance,
             running: Vec::new(),
             closed: Vec::new(),
             closed_pl: 0,
             closed_fees: 0,
-        };
+        }));
+
+        let handle =
+            LiveTradeManager::monitor_running_trades(sync_controller.receiver(), state.clone());
 
         Ok(Self {
             db,
@@ -114,7 +158,8 @@ impl LiveTradeManager {
             sync_controller,
             start_time,
             start_balance,
-            state: Arc::new(Mutex::new(initial_state)),
+            state,
+            handle,
         })
     }
 
@@ -128,9 +173,7 @@ impl LiveTradeManager {
                 Err(LiveTradeError::ManagerNotReady(sync_state))
             }
             LiveTradeManagerStatus::Ready => Ok(()),
-            LiveTradeManagerStatus::NotViable(sync_state) => {
-                Err(LiveTradeError::ManagerNotViable(sync_state))
-            }
+            LiveTradeManagerStatus::NotViable(err) => Err(err),
         }
     }
 
