@@ -11,7 +11,7 @@ use lnm_sdk::api::rest::models::BoundedPercentage;
 use crate::{
     db::DbContext,
     signal::core::{ConfiguredSignalEvaluator, Signal},
-    trade::core::{Operator, TradeManager, TradeManagerState, WrappedOperator},
+    trade::core::{Operator, TradeController, TradeControllerState, WrappedOperator},
     util::DateTimeExt,
 };
 
@@ -26,8 +26,8 @@ use error::{BacktestError, Result};
 pub enum BacktestState {
     NotInitiated,
     Starting,
-    Running(TradeManagerState),
-    Finished(TradeManagerState),
+    Running(TradeControllerState),
+    Finished(TradeControllerState),
     Failed(BacktestError),
     Aborted,
 }

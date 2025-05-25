@@ -18,7 +18,7 @@ use crate::{
     util::Never,
 };
 
-use super::core::{Operator, TradeManager, TradeManagerState, WrappedOperator};
+use super::core::{Operator, TradeController, TradeControllerState, WrappedOperator};
 
 pub mod controller;
 pub mod error;
@@ -32,7 +32,7 @@ pub enum LiveTradeState {
     Starting,
     WaitingForSync(Arc<SyncState>),
     WaitingForSignal(Arc<LiveSignalState>),
-    Running((Signal, TradeManagerState)),
+    Running((Signal, TradeControllerState)),
     Failed(LiveTradeError),
     Restarting,
     ShutdownInitiated,

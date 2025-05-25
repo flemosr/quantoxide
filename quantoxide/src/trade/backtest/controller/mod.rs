@@ -10,7 +10,7 @@ use lnm_sdk::api::rest::models::{
 };
 
 use super::super::{
-    core::{PriceTrigger, RiskParams, TradeManager, TradeManagerState},
+    core::{PriceTrigger, RiskParams, TradeController, TradeControllerState},
     error::Result,
 };
 
@@ -268,7 +268,7 @@ impl SimulatedTradeManager {
 }
 
 #[async_trait]
-impl TradeManager for SimulatedTradeManager {
+impl TradeController for SimulatedTradeManager {
     async fn open_long(
         &self,
         stoploss_perc: BoundedPercentage,
@@ -323,7 +323,7 @@ impl TradeManager for SimulatedTradeManager {
         Ok(())
     }
 
-    async fn state(&self) -> Result<TradeManagerState> {
+    async fn state(&self) -> Result<TradeControllerState> {
         let state_guard = self.state.lock().await;
 
         let mut running_long_qtd: usize = 0;
@@ -361,7 +361,7 @@ impl TradeManager for SimulatedTradeManager {
             running_maintenance_margin += trade.maintenance_margin();
         }
 
-        let trades_state = TradeManagerState::new(
+        let trades_state = TradeControllerState::new(
             self.start_time,
             self.start_balance,
             state_guard.time,

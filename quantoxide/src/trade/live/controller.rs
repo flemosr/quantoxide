@@ -24,7 +24,7 @@ use crate::{
 
 use super::{
     super::{
-        core::{TradeManager, TradeManagerState},
+        core::{TradeController, TradeControllerState},
         error::Result,
     },
     error::{LiveTradeError, Result as LiveTradeResult},
@@ -198,7 +198,7 @@ impl LiveTradeManager {
 }
 
 #[async_trait]
-impl TradeManager for LiveTradeManager {
+impl TradeController for LiveTradeManager {
     async fn open_long(
         &self,
         stoploss_perc: BoundedPercentage,
@@ -380,7 +380,7 @@ impl TradeManager for LiveTradeManager {
         Ok(())
     }
 
-    async fn state(&self) -> Result<TradeManagerState> {
+    async fn state(&self) -> Result<TradeControllerState> {
         let state_guard = self.state.lock().await;
 
         let (running_trades, closed_trades, ticker, user) = futures::try_join!(
@@ -430,7 +430,7 @@ impl TradeManager for LiveTradeManager {
             closed_fees += trade.opening_fee() + trade.closing_fee();
         }
 
-        let trades_state = TradeManagerState::new(
+        let trades_state = TradeControllerState::new(
             self.start_time,
             self.start_balance,
             Utc::now(),
