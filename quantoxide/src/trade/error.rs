@@ -6,7 +6,7 @@ use lnm_sdk::api::rest::models::error::PriceValidationError;
 
 use super::{
     backtest::error::{BacktestError, SimulatedTradeControllerError},
-    live::error::LiveTradeError,
+    live::error::LiveError,
 };
 
 #[derive(Error, Debug)]
@@ -18,7 +18,7 @@ pub enum TradeError {
     Backtest(#[from] BacktestError),
 
     #[error("[Live] {0}")]
-    Live(#[from] LiveTradeError),
+    Live(#[from] LiveError),
 
     #[error("Generic error, {0}")]
     Generic(String),

@@ -11,7 +11,7 @@ use lnm_sdk::api::ApiContext;
 
 use crate::{
     db::{DbContext, models::PriceTick},
-    trade::live::LiveTradeConfig,
+    trade::live::LiveConfig,
     util::Never,
 };
 
@@ -376,8 +376,8 @@ impl SyncConfig {
     }
 }
 
-impl From<&LiveTradeConfig> for SyncConfig {
-    fn from(value: &LiveTradeConfig) -> Self {
+impl From<&LiveConfig> for SyncConfig {
+    fn from(value: &LiveConfig) -> Self {
         SyncConfig {
             api_cooldown: value.api_cooldown(),
             api_error_cooldown: value.api_error_cooldown(),

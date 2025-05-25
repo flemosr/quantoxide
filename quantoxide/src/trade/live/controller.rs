@@ -27,7 +27,7 @@ use super::{
         core::{TradeController, TradeControllerState},
         error::Result,
     },
-    error::{LiveTradeError, Result as LiveTradeResult},
+    error::{LiveError, Result as LiveTradeResult},
 };
 
 fn calculate_quantity(
@@ -39,16 +39,16 @@ fn calculate_quantity(
     let quantity_target = balance_usd * balance_perc.into_f64() / 100.;
 
     if quantity_target < 1. {
-        return Err(LiveTradeError::Generic("balance is too low".to_string()))?;
+        return Err(LiveError::Generic("balance is too low".to_string()))?;
     }
 
-    Ok(Quantity::try_from(quantity_target.floor()).map_err(LiveTradeError::QuantityValidation)?)
+    Ok(Quantity::try_from(quantity_target.floor()).map_err(LiveError::QuantityValidation)?)
 }
 
 pub enum LiveTradeManagerStatus {
     WaitingForSync(Arc<SyncState>),
     Ready,
-    NotViable(LiveTradeError),
+    NotViable(LiveError),
 }
 
 impl From<Arc<SyncState>> for LiveTradeManagerStatus {
@@ -61,7 +61,7 @@ impl From<Arc<SyncState>> for LiveTradeManagerStatus {
             | SyncState::Restarting => LiveTradeManagerStatus::WaitingForSync(value),
             SyncState::Synced(_) => LiveTradeManagerStatus::Ready,
             SyncState::ShutdownInitiated | SyncState::Shutdown => {
-                LiveTradeManagerStatus::NotViable(LiveTradeError::Generic(
+                LiveTradeManagerStatus::NotViable(LiveError::Generic(
                     "sync process was shutdown".to_string(),
                 ))
             }
@@ -107,9 +107,7 @@ impl LiveTradeManager {
                         }
                         new_status
                     }
-                    Err(e) => {
-                        LiveTradeManagerStatus::NotViable(LiveTradeError::Generic(e.to_string()))
-                    }
+                    Err(e) => LiveTradeManagerStatus::NotViable(LiveError::Generic(e.to_string())),
                 };
 
                 state_guard.status = new_status;
@@ -133,7 +131,7 @@ impl LiveTradeManager {
             api.rest().futures().close_all_trades(),
             api.rest().user().get_user()
         )
-        .map_err(LiveTradeError::RestApi)?;
+        .map_err(LiveError::RestApi)?;
 
         let start_balance = user.balance();
 
@@ -170,7 +168,7 @@ impl LiveTradeManager {
     async fn check_if_ready(&self) -> LiveTradeResult<()> {
         match self.status().await {
             LiveTradeManagerStatus::WaitingForSync(sync_state) => {
-                Err(LiveTradeError::ManagerNotReady(sync_state))
+                Err(LiveError::ManagerNotReady(sync_state))
             }
             LiveTradeManagerStatus::Ready => Ok(()),
             LiveTradeManagerStatus::NotViable(err) => Err(err),
@@ -187,11 +185,11 @@ impl LiveTradeManager {
             .price_ticks
             .get_latest_entry()
             .await
-            .map_err(|e| LiveTradeError::Generic(e.to_string()))?
-            .ok_or(LiveTradeError::Generic("db is empty".to_string()))?;
+            .map_err(|e| LiveError::Generic(e.to_string()))?
+            .ok_or(LiveError::Generic("db is empty".to_string()))?;
 
         let price =
-            Price::round(last_entry_price).map_err(|e| LiveTradeError::Generic(e.to_string()))?;
+            Price::round(last_entry_price).map_err(|e| LiveError::Generic(e.to_string()))?;
 
         Ok(price)
     }
@@ -232,7 +230,7 @@ impl TradeController for LiveTradeManager {
                 Some(takeprofit),
             )
             .await
-            .map_err(LiveTradeError::RestApi)?;
+            .map_err(LiveError::RestApi)?;
 
         state_guard.last_trade_time = Some(Utc::now());
 
@@ -279,7 +277,7 @@ impl TradeController for LiveTradeManager {
                 Some(takeprofit),
             )
             .await
-            .map_err(LiveTradeError::RestApi)?;
+            .map_err(LiveError::RestApi)?;
 
         state_guard.last_trade_time = Some(Utc::now());
 
@@ -303,7 +301,7 @@ impl TradeController for LiveTradeManager {
             .futures()
             .get_trades_running(None, None, 1000.into())
             .await
-            .map_err(LiveTradeError::RestApi)?;
+            .map_err(LiveError::RestApi)?;
 
         let long_trades = running
             .into_iter()
@@ -324,7 +322,7 @@ impl TradeController for LiveTradeManager {
                 .await
                 .into_iter()
                 .collect::<result::Result<Vec<_>, _>>()
-                .map_err(LiveTradeError::RestApi)?;
+                .map_err(LiveError::RestApi)?;
         }
 
         Ok(())
@@ -340,7 +338,7 @@ impl TradeController for LiveTradeManager {
             .futures()
             .get_trades_running(None, None, 1000.into())
             .await
-            .map_err(LiveTradeError::RestApi)?;
+            .map_err(LiveError::RestApi)?;
 
         let short_trades = running
             .into_iter()
@@ -361,7 +359,7 @@ impl TradeController for LiveTradeManager {
                 .await
                 .into_iter()
                 .collect::<result::Result<Vec<_>, _>>()
-                .map_err(LiveTradeError::RestApi)?;
+                .map_err(LiveError::RestApi)?;
         }
 
         Ok(())
@@ -375,7 +373,7 @@ impl TradeController for LiveTradeManager {
             self.api.rest().futures().cancel_all_trades(),
             self.api.rest().futures().close_all_trades(),
         )
-        .map_err(LiveTradeError::RestApi)?;
+        .map_err(LiveError::RestApi)?;
 
         Ok(())
     }
@@ -395,7 +393,7 @@ impl TradeController for LiveTradeManager {
             self.api.rest().futures().ticker(),
             self.api.rest().user().get_user()
         )
-        .map_err(LiveTradeError::RestApi)?;
+        .map_err(LiveError::RestApi)?;
 
         let mut running_long_qtd: usize = 0;
         let mut running_long_margin: u64 = 0;

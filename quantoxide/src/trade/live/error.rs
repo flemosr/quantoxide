@@ -8,7 +8,7 @@ use lnm_sdk::api::rest::{error::RestApiError, models::error::QuantityValidationE
 use crate::sync::SyncState;
 
 #[derive(Error, Debug)]
-pub enum LiveTradeError {
+pub enum LiveError {
     #[error("[QuantityValidation] {0}")]
     QuantityValidation(#[from] QuantityValidationError),
 
@@ -28,12 +28,12 @@ pub enum LiveTradeError {
     Generic(String),
 }
 
-impl PartialEq for LiveTradeError {
+impl PartialEq for LiveError {
     fn eq(&self, other: &Self) -> bool {
         self.to_string() == other.to_string()
     }
 }
 
-impl Eq for LiveTradeError {}
+impl Eq for LiveError {}
 
-pub type Result<T> = result::Result<T, LiveTradeError>;
+pub type Result<T> = result::Result<T, LiveError>;

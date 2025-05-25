@@ -10,7 +10,7 @@ use tokio::{
 use crate::{
     db::DbContext,
     sync::{SyncController, SyncState},
-    trade::live::LiveTradeConfig,
+    trade::live::LiveConfig,
     util::{DateTimeExt, Never},
 };
 
@@ -294,8 +294,8 @@ impl LiveSignalConfig {
     }
 }
 
-impl From<&LiveTradeConfig> for LiveSignalConfig {
-    fn from(value: &LiveTradeConfig) -> Self {
+impl From<&LiveConfig> for LiveSignalConfig {
+    fn from(value: &LiveConfig) -> Self {
         Self {
             eval_interval: value.signal_eval_interval(),
             restart_interval: value.restart_interval(),
