@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use futures::future;
 use tokio::{
-    sync::{Mutex, broadcast},
+    sync::{Mutex, MutexGuard, broadcast},
     task::JoinHandle,
 };
 
@@ -18,8 +18,9 @@ use lnm_sdk::api::{
 
 use crate::{
     db::DbContext,
-    sync::{SyncController, SyncState},
+    sync::{SyncReceiver, SyncState},
     trade::core::RiskParams,
+    util::Never,
 };
 
 use super::{
@@ -45,86 +46,186 @@ fn calculate_quantity(
     Ok(Quantity::try_from(quantity_target.floor()).map_err(LiveError::QuantityValidation)?)
 }
 
-pub enum LiveTradeControllerStatus {
-    WaitingForSync(Arc<SyncState>),
-    Ready,
-    NotViable(LiveError),
-}
-
-impl From<Arc<SyncState>> for LiveTradeControllerStatus {
-    fn from(value: Arc<SyncState>) -> Self {
-        match value.as_ref() {
-            SyncState::NotInitiated
-            | SyncState::Starting
-            | SyncState::InProgress(_)
-            | SyncState::Failed(_)
-            | SyncState::Restarting => LiveTradeControllerStatus::WaitingForSync(value),
-            SyncState::Synced(_) => LiveTradeControllerStatus::Ready,
-            SyncState::ShutdownInitiated | SyncState::Shutdown => {
-                LiveTradeControllerStatus::NotViable(LiveError::Generic(
-                    "sync process was shutdown".to_string(),
-                ))
-            }
-        }
-    }
-}
-
-struct LiveTradeControllerState {
-    status: LiveTradeControllerStatus,
+#[derive(Clone)]
+pub struct LiveTradeControllerStatus {
     last_trade_time: Option<DateTime<Utc>>,
     balance: u64,
     running: Vec<LnmTrade>,
     closed: Vec<LnmTrade>,
-    closed_pl: i64,
-    closed_fees: u64,
+}
+
+impl LiveTradeControllerStatus {
+    async fn new(api: &ApiContext) -> LiveResult<Self> {
+        let (running, user) = futures::try_join!(
+            api.rest()
+                .futures()
+                .get_trades_running(None, None, 50.into()),
+            api.rest().user().get_user()
+        )
+        .map_err(LiveError::RestApi)?;
+
+        Ok(Self {
+            last_trade_time: None,
+            balance: user.balance(),
+            running,
+            closed: Vec::new(),
+        })
+    }
+
+    // Returns true if the status was updated
+    async fn reevaluate(&mut self, db: &DbContext) -> LiveResult<bool> {
+        todo!()
+    }
+}
+
+pub enum LiveTradeControllerState {
+    Starting,
+    WaitingForSync(Arc<SyncState>),
+    Ready(LiveTradeControllerStatus),
+    NotViable(LiveError),
+}
+
+struct LockedLiveTradeControllerState<'a> {
+    lock: MutexGuard<'a, Arc<LiveTradeControllerState>>,
+}
+
+impl<'a> LockedLiveTradeControllerState<'a> {
+    fn try_status_ref(&self) -> LiveResult<&LiveTradeControllerStatus> {
+        match self.lock.as_ref() {
+            LiveTradeControllerState::Ready(status) => Ok(status),
+            _ => Err(LiveError::ManagerNotReady),
+        }
+    }
+
+    // pub fn last_trade_time(&self) -> Option<DateTime<Utc>> {
+    //     self.as_status().last_trade_time
+    // }
+
+    // pub fn balance(&self) -> u64 {
+    //     self.as_status().balance
+    // }
+}
+
+impl<'a> From<MutexGuard<'a, Arc<LiveTradeControllerState>>>
+    for LockedLiveTradeControllerState<'a>
+{
+    fn from(value: MutexGuard<'a, Arc<LiveTradeControllerState>>) -> Self {
+        Self { lock: value }
+    }
+}
+
+pub type LiveTradeControllerTransmiter = broadcast::Sender<Arc<LiveTradeControllerState>>;
+pub type LiveTradeControllerReceiver = broadcast::Receiver<Arc<LiveTradeControllerState>>;
+
+struct LiveTradeControllerStateManager {
+    state: Mutex<Arc<LiveTradeControllerState>>,
+    state_tx: LiveTradeControllerTransmiter,
+}
+
+impl LiveTradeControllerStateManager {
+    fn new() -> Arc<Self> {
+        let state = Mutex::new(Arc::new(LiveTradeControllerState::Starting));
+        let (state_tx, _) = broadcast::channel::<Arc<LiveTradeControllerState>>(100);
+
+        Arc::new(Self { state, state_tx })
+    }
+
+    async fn lock_state(&self) -> LockedLiveTradeControllerState {
+        let lock = self.state.lock().await;
+        LockedLiveTradeControllerState::from(lock)
+    }
+
+    pub async fn snapshot(&self) -> Arc<LiveTradeControllerState> {
+        self.state.lock().await.clone()
+    }
+
+    pub fn receiver(&self) -> LiveTradeControllerReceiver {
+        self.state_tx.subscribe()
+    }
+
+    async fn send_state_update(&self, new_state: Arc<LiveTradeControllerState>) {
+        // We can safely ignore errors since they only mean that there are no
+        // receivers.
+        let _ = self.state_tx.send(new_state);
+    }
+
+    pub async fn update(&self, new_state: LiveTradeControllerState) {
+        let new_state = Arc::new(new_state);
+
+        let mut state_guard = self.state.lock().await;
+        *state_guard = new_state.clone();
+        drop(state_guard);
+
+        self.send_state_update(new_state).await
+    }
 }
 
 pub struct LiveTradeController {
     db: Arc<DbContext>,
     api: Arc<ApiContext>,
-    sync_controller: Arc<SyncController>,
     start_time: DateTime<Utc>,
     start_balance: u64,
-    state: Arc<Mutex<LiveTradeControllerState>>,
+    state_manager: Arc<LiveTradeControllerStateManager>,
     handle: JoinHandle<()>,
 }
 
 impl LiveTradeController {
-    fn monitor_running_trades(
-        mut sync_rx: broadcast::Receiver<Arc<SyncState>>,
-        state: Arc<Mutex<LiveTradeControllerState>>,
+    fn handle_sync_updates(
+        db: Arc<DbContext>,
+        api: Arc<ApiContext>,
+        mut sync_rx: SyncReceiver,
+        state_manager: Arc<LiveTradeControllerStateManager>,
     ) -> JoinHandle<()> {
         tokio::spawn(async move {
-            loop {
-                let res = sync_rx.recv().await;
-                let mut state_guard = state.lock().await;
+            let mut handler = async || -> LiveResult<Never> {
+                let mut status = LiveTradeControllerStatus::new(api.as_ref()).await?;
 
-                let new_status = match res {
-                    Ok(sync_state) => {
-                        let new_status = LiveTradeControllerStatus::from(sync_state);
-                        if matches!(new_status, LiveTradeControllerStatus::Ready) {
-                            // TODO: Trigger proper state update
+                loop {
+                    match sync_rx.recv().await {
+                        Ok(sync_state) => match sync_state.as_ref() {
+                            SyncState::NotInitiated
+                            | SyncState::Starting
+                            | SyncState::InProgress(_)
+                            | SyncState::Failed(_)
+                            | SyncState::Restarting => {
+                                let new_state =
+                                    LiveTradeControllerState::WaitingForSync(sync_state);
+                                state_manager.update(new_state).await;
+                            }
+                            SyncState::Synced(_) => {
+                                // TODO: Try lock status
+                                //  + if success, update it
+                                //  + if failure, create new from scratch
+                                let updated = status.reevaluate(db.as_ref()).await?;
+                                if updated {
+                                    let new_state = LiveTradeControllerState::Ready(status.clone());
+                                    state_manager.update(new_state).await;
+                                }
+                            }
+                            SyncState::ShutdownInitiated | SyncState::Shutdown => {
+                                return Err(LiveError::Generic(
+                                    "sync process was shutdown".to_string(),
+                                ));
+                            }
+                        },
+                        Err(e) => {
+                            return Err(LiveError::Generic(format!("sync_rx error {e}")));
                         }
-                        new_status
                     }
-                    Err(e) => {
-                        LiveTradeControllerStatus::NotViable(LiveError::Generic(e.to_string()))
-                    }
-                };
-
-                state_guard.status = new_status;
-
-                if matches!(state_guard.status, LiveTradeControllerStatus::NotViable(_)) {
-                    return;
                 }
-            }
+            };
+
+            let Err(e) = handler().await;
+
+            let new_state = LiveTradeControllerState::NotViable(e);
+            state_manager.update(new_state).await;
         })
     }
 
     pub async fn new(
         db: Arc<DbContext>,
         api: Arc<ApiContext>,
-        sync_controller: Arc<SyncController>,
+        sync_rx: SyncReceiver,
     ) -> Result<Self> {
         let start_time = Utc::now();
 
@@ -137,50 +238,23 @@ impl LiveTradeController {
 
         let start_balance = user.balance();
 
-        let initial_sync_state = sync_controller.state_snapshot().await;
-
-        let state = Arc::new(Mutex::new(LiveTradeControllerState {
-            status: LiveTradeControllerStatus::from(initial_sync_state),
-            last_trade_time: None,
-            balance: start_balance,
-            running: Vec::new(),
-            closed: Vec::new(),
-            closed_pl: 0,
-            closed_fees: 0,
-        }));
+        let state_manager = LiveTradeControllerStateManager::new();
 
         let handle =
-            LiveTradeController::monitor_running_trades(sync_controller.receiver(), state.clone());
+            Self::handle_sync_updates(db.clone(), api.clone(), sync_rx, state_manager.clone());
 
         Ok(Self {
             db,
             api,
-            sync_controller,
             start_time,
             start_balance,
-            state,
+            state_manager,
             handle,
         })
     }
 
-    pub async fn status(&self) -> LiveTradeControllerStatus {
-        self.sync_controller.state_snapshot().await.into()
-    }
-
-    async fn check_if_ready(&self) -> LiveResult<()> {
-        match self.status().await {
-            LiveTradeControllerStatus::WaitingForSync(sync_state) => {
-                Err(LiveError::ManagerNotReady(sync_state))
-            }
-            LiveTradeControllerStatus::Ready => Ok(()),
-            LiveTradeControllerStatus::NotViable(err) => Err(err),
-        }
-    }
-
     async fn get_estimated_market_price(&self) -> Result<Price> {
-        self.check_if_ready().await?;
-
-        // We can assume that the db is up-to-date
+        // Assuming that the db is up-to-date
 
         let (_, last_entry_price) = self
             .db
@@ -206,18 +280,19 @@ impl TradeController for LiveTradeController {
         balance_perc: BoundedPercentage,
         leverage: Leverage,
     ) -> Result<()> {
-        let mut state_guard = self.state.lock().await;
-
-        let est_price = self.get_estimated_market_price().await?;
+        let state = self.state_manager.lock_state().await;
+        let status = state.try_status_ref()?;
 
         let risk_params = RiskParams::Long {
             stoploss_perc,
             takeprofit_perc,
         };
 
+        let est_price = self.get_estimated_market_price().await?;
+
         let (side, stoploss, takeprofit) = risk_params.into_trade_params(est_price)?;
 
-        let quantity = calculate_quantity(state_guard.balance, est_price, balance_perc)?;
+        let quantity = calculate_quantity(status.balance, est_price, balance_perc)?;
 
         let trade = self
             .api
@@ -234,14 +309,16 @@ impl TradeController for LiveTradeController {
             .await
             .map_err(LiveError::RestApi)?;
 
-        state_guard.last_trade_time = Some(Utc::now());
+        // TODO: Update via manager
 
-        let new_balance = state_guard.balance as i64
-            - trade.margin().into_i64()
-            - trade.maintenance_margin() as i64;
-        state_guard.balance = new_balance.min(0) as u64;
+        // state_guard.last_trade_time = Some(Utc::now());
 
-        state_guard.running.push(trade);
+        // let new_balance = state_guard.balance as i64
+        //     - trade.margin().into_i64()
+        //     - trade.maintenance_margin() as i64;
+        // state_guard.balance = new_balance.min(0) as u64;
+
+        // state_guard.running.push(trade);
 
         Ok(())
     }
@@ -253,18 +330,19 @@ impl TradeController for LiveTradeController {
         balance_perc: BoundedPercentage,
         leverage: Leverage,
     ) -> Result<()> {
-        let mut state_guard = self.state.lock().await;
-
-        let est_price = self.get_estimated_market_price().await?;
+        let state = self.state_manager.lock_state().await;
+        let status = state.try_status_ref()?;
 
         let risk_params = RiskParams::Short {
             stoploss_perc,
             takeprofit_perc,
         };
 
+        let est_price = self.get_estimated_market_price().await?;
+
         let (side, stoploss, takeprofit) = risk_params.into_trade_params(est_price)?;
 
-        let quantity = calculate_quantity(state_guard.balance, est_price, balance_perc)?;
+        let quantity = calculate_quantity(status.balance, est_price, balance_perc)?;
 
         let trade = self
             .api
@@ -281,21 +359,21 @@ impl TradeController for LiveTradeController {
             .await
             .map_err(LiveError::RestApi)?;
 
-        state_guard.last_trade_time = Some(Utc::now());
+        // state_guard.last_trade_time = Some(Utc::now());
 
-        let new_balance = state_guard.balance as i64
-            - trade.margin().into_i64()
-            - trade.maintenance_margin() as i64;
-        state_guard.balance = new_balance.min(0) as u64;
+        // let new_balance = state_guard.balance as i64
+        //     - trade.margin().into_i64()
+        //     - trade.maintenance_margin() as i64;
+        // state_guard.balance = new_balance.min(0) as u64;
 
-        state_guard.running.push(trade);
+        // state_guard.running.push(trade);
 
         Ok(())
     }
 
     async fn close_longs(&self) -> Result<()> {
-        let mut state_guard = self.state.lock().await;
-        state_guard.last_trade_time = Some(Utc::now());
+        // let mut state_guard = self.state.lock().await;
+        // state_guard.last_trade_time = Some(Utc::now());
 
         let running = self
             .api
@@ -331,8 +409,8 @@ impl TradeController for LiveTradeController {
     }
 
     async fn close_shorts(&self) -> Result<()> {
-        let mut state_guard = self.state.lock().await;
-        state_guard.last_trade_time = Some(Utc::now());
+        // let mut state_guard = self.state.lock().await;
+        // state_guard.last_trade_time = Some(Utc::now());
 
         let running = self
             .api
@@ -368,8 +446,8 @@ impl TradeController for LiveTradeController {
     }
 
     async fn close_all(&self) -> Result<()> {
-        let mut state_guard = self.state.lock().await;
-        state_guard.last_trade_time = Some(Utc::now());
+        // let mut state_guard = self.state.lock().await;
+        // state_guard.last_trade_time = Some(Utc::now());
 
         let (_, _) = futures::try_join!(
             self.api.rest().futures().cancel_all_trades(),
@@ -381,7 +459,10 @@ impl TradeController for LiveTradeController {
     }
 
     async fn state(&self) -> Result<TradeControllerState> {
-        let state_guard = self.state.lock().await;
+        let state = self.state_manager.lock_state().await;
+        let status = state.try_status_ref()?;
+
+        // TODO
 
         let (running_trades, closed_trades, ticker, user) = futures::try_join!(
             self.api
@@ -436,7 +517,7 @@ impl TradeController for LiveTradeController {
             Utc::now(),
             user.balance(),
             ticker.last_price().into_f64(),
-            state_guard.last_trade_time,
+            status.last_trade_time,
             running_long_qtd,
             running_long_margin,
             running_short_qtd,

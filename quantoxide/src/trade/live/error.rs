@@ -18,11 +18,11 @@ pub enum LiveError {
     #[error("[TaskJoin] {0}")]
     TaskJoin(JoinError),
 
-    #[error("ManagerNotReady error {:?}", 0)]
-    ManagerNotReady(Arc<SyncState>),
+    #[error("ManagerNotReady error")]
+    ManagerNotReady,
 
-    #[error("ManagerNotViable error {:?}", 0)]
-    ManagerNotViable(Arc<SyncState>),
+    #[error("ManagerNotViable error")]
+    ManagerNotViable,
 
     #[error("Generic error, {0}")]
     Generic(String),
