@@ -1,4 +1,4 @@
-use std::{result, sync::Arc};
+use std::{collections::HashMap, result, sync::Arc};
 
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
@@ -7,6 +7,7 @@ use tokio::{
     sync::{Mutex, MutexGuard, broadcast},
     task::JoinHandle,
 };
+use uuid::Uuid;
 
 use lnm_sdk::api::{
     ApiContext,
@@ -52,19 +53,24 @@ pub struct LiveTradeControllerStatus {
     api: Arc<ApiContext>,
     last_trade_time: Option<DateTime<Utc>>,
     balance: u64,
-    running: Vec<LnmTrade>,
+    running: HashMap<Uuid, LnmTrade>,
     closed: Vec<LnmTrade>,
 }
 
 impl LiveTradeControllerStatus {
     async fn new(db: Arc<DbContext>, api: Arc<ApiContext>) -> LiveResult<Self> {
-        let (running, user) = futures::try_join!(
+        let (trades, user) = futures::try_join!(
             api.rest()
                 .futures()
                 .get_trades_running(None, None, 50.into()),
             api.rest().user().get_user()
         )
         .map_err(LiveError::RestApi)?;
+
+        let mut running = HashMap::new();
+        for trade in trades.into_iter() {
+            running.insert(trade.id(), trade);
+        }
 
         Ok(Self {
             db,
@@ -122,7 +128,7 @@ impl<'a> LockedLiveTradeControllerStatus<'a> {
         self.as_status().balance
     }
 
-    pub fn running(&self) -> &Vec<LnmTrade> {
+    pub fn running(&self) -> &HashMap<Uuid, LnmTrade> {
         &self.as_status().running
     }
 
@@ -243,13 +249,11 @@ impl LiveTradeController {
                             SyncState::Synced(_) => {
                                 match state_manager.try_lock_status().await {
                                     Ok(locked_status) => {
-                                        // update
                                         let mut status = locked_status.to_owned();
 
                                         // TODO: errors here would be recoverable
                                         status.reevaluate().await?;
 
-                                        // let new_state = LiveTradeControllerState::Ready(status);
                                         state_manager.update_status(locked_status, status).await;
                                     }
                                     Err(_) => {
@@ -298,8 +302,6 @@ impl LiveTradeController {
         )
         .map_err(LiveError::RestApi)?;
 
-        let start_balance = user.balance();
-
         let state_manager = LiveTradeControllerStateManager::new();
 
         let handle =
@@ -309,7 +311,7 @@ impl LiveTradeController {
             db,
             api,
             start_time,
-            start_balance,
+            start_balance: user.balance(),
             state_manager,
             handle,
         })
@@ -401,6 +403,7 @@ impl TradeController for LiveTradeController {
 
         let quantity = calculate_quantity(locked_status.balance(), est_price, balance_perc)?;
 
+        // TODO: Improve error handling
         let trade = self
             .api
             .rest()
@@ -430,108 +433,112 @@ impl TradeController for LiveTradeController {
     async fn close_longs(&self) -> Result<()> {
         let locked_status = self.state_manager.try_lock_status().await?;
 
-        // let running = self
-        //     .api
-        //     .rest()
-        //     .futures()
-        //     .get_trades_running(None, None, 1000.into())
-        //     .await
-        //     .map_err(LiveError::RestApi)?;
+        let mut new_status = locked_status.to_owned();
+        let mut to_close = Vec::new();
 
-        let long_trades = locked_status
-            .running()
-            .iter()
-            .filter(|trade| trade.side() == TradeSide::Buy)
-            .collect::<Vec<_>>();
+        for (id, trade) in locked_status.running() {
+            if trade.side() == TradeSide::Buy {
+                to_close.push(id.clone());
+                new_status.running.remove(id);
+            }
+        }
 
         // Process in batches of 5
-        for chunk in long_trades.chunks(5) {
+        for chunk in to_close.chunks(5) {
             let close_futures = chunk
                 .iter()
-                .map(|trade| {
-                    let rest_futures = self.api.rest().futures();
-                    async move { rest_futures.close_trade(trade.id()).await }
-                })
+                .map(|&trade_id| self.api.rest().futures().close_trade(trade_id))
                 .collect::<Vec<_>>();
 
-            future::join_all(close_futures)
+            // TODO: Improve error handling
+            let closed = future::join_all(close_futures)
                 .await
                 .into_iter()
                 .collect::<result::Result<Vec<_>, _>>()
                 .map_err(LiveError::RestApi)?;
+
+            new_status.closed.extend(closed);
         }
+
+        self.state_manager
+            .update_status(locked_status, new_status)
+            .await;
 
         Ok(())
     }
 
     async fn close_shorts(&self) -> Result<()> {
-        // let mut state_guard = self.state.lock().await;
-        // state_guard.last_trade_time = Some(Utc::now());
+        let locked_status = self.state_manager.try_lock_status().await?;
 
-        let running = self
-            .api
-            .rest()
-            .futures()
-            .get_trades_running(None, None, 1000.into())
-            .await
-            .map_err(LiveError::RestApi)?;
+        let mut new_status = locked_status.to_owned();
+        let mut to_close = Vec::new();
 
-        let short_trades = running
-            .into_iter()
-            .filter(|trade| trade.side() == TradeSide::Sell)
-            .collect::<Vec<_>>();
+        for (id, trade) in locked_status.running() {
+            if trade.side() == TradeSide::Sell {
+                to_close.push(id.clone());
+                new_status.running.remove(id);
+            }
+        }
 
         // Process in batches of 5
-        for chunk in short_trades.chunks(5) {
+        for chunk in to_close.chunks(5) {
             let close_futures = chunk
                 .iter()
-                .map(|trade| {
-                    let rest_futures = self.api.rest().futures();
-                    async move { rest_futures.close_trade(trade.id()).await }
-                })
+                .map(|&trade_id| self.api.rest().futures().close_trade(trade_id))
                 .collect::<Vec<_>>();
 
-            future::join_all(close_futures)
+            // TODO: Improve error handling
+            let closed = future::join_all(close_futures)
                 .await
                 .into_iter()
                 .collect::<result::Result<Vec<_>, _>>()
                 .map_err(LiveError::RestApi)?;
+
+            new_status.closed.extend(closed);
         }
+
+        self.state_manager
+            .update_status(locked_status, new_status)
+            .await;
 
         Ok(())
     }
 
     async fn close_all(&self) -> Result<()> {
-        // let mut state_guard = self.state.lock().await;
-        // state_guard.last_trade_time = Some(Utc::now());
+        let locked_status = self.state_manager.try_lock_status().await?;
 
-        let (_, _) = futures::try_join!(
+        let mut new_status = locked_status.to_owned();
+
+        // TODO: Improve error handling
+        let (_, closed) = futures::try_join!(
             self.api.rest().futures().cancel_all_trades(),
             self.api.rest().futures().close_all_trades(),
         )
         .map_err(LiveError::RestApi)?;
 
+        new_status.running = HashMap::new();
+        new_status.closed.extend(closed);
+
+        self.state_manager
+            .update_status(locked_status, new_status)
+            .await;
+
         Ok(())
     }
 
     async fn state(&self) -> Result<TradeControllerState> {
-        let status = self.state_manager.try_lock_status().await?;
+        let status = {
+            let locked = self.state_manager.try_lock_status().await?;
+            locked.to_owned()
+        };
 
-        // TODO
-
-        let (running_trades, closed_trades, ticker, user) = futures::try_join!(
-            self.api
-                .rest()
-                .futures()
-                .get_trades_running(None, None, 1000.into()),
-            self.api
-                .rest()
-                .futures()
-                .get_trades_closed(Some(&self.start_time), None, 1000.into()),
-            self.api.rest().futures().ticker(),
-            self.api.rest().user().get_user()
-        )
-        .map_err(LiveError::RestApi)?;
+        let (_, latest_price) = self
+            .db
+            .price_ticks
+            .get_latest_entry()
+            .await
+            .map_err(|e| LiveError::Generic(e.to_string()))?
+            .ok_or(LiveError::Generic("db is empty".to_string()))?;
 
         let mut running_long_qtd: usize = 0;
         let mut running_long_margin: u64 = 0;
@@ -541,7 +548,7 @@ impl TradeController for LiveTradeController {
         let mut running_fees: u64 = 0;
         let mut running_maintenance_margin: u64 = 0;
 
-        for trade in running_trades.iter() {
+        for trade in status.running.values() {
             match trade.side() {
                 TradeSide::Buy => {
                     running_long_qtd += 1;
@@ -553,6 +560,7 @@ impl TradeController for LiveTradeController {
                 }
             };
 
+            // TODO: Estimate with market price
             running_pl += trade.pl();
             running_fees += trade.opening_fee();
             running_maintenance_margin += trade.maintenance_margin();
@@ -561,7 +569,7 @@ impl TradeController for LiveTradeController {
         let mut closed_pl: i64 = 0;
         let mut closed_fees: u64 = 0;
 
-        for trade in closed_trades.iter() {
+        for trade in status.closed.iter() {
             closed_pl += trade.pl();
             closed_fees += trade.opening_fee() + trade.closing_fee();
         }
@@ -570,9 +578,9 @@ impl TradeController for LiveTradeController {
             self.start_time,
             self.start_balance,
             Utc::now(),
-            user.balance(),
-            ticker.last_price().into_f64(),
-            status.last_trade_time(),
+            status.balance,
+            latest_price,
+            status.last_trade_time,
             running_long_qtd,
             running_long_margin,
             running_short_qtd,
@@ -580,7 +588,7 @@ impl TradeController for LiveTradeController {
             running_pl,
             running_fees,
             running_maintenance_margin,
-            closed_trades.len(),
+            status.closed.len(),
             closed_pl,
             closed_fees,
         );
