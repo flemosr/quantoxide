@@ -4,7 +4,10 @@ use chrono::{DateTime, Utc};
 use tokio::sync::{Mutex, MutexGuard, broadcast};
 use uuid::Uuid;
 
-use lnm_sdk::api::{ApiContext, rest::models::LnmTrade};
+use lnm_sdk::api::{
+    ApiContext,
+    rest::models::{LnmTrade, Trade},
+};
 
 use crate::{db::DbContext, sync::SyncState};
 
@@ -66,21 +69,42 @@ impl LiveTradeControllerStatus {
         todo!()
     }
 
-    pub fn register_trade(&mut self, new_running_trade: LnmTrade) -> LiveResult<()> {
-        // state_guard.last_trade_time = Some(Utc::now());
+    pub fn register_trade(&mut self, new_running_trade: LnmTrade) {
+        self.last_trade_time = Some(Utc::now());
 
-        // let new_balance = state_guard.balance as i64
-        //     - trade.margin().into_i64()
-        //     - trade.maintenance_margin() as i64;
-        // state_guard.balance = new_balance.min(0) as u64;
+        self.balance = {
+            self.balance as i64
+                - new_running_trade.margin().into_i64()
+                - new_running_trade.maintenance_margin() as i64
+        }
+        .min(0) as u64;
 
-        // state_guard.running.push(trade);
-        //
-        todo!()
+        self.running
+            .insert(new_running_trade.id(), new_running_trade);
     }
 
     pub fn close_trade(&mut self, closed_trade: LnmTrade) -> LiveResult<()> {
-        todo!()
+        if self.running.remove(&closed_trade.id()).is_none() {
+            return Err(LiveError::Generic(
+                "`closed_trade` was not running".to_string(),
+            ));
+        }
+
+        self.last_trade_time = Some(Utc::now());
+
+        self.balance = {
+            self.balance as i64
+                + closed_trade.margin().into_i64()
+                + closed_trade.maintenance_margin() as i64
+                - closed_trade.opening_fee() as i64
+                - closed_trade.closing_fee() as i64
+                + closed_trade.pl()
+        }
+        .min(0) as u64;
+
+        self.closed.push(closed_trade);
+
+        Ok(())
     }
 
     pub fn close_trades(&mut self, closed_trades: Vec<LnmTrade>) -> LiveResult<()> {
