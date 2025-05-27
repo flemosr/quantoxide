@@ -365,13 +365,7 @@ impl TradeController for LiveTradeController {
             locked.to_owned()
         };
 
-        let (_, latest_price) = self
-            .db
-            .price_ticks
-            .get_latest_entry()
-            .await
-            .map_err(|e| LiveError::Generic(e.to_string()))?
-            .ok_or(LiveError::Generic("db is empty".to_string()))?;
+        let est_price = self.get_estimated_market_price().await?;
 
         let mut running_long_qtd: usize = 0;
         let mut running_long_margin: u64 = 0;
@@ -412,7 +406,7 @@ impl TradeController for LiveTradeController {
             self.start_balance,
             Utc::now(),
             status.balance(),
-            latest_price,
+            est_price.into_f64(),
             status.last_trade_time(),
             running_long_qtd,
             running_long_margin,
