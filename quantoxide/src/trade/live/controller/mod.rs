@@ -30,7 +30,10 @@ use super::{
 
 mod state;
 
-use state::{LiveTradeControllerState, LiveTradeControllerStateManager, LiveTradeControllerStatus};
+use state::{
+    LiveTradeControllerReceiver, LiveTradeControllerState, LiveTradeControllerStateManager,
+    LiveTradeControllerStatus,
+};
 
 fn calculate_quantity(
     balance: u64,
@@ -151,6 +154,14 @@ impl LiveTradeController {
             state_manager,
             handle,
         })
+    }
+
+    pub fn receiver(&self) -> LiveTradeControllerReceiver {
+        self.state_manager.receiver()
+    }
+
+    pub async fn state_snapshot(&self) -> Arc<LiveTradeControllerState> {
+        self.state_manager.snapshot().await
     }
 
     async fn get_estimated_market_price(&self) -> Result<Price> {
