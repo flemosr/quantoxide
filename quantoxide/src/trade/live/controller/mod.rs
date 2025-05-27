@@ -84,9 +84,13 @@ impl LiveTradeController {
                                         let mut status = locked_status.to_owned();
 
                                         // TODO: errors here would be recoverable
-                                        status.reevaluate().await?;
+                                        let status_updated = status.reevaluate().await?;
 
-                                        state_manager.update_status(locked_status, status).await;
+                                        if status_updated {
+                                            state_manager
+                                                .update_status(locked_status, status)
+                                                .await;
+                                        }
                                     }
                                     Err(_) => {
                                         // Manager wasn't ready
@@ -206,7 +210,7 @@ impl TradeController for LiveTradeController {
 
         let mut new_status = locked_status.to_owned();
 
-        new_status.register_trade(trade)?;
+        new_status.register_trade(trade);
 
         self.state_manager
             .update_status(locked_status, new_status)
@@ -253,7 +257,7 @@ impl TradeController for LiveTradeController {
 
         let mut new_status = locked_status.to_owned();
 
-        new_status.register_trade(trade)?;
+        new_status.register_trade(trade);
 
         self.state_manager
             .update_status(locked_status, new_status)
