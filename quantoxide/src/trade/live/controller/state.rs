@@ -33,10 +33,8 @@ impl LiveTradeControllerStatus {
             .map_err(|e| LiveError::Generic(e.to_string()))?
             .ok_or(LiveError::Generic("db is empty".to_string()))?;
 
-        let (trades, user) = futures::try_join!(
-            api.rest()
-                .futures()
-                .get_trades_running(None, None, 50.into()),
+        let (running_trades, user) = futures::try_join!(
+            api.rest().futures().get_trades_running(None, None, None),
             api.rest().user().get_user()
         )
         .map_err(LiveError::RestApi)?;
@@ -45,7 +43,7 @@ impl LiveTradeControllerStatus {
         let mut trigger = PriceTrigger::NotSet;
         let mut running = HashMap::new();
 
-        for trade in trades.into_iter() {
+        for trade in running_trades.into_iter() {
             let new_last_trade_time = if let Some(last_trade_time) = last_trade_time {
                 last_trade_time.max(trade.creation_ts())
             } else {
@@ -151,7 +149,7 @@ impl LiveTradeControllerStatus {
             )));
         }
 
-        if !self.running.contains_key(&new_trade.id()) {
+        if self.running.contains_key(&new_trade.id()) {
             return Err(LiveError::Generic(format!(
                 "`new_trade` {} already registered",
                 new_trade.id(),
