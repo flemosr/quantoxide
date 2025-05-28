@@ -28,7 +28,7 @@ use super::{
     error::{LiveError, Result as LiveResult},
 };
 
-mod state;
+pub mod state;
 
 use state::{
     LiveTradeControllerReceiver, LiveTradeControllerState, LiveTradeControllerStateManager,
@@ -86,7 +86,10 @@ impl LiveTradeController {
                                     Ok(locked_status) => {
                                         let mut status = locked_status.to_owned();
 
-                                        let status_changed = match status.reevaluate().await {
+                                        let status_changed = match status
+                                            .reevaluate(db.as_ref(), api.as_ref())
+                                            .await
+                                        {
                                             Ok(status_changed) => status_changed,
                                             Err(e) => {
                                                 // Recoverable error
@@ -105,8 +108,8 @@ impl LiveTradeController {
                                     Err(_) => {
                                         // Try to obtain `LiveTradeControllerStatus` via API
                                         let status = match LiveTradeControllerStatus::new(
-                                            db.clone(),
-                                            api.clone(),
+                                            db.as_ref(),
+                                            api.as_ref(),
                                         )
                                         .await
                                         {
