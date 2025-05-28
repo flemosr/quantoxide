@@ -83,34 +83,40 @@ impl LiveTradeControllerStatus {
             .insert(new_running_trade.id(), new_running_trade);
     }
 
-    pub fn close_trade(&mut self, closed_trade: LnmTrade) -> LiveResult<()> {
-        if self.running.remove(&closed_trade.id()).is_none() {
-            return Err(LiveError::Generic(
-                "`closed_trade` was not running".to_string(),
-            ));
-        }
-
-        self.last_trade_time = Some(Utc::now());
-
-        self.balance = {
-            self.balance as i64
-                + closed_trade.margin().into_i64()
-                + closed_trade.maintenance_margin() as i64
-                - closed_trade.opening_fee() as i64
-                - closed_trade.closing_fee() as i64
-                + closed_trade.pl()
-        }
-        .min(0) as u64;
-
-        self.closed.push(closed_trade);
-
-        Ok(())
-    }
-
     pub fn close_trades(&mut self, closed_trades: Vec<LnmTrade>) -> LiveResult<()> {
-        for closed_trade in closed_trades {
-            self.close_trade(closed_trade)?;
+        let mut closed_map = HashMap::new();
+        for trade in closed_trades {
+            if !self.running.contains_key(&trade.id()) {
+                return Err(LiveError::Generic(format!(
+                    "`closed_trade` {} was not running",
+                    trade.id(),
+                )));
+            }
+            closed_map.insert(trade.id(), trade);
         }
+
+        let mut new_running = HashMap::new();
+        let mut new_balance = self.balance as i64;
+
+        for (id, trade) in &self.running {
+            if let Some(closed_trade) = closed_map.remove(id) {
+                new_balance += closed_trade.margin().into_i64()
+                    + closed_trade.maintenance_margin() as i64
+                    - closed_trade.opening_fee() as i64
+                    - closed_trade.closing_fee() as i64
+                    + closed_trade.pl();
+
+                self.closed.push(closed_trade);
+            } else {
+                // TODO: Update price trigger
+
+                new_running.insert(*id, trade.clone());
+            }
+        }
+
+        self.running = new_running;
+        self.balance = new_balance.min(0) as u64;
+
         Ok(())
     }
 }
