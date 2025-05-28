@@ -23,15 +23,16 @@ use super::core::{Operator, TradeController, TradeControllerState, WrappedOperat
 pub mod controller;
 pub mod error;
 
-use controller::LiveTradeController;
+use controller::{LiveTradeController, state::LiveTradeControllerState};
 use error::{LiveError, Result};
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 pub enum LiveState {
     NotInitiated,
     Starting,
     WaitingForSync(Arc<SyncState>),
     WaitingForSignal(Arc<LiveSignalState>),
+    WaitingTradeController(Arc<LiveTradeControllerState>),
     Running((Signal, TradeControllerState)),
     Failed(LiveError),
     Restarting,
@@ -86,7 +87,7 @@ struct LiveProcess {
     operator: WrappedOperator,
     shutdown_tx: broadcast::Sender<()>,
     signal_controller: Arc<LiveSignalController>,
-    trades_manager: Arc<LiveTradeController>,
+    trade_controller: Arc<LiveTradeController>,
     state_manager: LiveStateManager,
 }
 
@@ -96,7 +97,7 @@ impl LiveProcess {
         operator: WrappedOperator,
         shutdown_tx: broadcast::Sender<()>,
         signal_controller: Arc<LiveSignalController>,
-        trades_manager: Arc<LiveTradeController>,
+        trade_controller: Arc<LiveTradeController>,
         state_manager: LiveStateManager,
     ) -> Self {
         Self {
@@ -104,7 +105,7 @@ impl LiveProcess {
             operator,
             shutdown_tx,
             signal_controller,
-            trades_manager,
+            trade_controller,
             state_manager,
         }
     }
@@ -113,13 +114,26 @@ impl LiveProcess {
         while let Ok(res) = self.signal_controller.receiver().recv().await {
             match res.as_ref() {
                 LiveSignalState::Running(last_signal) => {
+                    let trade_controller_state = self.trade_controller.state_snapshot().await;
+
+                    if !matches!(
+                        trade_controller_state.as_ref(),
+                        LiveTradeControllerState::Ready(_)
+                    ) {
+                        self.state_manager
+                            .update(LiveState::WaitingTradeController(trade_controller_state))
+                            .await;
+
+                        continue;
+                    }
+
                     self.operator
                         .process_signal(last_signal)
                         .await
                         .map_err(|e| LiveError::Generic(e.to_string()))?;
 
                     let trades_state = self
-                        .trades_manager
+                        .trade_controller
                         .state()
                         .await
                         .map_err(|e| LiveError::Generic(e.to_string()))?;
