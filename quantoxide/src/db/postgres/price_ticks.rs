@@ -28,11 +28,6 @@ impl PgPriceTicksRepo {
     }
 }
 
-struct UnionPriceEntry {
-    time: Option<DateTime<Utc>>,
-    price: Option<f64>,
-}
-
 #[async_trait]
 impl PriceTicksRepository for PgPriceTicksRepo {
     async fn add_tick(&self, tick: &PriceTickLNM) -> Result<Option<PriceTick>> {
@@ -55,6 +50,11 @@ impl PriceTicksRepository for PgPriceTicksRepo {
     }
 
     async fn get_latest_entry(&self) -> Result<Option<(DateTime<Utc>, f64)>> {
+        struct UnionPriceEntry {
+            time: Option<DateTime<Utc>>,
+            price: Option<f64>,
+        }
+
         let latest_entry_opt = sqlx::query_as!(
             UnionPriceEntry,
             r#"
@@ -90,6 +90,51 @@ impl PriceTicksRepository for PgPriceTicksRepo {
         });
 
         Ok(latest_entry_opt)
+    }
+
+    async fn get_price_range_from(
+        &self,
+        start: DateTime<Utc>,
+    ) -> Result<Option<(DateTime<Utc>, f64, f64)>> {
+        struct PriceRange {
+            latest_time: Option<DateTime<Utc>>,
+            min_price: Option<f64>,
+            max_price: Option<f64>,
+        }
+
+        let range_data = sqlx::query_as!(
+            PriceRange,
+            r#"
+                WITH combined_prices AS (
+                    SELECT time, last_price as price
+                    FROM price_ticks
+                    WHERE time > $1
+                    UNION ALL
+                    SELECT time, value as price
+                    FROM price_history
+                    WHERE time > $1
+                )
+                SELECT
+                    MAX(time) as latest_time,
+                    MIN(price) as min_price,
+                    MAX(price) as max_price
+                FROM combined_prices
+            "#,
+            start
+        )
+        .fetch_optional(self.pool())
+        .await
+        .map_err(DbError::Query)?;
+
+        match range_data {
+            Some(data) => match (data.latest_time, data.min_price, data.max_price) {
+                (Some(latest_time), Some(min_price), Some(max_price)) => {
+                    Ok(Some((latest_time, min_price, max_price)))
+                }
+                _ => Ok(None),
+            },
+            None => Ok(None),
+        }
     }
 
     async fn eval_entries_locf(
