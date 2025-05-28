@@ -441,12 +441,10 @@ impl LiveEngine {
         .start()
         .map_err(|e| LiveError::Generic(e.to_string()))?;
 
-        let trades_manager = {
-            let manager = LiveTradeController::new(self.db, self.api, sync_controller.receiver())
+        let trades_manager =
+            LiveTradeController::new(self.db, self.api, sync_controller.receiver())
                 .await
                 .map_err(|e| LiveError::Generic(e.to_string()))?;
-            Arc::new(manager)
-        };
 
         self.operator
             .set_trade_controller(trades_manager.clone())

@@ -148,7 +148,7 @@ impl LiveTradeController {
         db: Arc<DbContext>,
         api: Arc<ApiContext>,
         sync_rx: SyncReceiver,
-    ) -> Result<Self> {
+    ) -> Result<Arc<Self>> {
         let start_time = Utc::now();
 
         let (_, _, user) = futures::try_join!(
@@ -163,14 +163,14 @@ impl LiveTradeController {
         let handle =
             Self::handle_sync_updates(db.clone(), api.clone(), sync_rx, state_manager.clone());
 
-        Ok(Self {
+        Ok(Arc::new(Self {
             db,
             api,
             start_time,
             start_balance: user.balance(),
             state_manager,
             handle,
-        })
+        }))
     }
 
     pub fn receiver(&self) -> LiveTradeControllerReceiver {
