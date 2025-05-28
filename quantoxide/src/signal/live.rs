@@ -123,13 +123,24 @@ impl LiveSignalProcess {
                 target_exec
             };
 
-            let sync_state = self.sync_controller.state_snapshot().await;
+            if !matches!(
+                self.sync_controller.state_snapshot().await.as_ref(),
+                SyncState::Synced(_)
+            ) {
+                while let Ok(sync_state) = self.sync_controller.receiver().recv().await {
+                    match sync_state.as_ref() {
+                        SyncState::Synced(_) => break,
+                        _ => {
+                            self.state_manager
+                                .update(LiveSignalState::WaitingForSync(sync_state))
+                                .await;
 
-            if !matches!(sync_state.as_ref(), SyncState::Synced(_)) {
-                self.state_manager
-                    .update(LiveSignalState::WaitingForSync(sync_state))
-                    .await;
+                            continue;
+                        }
+                    }
+                }
 
+                last_eval = Utc::now();
                 continue;
             }
 
