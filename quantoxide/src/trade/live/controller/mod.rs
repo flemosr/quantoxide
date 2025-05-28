@@ -240,7 +240,7 @@ impl LiveTradeController {
 
         let mut new_status = locked_status.to_owned();
 
-        new_status.register_trade(trade);
+        new_status.register_running_trade(trade)?;
 
         self.state_manager
             .update_status(locked_status, new_status)

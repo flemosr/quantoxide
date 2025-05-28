@@ -9,7 +9,7 @@ use lnm_sdk::api::{
     rest::models::{LnmTrade, Trade},
 };
 
-use crate::{db::DbContext, sync::SyncState};
+use crate::{db::DbContext, sync::SyncState, trade::core::PriceTrigger};
 
 use super::super::error::{LiveError, Result as LiveResult};
 
@@ -19,6 +19,7 @@ pub struct LiveTradeControllerStatus {
     api: Arc<ApiContext>,
     last_trade_time: Option<DateTime<Utc>>,
     balance: u64,
+    trigger: PriceTrigger,
     running: HashMap<Uuid, LnmTrade>,
     closed: Vec<LnmTrade>,
 }
@@ -33,16 +34,27 @@ impl LiveTradeControllerStatus {
         )
         .map_err(LiveError::RestApi)?;
 
+        let mut last_trade_time: Option<DateTime<Utc>> = None;
+        let mut trigger = PriceTrigger::NotSet;
         let mut running = HashMap::new();
+
         for trade in trades.into_iter() {
+            let new_last_trade_time = if let Some(last_trade_time) = last_trade_time {
+                last_trade_time.max(trade.creation_ts())
+            } else {
+                trade.creation_ts()
+            };
+            last_trade_time = Some(new_last_trade_time);
+            trigger.update(&trade);
             running.insert(trade.id(), trade);
         }
 
         Ok(Self {
             db,
             api,
-            last_trade_time: None,
+            last_trade_time,
             balance: user.balance(),
+            trigger,
             running,
             closed: Vec::new(),
         })
@@ -69,33 +81,83 @@ impl LiveTradeControllerStatus {
         todo!()
     }
 
-    pub fn register_trade(&mut self, new_running_trade: LnmTrade) {
-        self.last_trade_time = Some(Utc::now());
+    pub fn register_running_trade(&mut self, new_trade: LnmTrade) -> LiveResult<()> {
+        if !new_trade.running() {
+            return Err(LiveError::Generic(format!(
+                "`new_trade` {} is not running",
+                new_trade.id(),
+            )));
+        }
+
+        if !self.running.contains_key(&new_trade.id()) {
+            return Err(LiveError::Generic(format!(
+                "`new_trade` {} already registered",
+                new_trade.id(),
+            )));
+        }
+
+        if self
+            .last_trade_time
+            .map_or(false, |last| last >= new_trade.creation_ts())
+        {
+            return Err(LiveError::Generic(format!(
+                "`new_trade` {} `creation_ts` is not gt than `last_trade_time`",
+                new_trade.id(),
+            )));
+        }
+
+        self.last_trade_time = Some(new_trade.creation_ts());
 
         self.balance = {
             self.balance as i64
-                - new_running_trade.margin().into_i64()
-                - new_running_trade.maintenance_margin() as i64
+                - new_trade.margin().into_i64()
+                - new_trade.maintenance_margin() as i64
         }
         .min(0) as u64;
 
-        self.running
-            .insert(new_running_trade.id(), new_running_trade);
+        self.trigger.update(&new_trade);
+        self.running.insert(new_trade.id(), new_trade);
+
+        Ok(())
     }
 
     pub fn close_trades(&mut self, closed_trades: Vec<LnmTrade>) -> LiveResult<()> {
         let mut closed_map = HashMap::new();
-        for trade in closed_trades {
-            if !self.running.contains_key(&trade.id()) {
+        let mut new_last_trade_time: Option<DateTime<Utc>> = None;
+
+        for closed_trade in closed_trades {
+            let closed_ts = if let Some(closed_ts) = closed_trade.closed_ts() {
+                closed_ts
+            } else {
+                return Err(LiveError::Generic(format!(
+                    "`closed_trade` {} is not closed",
+                    closed_trade.id(),
+                )));
+            };
+
+            if !self.running.contains_key(&closed_trade.id()) {
                 return Err(LiveError::Generic(format!(
                     "`closed_trade` {} was not running",
-                    trade.id(),
+                    closed_trade.id(),
                 )));
             }
-            closed_map.insert(trade.id(), trade);
+
+            if self.last_trade_time.map_or(false, |last| last >= closed_ts) {
+                return Err(LiveError::Generic(format!(
+                    "`closed_trade` {} `closed_ts` is not gt than `last_trade_time`",
+                    closed_trade.id(),
+                )));
+            }
+
+            closed_map.insert(closed_trade.id(), closed_trade);
+
+            if new_last_trade_time.map_or(true, |last_closed| closed_ts > last_closed) {
+                new_last_trade_time = Some(closed_ts);
+            }
         }
 
         let mut new_running = HashMap::new();
+        let mut new_trigger = PriceTrigger::NotSet;
         let mut new_balance = self.balance as i64;
 
         for (id, trade) in &self.running {
@@ -108,12 +170,13 @@ impl LiveTradeControllerStatus {
 
                 self.closed.push(closed_trade);
             } else {
-                // TODO: Update price trigger
-
+                new_trigger.update(trade);
                 new_running.insert(*id, trade.clone());
             }
         }
 
+        self.last_trade_time = new_last_trade_time;
+        self.trigger = new_trigger;
         self.running = new_running;
         self.balance = new_balance.min(0) as u64;
 
