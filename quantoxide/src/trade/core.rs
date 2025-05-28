@@ -291,7 +291,7 @@ impl From<Box<dyn Operator>> for WrappedOperator {
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub enum PriceTrigger {
     NotSet,
     Set { min: Price, max: Price },
