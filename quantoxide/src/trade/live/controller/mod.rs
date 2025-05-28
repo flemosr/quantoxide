@@ -197,23 +197,14 @@ impl LiveTradeController {
 
         Ok(price)
     }
-}
 
-#[async_trait]
-impl TradeController for LiveTradeController {
-    async fn open_long(
+    async fn open_trade(
         &self,
-        stoploss_perc: BoundedPercentage,
-        takeprofit_perc: LowerBoundedPercentage,
+        risk_params: RiskParams,
         balance_perc: BoundedPercentage,
         leverage: Leverage,
     ) -> Result<()> {
         let locked_status = self.state_manager.try_lock_status().await?;
-
-        let risk_params = RiskParams::Long {
-            stoploss_perc,
-            takeprofit_perc,
-        };
 
         let est_price = self.get_estimated_market_price().await?;
 
@@ -257,6 +248,24 @@ impl TradeController for LiveTradeController {
 
         Ok(())
     }
+}
+
+#[async_trait]
+impl TradeController for LiveTradeController {
+    async fn open_long(
+        &self,
+        stoploss_perc: BoundedPercentage,
+        takeprofit_perc: LowerBoundedPercentage,
+        balance_perc: BoundedPercentage,
+        leverage: Leverage,
+    ) -> Result<()> {
+        let risk_params = RiskParams::Long {
+            stoploss_perc,
+            takeprofit_perc,
+        };
+
+        self.open_trade(risk_params, balance_perc, leverage).await
+    }
 
     async fn open_short(
         &self,
@@ -265,54 +274,12 @@ impl TradeController for LiveTradeController {
         balance_perc: BoundedPercentage,
         leverage: Leverage,
     ) -> Result<()> {
-        let locked_status = self.state_manager.try_lock_status().await?;
-
         let risk_params = RiskParams::Short {
             stoploss_perc,
             takeprofit_perc,
         };
 
-        let est_price = self.get_estimated_market_price().await?;
-
-        let (side, stoploss, takeprofit) = risk_params.into_trade_params(est_price)?;
-
-        let quantity = calculate_quantity(locked_status.balance(), est_price, balance_perc)?;
-
-        let trade = match self
-            .api
-            .rest()
-            .futures()
-            .create_new_trade(
-                side,
-                quantity.into(),
-                leverage,
-                TradeExecution::Market,
-                Some(stoploss),
-                Some(takeprofit),
-            )
-            .await
-            .map_err(LiveError::RestApi)
-        {
-            Ok(trade) => trade,
-            Err(e) => {
-                // Status needs to be recreated
-                let new_state =
-                    LiveTradeControllerState::Failed(LiveError::Generic("api error".to_string()));
-                self.state_manager.update(new_state).await;
-
-                return Err(e.into());
-            }
-        };
-
-        let mut new_status = locked_status.to_owned();
-
-        new_status.register_trade(trade);
-
-        self.state_manager
-            .update_status(locked_status, new_status)
-            .await;
-
-        Ok(())
+        self.open_trade(risk_params, balance_perc, leverage).await
     }
 
     async fn close_longs(&self) -> Result<()> {
