@@ -86,22 +86,39 @@ impl LiveTradeController {
                                     Ok(locked_status) => {
                                         let mut status = locked_status.to_owned();
 
-                                        // TODO: errors here would be recoverable
-                                        let status_updated = status.reevaluate().await?;
+                                        let status_changed = match status.reevaluate().await {
+                                            Ok(status_changed) => status_changed,
+                                            Err(e) => {
+                                                // Recoverable error
+                                                let new_state = LiveTradeControllerState::Failed(e);
+                                                state_manager.update(new_state).await;
+                                                continue;
+                                            }
+                                        };
 
-                                        if status_updated {
+                                        if status_changed {
                                             state_manager
                                                 .update_status(locked_status, status)
                                                 .await;
                                         }
                                     }
                                     Err(_) => {
-                                        // Manager wasn't ready
+                                        // Try to obtain `LiveTradeControllerStatus` via API
+                                        let status = match LiveTradeControllerStatus::new(
+                                            db.clone(),
+                                            api.clone(),
+                                        )
+                                        .await
+                                        {
+                                            Ok(status) => status,
+                                            Err(e) => {
+                                                // Recoverable error
+                                                let new_state = LiveTradeControllerState::Failed(e);
+                                                state_manager.update(new_state).await;
+                                                continue;
+                                            }
+                                        };
 
-                                        // TODO: errors here would be recoverable
-                                        let status =
-                                            LiveTradeControllerStatus::new(db.clone(), api.clone())
-                                                .await?;
                                         let new_state = LiveTradeControllerState::Ready(status);
                                         state_manager.update(new_state).await;
                                     }
@@ -204,7 +221,7 @@ impl TradeController for LiveTradeController {
 
         let quantity = calculate_quantity(locked_status.balance(), est_price, balance_perc)?;
 
-        let trade = self
+        let trade = match self
             .api
             .rest()
             .futures()
@@ -217,7 +234,18 @@ impl TradeController for LiveTradeController {
                 Some(takeprofit),
             )
             .await
-            .map_err(LiveError::RestApi)?;
+            .map_err(LiveError::RestApi)
+        {
+            Ok(trade) => trade,
+            Err(e) => {
+                // Status needs to be recreated
+                let new_state =
+                    LiveTradeControllerState::Failed(LiveError::Generic("api error".to_string()));
+                self.state_manager.update(new_state).await;
+
+                return Err(e.into());
+            }
+        };
 
         let mut new_status = locked_status.to_owned();
 
@@ -250,8 +278,7 @@ impl TradeController for LiveTradeController {
 
         let quantity = calculate_quantity(locked_status.balance(), est_price, balance_perc)?;
 
-        // TODO: Improve error handling
-        let trade = self
+        let trade = match self
             .api
             .rest()
             .futures()
@@ -264,7 +291,18 @@ impl TradeController for LiveTradeController {
                 Some(takeprofit),
             )
             .await
-            .map_err(LiveError::RestApi)?;
+            .map_err(LiveError::RestApi)
+        {
+            Ok(trade) => trade,
+            Err(e) => {
+                // Status needs to be recreated
+                let new_state =
+                    LiveTradeControllerState::Failed(LiveError::Generic("api error".to_string()));
+                self.state_manager.update(new_state).await;
+
+                return Err(e.into());
+            }
+        };
 
         let mut new_status = locked_status.to_owned();
 
@@ -296,12 +334,23 @@ impl TradeController for LiveTradeController {
                 .map(|&trade_id| self.api.rest().futures().close_trade(trade_id))
                 .collect::<Vec<_>>();
 
-            // TODO: Improve error handling
-            let closed = future::join_all(close_futures)
+            let closed = match future::join_all(close_futures)
                 .await
                 .into_iter()
                 .collect::<result::Result<Vec<_>, _>>()
-                .map_err(LiveError::RestApi)?;
+                .map_err(LiveError::RestApi)
+            {
+                Ok(closed) => closed,
+                Err(e) => {
+                    // Status needs to be recreated
+                    let new_state = LiveTradeControllerState::Failed(LiveError::Generic(
+                        "api error".to_string(),
+                    ));
+                    self.state_manager.update(new_state).await;
+
+                    return Err(e.into());
+                }
+            };
 
             new_status.close_trades(closed)?;
         }
@@ -332,12 +381,23 @@ impl TradeController for LiveTradeController {
                 .map(|&trade_id| self.api.rest().futures().close_trade(trade_id))
                 .collect::<Vec<_>>();
 
-            // TODO: Improve error handling
-            let closed = future::join_all(close_futures)
+            let closed = match future::join_all(close_futures)
                 .await
                 .into_iter()
                 .collect::<result::Result<Vec<_>, _>>()
-                .map_err(LiveError::RestApi)?;
+                .map_err(LiveError::RestApi)
+            {
+                Ok(closed) => closed,
+                Err(e) => {
+                    // Status needs to be recreated
+                    let new_state = LiveTradeControllerState::Failed(LiveError::Generic(
+                        "api error".to_string(),
+                    ));
+                    self.state_manager.update(new_state).await;
+
+                    return Err(e.into());
+                }
+            };
 
             new_status.close_trades(closed)?;
         }
@@ -354,12 +414,22 @@ impl TradeController for LiveTradeController {
 
         let mut new_status = locked_status.to_owned();
 
-        // TODO: Improve error handling
-        let (_, closed) = futures::try_join!(
+        let closed = match futures::try_join!(
             self.api.rest().futures().cancel_all_trades(),
             self.api.rest().futures().close_all_trades(),
         )
-        .map_err(LiveError::RestApi)?;
+        .map_err(LiveError::RestApi)
+        {
+            Ok((_, closed)) => closed,
+            Err(e) => {
+                // Status needs to be reevaluated
+                let new_state =
+                    LiveTradeControllerState::Failed(LiveError::Generic("api error".to_string()));
+                self.state_manager.update(new_state).await;
+
+                return Err(e.into());
+            }
+        };
 
         new_status.close_trades(closed)?;
 
@@ -398,7 +468,7 @@ impl TradeController for LiveTradeController {
                 }
             };
 
-            // TODO: Estimate with market price
+            // FIXME: Estimate with market price
             running_pl += trade.pl();
             running_fees += trade.opening_fee();
             running_maintenance_margin += trade.maintenance_margin();
