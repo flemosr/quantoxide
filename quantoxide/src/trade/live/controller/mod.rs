@@ -248,6 +248,53 @@ impl LiveTradeController {
 
         Ok(())
     }
+
+    async fn close_trades(&self, side: TradeSide) -> Result<()> {
+        let locked_status = self.state_manager.try_lock_status().await?;
+
+        let mut new_status = locked_status.to_owned();
+        let mut to_close = Vec::new();
+
+        for (id, trade) in locked_status.running() {
+            if trade.side() == side {
+                to_close.push(id.clone());
+            }
+        }
+
+        // Process in batches of 5
+        for chunk in to_close.chunks(5) {
+            let close_futures = chunk
+                .iter()
+                .map(|&trade_id| self.api.rest().futures().close_trade(trade_id))
+                .collect::<Vec<_>>();
+
+            let closed = match future::join_all(close_futures)
+                .await
+                .into_iter()
+                .collect::<result::Result<Vec<_>, _>>()
+                .map_err(LiveError::RestApi)
+            {
+                Ok(closed) => closed,
+                Err(e) => {
+                    // Status needs to be recreated
+                    let new_state = LiveTradeControllerState::Failed(LiveError::Generic(
+                        "api error".to_string(),
+                    ));
+                    self.state_manager.update(new_state).await;
+
+                    return Err(e.into());
+                }
+            };
+
+            new_status.close_trades(closed)?;
+        }
+
+        self.state_manager
+            .update_status(locked_status, new_status)
+            .await;
+
+        Ok(())
+    }
 }
 
 #[async_trait]
@@ -283,97 +330,11 @@ impl TradeController for LiveTradeController {
     }
 
     async fn close_longs(&self) -> Result<()> {
-        let locked_status = self.state_manager.try_lock_status().await?;
-
-        let mut new_status = locked_status.to_owned();
-        let mut to_close = Vec::new();
-
-        for (id, trade) in locked_status.running() {
-            if trade.side() == TradeSide::Buy {
-                to_close.push(id.clone());
-            }
-        }
-
-        // Process in batches of 5
-        for chunk in to_close.chunks(5) {
-            let close_futures = chunk
-                .iter()
-                .map(|&trade_id| self.api.rest().futures().close_trade(trade_id))
-                .collect::<Vec<_>>();
-
-            let closed = match future::join_all(close_futures)
-                .await
-                .into_iter()
-                .collect::<result::Result<Vec<_>, _>>()
-                .map_err(LiveError::RestApi)
-            {
-                Ok(closed) => closed,
-                Err(e) => {
-                    // Status needs to be recreated
-                    let new_state = LiveTradeControllerState::Failed(LiveError::Generic(
-                        "api error".to_string(),
-                    ));
-                    self.state_manager.update(new_state).await;
-
-                    return Err(e.into());
-                }
-            };
-
-            new_status.close_trades(closed)?;
-        }
-
-        self.state_manager
-            .update_status(locked_status, new_status)
-            .await;
-
-        Ok(())
+        self.close_trades(TradeSide::Buy).await
     }
 
     async fn close_shorts(&self) -> Result<()> {
-        let locked_status = self.state_manager.try_lock_status().await?;
-
-        let mut new_status = locked_status.to_owned();
-        let mut to_close = Vec::new();
-
-        for (id, trade) in locked_status.running() {
-            if trade.side() == TradeSide::Sell {
-                to_close.push(id.clone());
-            }
-        }
-
-        // Process in batches of 5
-        for chunk in to_close.chunks(5) {
-            let close_futures = chunk
-                .iter()
-                .map(|&trade_id| self.api.rest().futures().close_trade(trade_id))
-                .collect::<Vec<_>>();
-
-            let closed = match future::join_all(close_futures)
-                .await
-                .into_iter()
-                .collect::<result::Result<Vec<_>, _>>()
-                .map_err(LiveError::RestApi)
-            {
-                Ok(closed) => closed,
-                Err(e) => {
-                    // Status needs to be recreated
-                    let new_state = LiveTradeControllerState::Failed(LiveError::Generic(
-                        "api error".to_string(),
-                    ));
-                    self.state_manager.update(new_state).await;
-
-                    return Err(e.into());
-                }
-            };
-
-            new_status.close_trades(closed)?;
-        }
-
-        self.state_manager
-            .update_status(locked_status, new_status)
-            .await;
-
-        Ok(())
+        self.close_trades(TradeSide::Sell).await
     }
 
     async fn close_all(&self) -> Result<()> {
