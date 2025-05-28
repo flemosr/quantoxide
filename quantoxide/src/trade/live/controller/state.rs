@@ -246,6 +246,7 @@ impl LiveTradeControllerStatus {
     }
 }
 
+#[derive(Debug)]
 pub enum LiveTradeControllerState {
     Starting,
     WaitingForSync(Arc<SyncState>),
