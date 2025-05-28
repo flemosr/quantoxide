@@ -180,7 +180,7 @@ pub struct LiveController {
     shutdown_tx: broadcast::Sender<()>,
     shutdown_timeout: time::Duration,
     state_manager: LiveStateManager,
-    trade_manager: Arc<LiveTradeController>,
+    trade_controller: Arc<LiveTradeController>,
 }
 
 impl LiveController {
@@ -191,7 +191,7 @@ impl LiveController {
         shutdown_tx: broadcast::Sender<()>,
         shutdown_timeout: time::Duration,
         state_manager: LiveStateManager,
-        trade_manager: Arc<LiveTradeController>,
+        trade_controller: Arc<LiveTradeController>,
     ) -> Self {
         Self {
             sync_controller,
@@ -200,7 +200,7 @@ impl LiveController {
             shutdown_tx,
             shutdown_timeout,
             state_manager,
-            trade_manager,
+            trade_controller,
         }
     }
 
@@ -244,7 +244,7 @@ impl LiveController {
             // Close and cancel all trades
 
             let close_all_res = self
-                .trade_manager
+                .trade_controller
                 .close_all()
                 .await
                 .map_err(|e| LiveError::Generic(e.to_string()));
@@ -441,13 +441,13 @@ impl LiveEngine {
         .start()
         .map_err(|e| LiveError::Generic(e.to_string()))?;
 
-        let trades_manager =
+        let trade_controller =
             LiveTradeController::new(self.db, self.api, sync_controller.receiver())
                 .await
                 .map_err(|e| LiveError::Generic(e.to_string()))?;
 
         self.operator
-            .set_trade_controller(trades_manager.clone())
+            .set_trade_controller(trade_controller.clone())
             .map_err(|e| {
                 LiveError::Generic(format!(
                     "couldn't set the live trades manager {}",
@@ -463,7 +463,7 @@ impl LiveEngine {
             self.operator,
             shutdown_tx.clone(),
             signal_controller.clone(),
-            trades_manager.clone(),
+            trade_controller.clone(),
             self.state_manager.clone(),
         );
 
@@ -476,7 +476,7 @@ impl LiveEngine {
             shutdown_tx,
             self.config.shutdown_timeout(),
             self.state_manager,
-            trades_manager,
+            trade_controller,
         );
 
         Ok(Arc::new(controller))
