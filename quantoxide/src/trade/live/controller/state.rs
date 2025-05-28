@@ -1,12 +1,13 @@
 use std::{collections::HashMap, result, sync::Arc};
 
 use chrono::{DateTime, Utc};
+use futures::future;
 use tokio::sync::{Mutex, MutexGuard, broadcast};
 use uuid::Uuid;
 
 use lnm_sdk::api::{
     ApiContext,
-    rest::models::{LnmTrade, Trade},
+    rest::models::{LnmTrade, Trade, TradeSide},
 };
 
 use crate::{db::DbContext, sync::SyncState, trade::core::PriceTrigger};
@@ -19,6 +20,7 @@ pub struct LiveTradeControllerStatus {
     api: Arc<ApiContext>,
     last_trade_time: Option<DateTime<Utc>>,
     balance: u64,
+    last_evaluation_time: DateTime<Utc>,
     trigger: PriceTrigger,
     running: HashMap<Uuid, LnmTrade>,
     closed: Vec<LnmTrade>,
@@ -26,6 +28,13 @@ pub struct LiveTradeControllerStatus {
 
 impl LiveTradeControllerStatus {
     pub async fn new(db: Arc<DbContext>, api: Arc<ApiContext>) -> LiveResult<Self> {
+        let (lastest_entry_time, _) = db
+            .price_ticks
+            .get_latest_entry()
+            .await
+            .map_err(|e| LiveError::Generic(e.to_string()))?
+            .ok_or(LiveError::Generic("db is empty".to_string()))?;
+
         let (trades, user) = futures::try_join!(
             api.rest()
                 .futures()
@@ -54,6 +63,7 @@ impl LiveTradeControllerStatus {
             api,
             last_trade_time,
             balance: user.balance(),
+            last_evaluation_time: lastest_entry_time,
             trigger,
             running,
             closed: Vec::new(),
@@ -78,7 +88,64 @@ impl LiveTradeControllerStatus {
 
     // Returns true if the status was updated
     pub async fn reevaluate(&mut self) -> LiveResult<bool> {
-        todo!()
+        let (new_evaluation_time, range_min, range_max) = self
+            .db
+            .price_ticks
+            .get_price_range_from(self.last_evaluation_time)
+            .await
+            .map_err(|e| LiveError::Generic(e.to_string()))?
+            .ok_or(LiveError::Generic("db is empty".to_string()))?;
+
+        if !self.trigger.was_reached(range_min) && !self.trigger.was_reached(range_max) {
+            // General trigger was not reached. No trades need to be checked
+            self.last_evaluation_time = new_evaluation_time;
+            return Ok(false);
+        }
+
+        let mut to_get = Vec::new();
+
+        for trade in self.running().values() {
+            let (trade_min, trade_max) = match trade.side() {
+                TradeSide::Buy => (trade.stoploss(), trade.takeprofit()),
+                TradeSide::Sell => (trade.takeprofit(), trade.stoploss()),
+            };
+
+            let min_reached =
+                trade_min.map_or(false, |trade_min| trade_min.into_f64() >= range_min);
+            let max_reached =
+                trade_max.map_or(false, |trade_max| trade_max.into_f64() <= range_max);
+
+            if min_reached || max_reached {
+                to_get.push(trade.id());
+            }
+        }
+
+        let mut closed_trades = Vec::new();
+
+        for chunk in to_get.chunks(5) {
+            let get_futures = chunk
+                .iter()
+                .map(|&trade_id| self.api.rest().futures().get_trade(trade_id))
+                .collect::<Vec<_>>();
+
+            let new_closed_trades = future::join_all(get_futures)
+                .await
+                .into_iter()
+                .collect::<result::Result<Vec<_>, _>>()
+                .map_err(LiveError::RestApi)?
+                .into_iter()
+                .filter_map(|trade| if trade.closed() { Some(trade) } else { None })
+                .collect::<Vec<_>>();
+
+            closed_trades.extend(new_closed_trades);
+        }
+
+        if closed_trades.is_empty() {
+            Ok(false)
+        } else {
+            self.close_trades(closed_trades)?;
+            Ok(true)
+        }
     }
 
     pub fn register_running_trade(&mut self, new_trade: LnmTrade) -> LiveResult<()> {
