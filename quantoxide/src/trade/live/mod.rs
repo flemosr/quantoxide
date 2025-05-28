@@ -296,7 +296,7 @@ impl Default for LiveConfig {
             api_error_cooldown: time::Duration::from_secs(10),
             api_error_max_trials: 3,
             api_history_batch_size: 1000,
-            sync_history_reach: Duration::hours(24),
+            sync_history_reach: Duration::hours(24 * 7 * 4),
             re_sync_history_interval: time::Duration::from_secs(300),
             signal_eval_interval: time::Duration::from_secs(1),
             restart_interval: time::Duration::from_secs(10),
