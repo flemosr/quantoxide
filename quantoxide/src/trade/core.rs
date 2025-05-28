@@ -1,4 +1,5 @@
 use std::{
+    fmt,
     panic::{self, AssertUnwindSafe},
     sync::Arc,
 };
@@ -166,6 +167,49 @@ impl TradeControllerState {
 
     pub fn net_pl_estimated(&self) -> i64 {
         self.pl() - self.fees_estimated() as i64
+    }
+}
+
+impl fmt::Display for TradeControllerState {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "TradeControllerState:")?;
+
+        writeln!(f, "  timing:")?;
+        writeln!(f, "    start_time: {}", self.start_time.to_rfc3339())?;
+        writeln!(f, "    current_time: {}", self.current_time.to_rfc3339())?;
+        match self.last_trade_time {
+            Some(time) => writeln!(f, "    last_trade_time: {}", time.to_rfc3339())?,
+            None => writeln!(f, "    last_trade_time: null")?,
+        }
+
+        writeln!(f, "  balance:")?;
+        writeln!(f, "    start_balance: {}", self.start_balance)?;
+        writeln!(f, "    current_balance: {}", self.current_balance)?;
+        writeln!(f, "    market_price: {:.6}", self.market_price)?;
+
+        writeln!(f, "  running_positions:")?;
+        writeln!(f, "    long:")?;
+        writeln!(f, "      quantity: {}", self.running_long_qtd)?;
+        writeln!(f, "      margin: {}", self.running_long_margin)?;
+        writeln!(f, "    short:")?;
+        writeln!(f, "      quantity: {}", self.running_short_qtd)?;
+        writeln!(f, "      margin: {}", self.running_short_margin)?;
+
+        writeln!(f, "  running_metrics:")?;
+        writeln!(f, "    pl: {}", self.running_pl)?;
+        writeln!(f, "    fees: {}", self.running_fees)?;
+        writeln!(
+            f,
+            "    maintenance_margin: {}",
+            self.running_maintenance_margin
+        )?;
+
+        writeln!(f, "  closed_positions:")?;
+        writeln!(f, "    quantity: {}", self.closed_qtd)?;
+        writeln!(f, "    pl: {}", self.closed_pl)?;
+        writeln!(f, "    fees: {}", self.closed_fees)?;
+
+        Ok(())
     }
 }
 
