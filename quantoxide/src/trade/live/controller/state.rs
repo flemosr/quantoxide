@@ -14,10 +14,8 @@ use crate::{db::DbContext, sync::SyncState, trade::core::PriceTrigger};
 
 use super::super::error::{LiveError, Result as LiveResult};
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct LiveTradeControllerStatus {
-    db: Arc<DbContext>,
-    api: Arc<ApiContext>,
     last_trade_time: Option<DateTime<Utc>>,
     balance: u64,
     last_evaluation_time: DateTime<Utc>,
@@ -27,7 +25,7 @@ pub struct LiveTradeControllerStatus {
 }
 
 impl LiveTradeControllerStatus {
-    pub async fn new(db: Arc<DbContext>, api: Arc<ApiContext>) -> LiveResult<Self> {
+    pub async fn new(db: &DbContext, api: &ApiContext) -> LiveResult<Self> {
         let (lastest_entry_time, _) = db
             .price_ticks
             .get_latest_entry()
@@ -59,8 +57,6 @@ impl LiveTradeControllerStatus {
         }
 
         Ok(Self {
-            db,
-            api,
             last_trade_time,
             balance: user.balance(),
             last_evaluation_time: lastest_entry_time,
@@ -87,9 +83,8 @@ impl LiveTradeControllerStatus {
     }
 
     // Returns true if the status was updated
-    pub async fn reevaluate(&mut self) -> LiveResult<bool> {
-        let (new_evaluation_time, range_min, range_max) = self
-            .db
+    pub async fn reevaluate(&mut self, db: &DbContext, api: &ApiContext) -> LiveResult<bool> {
+        let (new_evaluation_time, range_min, range_max) = db
             .price_ticks
             .get_price_range_from(self.last_evaluation_time)
             .await
@@ -125,7 +120,7 @@ impl LiveTradeControllerStatus {
         for chunk in to_get.chunks(5) {
             let get_futures = chunk
                 .iter()
-                .map(|&trade_id| self.api.rest().futures().get_trade(trade_id))
+                .map(|&trade_id| api.rest().futures().get_trade(trade_id))
                 .collect::<Vec<_>>();
 
             let new_closed_trades = future::join_all(get_futures)
