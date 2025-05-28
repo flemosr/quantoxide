@@ -119,6 +119,7 @@ pub enum LiveTradeControllerState {
     Starting,
     WaitingForSync(Arc<SyncState>),
     Ready(LiveTradeControllerStatus),
+    Failed(LiveError),
     NotViable(LiveError),
 }
 
