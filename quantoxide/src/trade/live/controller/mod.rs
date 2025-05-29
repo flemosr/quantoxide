@@ -154,12 +154,18 @@ impl LiveTradeController {
     ) -> Result<Arc<Self>> {
         let start_time = Utc::now();
 
-        let (_, _, user) = futures::try_join!(
+        let (_, _) = futures::try_join!(
             api.rest().futures().cancel_all_trades(),
             api.rest().futures().close_all_trades(),
-            api.rest().user().get_user()
         )
         .map_err(LiveError::RestApi)?;
+
+        let user = api
+            .rest()
+            .user()
+            .get_user()
+            .await
+            .map_err(LiveError::RestApi)?;
 
         let state_manager = LiveTradeControllerStateManager::new();
 
