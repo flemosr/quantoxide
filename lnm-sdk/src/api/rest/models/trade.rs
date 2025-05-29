@@ -214,7 +214,7 @@ pub trait Trade {
     fn side(&self) -> TradeSide;
     fn opening_fee(&self) -> u64;
     fn closing_fee(&self) -> u64;
-    fn maintenance_margin(&self) -> u64;
+    fn maintenance_margin(&self) -> i64;
     fn quantity(&self) -> Quantity;
     fn margin(&self) -> Margin;
     fn leverage(&self) -> Leverage;
@@ -243,7 +243,7 @@ pub struct LnmTrade {
     side: TradeSide,
     opening_fee: u64,
     closing_fee: u64,
-    maintenance_margin: u64,
+    maintenance_margin: i64,
     quantity: Quantity,
     margin: Margin,
     leverage: Leverage,
@@ -285,6 +285,10 @@ impl LnmTrade {
         self.pl
     }
 
+    pub fn estimate_pl(&self, market_price: Price) -> i64 {
+        estimate_pl(self.side(), self.quantity(), self.price(), market_price)
+    }
+
     pub fn sum_carry_fees(&self) -> u64 {
         self.sum_carry_fees
     }
@@ -307,7 +311,7 @@ impl Trade for LnmTrade {
         self.closing_fee
     }
 
-    fn maintenance_margin(&self) -> u64 {
+    fn maintenance_margin(&self) -> i64 {
         self.maintenance_margin
     }
 
