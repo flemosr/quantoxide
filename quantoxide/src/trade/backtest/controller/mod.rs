@@ -358,7 +358,7 @@ impl TradeController for SimulatedTradeController {
 
             running_pl += trade.pl(market_price);
             running_fees += trade.opening_fee();
-            running_maintenance_margin += trade.maintenance_margin();
+            running_maintenance_margin += trade.maintenance_margin().max(0) as u64;
         }
 
         let trades_state = TradeControllerState::new(
