@@ -38,10 +38,12 @@ impl SimulatedTradeRunning {
         match side {
             TradeSide::Buy => {
                 if stoploss < liquidation {
-                    return Err(SimulatedTradeControllerError::StoplossBelowLiquidationLong {
-                        stoploss,
-                        liquidation,
-                    });
+                    return Err(
+                        SimulatedTradeControllerError::StoplossBelowLiquidationLong {
+                            stoploss,
+                            liquidation,
+                        },
+                    );
                 }
                 if stoploss >= entry_price {
                     return Err(SimulatedTradeControllerError::StoplossAboveEntryForLong {
@@ -58,10 +60,12 @@ impl SimulatedTradeRunning {
             }
             TradeSide::Sell => {
                 if stoploss > liquidation {
-                    return Err(SimulatedTradeControllerError::StoplossAboveLiquidationShort {
-                        stoploss,
-                        liquidation,
-                    });
+                    return Err(
+                        SimulatedTradeControllerError::StoplossAboveLiquidationShort {
+                            stoploss,
+                            liquidation,
+                        },
+                    );
                 }
                 if stoploss <= entry_price {
                     return Err(SimulatedTradeControllerError::StoplossBelowEntryForShort {
@@ -70,10 +74,12 @@ impl SimulatedTradeRunning {
                     });
                 }
                 if takeprofit >= entry_price {
-                    return Err(SimulatedTradeControllerError::TakeprofitAboveEntryForShort {
-                        takeprofit,
-                        entry_price,
-                    });
+                    return Err(
+                        SimulatedTradeControllerError::TakeprofitAboveEntryForShort {
+                            takeprofit,
+                            entry_price,
+                        },
+                    );
                 }
             }
         };
@@ -137,8 +143,8 @@ impl Trade for SimulatedTradeRunning {
         0
     }
 
-    fn maintenance_margin(&self) -> u64 {
-        self.opening_fee + self.closing_fee_reserved
+    fn maintenance_margin(&self) -> i64 {
+        self.opening_fee as i64 + self.closing_fee_reserved as i64
     }
 
     fn quantity(&self) -> Quantity {
@@ -282,8 +288,8 @@ impl Trade for SimulatedTradeClosed {
         self.closing_fee
     }
 
-    fn maintenance_margin(&self) -> u64 {
-        self.opening_fee + self.closing_fee
+    fn maintenance_margin(&self) -> i64 {
+        self.opening_fee as i64 + self.closing_fee as i64
     }
 
     fn quantity(&self) -> Quantity {
