@@ -383,7 +383,7 @@ impl TradeController for LiveTradeController {
             locked.to_owned()
         };
 
-        let est_price = self.get_estimated_market_price().await?;
+        let market_price = self.get_estimated_market_price().await?;
 
         let mut running_long_qtd: usize = 0;
         let mut running_long_margin: u64 = 0;
@@ -405,10 +405,9 @@ impl TradeController for LiveTradeController {
                 }
             };
 
-            // FIXME: Estimate with market price
-            running_pl += trade.pl();
+            running_pl += trade.estimate_pl(market_price);
             running_fees += trade.opening_fee();
-            running_maintenance_margin += trade.maintenance_margin();
+            running_maintenance_margin += trade.maintenance_margin().max(0) as u64;
         }
 
         let mut closed_pl: i64 = 0;
@@ -424,7 +423,7 @@ impl TradeController for LiveTradeController {
             self.start_balance,
             Utc::now(),
             status.balance(),
-            est_price.into_f64(),
+            market_price.into_f64(),
             status.last_trade_time(),
             running_long_qtd,
             running_long_margin,
