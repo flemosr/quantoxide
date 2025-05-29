@@ -172,8 +172,9 @@ impl LiveTradeControllerStatus {
             self.balance as i64
                 - new_trade.margin().into_i64()
                 - new_trade.maintenance_margin() as i64
+                - new_trade.opening_fee() as i64
         }
-        .min(0) as u64;
+        .max(0) as u64;
 
         self.trigger.update(&new_trade);
         self.running.insert(new_trade.id(), new_trade);
@@ -222,9 +223,7 @@ impl LiveTradeControllerStatus {
 
         for (id, trade) in &self.running {
             if let Some(closed_trade) = closed_map.remove(id) {
-                new_balance += closed_trade.margin().into_i64()
-                    + closed_trade.maintenance_margin() as i64
-                    - closed_trade.opening_fee() as i64
+                new_balance += trade.margin().into_i64() + trade.maintenance_margin() as i64
                     - closed_trade.closing_fee() as i64
                     + closed_trade.pl();
 
@@ -238,7 +237,7 @@ impl LiveTradeControllerStatus {
         self.last_trade_time = new_last_trade_time;
         self.trigger = new_trigger;
         self.running = new_running;
-        self.balance = new_balance.min(0) as u64;
+        self.balance = new_balance.max(0) as u64;
 
         Ok(())
     }
