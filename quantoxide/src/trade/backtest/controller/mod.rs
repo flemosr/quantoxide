@@ -106,13 +106,12 @@ impl SimulatedTradeController {
         let mut new_closed_trades = Vec::new();
 
         let mut close_trade = |trade: SimulatedTradeRunning, close_price: Price| {
-            let closing_fee_reserved = trade.closing_fee_reserved() as i64;
             let trade = SimulatedTradeClosed::from_running(trade, time, close_price, self.fee_perc);
-            let trade_pl = trade.pl();
-            let closing_fee_diff = closing_fee_reserved - trade.closing_fee() as i64;
 
-            new_balance += trade.margin().into_i64() + trade_pl + closing_fee_diff;
-            new_closed_pl += trade_pl;
+            new_balance += trade.margin().into_i64() + trade.maintenance_margin()
+                - trade.closing_fee() as i64
+                + trade.pl();
+            new_closed_pl += trade.pl();
             new_closed_fees += trade.opening_fee() + trade.closing_fee();
             new_closed_trades.push(trade);
         };
@@ -171,14 +170,13 @@ impl SimulatedTradeController {
         let mut new_closed_trades = Vec::new();
 
         let mut close_trade = |trade: SimulatedTradeRunning| {
-            let closing_fee_reserved = trade.closing_fee_reserved() as i64;
             let trade =
                 SimulatedTradeClosed::from_running(trade, time, market_price, self.fee_perc);
-            let trade_pl = trade.pl();
-            let closing_fee_diff = closing_fee_reserved - trade.closing_fee() as i64;
 
-            new_balance += trade.margin().into_i64() + trade_pl + closing_fee_diff;
-            new_closed_pl += trade_pl;
+            new_balance += trade.margin().into_i64() + trade.maintenance_margin()
+                - trade.closing_fee() as i64
+                + trade.pl();
+            new_closed_pl += trade.pl();
             new_closed_fees += trade.opening_fee() + trade.closing_fee();
             new_closed_trades.push(trade);
         };
@@ -257,7 +255,9 @@ impl SimulatedTradeController {
             self.fee_perc,
         )?;
 
-        state_guard.balance -= trade.margin().into_i64() + trade.maintenance_margin() as i64;
+        state_guard.balance -= trade.margin().into_i64()
+            + trade.maintenance_margin() as i64
+            + trade.opening_fee() as i64;
 
         state_guard.last_trade_time = Some(state_guard.time);
         state_guard.trigger.update(&trade);
