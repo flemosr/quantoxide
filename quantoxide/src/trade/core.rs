@@ -138,10 +138,6 @@ impl TradeControllerState {
         self.running_long_len + self.running_short_len
     }
 
-    pub fn running_margin(&self) -> u64 {
-        self.running_long_margin + self.running_short_margin
-    }
-
     /// Returns the number of closed trades
     pub fn closed_len(&self) -> usize {
         self.closed_len
@@ -157,6 +153,10 @@ impl TradeControllerState {
 
     pub fn running_maintenance_margin(&self) -> u64 {
         self.running_maintenance_margin
+    }
+
+    pub fn running_total_margin(&self) -> u64 {
+        self.running_long_margin + self.running_short_margin + self.running_maintenance_margin
     }
 
     pub fn closed_pl(&self) -> i64 {
@@ -219,6 +219,7 @@ impl fmt::Display for TradeControllerState {
             "    maintenance_margin: {}",
             self.running_maintenance_margin
         )?;
+        writeln!(f, "    total_margin: {}", self.running_total_margin())?;
 
         writeln!(f, "  closed_positions:")?;
         writeln!(f, "    trades: {}", self.closed_len)?;
