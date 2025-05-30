@@ -26,8 +26,10 @@ pub struct TradeControllerState {
     last_trade_time: Option<DateTime<Utc>>,
     running_long_len: usize,
     running_long_margin: u64,
+    running_long_quantity: u64,
     running_short_len: usize,
     running_short_margin: u64,
+    running_short_quantity: u64,
     running_pl: i64,
     running_fees: u64,
     running_maintenance_margin: u64,
@@ -46,8 +48,10 @@ impl TradeControllerState {
         last_trade_time: Option<DateTime<Utc>>,
         running_long_len: usize,
         running_long_margin: u64,
+        running_long_quantity: u64,
         running_short_len: usize,
         running_short_margin: u64,
+        running_short_quantity: u64,
         running_pl: i64,
         running_fees: u64,
         running_maintenance_margin: u64,
@@ -64,8 +68,10 @@ impl TradeControllerState {
             last_trade_time,
             running_long_len,
             running_long_margin,
+            running_long_quantity,
             running_short_len,
             running_short_margin,
+            running_short_quantity,
             running_pl,
             running_fees,
             running_maintenance_margin,
@@ -109,6 +115,10 @@ impl TradeControllerState {
         self.running_long_margin
     }
 
+    pub fn running_long_quantity(&self) -> u64 {
+        self.running_long_quantity
+    }
+
     /// Returns the number of running short trades
     pub fn running_short_len(&self) -> usize {
         self.running_short_len
@@ -117,6 +127,10 @@ impl TradeControllerState {
     /// Returns the locked margin for short positions, if available
     pub fn running_short_margin(&self) -> u64 {
         self.running_short_margin
+    }
+
+    pub fn running_short_quantity(&self) -> u64 {
+        self.running_short_quantity
     }
 
     /// Returns the number of running trades
@@ -185,15 +199,17 @@ impl fmt::Display for TradeControllerState {
         writeln!(f, "  balance:")?;
         writeln!(f, "    start_balance: {}", self.start_balance)?;
         writeln!(f, "    current_balance: {}", self.current_balance)?;
-        writeln!(f, "    market_price: {:.6}", self.market_price)?;
+        writeln!(f, "    market_price: {:.2}", self.market_price)?;
 
         writeln!(f, "  running_positions:")?;
         writeln!(f, "    long:")?;
         writeln!(f, "      trades: {}", self.running_long_len)?;
         writeln!(f, "      margin: {}", self.running_long_margin)?;
+        writeln!(f, "      quantity: {}", self.running_long_quantity)?;
         writeln!(f, "    short:")?;
         writeln!(f, "      trades: {}", self.running_short_len)?;
         writeln!(f, "      margin: {}", self.running_short_margin)?;
+        writeln!(f, "      quantity: {}", self.running_short_quantity)?;
 
         writeln!(f, "  running_metrics:")?;
         writeln!(f, "    pl: {}", self.running_pl)?;
