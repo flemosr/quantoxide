@@ -334,7 +334,6 @@ impl TradeController for SimulatedTradeController {
         let mut running_short_quantity: u64 = 0;
         let mut running_pl: i64 = 0;
         let mut running_fees: u64 = 0;
-        let mut running_maintenance_margin: u64 = 0;
 
         // Use `Price::round_down` for long trades and `Price::round_up` for
         // short trades, in order to obtain more conservative prices. It is
@@ -344,7 +343,8 @@ impl TradeController for SimulatedTradeController {
             let market_price = match trade.side() {
                 TradeSide::Buy => {
                     running_long_qtd += 1;
-                    running_long_margin += trade.margin().into_u64();
+                    running_long_margin +=
+                        trade.margin().into_u64() + trade.maintenance_margin().max(0) as u64;
                     running_long_quantity += trade.quantity().into_u64();
 
                     Price::round_down(state_guard.market_price)
@@ -352,7 +352,8 @@ impl TradeController for SimulatedTradeController {
                 }
                 TradeSide::Sell => {
                     running_short_qtd += 1;
-                    running_short_margin += trade.margin().into_u64();
+                    running_short_margin +=
+                        trade.margin().into_u64() + trade.maintenance_margin().max(0) as u64;
                     running_short_quantity += trade.quantity().into_u64();
 
                     Price::round_up(state_guard.market_price)
@@ -362,7 +363,6 @@ impl TradeController for SimulatedTradeController {
 
             running_pl += trade.pl(market_price);
             running_fees += trade.opening_fee();
-            running_maintenance_margin += trade.maintenance_margin().max(0) as u64;
         }
 
         let trades_state = TradeControllerState::new(
@@ -380,7 +380,6 @@ impl TradeController for SimulatedTradeController {
             running_short_quantity,
             running_pl,
             running_fees,
-            running_maintenance_margin,
             state_guard.closed.len(),
             state_guard.closed_pl,
             state_guard.closed_fees,
