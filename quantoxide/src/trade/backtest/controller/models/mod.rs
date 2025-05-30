@@ -230,6 +230,7 @@ pub struct SimulatedTradeClosed {
     close_time: DateTime<Utc>,
     close_price: Price,
     opening_fee: u64,
+    closing_fee_reserved: u64,
     closing_fee: u64,
 }
 
@@ -257,6 +258,7 @@ impl SimulatedTradeClosed {
             close_time,
             close_price,
             opening_fee: running.opening_fee,
+            closing_fee_reserved: running.closing_fee_reserved,
             closing_fee,
         }
     }
@@ -289,7 +291,7 @@ impl Trade for SimulatedTradeClosed {
     }
 
     fn maintenance_margin(&self) -> i64 {
-        self.opening_fee as i64 + self.closing_fee as i64
+        self.opening_fee as i64 + self.closing_fee_reserved as i64
     }
 
     fn quantity(&self) -> Quantity {
