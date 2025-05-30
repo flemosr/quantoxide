@@ -34,7 +34,6 @@ async fn test_simulated_trade_controller_long_profit() -> Result<()> {
     assert_eq!(state.running_short_margin(), 0);
     assert_eq!(state.running_pl(), 0);
     assert_eq!(state.running_fees(), 0);
-    assert_eq!(state.running_maintenance_margin(), 0);
     assert_eq!(state.closed_len(), 0);
     assert_eq!(state.closed_pl(), 0);
     assert_eq!(state.closed_fees(), 0);
@@ -57,7 +56,6 @@ async fn test_simulated_trade_controller_long_profit() -> Result<()> {
     assert_eq!(state.running_short_margin(), 0);
     assert_eq!(state.running_pl(), 0);
     assert_eq!(state.running_fees(), 0);
-    assert_eq!(state.running_maintenance_margin(), 0);
     assert_eq!(state.closed_len(), 0);
     assert_eq!(state.closed_pl(), 0);
     assert_eq!(state.closed_fees(), 0);
@@ -74,8 +72,7 @@ async fn test_simulated_trade_controller_long_profit() -> Result<()> {
 
     let state = controller.state().await?;
     let exp_trade_time = time;
-    let expected_balance =
-        start_balance - state.running_long_margin() - state.running_maintenance_margin();
+    let expected_balance = start_balance - state.running_long_margin() - state.running_fees();
 
     assert_eq!(state.start_time(), start_time);
     assert_eq!(state.start_balance(), start_balance);
@@ -92,14 +89,6 @@ async fn test_simulated_trade_controller_long_profit() -> Result<()> {
     assert_eq!(state.running_short_margin(), 0);
     assert_eq!(state.running_pl(), 0); // No PL yet since price hasn't changed
     assert!(state.running_fees() > 0, "Trading fees should be estimated");
-    assert!(
-        state.running_maintenance_margin() > 0,
-        "Trading maintenance margin must be estimated"
-    );
-    assert!(
-        state.running_fees() < state.running_maintenance_margin(),
-        "Estimated fees should be smaller than maintenance margin"
-    );
     assert_eq!(state.closed_len(), 0);
     assert_eq!(state.closed_pl(), 0);
     assert_eq!(state.closed_fees(), 0);
@@ -128,14 +117,6 @@ async fn test_simulated_trade_controller_long_profit() -> Result<()> {
         "Long position should be profitable after price increase"
     );
     assert!(state.running_fees() > 0, "Trading fees should be estimated");
-    assert!(
-        state.running_maintenance_margin() > 0,
-        "Trading maintenance margin must be estimated"
-    );
-    assert!(
-        state.running_fees() < state.running_maintenance_margin(),
-        "Estimated fees should be smaller than maintenance margin"
-    );
     assert_eq!(state.closed_len(), 0);
     assert_eq!(state.closed_pl(), 0);
     assert_eq!(state.closed_fees(), 0);
@@ -160,7 +141,6 @@ async fn test_simulated_trade_controller_long_profit() -> Result<()> {
     assert_eq!(state.running_short_margin(), 0);
     assert_eq!(state.running_pl(), 0);
     assert_eq!(state.running_fees(), 0);
-    assert_eq!(state.running_maintenance_margin(), 0);
     assert_eq!(state.closed_len(), 1);
     assert!(
         state.closed_pl() > 0,
@@ -201,7 +181,6 @@ async fn test_simulated_trade_controller_long_loss() -> Result<()> {
     assert_eq!(state.running_short_margin(), 0);
     assert_eq!(state.running_pl(), 0);
     assert_eq!(state.running_fees(), 0);
-    assert_eq!(state.running_maintenance_margin(), 0);
     assert_eq!(state.closed_len(), 0);
     assert_eq!(state.closed_pl(), 0);
     assert_eq!(state.closed_fees(), 0);
@@ -217,8 +196,7 @@ async fn test_simulated_trade_controller_long_loss() -> Result<()> {
         .await?;
 
     let state = controller.state().await?;
-    let expected_balance =
-        start_balance - state.running_long_margin() - state.running_maintenance_margin();
+    let expected_balance = start_balance - state.running_long_margin() - state.running_fees();
 
     assert_eq!(state.current_time(), start_time);
     assert_eq!(state.current_balance(), expected_balance);
@@ -230,14 +208,6 @@ async fn test_simulated_trade_controller_long_loss() -> Result<()> {
     );
     assert_eq!(state.running_pl(), 0);
     assert!(state.running_fees() > 0, "Trading fees should be estimated");
-    assert!(
-        state.running_maintenance_margin() > 0,
-        "Trading maintenance margin must be estimated"
-    );
-    assert!(
-        state.running_fees() < state.running_maintenance_margin(),
-        "Estimated fees should be smaller than maintenance margin"
-    );
     assert_eq!(state.closed_len(), 0);
 
     // Step 3: Update price to 99_000 (1% drop)
@@ -278,7 +248,6 @@ async fn test_simulated_trade_controller_long_loss() -> Result<()> {
     assert_eq!(state.running_long_margin(), 0);
     assert_eq!(state.running_pl(), 0);
     assert_eq!(state.running_fees(), 0);
-    assert_eq!(state.running_maintenance_margin(), 0);
     assert_eq!(state.closed_len(), 1);
     assert!(
         state.closed_pl() < 0,
@@ -319,7 +288,6 @@ async fn test_simulated_trade_controller_short_profit() -> Result<()> {
     assert_eq!(state.running_short_margin(), 0);
     assert_eq!(state.running_pl(), 0);
     assert_eq!(state.running_fees(), 0);
-    assert_eq!(state.running_maintenance_margin(), 0);
     assert_eq!(state.closed_len(), 0);
     assert_eq!(state.closed_pl(), 0);
     assert_eq!(state.closed_fees(), 0);
@@ -335,8 +303,7 @@ async fn test_simulated_trade_controller_short_profit() -> Result<()> {
         .await?;
 
     let state = controller.state().await?;
-    let expected_balance =
-        start_balance - state.running_short_margin() - state.running_maintenance_margin();
+    let expected_balance = start_balance - state.running_short_margin() - state.running_fees();
 
     assert_eq!(state.current_time(), start_time);
     assert_eq!(state.current_balance(), expected_balance);
@@ -352,11 +319,6 @@ async fn test_simulated_trade_controller_short_profit() -> Result<()> {
     );
     assert_eq!(state.running_pl(), 0); // No PL yet since price hasn't changed
     assert!(state.running_fees() > 0, "Trading fees should be estimated");
-    assert!(
-        state.running_maintenance_margin() > 0,
-        "Trading maintenance margin must be estimated"
-    );
-    assert_eq!(state.running_fees(), state.running_maintenance_margin()); // No liquidation price
     assert_eq!(state.closed_len(), 0);
     assert_eq!(state.closed_pl(), 0);
     assert_eq!(state.closed_fees(), 0);
@@ -381,11 +343,6 @@ async fn test_simulated_trade_controller_short_profit() -> Result<()> {
         "Short position should be profitable after price decrease"
     );
     assert!(state.running_fees() > 0, "Trading fees should be estimated");
-    assert!(
-        state.running_maintenance_margin() > 0,
-        "Trading maintenance margin must be estimated"
-    );
-    assert_eq!(state.running_fees(), state.running_maintenance_margin()); // No liquidation price
     assert_eq!(state.closed_len(), 0);
     assert_eq!(state.closed_pl(), 0);
     assert_eq!(state.closed_fees(), 0);
@@ -407,7 +364,6 @@ async fn test_simulated_trade_controller_short_profit() -> Result<()> {
     assert_eq!(state.running_short_margin(), 0);
     assert_eq!(state.running_pl(), 0);
     assert_eq!(state.running_fees(), 0);
-    assert_eq!(state.running_maintenance_margin(), 0);
     assert_eq!(state.closed_len(), 1);
     assert!(
         state.closed_pl() > 0,
@@ -448,7 +404,6 @@ async fn test_simulated_trade_controller_short_loss() -> Result<()> {
     assert_eq!(state.running_short_margin(), 0);
     assert_eq!(state.running_pl(), 0);
     assert_eq!(state.running_fees(), 0);
-    assert_eq!(state.running_maintenance_margin(), 0);
     assert_eq!(state.closed_len(), 0);
     assert_eq!(state.closed_pl(), 0);
     assert_eq!(state.closed_fees(), 0);
@@ -464,8 +419,7 @@ async fn test_simulated_trade_controller_short_loss() -> Result<()> {
         .await?;
 
     let state = controller.state().await?;
-    let expected_balance =
-        start_balance - state.running_short_margin() - state.running_maintenance_margin();
+    let expected_balance = start_balance - state.running_short_margin() - state.running_fees();
 
     assert_eq!(state.current_time(), start_time);
     assert_eq!(state.current_balance(), expected_balance);
@@ -477,11 +431,6 @@ async fn test_simulated_trade_controller_short_loss() -> Result<()> {
     );
     assert_eq!(state.running_pl(), 0);
     assert!(state.running_fees() > 0, "Trading fees should be estimated");
-    assert!(
-        state.running_maintenance_margin() > 0,
-        "Trading maintenance margin must be estimated"
-    );
-    assert_eq!(state.running_fees(), state.running_maintenance_margin()); // No liquidation price
     assert_eq!(state.closed_len(), 0);
 
     // Step 3: Update price to 101_000 (1% increase)
@@ -522,7 +471,6 @@ async fn test_simulated_trade_controller_short_loss() -> Result<()> {
     assert_eq!(state.running_short_margin(), 0);
     assert_eq!(state.running_pl(), 0);
     assert_eq!(state.running_fees(), 0);
-    assert_eq!(state.running_maintenance_margin(), 0);
     assert_eq!(state.closed_len(), 1);
     assert!(
         state.closed_pl() < 0,
