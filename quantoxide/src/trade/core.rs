@@ -24,14 +24,14 @@ pub struct TradeControllerState {
     current_balance: u64,
     market_price: f64,
     last_trade_time: Option<DateTime<Utc>>,
-    running_long_qtd: usize,
+    running_long_len: usize,
     running_long_margin: u64,
-    running_short_qtd: usize,
+    running_short_len: usize,
     running_short_margin: u64,
     running_pl: i64,
     running_fees: u64,
     running_maintenance_margin: u64,
-    closed_qtd: usize,
+    closed_len: usize,
     closed_pl: i64,
     closed_fees: u64,
 }
@@ -44,14 +44,14 @@ impl TradeControllerState {
         current_balance: u64,
         market_price: f64,
         last_trade_time: Option<DateTime<Utc>>,
-        running_long_qtd: usize,
+        running_long_len: usize,
         running_long_margin: u64,
-        running_short_qtd: usize,
+        running_short_len: usize,
         running_short_margin: u64,
         running_pl: i64,
         running_fees: u64,
         running_maintenance_margin: u64,
-        closed_qtd: usize,
+        closed_len: usize,
         closed_pl: i64,
         closed_fees: u64,
     ) -> Self {
@@ -62,14 +62,14 @@ impl TradeControllerState {
             current_balance,
             market_price,
             last_trade_time,
-            running_long_qtd,
+            running_long_len,
             running_long_margin,
-            running_short_qtd,
+            running_short_len,
             running_short_margin,
             running_pl,
             running_fees,
             running_maintenance_margin,
-            closed_qtd,
+            closed_len,
             closed_pl,
             closed_fees,
         }
@@ -99,9 +99,9 @@ impl TradeControllerState {
         self.last_trade_time
     }
 
-    /// Returns the quantity of running long trades
-    pub fn running_long_qtd(&self) -> usize {
-        self.running_long_qtd
+    /// Returns the number of running long trades
+    pub fn running_long_len(&self) -> usize {
+        self.running_long_len
     }
 
     /// Returns the locked margin for long positions, if available
@@ -109,9 +109,9 @@ impl TradeControllerState {
         self.running_long_margin
     }
 
-    /// Returns the quantity of running short trades
-    pub fn running_short_qtd(&self) -> usize {
-        self.running_short_qtd
+    /// Returns the number of running short trades
+    pub fn running_short_len(&self) -> usize {
+        self.running_short_len
     }
 
     /// Returns the locked margin for short positions, if available
@@ -119,18 +119,18 @@ impl TradeControllerState {
         self.running_short_margin
     }
 
-    /// Returns the quantity of running long and short trades
-    pub fn running_qtd(&self) -> usize {
-        self.running_long_qtd + self.running_short_qtd
+    /// Returns the number of running trades
+    pub fn running_len(&self) -> usize {
+        self.running_long_len + self.running_short_len
     }
 
     pub fn running_margin(&self) -> u64 {
         self.running_long_margin + self.running_short_margin
     }
 
-    /// Returns the quantity of closed trades
-    pub fn closed_qtd(&self) -> usize {
-        self.closed_qtd
+    /// Returns the number of closed trades
+    pub fn closed_len(&self) -> usize {
+        self.closed_len
     }
 
     pub fn running_pl(&self) -> i64 {
@@ -189,10 +189,10 @@ impl fmt::Display for TradeControllerState {
 
         writeln!(f, "  running_positions:")?;
         writeln!(f, "    long:")?;
-        writeln!(f, "      quantity: {}", self.running_long_qtd)?;
+        writeln!(f, "      trades: {}", self.running_long_len)?;
         writeln!(f, "      margin: {}", self.running_long_margin)?;
         writeln!(f, "    short:")?;
-        writeln!(f, "      quantity: {}", self.running_short_qtd)?;
+        writeln!(f, "      trades: {}", self.running_short_len)?;
         writeln!(f, "      margin: {}", self.running_short_margin)?;
 
         writeln!(f, "  running_metrics:")?;
@@ -205,7 +205,7 @@ impl fmt::Display for TradeControllerState {
         )?;
 
         writeln!(f, "  closed_positions:")?;
-        writeln!(f, "    quantity: {}", self.closed_qtd)?;
+        writeln!(f, "    trades: {}", self.closed_len)?;
         writeln!(f, "    pl: {}", self.closed_pl)?;
         writeln!(f, "    fees: {}", self.closed_fees)?;
 

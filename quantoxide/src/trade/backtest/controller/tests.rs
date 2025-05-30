@@ -28,14 +28,14 @@ async fn test_simulated_trade_controller_long_profit() -> Result<()> {
     assert_eq!(state.current_balance(), start_balance);
     assert_eq!(state.market_price(), market_price);
     assert_eq!(state.last_trade_time(), None);
-    assert_eq!(state.running_long_qtd(), 0);
+    assert_eq!(state.running_long_len(), 0);
     assert_eq!(state.running_long_margin(), 0);
-    assert_eq!(state.running_short_qtd(), 0);
+    assert_eq!(state.running_short_len(), 0);
     assert_eq!(state.running_short_margin(), 0);
     assert_eq!(state.running_pl(), 0);
     assert_eq!(state.running_fees(), 0);
     assert_eq!(state.running_maintenance_margin(), 0);
-    assert_eq!(state.closed_qtd(), 0);
+    assert_eq!(state.closed_len(), 0);
     assert_eq!(state.closed_pl(), 0);
     assert_eq!(state.closed_fees(), 0);
 
@@ -51,14 +51,14 @@ async fn test_simulated_trade_controller_long_profit() -> Result<()> {
     assert_eq!(state.current_balance(), start_balance);
     assert_eq!(state.market_price(), market_price);
     assert_eq!(state.last_trade_time(), None);
-    assert_eq!(state.running_long_qtd(), 0);
+    assert_eq!(state.running_long_len(), 0);
     assert_eq!(state.running_long_margin(), 0);
-    assert_eq!(state.running_short_qtd(), 0);
+    assert_eq!(state.running_short_len(), 0);
     assert_eq!(state.running_short_margin(), 0);
     assert_eq!(state.running_pl(), 0);
     assert_eq!(state.running_fees(), 0);
     assert_eq!(state.running_maintenance_margin(), 0);
-    assert_eq!(state.closed_qtd(), 0);
+    assert_eq!(state.closed_len(), 0);
     assert_eq!(state.closed_pl(), 0);
     assert_eq!(state.closed_fees(), 0);
 
@@ -83,12 +83,12 @@ async fn test_simulated_trade_controller_long_profit() -> Result<()> {
     assert_eq!(state.current_balance(), expected_balance);
     assert_eq!(state.market_price(), market_price);
     assert_eq!(state.last_trade_time(), Some(exp_trade_time));
-    assert_eq!(state.running_long_qtd(), 1);
+    assert_eq!(state.running_long_len(), 1);
     assert!(
         state.running_long_margin() > 0,
         "Long margin should be positive"
     );
-    assert_eq!(state.running_short_qtd(), 0);
+    assert_eq!(state.running_short_len(), 0);
     assert_eq!(state.running_short_margin(), 0);
     assert_eq!(state.running_pl(), 0); // No PL yet since price hasn't changed
     assert!(state.running_fees() > 0, "Trading fees should be estimated");
@@ -100,7 +100,7 @@ async fn test_simulated_trade_controller_long_profit() -> Result<()> {
         state.running_fees() < state.running_maintenance_margin(),
         "Estimated fees should be smaller than maintenance margin"
     );
-    assert_eq!(state.closed_qtd(), 0);
+    assert_eq!(state.closed_len(), 0);
     assert_eq!(state.closed_pl(), 0);
     assert_eq!(state.closed_fees(), 0);
 
@@ -116,12 +116,12 @@ async fn test_simulated_trade_controller_long_profit() -> Result<()> {
     assert_eq!(state.current_balance(), expected_balance);
     assert_eq!(state.market_price(), market_price);
     assert_eq!(state.last_trade_time(), Some(exp_trade_time));
-    assert_eq!(state.running_long_qtd(), 1);
+    assert_eq!(state.running_long_len(), 1);
     assert!(
         state.running_long_margin() > 0,
         "Long margin should be positive"
     );
-    assert_eq!(state.running_short_qtd(), 0);
+    assert_eq!(state.running_short_len(), 0);
     assert_eq!(state.running_short_margin(), 0);
     assert!(
         state.running_pl() > 0,
@@ -136,7 +136,7 @@ async fn test_simulated_trade_controller_long_profit() -> Result<()> {
         state.running_fees() < state.running_maintenance_margin(),
         "Estimated fees should be smaller than maintenance margin"
     );
-    assert_eq!(state.closed_qtd(), 0);
+    assert_eq!(state.closed_len(), 0);
     assert_eq!(state.closed_pl(), 0);
     assert_eq!(state.closed_fees(), 0);
 
@@ -154,14 +154,14 @@ async fn test_simulated_trade_controller_long_profit() -> Result<()> {
     assert_eq!(state.current_balance(), expected_balance);
     assert_eq!(state.market_price(), market_price);
     assert_eq!(state.last_trade_time(), Some(exp_trade_time));
-    assert_eq!(state.running_long_qtd(), 0);
+    assert_eq!(state.running_long_len(), 0);
     assert_eq!(state.running_long_margin(), 0);
-    assert_eq!(state.running_short_qtd(), 0);
+    assert_eq!(state.running_short_len(), 0);
     assert_eq!(state.running_short_margin(), 0);
     assert_eq!(state.running_pl(), 0);
     assert_eq!(state.running_fees(), 0);
     assert_eq!(state.running_maintenance_margin(), 0);
-    assert_eq!(state.closed_qtd(), 1);
+    assert_eq!(state.closed_len(), 1);
     assert!(
         state.closed_pl() > 0,
         "Should have positive PL after closing profitable long"
@@ -195,14 +195,14 @@ async fn test_simulated_trade_controller_long_loss() -> Result<()> {
     assert_eq!(state.current_balance(), start_balance);
     assert_eq!(state.market_price(), market_price);
     assert_eq!(state.last_trade_time(), None);
-    assert_eq!(state.running_long_qtd(), 0);
+    assert_eq!(state.running_long_len(), 0);
     assert_eq!(state.running_long_margin(), 0);
-    assert_eq!(state.running_short_qtd(), 0);
+    assert_eq!(state.running_short_len(), 0);
     assert_eq!(state.running_short_margin(), 0);
     assert_eq!(state.running_pl(), 0);
     assert_eq!(state.running_fees(), 0);
     assert_eq!(state.running_maintenance_margin(), 0);
-    assert_eq!(state.closed_qtd(), 0);
+    assert_eq!(state.closed_len(), 0);
     assert_eq!(state.closed_pl(), 0);
     assert_eq!(state.closed_fees(), 0);
 
@@ -223,7 +223,7 @@ async fn test_simulated_trade_controller_long_loss() -> Result<()> {
     assert_eq!(state.current_time(), start_time);
     assert_eq!(state.current_balance(), expected_balance);
     assert_eq!(state.last_trade_time(), Some(start_time));
-    assert_eq!(state.running_long_qtd(), 1);
+    assert_eq!(state.running_long_len(), 1);
     assert!(
         state.running_long_margin() > 0,
         "Long margin should be positive"
@@ -238,7 +238,7 @@ async fn test_simulated_trade_controller_long_loss() -> Result<()> {
         state.running_fees() < state.running_maintenance_margin(),
         "Estimated fees should be smaller than maintenance margin"
     );
-    assert_eq!(state.closed_qtd(), 0);
+    assert_eq!(state.closed_len(), 0);
 
     // Step 3: Update price to 99_000 (1% drop)
     let time = start_time + Duration::seconds(1);
@@ -250,7 +250,7 @@ async fn test_simulated_trade_controller_long_loss() -> Result<()> {
     assert_eq!(state.current_balance(), expected_balance);
     assert_eq!(state.market_price(), market_price);
     assert_eq!(state.last_trade_time(), Some(start_time));
-    assert_eq!(state.running_long_qtd(), 1);
+    assert_eq!(state.running_long_len(), 1);
     assert!(
         state.running_long_margin() > 0,
         "Long margin should be positive"
@@ -259,7 +259,7 @@ async fn test_simulated_trade_controller_long_loss() -> Result<()> {
         state.running_pl() < 0,
         "Long position should be at a loss after price decrease"
     );
-    assert_eq!(state.closed_qtd(), 0);
+    assert_eq!(state.closed_len(), 0);
 
     // Step 4: Update price to trigger stoploss (98_000, 2% drop from entry)
     let time = time + Duration::seconds(1);
@@ -274,12 +274,12 @@ async fn test_simulated_trade_controller_long_loss() -> Result<()> {
     assert_eq!(state.current_balance(), expected_balance);
     assert_eq!(state.market_price(), market_price);
     assert_eq!(state.last_trade_time(), Some(start_time));
-    assert_eq!(state.running_long_qtd(), 0); // Trade should be closed by stoploss
+    assert_eq!(state.running_long_len(), 0); // Trade should be closed by stoploss
     assert_eq!(state.running_long_margin(), 0);
     assert_eq!(state.running_pl(), 0);
     assert_eq!(state.running_fees(), 0);
     assert_eq!(state.running_maintenance_margin(), 0);
-    assert_eq!(state.closed_qtd(), 1);
+    assert_eq!(state.closed_len(), 1);
     assert!(
         state.closed_pl() < 0,
         "Should have negative PL after hitting stoploss"
@@ -313,14 +313,14 @@ async fn test_simulated_trade_controller_short_profit() -> Result<()> {
     assert_eq!(state.current_balance(), start_balance);
     assert_eq!(state.market_price(), market_price);
     assert_eq!(state.last_trade_time(), None);
-    assert_eq!(state.running_long_qtd(), 0);
+    assert_eq!(state.running_long_len(), 0);
     assert_eq!(state.running_long_margin(), 0);
-    assert_eq!(state.running_short_qtd(), 0);
+    assert_eq!(state.running_short_len(), 0);
     assert_eq!(state.running_short_margin(), 0);
     assert_eq!(state.running_pl(), 0);
     assert_eq!(state.running_fees(), 0);
     assert_eq!(state.running_maintenance_margin(), 0);
-    assert_eq!(state.closed_qtd(), 0);
+    assert_eq!(state.closed_len(), 0);
     assert_eq!(state.closed_pl(), 0);
     assert_eq!(state.closed_fees(), 0);
 
@@ -343,9 +343,9 @@ async fn test_simulated_trade_controller_short_profit() -> Result<()> {
     assert_eq!(state.last_trade_time(), Some(start_time));
     assert_eq!(state.market_price(), market_price);
     assert_eq!(state.last_trade_time(), Some(start_time));
-    assert_eq!(state.running_long_qtd(), 0);
+    assert_eq!(state.running_long_len(), 0);
     assert_eq!(state.running_long_margin(), 0);
-    assert_eq!(state.running_short_qtd(), 1);
+    assert_eq!(state.running_short_len(), 1);
     assert!(
         state.running_short_margin() > 0,
         "Short margin should be positive"
@@ -357,7 +357,7 @@ async fn test_simulated_trade_controller_short_profit() -> Result<()> {
         "Trading maintenance margin must be estimated"
     );
     assert_eq!(state.running_fees(), state.running_maintenance_margin()); // No liquidation price
-    assert_eq!(state.closed_qtd(), 0);
+    assert_eq!(state.closed_len(), 0);
     assert_eq!(state.closed_pl(), 0);
     assert_eq!(state.closed_fees(), 0);
 
@@ -371,7 +371,7 @@ async fn test_simulated_trade_controller_short_profit() -> Result<()> {
     assert_eq!(state.current_balance(), expected_balance);
     assert_eq!(state.market_price(), market_price);
     assert_eq!(state.last_trade_time(), Some(start_time));
-    assert_eq!(state.running_short_qtd(), 1);
+    assert_eq!(state.running_short_len(), 1);
     assert!(
         state.running_short_margin() > 0,
         "Short margin should be positive"
@@ -386,7 +386,7 @@ async fn test_simulated_trade_controller_short_profit() -> Result<()> {
         "Trading maintenance margin must be estimated"
     );
     assert_eq!(state.running_fees(), state.running_maintenance_margin()); // No liquidation price
-    assert_eq!(state.closed_qtd(), 0);
+    assert_eq!(state.closed_len(), 0);
     assert_eq!(state.closed_pl(), 0);
     assert_eq!(state.closed_fees(), 0);
 
@@ -403,12 +403,12 @@ async fn test_simulated_trade_controller_short_profit() -> Result<()> {
     assert_eq!(state.current_balance(), expected_balance);
     assert_eq!(state.market_price(), market_price);
     assert_eq!(state.last_trade_time(), Some(start_time));
-    assert_eq!(state.running_short_qtd(), 0); // Trade should be closed by takeprofit
+    assert_eq!(state.running_short_len(), 0); // Trade should be closed by takeprofit
     assert_eq!(state.running_short_margin(), 0);
     assert_eq!(state.running_pl(), 0);
     assert_eq!(state.running_fees(), 0);
     assert_eq!(state.running_maintenance_margin(), 0);
-    assert_eq!(state.closed_qtd(), 1);
+    assert_eq!(state.closed_len(), 1);
     assert!(
         state.closed_pl() > 0,
         "Should have positive PL after hitting takeprofit"
@@ -442,14 +442,14 @@ async fn test_simulated_trade_controller_short_loss() -> Result<()> {
     assert_eq!(state.current_balance(), start_balance);
     assert_eq!(state.market_price(), market_price);
     assert_eq!(state.last_trade_time(), None);
-    assert_eq!(state.running_long_qtd(), 0);
+    assert_eq!(state.running_long_len(), 0);
     assert_eq!(state.running_long_margin(), 0);
-    assert_eq!(state.running_short_qtd(), 0);
+    assert_eq!(state.running_short_len(), 0);
     assert_eq!(state.running_short_margin(), 0);
     assert_eq!(state.running_pl(), 0);
     assert_eq!(state.running_fees(), 0);
     assert_eq!(state.running_maintenance_margin(), 0);
-    assert_eq!(state.closed_qtd(), 0);
+    assert_eq!(state.closed_len(), 0);
     assert_eq!(state.closed_pl(), 0);
     assert_eq!(state.closed_fees(), 0);
 
@@ -470,7 +470,7 @@ async fn test_simulated_trade_controller_short_loss() -> Result<()> {
     assert_eq!(state.current_time(), start_time);
     assert_eq!(state.current_balance(), expected_balance);
     assert_eq!(state.last_trade_time(), Some(start_time));
-    assert_eq!(state.running_short_qtd(), 1);
+    assert_eq!(state.running_short_len(), 1);
     assert!(
         state.running_short_margin() > 0,
         "Short margin should be positive"
@@ -482,7 +482,7 @@ async fn test_simulated_trade_controller_short_loss() -> Result<()> {
         "Trading maintenance margin must be estimated"
     );
     assert_eq!(state.running_fees(), state.running_maintenance_margin()); // No liquidation price
-    assert_eq!(state.closed_qtd(), 0);
+    assert_eq!(state.closed_len(), 0);
 
     // Step 3: Update price to 101_000 (1% increase)
     let time = start_time + Duration::seconds(1);
@@ -494,7 +494,7 @@ async fn test_simulated_trade_controller_short_loss() -> Result<()> {
     assert_eq!(state.current_balance(), expected_balance);
     assert_eq!(state.market_price(), market_price);
     assert_eq!(state.last_trade_time(), Some(start_time));
-    assert_eq!(state.running_short_qtd(), 1);
+    assert_eq!(state.running_short_len(), 1);
     assert!(
         state.running_short_margin() > 0,
         "Short margin should be positive"
@@ -503,7 +503,7 @@ async fn test_simulated_trade_controller_short_loss() -> Result<()> {
         state.running_pl() < 0,
         "Short position should be at a loss after price increase"
     );
-    assert_eq!(state.closed_qtd(), 0);
+    assert_eq!(state.closed_len(), 0);
 
     // Step 4: Update price to trigger stoploss (102_000, 2% increase from entry)
     let time = time + Duration::seconds(1);
@@ -518,12 +518,12 @@ async fn test_simulated_trade_controller_short_loss() -> Result<()> {
     assert_eq!(state.current_balance(), expected_balance);
     assert_eq!(state.market_price(), market_price);
     assert_eq!(state.last_trade_time(), Some(start_time));
-    assert_eq!(state.running_short_qtd(), 0); // Trade should be closed by stoploss
+    assert_eq!(state.running_short_len(), 0); // Trade should be closed by stoploss
     assert_eq!(state.running_short_margin(), 0);
     assert_eq!(state.running_pl(), 0);
     assert_eq!(state.running_fees(), 0);
     assert_eq!(state.running_maintenance_margin(), 0);
-    assert_eq!(state.closed_qtd(), 1);
+    assert_eq!(state.closed_len(), 1);
     assert!(
         state.closed_pl() < 0,
         "Should have negative PL after hitting stoploss"
