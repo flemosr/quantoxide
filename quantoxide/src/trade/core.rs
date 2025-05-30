@@ -32,7 +32,6 @@ pub struct TradeControllerState {
     running_short_quantity: u64,
     running_pl: i64,
     running_fees: u64,
-    running_maintenance_margin: u64,
     closed_len: usize,
     closed_pl: i64,
     closed_fees: u64,
@@ -54,7 +53,6 @@ impl TradeControllerState {
         running_short_quantity: u64,
         running_pl: i64,
         running_fees: u64,
-        running_maintenance_margin: u64,
         closed_len: usize,
         closed_pl: i64,
         closed_fees: u64,
@@ -74,7 +72,6 @@ impl TradeControllerState {
             running_short_quantity,
             running_pl,
             running_fees,
-            running_maintenance_margin,
             closed_len,
             closed_pl,
             closed_fees,
@@ -151,12 +148,8 @@ impl TradeControllerState {
         self.running_fees
     }
 
-    pub fn running_maintenance_margin(&self) -> u64 {
-        self.running_maintenance_margin
-    }
-
     pub fn running_total_margin(&self) -> u64 {
-        self.running_long_margin + self.running_short_margin + self.running_maintenance_margin
+        self.running_long_margin + self.running_short_margin
     }
 
     pub fn closed_pl(&self) -> i64 {
@@ -214,11 +207,6 @@ impl fmt::Display for TradeControllerState {
         writeln!(f, "  running_metrics:")?;
         writeln!(f, "    pl: {}", self.running_pl)?;
         writeln!(f, "    fees: {}", self.running_fees)?;
-        writeln!(
-            f,
-            "    maintenance_margin: {}",
-            self.running_maintenance_margin
-        )?;
         writeln!(f, "    total_margin: {}", self.running_total_margin())?;
 
         writeln!(f, "  closed_positions:")?;
