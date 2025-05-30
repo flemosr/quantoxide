@@ -328,8 +328,10 @@ impl TradeController for SimulatedTradeController {
 
         let mut running_long_qtd: usize = 0;
         let mut running_long_margin: u64 = 0;
+        let mut running_long_quantity: u64 = 0;
         let mut running_short_qtd: usize = 0;
         let mut running_short_margin: u64 = 0;
+        let mut running_short_quantity: u64 = 0;
         let mut running_pl: i64 = 0;
         let mut running_fees: u64 = 0;
         let mut running_maintenance_margin: u64 = 0;
@@ -343,6 +345,7 @@ impl TradeController for SimulatedTradeController {
                 TradeSide::Buy => {
                     running_long_qtd += 1;
                     running_long_margin += trade.margin().into_u64();
+                    running_long_quantity += trade.quantity().into_u64();
 
                     Price::round_down(state_guard.market_price)
                         .map_err(SimulatedTradeControllerError::from)?
@@ -350,6 +353,7 @@ impl TradeController for SimulatedTradeController {
                 TradeSide::Sell => {
                     running_short_qtd += 1;
                     running_short_margin += trade.margin().into_u64();
+                    running_short_quantity += trade.quantity().into_u64();
 
                     Price::round_up(state_guard.market_price)
                         .map_err(SimulatedTradeControllerError::from)?
@@ -370,8 +374,10 @@ impl TradeController for SimulatedTradeController {
             state_guard.last_trade_time,
             running_long_qtd,
             running_long_margin,
+            running_long_quantity,
             running_short_qtd,
             running_short_margin,
+            running_short_quantity,
             running_pl,
             running_fees,
             running_maintenance_margin,
