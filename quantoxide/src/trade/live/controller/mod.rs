@@ -393,25 +393,25 @@ impl TradeController for LiveTradeController {
         let mut running_short_quantity: u64 = 0;
         let mut running_pl: i64 = 0;
         let mut running_fees: u64 = 0;
-        let mut running_maintenance_margin: u64 = 0;
 
         for trade in status.running().values() {
             match trade.side() {
                 TradeSide::Buy => {
                     running_long_qtd += 1;
-                    running_long_margin += trade.margin().into_u64();
+                    running_long_margin +=
+                        trade.margin().into_u64() + trade.maintenance_margin().max(0) as u64;
                     running_long_quantity += trade.quantity().into_u64();
                 }
                 TradeSide::Sell => {
                     running_short_qtd += 1;
-                    running_short_margin += trade.margin().into_u64();
+                    running_short_margin +=
+                        trade.margin().into_u64() + trade.maintenance_margin().max(0) as u64;
                     running_short_quantity += trade.quantity().into_u64();
                 }
             };
 
             running_pl += trade.estimate_pl(market_price);
             running_fees += trade.opening_fee();
-            running_maintenance_margin += trade.maintenance_margin().max(0) as u64;
         }
 
         let mut closed_pl: i64 = 0;
@@ -437,7 +437,6 @@ impl TradeController for LiveTradeController {
             running_short_quantity,
             running_pl,
             running_fees,
-            running_maintenance_margin,
             status.closed().len(),
             closed_pl,
             closed_fees,
