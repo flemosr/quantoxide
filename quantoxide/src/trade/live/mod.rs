@@ -239,14 +239,19 @@ impl LiveController {
                 LiveError::Generic(format!("Failed to send shutdown request, {e}"))
             });
 
-            let shutdown_res = tokio::select! {
-                join_res = &mut handle => {
-                    join_res.map_err(LiveError::TaskJoin)
+            let shutdown_res = match shutdown_send_res {
+                Ok(_) => {
+                    tokio::select! {
+                        join_res = &mut handle => {
+                            join_res.map_err(LiveError::TaskJoin)
+                        }
+                        _ = time::sleep(self.shutdown_timeout) => {
+                            handle.abort();
+                            Err(LiveError::Generic("Shutdown timeout".to_string()))
+                        }
+                    }
                 }
-                _ = time::sleep(self.shutdown_timeout) => {
-                    handle.abort();
-                    Err(LiveError::Generic("Shutdown timeout".to_string()))
-                }
+                Err(e) => Err(e),
             };
 
             // Close and cancel all trades
@@ -271,8 +276,7 @@ impl LiveController {
 
             self.state_manager.update(LiveState::Shutdown);
 
-            return shutdown_send_res
-                .and(shutdown_res)
+            return shutdown_res
                 .and(close_all_res)
                 .and(signal_shutdown_res)
                 .and(sync_shutdown_res);
