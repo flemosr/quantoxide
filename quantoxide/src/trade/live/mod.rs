@@ -284,6 +284,16 @@ impl LiveController {
     }
 }
 
+impl Drop for LiveController {
+    fn drop(&mut self) {
+        if let Ok(mut handle_guard) = self.handle.lock() {
+            if let Some(handle) = handle_guard.take() {
+                handle.abort();
+            }
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct LiveConfig {
     api_cooldown: time::Duration,
