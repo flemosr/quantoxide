@@ -456,8 +456,7 @@ impl LiveEngine {
             self.evaluators.clone(),
         )
         .map_err(|e| LiveError::Generic(e.to_string()))?
-        .start()
-        .map_err(|e| LiveError::Generic(e.to_string()))?;
+        .start();
 
         let trade_controller =
             LiveTradeController::new(self.db, self.api, sync_controller.receiver())

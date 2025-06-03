@@ -76,8 +76,9 @@ impl LiveSignalStateManager {
 struct LiveSignalProcess {
     config: LiveSignalConfig,
     db: Arc<DbContext>,
-    sync_controller: Arc<SyncController>,
     evaluators: Arc<Vec<ConfiguredSignalEvaluator>>,
+    shutdown_tx: broadcast::Sender<()>,
+    sync_controller: Arc<SyncController>,
     state_manager: LiveSignalStateManager,
 }
 
@@ -85,21 +86,19 @@ impl LiveSignalProcess {
     fn new(
         config: LiveSignalConfig,
         db: Arc<DbContext>,
-        sync_controller: Arc<SyncController>,
         evaluators: Arc<Vec<ConfiguredSignalEvaluator>>,
+        shutdown_tx: broadcast::Sender<()>,
+        sync_controller: Arc<SyncController>,
         state_manager: LiveSignalStateManager,
-    ) -> Result<Self> {
-        if evaluators.is_empty() {
-            return Err(SignalError::Generic("empty `evaluators`".to_string()));
-        }
-
-        Ok(Self {
+    ) -> Self {
+        Self {
             config,
             db,
-            sync_controller,
             evaluators,
+            shutdown_tx,
+            sync_controller,
             state_manager,
-        })
+        }
     }
 
     async fn run(&self) -> Result<Never> {
@@ -182,6 +181,30 @@ impl LiveSignalProcess {
                     .update(LiveSignalState::Running(signal))
                     .await;
             }
+        }
+    }
+
+    async fn process_recovery_loop(self) {
+        loop {
+            self.state_manager.update(LiveSignalState::Starting).await;
+
+            let mut shutdown_rx = self.shutdown_tx.subscribe();
+
+            tokio::select! {
+                run_res = self.run() => {
+                    let Err(signal_error) = run_res;
+                    self.state_manager.update(LiveSignalState::Failed(signal_error)).await;
+                }
+                shutdown_res = shutdown_rx.recv() => {
+                    if let Err(e) = shutdown_res {
+                        self.state_manager.update(LiveSignalState::Failed(SignalError::Generic(e.to_string()))).await;
+                    }
+                    return;
+                }
+            };
+
+            self.state_manager.update(LiveSignalState::Restarting).await;
+            time::sleep(self.config.restart_interval).await;
         }
     }
 }
@@ -316,11 +339,10 @@ impl From<&LiveConfig> for LiveSignalConfig {
 }
 
 pub struct LiveSignalEngine {
-    process: LiveSignalProcess,
-    restart_interval: time::Duration,
-    shutdown_tx: broadcast::Sender<()>,
-    shutdown_timeout: time::Duration,
-    state_manager: LiveSignalStateManager,
+    config: LiveSignalConfig,
+    db: Arc<DbContext>,
+    sync_controller: Arc<SyncController>,
+    evaluators: Arc<Vec<ConfiguredSignalEvaluator>>,
 }
 
 impl LiveSignalEngine {
@@ -330,65 +352,41 @@ impl LiveSignalEngine {
         sync_controller: Arc<SyncController>,
         evaluators: Arc<Vec<ConfiguredSignalEvaluator>>,
     ) -> Result<Self> {
-        let restart_interval = config.restart_interval();
-        let shutdown_timeout = config.shutdown_timeout();
+        if evaluators.is_empty() {
+            return Err(SignalError::Generic(
+                "At least one evaluator must be provided".to_string(),
+            ));
+        }
 
-        let state_manager = LiveSignalStateManager::new();
-
-        let process = LiveSignalProcess::new(
+        Ok(Self {
             config,
             db,
             sync_controller,
             evaluators,
-            state_manager.clone(),
-        )?;
+        })
+    }
+
+    pub fn start(self) -> Arc<LiveSignalController> {
+        let shutdown_timeout = self.config.shutdown_timeout;
+        let state_manager = LiveSignalStateManager::new();
 
         // Internal channel for shutdown signal
         let (shutdown_tx, _) = broadcast::channel::<()>(1);
 
-        Ok(Self {
-            process,
-            restart_interval,
-            shutdown_tx,
-            shutdown_timeout,
-            state_manager,
-        })
-    }
+        let process = LiveSignalProcess::new(
+            self.config,
+            self.db,
+            self.evaluators,
+            shutdown_tx.clone(),
+            self.sync_controller,
+            state_manager.clone(),
+        );
 
-    async fn process_recovery_loop(self) {
-        loop {
-            self.state_manager.update(LiveSignalState::Starting).await;
-
-            let mut shutdown_rx = self.shutdown_tx.subscribe();
-
-            tokio::select! {
-                run_res = self.process.run() => {
-                    let Err(signal_error) = run_res;
-                    self.state_manager.update(LiveSignalState::Failed(signal_error)).await;
-                }
-                shutdown_res = shutdown_rx.recv() => {
-                    if let Err(e) = shutdown_res {
-                        self.state_manager.update(LiveSignalState::Failed(SignalError::Generic(e.to_string()))).await;
-                    }
-                    return;
-                }
-            };
-
-            self.state_manager.update(LiveSignalState::Restarting).await;
-            time::sleep(self.restart_interval).await;
-        }
-    }
-
-    pub fn start(self) -> Result<Arc<LiveSignalController>> {
-        let shutdown_tx = self.shutdown_tx.clone();
-        let shutdown_timeout = self.shutdown_timeout;
-        let state_manager = self.state_manager.clone();
-
-        let handle = tokio::spawn(self.process_recovery_loop());
+        let handle = tokio::spawn(process.process_recovery_loop());
 
         let signal_controller =
             LiveSignalController::new(handle, shutdown_tx, shutdown_timeout, state_manager);
 
-        Ok(Arc::new(signal_controller))
+        Arc::new(signal_controller)
     }
 }
