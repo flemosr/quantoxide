@@ -149,29 +149,31 @@ impl LiveProcess {
         ))
     }
 
-    pub async fn start_recovery_loop(mut self) {
-        loop {
-            self.state_manager.update(LiveState::Starting);
+    pub fn spawn_recovery_loop(mut self) -> JoinHandle<()> {
+        tokio::spawn(async move {
+            loop {
+                self.state_manager.update(LiveState::Starting);
 
-            let mut shutdown_rx = self.shutdown_tx.subscribe();
+                let mut shutdown_rx = self.shutdown_tx.subscribe();
 
-            tokio::select! {
-                run_res = self.run() => {
-                    let Err(e) = run_res;
-                    self.state_manager.update(LiveState::Failed(e));
-                }
-                shutdown_res = shutdown_rx.recv() => {
-                    if let Err(e) = shutdown_res {
-                        self.state_manager.update(LiveState::Failed(LiveError::Generic(e.to_string())));
+                tokio::select! {
+                    run_res = self.run() => {
+                        let Err(e) = run_res;
+                        self.state_manager.update(LiveState::Failed(e));
                     }
-                    return;
-                }
-            };
+                    shutdown_res = shutdown_rx.recv() => {
+                        if let Err(e) = shutdown_res {
+                            self.state_manager.update(LiveState::Failed(LiveError::Generic(e.to_string())));
+                        }
+                        return ;
+                    }
+                };
 
-            self.state_manager.update(LiveState::Restarting);
+                self.state_manager.update(LiveState::Restarting);
 
-            time::sleep(self.restart_interval).await;
-        }
+                time::sleep(self.restart_interval).await;
+            }
+        })
     }
 }
 
@@ -464,16 +466,15 @@ impl LiveEngine {
         // Internal channel for shutdown signal
         let (shutdown_tx, _) = broadcast::channel::<()>(1);
 
-        let process = LiveProcess::new(
+        let handle = LiveProcess::new(
             self.config.restart_interval(),
             self.operator,
             shutdown_tx.clone(),
             signal_controller.clone(),
             trade_controller.clone(),
             self.state_manager.clone(),
-        );
-
-        let handle = tokio::spawn(process.start_recovery_loop());
+        )
+        .spawn_recovery_loop();
 
         let controller = LiveController::new(
             sync_controller,
