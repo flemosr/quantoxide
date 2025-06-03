@@ -246,24 +246,24 @@ impl LiveSignalController {
 
             drop(handle_guard);
 
-            if let Err(e) = self.shutdown_tx.send(()) {
+            let shutdown_send_res = self.shutdown_tx.send(()).map_err(|e| {
                 handle.abort();
+                SignalError::Generic(format!("Failed to send shutdown request, {e}"))
+            });
 
-                self.state_manager.update(LiveSignalState::Shutdown);
-
-                return Err(SignalError::Generic(format!(
-                    "Failed to send shutdown request, {e}",
-                )));
-            }
-
-            let shutdown_res = tokio::select! {
-                join_res = &mut handle => {
-                    join_res.map_err(SignalError::TaskJoin)
+            let shutdown_res = match shutdown_send_res {
+                Ok(_) => {
+                    tokio::select! {
+                        join_res = &mut handle => {
+                            join_res.map_err(SignalError::TaskJoin)
+                        }
+                        _ = time::sleep(self.shutdown_timeout) => {
+                            handle.abort();
+                            Err(SignalError::Generic("Shutdown timeout".to_string()))
+                        }
+                    }
                 }
-                _ = time::sleep(self.shutdown_timeout) => {
-                    handle.abort();
-                    Err(SignalError::Generic("Shutdown timeout".to_string()))
-                }
+                Err(e) => Err(e),
             };
 
             self.state_manager.update(LiveSignalState::Shutdown);
