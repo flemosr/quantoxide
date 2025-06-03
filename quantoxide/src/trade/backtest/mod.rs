@@ -237,7 +237,7 @@ impl BacktestEngine {
         })
     }
 
-    async fn run(self) -> Result<()> {
+    async fn run(self) -> Result<TradeControllerState> {
         self.state_manager.update(BacktestState::Starting).await;
 
         let trades_manager = {
@@ -408,11 +408,7 @@ impl BacktestEngine {
             .await
             .map_err(|e| BacktestError::Generic(e.to_string()))?;
 
-        self.state_manager
-            .update(BacktestState::Finished(final_state))
-            .await;
-
-        Ok(())
+        Ok(final_state)
     }
 
     pub fn start(self) -> Result<Arc<BacktestController>> {
@@ -420,13 +416,17 @@ impl BacktestEngine {
 
         let handle = tokio::spawn(async move {
             let state_manager = self.state_manager.clone();
-            if let Err(e) = self.run().await {
-                state_manager.update(BacktestState::Failed(e)).await;
-            }
+
+            let final_backtest_state = match self.run().await {
+                Ok(final_trade_state) => BacktestState::Finished(final_trade_state),
+                Err(e) => BacktestState::Failed(e),
+            };
+
+            state_manager.update(final_backtest_state).await;
         });
 
         let backtest_controller = BacktestController::new(handle, state_manager);
 
-        Ok(Arc::new(backtest_controller))
+        Ok(backtest_controller)
     }
 }
