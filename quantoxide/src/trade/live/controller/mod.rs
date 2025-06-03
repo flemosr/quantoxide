@@ -445,3 +445,9 @@ impl TradeController for LiveTradeController {
         Ok(trades_state)
     }
 }
+
+impl Drop for LiveTradeController {
+    fn drop(&mut self) {
+        self.handle.abort();
+    }
+}
