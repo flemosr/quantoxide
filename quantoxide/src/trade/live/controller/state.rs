@@ -256,6 +256,21 @@ pub struct LockedLiveTradeControllerStatus<'a> {
     state_guard: MutexGuard<'a, Arc<LiveTradeControllerState>>,
 }
 
+impl<'a> TryFrom<MutexGuard<'a, Arc<LiveTradeControllerState>>>
+    for LockedLiveTradeControllerStatus<'a>
+{
+    type Error = LiveError;
+
+    fn try_from(
+        value: MutexGuard<'a, Arc<LiveTradeControllerState>>,
+    ) -> result::Result<Self, Self::Error> {
+        match value.as_ref() {
+            LiveTradeControllerState::Ready(_) => Ok(Self { state_guard: value }),
+            _ => Err(LiveError::ManagerNotReady),
+        }
+    }
+}
+
 impl<'a> LockedLiveTradeControllerStatus<'a> {
     fn as_status(&self) -> &LiveTradeControllerStatus {
         match self.state_guard.as_ref() {
@@ -282,21 +297,6 @@ impl<'a> LockedLiveTradeControllerStatus<'a> {
 
     pub fn to_owned(&self) -> LiveTradeControllerStatus {
         self.as_status().clone()
-    }
-}
-
-impl<'a> TryFrom<MutexGuard<'a, Arc<LiveTradeControllerState>>>
-    for LockedLiveTradeControllerStatus<'a>
-{
-    type Error = LiveError;
-
-    fn try_from(
-        value: MutexGuard<'a, Arc<LiveTradeControllerState>>,
-    ) -> result::Result<Self, Self::Error> {
-        match value.as_ref() {
-            LiveTradeControllerState::Ready(_) => Ok(Self { state_guard: value }),
-            _ => Err(LiveError::ManagerNotReady),
-        }
     }
 }
 
