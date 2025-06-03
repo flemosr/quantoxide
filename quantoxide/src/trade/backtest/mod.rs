@@ -57,12 +57,6 @@ impl BacktestStateManager {
         self.state_tx.subscribe()
     }
 
-    async fn send_state_update(&self, new_state: Arc<BacktestState>) {
-        // We can safely ignore errors since they only mean that there are no
-        // receivers.
-        let _ = self.state_tx.send(new_state);
-    }
-
     pub async fn update(&self, new_state: BacktestState) {
         let new_state = Arc::new(new_state);
 
@@ -70,7 +64,8 @@ impl BacktestStateManager {
         *state_guard = new_state.clone();
         drop(state_guard);
 
-        self.send_state_update(new_state).await
+        // Ignore no-receivers errors
+        let _ = self.state_tx.send(new_state);
     }
 }
 
