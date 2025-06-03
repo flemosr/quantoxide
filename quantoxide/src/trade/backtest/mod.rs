@@ -1,10 +1,7 @@
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use chrono::{DateTime, Duration, Utc};
-use tokio::{
-    sync::{Mutex, broadcast},
-    task::JoinHandle,
-};
+use tokio::{sync::broadcast, task::JoinHandle};
 
 use lnm_sdk::api::rest::models::BoundedPercentage;
 
@@ -35,32 +32,35 @@ pub enum BacktestState {
 pub type BacktestTransmiter = broadcast::Sender<Arc<BacktestState>>;
 pub type BacktestReceiver = broadcast::Receiver<Arc<BacktestState>>;
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 struct BacktestStateManager {
-    state: Arc<Mutex<Arc<BacktestState>>>,
+    state: Mutex<Arc<BacktestState>>,
     state_tx: BacktestTransmiter,
 }
 
 impl BacktestStateManager {
-    pub fn new() -> Self {
-        let state = Arc::new(Mutex::new(Arc::new(BacktestState::NotInitiated)));
+    pub fn new() -> Arc<Self> {
+        let state = Mutex::new(Arc::new(BacktestState::NotInitiated));
         let (state_tx, _) = broadcast::channel::<Arc<BacktestState>>(100);
 
-        Self { state, state_tx }
+        Arc::new(Self { state, state_tx })
     }
 
-    pub async fn snapshot(&self) -> Arc<BacktestState> {
-        self.state.lock().await.clone()
+    pub fn snapshot(&self) -> Arc<BacktestState> {
+        self.state
+            .lock()
+            .expect("state lock can't be poisoned")
+            .clone()
     }
 
     pub fn receiver(&self) -> BacktestReceiver {
         self.state_tx.subscribe()
     }
 
-    pub async fn update(&self, new_state: BacktestState) {
+    pub fn update(&self, new_state: BacktestState) {
         let new_state = Arc::new(new_state);
 
-        let mut state_guard = self.state.lock().await;
+        let mut state_guard = self.state.lock().expect("state lock can't be poisoned");
         *state_guard = new_state.clone();
         drop(state_guard);
 
@@ -72,11 +72,11 @@ impl BacktestStateManager {
 #[derive(Debug)]
 pub struct BacktestController {
     handle: Mutex<Option<JoinHandle<()>>>,
-    state_manager: BacktestStateManager,
+    state_manager: Arc<BacktestStateManager>,
 }
 
 impl BacktestController {
-    fn new(handle: JoinHandle<()>, state_manager: BacktestStateManager) -> Arc<Self> {
+    fn new(handle: JoinHandle<()>, state_manager: Arc<BacktestStateManager>) -> Arc<Self> {
         Arc::new(Self {
             handle: Mutex::new(Some(handle)),
             state_manager,
@@ -87,15 +87,15 @@ impl BacktestController {
         self.state_manager.receiver()
     }
 
-    pub async fn state_snapshot(&self) -> Arc<BacktestState> {
-        self.state_manager.snapshot().await
+    pub fn state_snapshot(&self) -> Arc<BacktestState> {
+        self.state_manager.snapshot()
     }
 
     /// Consumes the task handle and waits for the backtest to complete.
     /// This method can only be called once per controller instance.
     /// Returns an error if the internal task was not properly handled.
     pub async fn wait_for_completion(&self) -> Result<()> {
-        let mut handle_guard = self.handle.lock().await;
+        let mut handle_guard = self.handle.lock().expect("handle lock can't be poisoned");
         if let Some(handle) = handle_guard.take() {
             return handle.await.map_err(BacktestError::TaskJoin);
         }
@@ -109,11 +109,11 @@ impl BacktestController {
     /// This method can only be called once per controller instance.
     /// Returns an error if the internal task was not properly handled.
     pub async fn abort(&self) -> Result<()> {
-        let mut handle_guard = self.handle.lock().await;
+        let mut handle_guard = self.handle.lock().expect("handle lock can't be poisoned");
         if let Some(handle) = handle_guard.take() {
             if !handle.is_finished() {
                 handle.abort();
-                self.state_manager.update(BacktestState::Aborted).await;
+                self.state_manager.update(BacktestState::Aborted);
             }
 
             return handle.await.map_err(BacktestError::TaskJoin);
@@ -178,7 +178,7 @@ pub struct BacktestEngine {
     start_time: DateTime<Utc>,
     start_balance: u64,
     end_time: DateTime<Utc>,
-    state_manager: BacktestStateManager,
+    state_manager: Arc<BacktestStateManager>,
 }
 
 impl BacktestEngine {
@@ -238,7 +238,7 @@ impl BacktestEngine {
     }
 
     async fn run(self) -> Result<TradeControllerState> {
-        self.state_manager.update(BacktestState::Starting).await;
+        self.state_manager.update(BacktestState::Starting);
 
         let trades_manager = {
             let start_time_entry = self
@@ -333,8 +333,7 @@ impl BacktestEngine {
                 .map_err(|e| BacktestError::Generic(e.to_string()))?;
 
             self.state_manager
-                .update(BacktestState::Running(trades_state))
-                .await;
+                .update(BacktestState::Running(trades_state));
         }
 
         loop {
@@ -371,8 +370,7 @@ impl BacktestEngine {
                     .map_err(|e| BacktestError::Generic(e.to_string()))?;
 
                 self.state_manager
-                    .update(BacktestState::Running(trades_state))
-                    .await;
+                    .update(BacktestState::Running(trades_state));
 
                 (
                     locf_buffer,
@@ -422,7 +420,7 @@ impl BacktestEngine {
                 Err(e) => BacktestState::Failed(e),
             };
 
-            state_manager.update(final_backtest_state).await;
+            state_manager.update(final_backtest_state);
         });
 
         let backtest_controller = BacktestController::new(handle, state_manager);
