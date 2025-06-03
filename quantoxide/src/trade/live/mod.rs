@@ -1,12 +1,8 @@
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use chrono::Duration;
 use lnm_sdk::api::ApiContext;
-use tokio::{
-    sync::{Mutex, broadcast},
-    task::JoinHandle,
-    time,
-};
+use tokio::{sync::broadcast, task::JoinHandle, time};
 
 use crate::{
     db::DbContext,
@@ -43,42 +39,40 @@ pub enum LiveState {
 pub type LiveTradeTransmiter = broadcast::Sender<Arc<LiveState>>;
 pub type LiveTradeReceiver = broadcast::Receiver<Arc<LiveState>>;
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 struct LiveStateManager {
-    state: Arc<Mutex<Arc<LiveState>>>,
+    state: Mutex<Arc<LiveState>>,
     state_tx: LiveTradeTransmiter,
 }
 
 impl LiveStateManager {
-    pub fn new() -> Self {
-        let state = Arc::new(Mutex::new(Arc::new(LiveState::NotInitiated)));
+    pub fn new() -> Arc<Self> {
+        let state = Mutex::new(Arc::new(LiveState::NotInitiated));
         let (state_tx, _) = broadcast::channel::<Arc<LiveState>>(100);
 
-        Self { state, state_tx }
+        Arc::new(Self { state, state_tx })
     }
 
-    pub async fn snapshot(&self) -> Arc<LiveState> {
-        self.state.lock().await.clone()
+    pub fn snapshot(&self) -> Arc<LiveState> {
+        self.state
+            .lock()
+            .expect("state lock can't be poisoned")
+            .clone()
     }
 
     pub fn receiver(&self) -> LiveTradeReceiver {
         self.state_tx.subscribe()
     }
 
-    async fn send_state_update(&self, new_state: Arc<LiveState>) {
-        // We can safely ignore errors since they only mean that there are no
-        // receivers.
-        let _ = self.state_tx.send(new_state);
-    }
-
-    pub async fn update(&self, new_state: LiveState) {
+    pub fn update(&self, new_state: LiveState) {
         let new_state = Arc::new(new_state);
 
-        let mut state_guard = self.state.lock().await;
+        let mut state_guard = self.state.lock().expect("state lock can't be poisoned");
         *state_guard = new_state.clone();
         drop(state_guard);
 
-        self.send_state_update(new_state).await
+        // Ignore no-receivers errors
+        let _ = self.state_tx.send(new_state);
     }
 }
 
@@ -88,7 +82,7 @@ struct LiveProcess {
     shutdown_tx: broadcast::Sender<()>,
     signal_controller: Arc<LiveSignalController>,
     trade_controller: Arc<LiveTradeController>,
-    state_manager: LiveStateManager,
+    state_manager: Arc<LiveStateManager>,
 }
 
 impl LiveProcess {
@@ -98,7 +92,7 @@ impl LiveProcess {
         shutdown_tx: broadcast::Sender<()>,
         signal_controller: Arc<LiveSignalController>,
         trade_controller: Arc<LiveTradeController>,
-        state_manager: LiveStateManager,
+        state_manager: Arc<LiveStateManager>,
     ) -> Self {
         Self {
             restart_interval,
@@ -121,8 +115,7 @@ impl LiveProcess {
                         LiveTradeControllerState::Ready(_)
                     ) {
                         self.state_manager
-                            .update(LiveState::WaitingTradeController(trade_controller_state))
-                            .await;
+                            .update(LiveState::WaitingTradeController(trade_controller_state));
 
                         continue;
                     }
@@ -139,18 +132,14 @@ impl LiveProcess {
                         .map_err(|e| LiveError::Generic(e.to_string()))?;
 
                     self.state_manager
-                        .update(LiveState::Running((last_signal.clone(), trades_state)))
-                        .await;
+                        .update(LiveState::Running((last_signal.clone(), trades_state)));
                 }
                 LiveSignalState::WaitingForSync(sync_state) => {
                     self.state_manager
-                        .update(LiveState::WaitingForSync(sync_state.clone()))
-                        .await;
+                        .update(LiveState::WaitingForSync(sync_state.clone()));
                 }
                 _ => {
-                    self.state_manager
-                        .update(LiveState::WaitingForSignal(res))
-                        .await;
+                    self.state_manager.update(LiveState::WaitingForSignal(res));
                 }
             }
         }
@@ -162,38 +151,37 @@ impl LiveProcess {
 
     pub async fn start_recovery_loop(mut self) {
         loop {
-            self.state_manager.update(LiveState::Starting).await;
+            self.state_manager.update(LiveState::Starting);
 
             let mut shutdown_rx = self.shutdown_tx.subscribe();
 
             tokio::select! {
                 run_res = self.run() => {
                     let Err(e) = run_res;
-                    self.state_manager.update(LiveState::Failed(e)).await;
+                    self.state_manager.update(LiveState::Failed(e));
                 }
                 shutdown_res = shutdown_rx.recv() => {
                     if let Err(e) = shutdown_res {
-                        self.state_manager.update(LiveState::Failed(LiveError::Generic(e.to_string()))).await;
+                        self.state_manager.update(LiveState::Failed(LiveError::Generic(e.to_string())));
                     }
                     return;
                 }
             };
 
-            self.state_manager.update(LiveState::Restarting).await;
+            self.state_manager.update(LiveState::Restarting);
 
             time::sleep(self.restart_interval).await;
         }
     }
 }
 
-#[derive(Clone)]
 pub struct LiveController {
     sync_controller: Arc<SyncController>,
     signal_controller: Arc<LiveSignalController>,
-    handle: Arc<Mutex<Option<JoinHandle<()>>>>,
+    handle: Mutex<Option<JoinHandle<()>>>,
     shutdown_tx: broadcast::Sender<()>,
     shutdown_timeout: time::Duration,
-    state_manager: LiveStateManager,
+    state_manager: Arc<LiveStateManager>,
     trade_controller: Arc<LiveTradeController>,
 }
 
@@ -204,26 +192,26 @@ impl LiveController {
         handle: JoinHandle<()>,
         shutdown_tx: broadcast::Sender<()>,
         shutdown_timeout: time::Duration,
-        state_manager: LiveStateManager,
+        state_manager: Arc<LiveStateManager>,
         trade_controller: Arc<LiveTradeController>,
-    ) -> Self {
-        Self {
+    ) -> Arc<Self> {
+        Arc::new(Self {
             sync_controller,
             signal_controller,
-            handle: Arc::new(Mutex::new(Some(handle))),
+            handle: Mutex::new(Some(handle)),
             shutdown_tx,
             shutdown_timeout,
             state_manager,
             trade_controller,
-        }
+        })
     }
 
     pub fn receiver(&self) -> LiveTradeReceiver {
         self.state_manager.receiver()
     }
 
-    pub async fn state_snapshot(&self) -> Arc<LiveState> {
-        self.state_manager.snapshot().await
+    pub fn state_snapshot(&self) -> Arc<LiveState> {
+        self.state_manager.snapshot()
     }
 
     /// Tries to perform a clean shutdown of the live trade process and consumes
@@ -232,11 +220,15 @@ impl LiveController {
     /// Returns an error if the process had to be aborted, or if it the handle
     /// was already consumed.
     pub async fn shutdown(&self) -> Result<()> {
-        let mut handle_guard = self.handle.lock().await;
+        let mut handle_guard = self
+            .handle
+            .lock()
+            .map_err(|e| LiveError::Generic(e.to_string()))?;
+
         if let Some(mut handle) = handle_guard.take() {
-            self.state_manager
-                .update(LiveState::ShutdownInitiated)
-                .await;
+            self.state_manager.update(LiveState::ShutdownInitiated);
+
+            drop(handle_guard);
 
             // Stop live trade process
 
@@ -275,7 +267,7 @@ impl LiveController {
                 .await
                 .map_err(|e| LiveError::Generic(e.to_string()));
 
-            self.state_manager.update(LiveState::Shutdown).await;
+            self.state_manager.update(LiveState::Shutdown);
 
             return shutdown_send_res
                 .and(shutdown_res)
@@ -408,7 +400,7 @@ pub struct LiveEngine {
     api: Arc<ApiContext>,
     evaluators: Arc<Vec<ConfiguredSignalEvaluator>>,
     operator: WrappedOperator,
-    state_manager: LiveStateManager,
+    state_manager: Arc<LiveStateManager>,
 }
 
 impl LiveEngine {
@@ -493,6 +485,6 @@ impl LiveEngine {
             trade_controller,
         );
 
-        Ok(Arc::new(controller))
+        Ok(controller)
     }
 }
