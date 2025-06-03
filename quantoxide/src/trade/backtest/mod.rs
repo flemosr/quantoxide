@@ -69,18 +69,18 @@ impl BacktestStateManager {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct BacktestController {
-    handle: Arc<Mutex<Option<JoinHandle<()>>>>,
+    handle: Mutex<Option<JoinHandle<()>>>,
     state_manager: BacktestStateManager,
 }
 
 impl BacktestController {
-    fn new(handle: JoinHandle<()>, state_manager: BacktestStateManager) -> Self {
-        Self {
-            handle: Arc::new(Mutex::new(Some(handle))),
+    fn new(handle: JoinHandle<()>, state_manager: BacktestStateManager) -> Arc<Self> {
+        Arc::new(Self {
+            handle: Mutex::new(Some(handle)),
             state_manager,
-        }
+        })
     }
 
     pub fn receiver(&self) -> BacktestReceiver {
@@ -88,26 +88,7 @@ impl BacktestController {
     }
 
     pub async fn state_snapshot(&self) -> Arc<BacktestState> {
-        let state = self.state_manager.snapshot().await;
-
-        match self.handle.lock().await.as_ref() {
-            Some(handle) if handle.is_finished() => {
-                // If the process has terminated but the state doesn't reflect that,
-                // return a failure state
-                match state.as_ref() {
-                    BacktestState::Finished(_) | BacktestState::Failed(_) => state,
-                    _ => Arc::new(BacktestState::Failed(BacktestError::Generic(
-                        "Backtest terminated unexpectedly".to_string(),
-                    ))),
-                }
-            }
-            None => {
-                return Arc::new(BacktestState::Failed(BacktestError::Generic(
-                    "Backtest process was already consumed".to_string(),
-                )));
-            }
-            _ => state,
-        }
+        self.state_manager.snapshot().await
     }
 
     /// Consumes the task handle and waits for the backtest to complete.
