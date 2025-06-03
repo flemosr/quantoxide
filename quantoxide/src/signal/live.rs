@@ -277,6 +277,16 @@ impl LiveSignalController {
     }
 }
 
+impl Drop for LiveSignalController {
+    fn drop(&mut self) {
+        if let Ok(mut handle_guard) = self.handle.lock() {
+            if let Some(handle) = handle_guard.take() {
+                handle.abort();
+            }
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct LiveSignalConfig {
     eval_interval: time::Duration,
