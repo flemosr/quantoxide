@@ -263,7 +263,7 @@ impl RiskParams {
 }
 
 #[async_trait]
-pub trait TradeController {
+pub trait TradeController: Send + Sync {
     async fn open_long(
         &self,
         stoploss_perc: BoundedPercentage,
@@ -293,7 +293,7 @@ pub trait TradeController {
 pub trait Operator: Send + Sync {
     fn set_trade_controller(
         &mut self,
-        trade_controller: Arc<dyn TradeController + Send + Sync>,
+        trade_controller: Arc<dyn TradeController>,
     ) -> std::result::Result<(), Box<dyn std::error::Error>>;
 
     async fn process_signal(
@@ -307,7 +307,7 @@ pub(crate) struct WrappedOperator(Box<dyn Operator>);
 impl WrappedOperator {
     pub fn set_trade_controller(
         &mut self,
-        trade_controller: Arc<dyn TradeController + Send + Sync>,
+        trade_controller: Arc<dyn TradeController>,
     ) -> Result<()> {
         panic::catch_unwind(AssertUnwindSafe(|| {
             self.0.set_trade_controller(trade_controller)
