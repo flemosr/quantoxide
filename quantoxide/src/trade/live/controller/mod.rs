@@ -60,7 +60,7 @@ pub struct LiveTradeController {
 }
 
 impl LiveTradeController {
-    fn handle_sync_updates(
+    fn spawn_sync_processor(
         db: Arc<DbContext>,
         api: Arc<ApiContext>,
         sync_rx: SyncReceiver,
@@ -170,7 +170,7 @@ impl LiveTradeController {
         let state_manager = LiveTradeControllerStateManager::new();
 
         let handle =
-            Self::handle_sync_updates(db.clone(), api.clone(), sync_rx, state_manager.clone());
+            Self::spawn_sync_processor(db.clone(), api.clone(), sync_rx, state_manager.clone());
 
         Ok(Arc::new(Self {
             db,
