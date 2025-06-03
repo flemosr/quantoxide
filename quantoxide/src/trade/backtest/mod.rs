@@ -125,6 +125,18 @@ impl BacktestController {
     }
 }
 
+impl Drop for BacktestController {
+    fn drop(&mut self) {
+        if let Ok(mut handle_guard) = self.handle.lock() {
+            if let Some(handle) = handle_guard.take() {
+                if !handle.is_finished() {
+                    handle.abort();
+                }
+            }
+        }
+    }
+}
+
 pub struct BacktestConfig {
     buffer_size: usize,
     max_running_qtd: usize,
