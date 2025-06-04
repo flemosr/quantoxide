@@ -87,14 +87,7 @@ impl LnmWebSocketRepo {
 #[async_trait]
 impl WebSocketRepository for LnmWebSocketRepo {
     async fn is_connected(&self) -> bool {
-        let handle_guard = self
-            .event_loop_handle
-            .lock()
-            .expect("manager_handle mutex can't be poisoned");
-        if let Some(handle) = handle_guard.as_ref() {
-            return !handle.is_finished();
-        }
-        false
+        self.connection_state_reader.is_connected()
     }
 
     async fn connection_state(&self) -> Arc<ConnectionState> {
