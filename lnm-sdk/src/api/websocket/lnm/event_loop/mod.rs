@@ -1,13 +1,14 @@
 use std::{collections::HashMap, sync::Arc};
 
 use tokio::{
-    sync::{Mutex, broadcast, mpsc, oneshot},
+    sync::{broadcast, mpsc, oneshot},
     time,
 };
 
 use super::super::{
     error::{Result, WebSocketApiError},
-    models::{ConnectionState, LnmJsonRpcRequest, LnmJsonRpcResponse, WebSocketApiRes},
+    models::{LnmJsonRpcRequest, LnmJsonRpcResponse, WebSocketApiRes},
+    state::{ConnectionState, ConnectionStateManager},
 };
 
 mod connection;
@@ -32,7 +33,7 @@ pub struct WebSocketEventLoop {
     disconnect_rx: DisconnectReceiver,
     request_rx: RequestReceiver,
     responses_tx: ResponseTransmiter,
-    connection_state: Arc<Mutex<Arc<ConnectionState>>>,
+    connection_state_manager: Arc<ConnectionStateManager>,
 }
 
 impl WebSocketEventLoop {
@@ -41,20 +42,17 @@ impl WebSocketEventLoop {
         disconnect_rx: DisconnectReceiver,
         request_rx: RequestReceiver,
         response_tx: ResponseTransmiter,
-    ) -> Result<(Self, Arc<Mutex<Arc<ConnectionState>>>)> {
+        connection_state_manager: Arc<ConnectionStateManager>,
+    ) -> Result<Self> {
         let ws = WebSocketApiConnection::new(api_domain).await?;
 
-        let connection_state = Arc::new(Mutex::new(Arc::new(ConnectionState::Connected)));
-
-        let manager = Self {
+        Ok(Self {
             ws,
             disconnect_rx,
             request_rx,
             responses_tx: response_tx.clone(),
-            connection_state: connection_state.clone(),
-        };
-
-        Ok((manager, connection_state))
+            connection_state_manager,
+        })
     }
 
     pub async fn run(mut self) -> Result<()> {
@@ -152,13 +150,11 @@ impl WebSocketEventLoop {
         };
 
         let new_connection_state = match handler().await {
-            Ok(_) => Arc::new(ConnectionState::Disconnected),
-            Err(err) => Arc::new(ConnectionState::Failed(err)),
+            Ok(_) => ConnectionState::Disconnected,
+            Err(err) => ConnectionState::Failed(err),
         };
 
-        let mut connection_state_guard = self.connection_state.lock().await;
-        *connection_state_guard = new_connection_state.clone();
-        drop(connection_state_guard);
+        self.connection_state_manager.update(new_connection_state);
 
         // Notify all pending RPC requests of failure on shutdown
         for (_, (_, oneshot_tx)) in pending {
@@ -166,7 +162,7 @@ impl WebSocketEventLoop {
             let _ = oneshot_tx.send(false);
         }
 
-        let connection_update = WebSocketApiRes::from(new_connection_state);
+        let connection_update = WebSocketApiRes::from(self.connection_state_manager.snapshot());
 
         // Ignore errors resulting from no receivers
         let _ = self.responses_tx.send(connection_update);
