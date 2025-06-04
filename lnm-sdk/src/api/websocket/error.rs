@@ -11,9 +11,8 @@ use tokio_rustls::rustls::pki_types::InvalidDnsNameError;
 
 use super::{
     lnm::ChannelStatus,
-    models::{
-        ConnectionState, JsonRpcResponse, LnmJsonRpcRequest, LnmWebSocketChannel, WebSocketApiRes,
-    },
+    models::{JsonRpcResponse, LnmJsonRpcRequest, LnmWebSocketChannel, WebSocketApiRes},
+    state::ConnectionState,
 };
 
 #[derive(Error, Debug)]
