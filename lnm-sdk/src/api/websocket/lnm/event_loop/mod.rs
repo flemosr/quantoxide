@@ -2,13 +2,14 @@ use std::{collections::HashMap, sync::Arc};
 
 use tokio::{
     sync::{broadcast, mpsc, oneshot},
+    task::JoinHandle,
     time,
 };
 
 use super::super::{
     error::{Result, WebSocketApiError},
     models::{LnmJsonRpcRequest, LnmJsonRpcResponse, WebSocketApiRes},
-    state::{ConnectionState, ConnectionStateManager},
+    state::{ConnectionState, ConnectionStateManager, ConnectionStateReader},
 };
 
 mod connection;
@@ -32,12 +33,12 @@ pub struct WebSocketEventLoop {
     ws: WebSocketApiConnection,
     disconnect_rx: DisconnectReceiver,
     request_rx: RequestReceiver,
-    responses_tx: ResponseTransmiter,
+    response_tx: ResponseTransmiter,
     connection_state_manager: Arc<ConnectionStateManager>,
 }
 
 impl WebSocketEventLoop {
-    pub async fn new(
+    async fn new(
         api_domain: String,
         disconnect_rx: DisconnectReceiver,
         request_rx: RequestReceiver,
@@ -50,19 +51,19 @@ impl WebSocketEventLoop {
             ws,
             disconnect_rx,
             request_rx,
-            responses_tx: response_tx.clone(),
+            response_tx,
             connection_state_manager,
         })
     }
 
-    pub async fn run(mut self) -> Result<()> {
+    async fn run(mut self) -> Result<()> {
         let mut ws = self.ws;
 
         let mut pending: PendingMap = HashMap::new();
 
         let handler = || {
             let pending = &mut pending;
-            let responses_tx = &self.responses_tx;
+            let responses_tx = &self.response_tx;
 
             async move {
                 let new_heartbeat_timer =
@@ -111,7 +112,6 @@ impl WebSocketEventLoop {
                                     // Automatically respond to pings with pongs
                                     ws.send_pong(payload).await?;
                                 }
-                                // Closes are handled at `manager_task`
                                 LnmWebSocketResponse::Close => {
                                     if close_initiated {
                                         // Close confirmation response received
@@ -165,8 +165,30 @@ impl WebSocketEventLoop {
         let connection_update = WebSocketApiRes::from(self.connection_state_manager.snapshot());
 
         // Ignore errors resulting from no receivers
-        let _ = self.responses_tx.send(connection_update);
+        let _ = self.response_tx.send(connection_update);
 
         Ok(())
+    }
+
+    pub async fn try_spawn(
+        api_domain: String,
+        disconnect_rx: DisconnectReceiver,
+        request_rx: RequestReceiver,
+        response_tx: ResponseTransmiter,
+    ) -> Result<(JoinHandle<Result<()>>, Arc<dyn ConnectionStateReader>)> {
+        let connection_state_manager = ConnectionStateManager::new();
+
+        let event_loop = Self::new(
+            api_domain,
+            disconnect_rx,
+            request_rx,
+            response_tx,
+            connection_state_manager.clone(),
+        )
+        .await?;
+
+        let event_loop_handle = tokio::spawn(event_loop.run());
+
+        Ok((event_loop_handle, connection_state_manager))
     }
 }
