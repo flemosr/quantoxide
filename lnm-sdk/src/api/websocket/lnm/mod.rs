@@ -20,9 +20,9 @@ use super::{
     models::ConnectionState,
 };
 
-mod manager;
+mod event_loop;
 
-use manager::{
+use event_loop::{
     DisconnectTransmiter, ManagerTask, RequestTransmiter, ResponseReceiver, ResponseTransmiter,
 };
 
