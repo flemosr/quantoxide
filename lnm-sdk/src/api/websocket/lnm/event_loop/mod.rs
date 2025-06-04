@@ -1,4 +1,5 @@
 use std::{collections::HashMap, sync::Arc};
+
 use tokio::{
     sync::{Mutex, broadcast, mpsc, oneshot},
     time,
@@ -37,24 +38,11 @@ pub struct WebSocketEventLoop {
 impl WebSocketEventLoop {
     pub async fn new(
         api_domain: String,
-    ) -> Result<(
-        Self,
-        DisconnectTransmiter,
-        RequestTransmiter,
-        ResponseTransmiter,
-        Arc<Mutex<Arc<ConnectionState>>>,
-    )> {
+        disconnect_rx: DisconnectReceiver,
+        request_rx: RequestReceiver,
+        response_tx: ResponseTransmiter,
+    ) -> Result<(Self, Arc<Mutex<Arc<ConnectionState>>>)> {
         let ws = WebSocketApiConnection::new(api_domain).await?;
-
-        // Internal channel for disconnect signal
-        let (disconnect_tx, disconnect_rx) = mpsc::channel::<()>(1);
-
-        // Internal channel for JSON RPC requests
-        let (request_tx, request_rx) =
-            mpsc::channel::<(LnmJsonRpcRequest, oneshot::Sender<bool>)>(100);
-
-        // External channel for API responses
-        let (responses_tx, _) = broadcast::channel::<WebSocketApiRes>(100);
 
         let connection_state = Arc::new(Mutex::new(Arc::new(ConnectionState::Connected)));
 
@@ -62,17 +50,11 @@ impl WebSocketEventLoop {
             ws,
             disconnect_rx,
             request_rx,
-            responses_tx: responses_tx.clone(),
+            responses_tx: response_tx.clone(),
             connection_state: connection_state.clone(),
         };
 
-        Ok((
-            manager,
-            disconnect_tx,
-            request_tx,
-            responses_tx,
-            connection_state,
-        ))
+        Ok((manager, connection_state))
     }
 
     pub async fn run(mut self) -> Result<()> {

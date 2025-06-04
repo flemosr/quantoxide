@@ -5,10 +5,12 @@ use std::{
 
 use async_trait::async_trait;
 use tokio::{
-    sync::{Mutex as AsyncMutex, oneshot},
+    sync::{Mutex as AsyncMutex, broadcast, mpsc, oneshot},
     task::JoinHandle,
     time,
 };
+
+use crate::api::websocket::models::WebSocketApiRes;
 
 use super::repositories::WebSocketRepository;
 use super::{
@@ -38,16 +40,27 @@ pub struct LnmWebSocketRepo {
     config: WebSocketApiConfig,
     manager_handle: SyncMutex<Option<JoinHandle<Result<()>>>>,
     disconnect_tx: DisconnectTransmiter,
-    requests_tx: RequestTransmiter,
-    responses_tx: ResponseTransmiter,
+    request_tx: RequestTransmiter,
+    response_tx: ResponseTransmiter,
     connection_state: Arc<AsyncMutex<Arc<ConnectionState>>>,
     subscriptions: Arc<AsyncMutex<HashMap<LnmWebSocketChannel, ChannelStatus>>>,
 }
 
 impl LnmWebSocketRepo {
     pub async fn new(config: WebSocketApiConfig, api_domain: String) -> Result<Arc<Self>> {
-        let (manager_task, disconnect_tx, requests_tx, responses_tx, connection_state) =
-            WebSocketEventLoop::new(api_domain).await?;
+        // Internal channel for disconnect signal
+        let (disconnect_tx, disconnect_rx) = mpsc::channel::<()>(1);
+
+        // Internal channel for JSON RPC requests
+        let (request_tx, request_rx) =
+            mpsc::channel::<(LnmJsonRpcRequest, oneshot::Sender<bool>)>(100);
+
+        // External channel for API responses
+        let (response_tx, _) = broadcast::channel::<WebSocketApiRes>(100);
+
+        let (manager_task, connection_state) =
+            WebSocketEventLoop::new(api_domain, disconnect_rx, request_rx, response_tx.clone())
+                .await?;
 
         let manager_handle = tokio::spawn(manager_task.run());
 
@@ -58,8 +71,8 @@ impl LnmWebSocketRepo {
             manager_handle: SyncMutex::new(Some(manager_handle)),
             connection_state,
             disconnect_tx,
-            requests_tx,
-            responses_tx,
+            request_tx,
+            response_tx,
             subscriptions,
         }))
     }
@@ -136,7 +149,7 @@ impl WebSocketRepository for LnmWebSocketRepo {
         );
 
         // Send subscription request to the manager task
-        self.requests_tx
+        self.request_tx
             .send((req, oneshot_tx))
             .await
             .map_err(WebSocketApiError::SendSubscriptionRequest)?;
@@ -212,7 +225,7 @@ impl WebSocketRepository for LnmWebSocketRepo {
         );
 
         // Send unsubscription request to the manager task
-        self.requests_tx
+        self.request_tx
             .send((req, oneshot_tx))
             .await
             .map_err(WebSocketApiError::SendUnubscriptionRequest)?;
@@ -263,7 +276,7 @@ impl WebSocketRepository for LnmWebSocketRepo {
     async fn receiver(&self) -> Result<ResponseReceiver> {
         self.evaluate_manager_status().await?;
 
-        let broadcast_rx = self.responses_tx.subscribe();
+        let broadcast_rx = self.response_tx.subscribe();
         Ok(broadcast_rx)
     }
 
