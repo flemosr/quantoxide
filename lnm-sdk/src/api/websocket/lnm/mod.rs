@@ -279,20 +279,24 @@ impl WebSocketRepository for LnmWebSocketRepo {
                 ));
             }
 
-            if let Err(e) = self.disconnect_tx.send(()).await {
+            let disconnect_send_res = self.disconnect_tx.send(()).await.map_err(|e| {
                 handle.abort();
+                WebSocketApiError::SendDisconnectRequest(e)
+            });
 
-                return Err(WebSocketApiError::SendDisconnectRequest(e));
-            }
-
-            let disconnect_res = tokio::select! {
-                join_res = &mut handle => {
-                    join_res.map_err(WebSocketApiError::TaskJoin)?
+            let disconnect_res = match disconnect_send_res {
+                Ok(_) => {
+                    tokio::select! {
+                        join_res = &mut handle => {
+                            join_res.map_err(WebSocketApiError::TaskJoin)?
+                        }
+                        _ = time::sleep(self.config.disconnect_timeout()) => {
+                            handle.abort();
+                            Err(WebSocketApiError::Generic("Disconnect timeout".to_string()))
+                        }
+                    }
                 }
-                _ = time::sleep(self.config.disconnect_timeout()) => {
-                    handle.abort();
-                    Err(WebSocketApiError::Generic("Disconnect timeout".to_string()))
-                }
+                Err(e) => Err(e),
             };
 
             return disconnect_res;
