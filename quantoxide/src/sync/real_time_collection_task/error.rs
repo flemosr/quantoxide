@@ -2,7 +2,7 @@ use std::{result, sync::Arc};
 
 use thiserror::Error;
 
-use lnm_sdk::api::websocket::{error::WebSocketApiError, models::ConnectionState};
+use lnm_sdk::api::websocket::{error::WebSocketApiError, state::ConnectionState};
 
 use crate::db::error::DbError;
 

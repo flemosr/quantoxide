@@ -4,7 +4,10 @@ use tokio::sync::broadcast;
 
 use lnm_sdk::api::{
     ApiContext,
-    websocket::models::{ConnectionState, LnmWebSocketChannel, WebSocketApiRes},
+    websocket::{
+        models::{LnmWebSocketChannel, WebSocketApiRes},
+        state::ConnectionState,
+    },
 };
 
 use crate::db::{DbContext, models::PriceTick};
