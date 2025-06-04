@@ -155,17 +155,12 @@ impl LiveTradeController {
         let start_time = Utc::now();
 
         let (_, _) = futures::try_join!(
-            api.rest().futures().cancel_all_trades(),
-            api.rest().futures().close_all_trades(),
+            api.rest.futures.cancel_all_trades(),
+            api.rest.futures.close_all_trades(),
         )
         .map_err(LiveError::RestApi)?;
 
-        let user = api
-            .rest()
-            .user()
-            .get_user()
-            .await
-            .map_err(LiveError::RestApi)?;
+        let user = api.rest.user.get_user().await.map_err(LiveError::RestApi)?;
 
         let state_manager = LiveTradeControllerStateManager::new();
 
@@ -223,8 +218,8 @@ impl LiveTradeController {
 
         let trade = match self
             .api
-            .rest()
-            .futures()
+            .rest
+            .futures
             .create_new_trade(
                 side,
                 quantity.into(),
@@ -274,7 +269,7 @@ impl LiveTradeController {
         for chunk in to_close.chunks(5) {
             let close_futures = chunk
                 .iter()
-                .map(|&trade_id| self.api.rest().futures().close_trade(trade_id))
+                .map(|&trade_id| self.api.rest.futures.close_trade(trade_id))
                 .collect::<Vec<_>>();
 
             let closed = match future::join_all(close_futures)
@@ -352,8 +347,8 @@ impl TradeController for LiveTradeController {
         let mut new_status = locked_status.to_owned();
 
         let closed = match futures::try_join!(
-            self.api.rest().futures().cancel_all_trades(),
-            self.api.rest().futures().close_all_trades(),
+            self.api.rest.futures.cancel_all_trades(),
+            self.api.rest.futures.close_all_trades(),
         )
         .map_err(LiveError::RestApi)
         {
