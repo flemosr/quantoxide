@@ -317,3 +317,13 @@ impl WebSocketRepository for LnmWebSocketRepo {
         ));
     }
 }
+
+impl Drop for LnmWebSocketRepo {
+    fn drop(&mut self) {
+        if let Ok(mut handle) = self.manager_handle.lock() {
+            if let Some(join_handle) = handle.take() {
+                join_handle.abort();
+            }
+        }
+    }
+}
