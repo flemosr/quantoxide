@@ -44,7 +44,7 @@ pub struct LnmWebSocketRepo {
 }
 
 impl LnmWebSocketRepo {
-    pub async fn new(config: WebSocketApiConfig, api_domain: String) -> Result<Self> {
+    pub async fn new(config: WebSocketApiConfig, api_domain: String) -> Result<Arc<Self>> {
         let (manager_task, disconnect_tx, requests_tx, responses_tx, connection_state) =
             ManagerTask::new(api_domain).await?;
 
@@ -52,7 +52,7 @@ impl LnmWebSocketRepo {
 
         let subscriptions = Arc::new(Mutex::new(HashMap::new()));
 
-        Ok(Self {
+        Ok(Arc::new(Self {
             config,
             manager_handle: Mutex::new(Some(manager_handle)),
             connection_state,
@@ -60,7 +60,7 @@ impl LnmWebSocketRepo {
             requests_tx,
             responses_tx,
             subscriptions,
-        })
+        }))
     }
 
     async fn evaluate_manager_status(&self) -> Result<()> {

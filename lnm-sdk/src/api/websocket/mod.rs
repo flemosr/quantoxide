@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 pub mod error;
 mod lnm;
 pub mod models;
@@ -32,11 +34,10 @@ impl WebSocketApiConfig {
     }
 }
 
-pub type WebSocketApiContext = Box<dyn WebSocketRepository>;
+pub type WebSocketApiContext = Arc<dyn WebSocketRepository>;
 
 pub async fn new(config: WebSocketApiConfig, api_domain: String) -> Result<WebSocketApiContext> {
     let lnm_websocket_repo = LnmWebSocketRepo::new(config, api_domain).await?;
-    let ws_api_context = Box::new(lnm_websocket_repo);
 
-    Ok(ws_api_context)
+    Ok(lnm_websocket_repo)
 }
