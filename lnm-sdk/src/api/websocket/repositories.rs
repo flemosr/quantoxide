@@ -4,7 +4,8 @@ use tokio::sync::broadcast::Receiver;
 
 use super::{
     error::Result,
-    models::{ConnectionState, LnmWebSocketChannel, WebSocketApiRes},
+    models::{LnmWebSocketChannel, WebSocketApiRes},
+    state::ConnectionState,
 };
 
 #[async_trait]
