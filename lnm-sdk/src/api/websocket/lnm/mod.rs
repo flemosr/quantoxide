@@ -15,7 +15,7 @@ use super::{
     error::{Result, WebSocketApiError},
     models::{LnmJsonRpcReqMethod, LnmJsonRpcRequest, LnmWebSocketChannel, WebSocketApiRes},
     repositories::WebSocketRepository,
-    state::{ConnectionState, ConnectionStateManager},
+    state::{ConnectionState, ConnectionStateReader},
 };
 
 mod event_loop;
@@ -38,7 +38,7 @@ pub struct LnmWebSocketRepo {
     disconnect_tx: DisconnectTransmiter,
     request_tx: RequestTransmiter,
     response_tx: ResponseTransmiter,
-    connection_state_manager: Arc<ConnectionStateManager>,
+    connection_state_reader: Arc<dyn ConnectionStateReader>,
     subscriptions: Arc<AsyncMutex<HashMap<LnmWebSocketChannel, ChannelStatus>>>,
 }
 
@@ -54,20 +54,13 @@ impl LnmWebSocketRepo {
         // External channel for API responses
         let (response_tx, _) = broadcast::channel::<WebSocketApiRes>(100);
 
-        let connection_state_manager = ConnectionStateManager::new();
-
-        let event_loop = WebSocketEventLoop::new(
+        let (event_loop_handle, connection_state_reader) = WebSocketEventLoop::try_spawn(
             api_domain,
             disconnect_rx,
             request_rx,
             response_tx.clone(),
-            connection_state_manager.clone(),
         )
         .await?;
-
-        let event_loop_handle = tokio::spawn(event_loop.run());
-
-        let subscriptions = Arc::new(AsyncMutex::new(HashMap::new()));
 
         Ok(Arc::new(Self {
             config,
@@ -75,19 +68,19 @@ impl LnmWebSocketRepo {
             disconnect_tx,
             request_tx,
             response_tx,
-            connection_state_manager,
-            subscriptions,
+            connection_state_reader,
+            subscriptions: Arc::new(AsyncMutex::new(HashMap::new())),
         }))
     }
 
     async fn evaluate_connection_status(&self) -> Result<()> {
-        let connection_state = self.connection_state_manager.snapshot();
-        match connection_state.as_ref() {
-            ConnectionState::Connected => Ok(()),
-            ConnectionState::Failed(_) | ConnectionState::Disconnected => {
-                Err(WebSocketApiError::BadConnectionState(connection_state))
-            }
+        let connection_state = self.connection_state_reader.snapshot();
+
+        if matches!(connection_state.as_ref(), ConnectionState::Connected) {
+            return Ok(());
         }
+
+        Err(WebSocketApiError::BadConnectionState(connection_state))
     }
 }
 
@@ -105,7 +98,7 @@ impl WebSocketRepository for LnmWebSocketRepo {
     }
 
     async fn connection_state(&self) -> Arc<ConnectionState> {
-        self.connection_state_manager.snapshot()
+        self.connection_state_reader.snapshot()
     }
 
     async fn subscribe(&self, channels: Vec<LnmWebSocketChannel>) -> Result<()> {
