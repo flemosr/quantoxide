@@ -34,8 +34,8 @@ impl LiveTradeControllerStatus {
             .ok_or(LiveError::Generic("db is empty".to_string()))?;
 
         let (running_trades, user) = futures::try_join!(
-            api.rest().futures().get_trades_running(None, None, None),
-            api.rest().user().get_user()
+            api.rest.futures.get_trades_running(None, None, None),
+            api.rest.user.get_user()
         )
         .map_err(LiveError::RestApi)?;
 
@@ -118,7 +118,7 @@ impl LiveTradeControllerStatus {
         for chunk in to_get.chunks(5) {
             let get_futures = chunk
                 .iter()
-                .map(|&trade_id| api.rest().futures().get_trade(trade_id))
+                .map(|&trade_id| api.rest.futures.get_trade(trade_id))
                 .collect::<Vec<_>>();
 
             let new_closed_trades = future::join_all(get_futures)
