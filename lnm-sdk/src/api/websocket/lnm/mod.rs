@@ -39,7 +39,7 @@ pub struct LnmWebSocketRepo {
     request_tx: RequestTransmiter,
     response_tx: ResponseTransmiter,
     connection_state_reader: Arc<dyn ConnectionStateReader>,
-    subscriptions: Arc<AsyncMutex<HashMap<LnmWebSocketChannel, ChannelStatus>>>,
+    subscriptions: AsyncMutex<HashMap<LnmWebSocketChannel, ChannelStatus>>,
 }
 
 impl LnmWebSocketRepo {
@@ -69,7 +69,7 @@ impl LnmWebSocketRepo {
             request_tx,
             response_tx,
             connection_state_reader,
-            subscriptions: Arc::new(AsyncMutex::new(HashMap::new())),
+            subscriptions: AsyncMutex::new(HashMap::new()),
         }))
     }
 
