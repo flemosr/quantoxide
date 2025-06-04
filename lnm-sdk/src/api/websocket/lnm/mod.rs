@@ -1,11 +1,11 @@
 use std::{
     collections::{HashMap, HashSet},
-    sync::Arc,
+    sync::{Arc, Mutex as SyncMutex},
 };
 
 use async_trait::async_trait;
 use tokio::{
-    sync::{Mutex, oneshot},
+    sync::{Mutex as AsyncMutex, oneshot},
     task::JoinHandle,
     time,
 };
@@ -35,12 +35,12 @@ pub enum ChannelStatus {
 
 pub struct LnmWebSocketRepo {
     config: WebSocketApiConfig,
-    manager_handle: Mutex<Option<JoinHandle<Result<()>>>>,
+    manager_handle: SyncMutex<Option<JoinHandle<Result<()>>>>,
     disconnect_tx: DisconnectTransmiter,
     requests_tx: RequestTransmiter,
     responses_tx: ResponseTransmiter,
-    connection_state: Arc<Mutex<Arc<ConnectionState>>>,
-    subscriptions: Arc<Mutex<HashMap<LnmWebSocketChannel, ChannelStatus>>>,
+    connection_state: Arc<AsyncMutex<Arc<ConnectionState>>>,
+    subscriptions: Arc<AsyncMutex<HashMap<LnmWebSocketChannel, ChannelStatus>>>,
 }
 
 impl LnmWebSocketRepo {
@@ -50,11 +50,11 @@ impl LnmWebSocketRepo {
 
         let manager_handle = tokio::spawn(manager_task.run());
 
-        let subscriptions = Arc::new(Mutex::new(HashMap::new()));
+        let subscriptions = Arc::new(AsyncMutex::new(HashMap::new()));
 
         Ok(Arc::new(Self {
             config,
-            manager_handle: Mutex::new(Some(manager_handle)),
+            manager_handle: SyncMutex::new(Some(manager_handle)),
             connection_state,
             disconnect_tx,
             requests_tx,
@@ -77,7 +77,10 @@ impl LnmWebSocketRepo {
 #[async_trait]
 impl WebSocketRepository for LnmWebSocketRepo {
     async fn is_connected(&self) -> bool {
-        let handle_guard = self.manager_handle.lock().await;
+        let handle_guard = self
+            .manager_handle
+            .lock()
+            .expect("manager_handle mutex can't be poisoned");
         if let Some(handle) = handle_guard.as_ref() {
             return !handle.is_finished();
         }
@@ -264,8 +267,15 @@ impl WebSocketRepository for LnmWebSocketRepo {
     }
 
     async fn disconnect(&self) -> Result<()> {
-        let mut handle_guard = self.manager_handle.lock().await;
-        if let Some(mut handle) = handle_guard.take() {
+        let handle_opt = {
+            let mut handle_guard = self
+                .manager_handle
+                .lock()
+                .expect("manager_handle mutex can't be poisoned");
+            handle_guard.take()
+        };
+
+        if let Some(mut handle) = handle_opt {
             if handle.is_finished() {
                 let ws_res = handle.await.map_err(WebSocketApiError::TaskJoin)?;
                 if let Err(e) = ws_res {
