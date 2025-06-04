@@ -26,7 +26,7 @@ type RequestReceiver = mpsc::Receiver<(LnmJsonRpcRequest, oneshot::Sender<bool>)
 pub type ResponseTransmiter = broadcast::Sender<WebSocketApiRes>;
 pub type ResponseReceiver = broadcast::Receiver<WebSocketApiRes>;
 
-pub struct ManagerTask {
+pub struct WebSocketEventLoop {
     ws: WebSocketApiConnection,
     disconnect_rx: DisconnectReceiver,
     request_rx: RequestReceiver,
@@ -34,7 +34,7 @@ pub struct ManagerTask {
     connection_state: Arc<Mutex<Arc<ConnectionState>>>,
 }
 
-impl ManagerTask {
+impl WebSocketEventLoop {
     pub async fn new(
         api_domain: String,
     ) -> Result<(

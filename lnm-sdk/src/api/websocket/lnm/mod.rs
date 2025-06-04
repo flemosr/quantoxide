@@ -23,7 +23,8 @@ use super::{
 mod event_loop;
 
 use event_loop::{
-    DisconnectTransmiter, ManagerTask, RequestTransmiter, ResponseReceiver, ResponseTransmiter,
+    DisconnectTransmiter, RequestTransmiter, ResponseReceiver, ResponseTransmiter,
+    WebSocketEventLoop,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -46,7 +47,7 @@ pub struct LnmWebSocketRepo {
 impl LnmWebSocketRepo {
     pub async fn new(config: WebSocketApiConfig, api_domain: String) -> Result<Arc<Self>> {
         let (manager_task, disconnect_tx, requests_tx, responses_tx, connection_state) =
-            ManagerTask::new(api_domain).await?;
+            WebSocketEventLoop::new(api_domain).await?;
 
         let manager_handle = tokio::spawn(manager_task.run());
 
