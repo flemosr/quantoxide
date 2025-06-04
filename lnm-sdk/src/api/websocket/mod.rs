@@ -4,6 +4,7 @@ pub mod error;
 mod lnm;
 pub mod models;
 mod repositories;
+pub mod state;
 
 use error::Result;
 use lnm::LnmWebSocketRepo;

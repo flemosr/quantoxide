@@ -4,14 +4,10 @@ use serde::{Deserialize, Deserializer, Serialize, de};
 use serde_json::Value;
 use std::{collections::HashSet, fmt, sync::Arc};
 
-use super::error::{Result, WebSocketApiError};
-
-#[derive(Debug)]
-pub enum ConnectionState {
-    Connected,
-    Disconnected,
-    Failed(WebSocketApiError),
-}
+use super::{
+    error::{Result, WebSocketApiError},
+    state::ConnectionState,
+};
 
 #[derive(Serialize, Debug, PartialEq, Eq)]
 struct JsonRpcRequest {
