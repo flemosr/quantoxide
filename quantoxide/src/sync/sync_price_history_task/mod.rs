@@ -47,11 +47,13 @@ impl SyncPriceHistoryTask {
     ) -> Result<(Vec<PriceEntryLNM>, bool)> {
         let mut price_entries = {
             let mut trials = 0;
-            let rest_futures = self.api.rest().futures();
             loop {
                 time::sleep(self.config.api_cooldown).await;
 
-                match rest_futures
+                match self
+                    .api
+                    .rest
+                    .futures
                     .price_history(
                         None,
                         to_observed_time,
