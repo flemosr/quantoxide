@@ -11,6 +11,8 @@ pub enum ConnectionState {
 
 pub trait ConnectionStateReader: Send + Sync {
     fn snapshot(&self) -> Arc<ConnectionState>;
+
+    fn is_connected(&self) -> bool;
 }
 
 pub struct ConnectionStateManager(Mutex<Arc<ConnectionState>>);
@@ -36,5 +38,9 @@ impl ConnectionStateReader for ConnectionStateManager {
             .lock()
             .expect("`ConnectionStateManager` mutex can't be poisoned")
             .clone()
+    }
+
+    fn is_connected(&self) -> bool {
+        matches!(self.snapshot().as_ref(), ConnectionState::Connected)
     }
 }
