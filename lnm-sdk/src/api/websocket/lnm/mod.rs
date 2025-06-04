@@ -10,16 +10,12 @@ use tokio::{
     time,
 };
 
-use crate::api::websocket::models::WebSocketApiRes;
-
-use super::repositories::WebSocketRepository;
 use super::{
     WebSocketApiConfig,
-    models::{LnmJsonRpcReqMethod, LnmJsonRpcRequest, LnmWebSocketChannel},
-};
-use super::{
     error::{Result, WebSocketApiError},
-    models::ConnectionState,
+    models::{LnmJsonRpcReqMethod, LnmJsonRpcRequest, LnmWebSocketChannel, WebSocketApiRes},
+    repositories::WebSocketRepository,
+    state::{ConnectionState, ConnectionStateManager},
 };
 
 mod event_loop;
@@ -38,11 +34,11 @@ pub enum ChannelStatus {
 
 pub struct LnmWebSocketRepo {
     config: WebSocketApiConfig,
-    manager_handle: SyncMutex<Option<JoinHandle<Result<()>>>>,
+    event_loop_handle: SyncMutex<Option<JoinHandle<Result<()>>>>,
     disconnect_tx: DisconnectTransmiter,
     request_tx: RequestTransmiter,
     response_tx: ResponseTransmiter,
-    connection_state: Arc<AsyncMutex<Arc<ConnectionState>>>,
+    connection_state_manager: Arc<ConnectionStateManager>,
     subscriptions: Arc<AsyncMutex<HashMap<LnmWebSocketChannel, ChannelStatus>>>,
 }
 
@@ -58,27 +54,34 @@ impl LnmWebSocketRepo {
         // External channel for API responses
         let (response_tx, _) = broadcast::channel::<WebSocketApiRes>(100);
 
-        let (manager_task, connection_state) =
-            WebSocketEventLoop::new(api_domain, disconnect_rx, request_rx, response_tx.clone())
-                .await?;
+        let connection_state_manager = ConnectionStateManager::new();
 
-        let manager_handle = tokio::spawn(manager_task.run());
+        let event_loop = WebSocketEventLoop::new(
+            api_domain,
+            disconnect_rx,
+            request_rx,
+            response_tx.clone(),
+            connection_state_manager.clone(),
+        )
+        .await?;
+
+        let event_loop_handle = tokio::spawn(event_loop.run());
 
         let subscriptions = Arc::new(AsyncMutex::new(HashMap::new()));
 
         Ok(Arc::new(Self {
             config,
-            manager_handle: SyncMutex::new(Some(manager_handle)),
-            connection_state,
+            event_loop_handle: SyncMutex::new(Some(event_loop_handle)),
             disconnect_tx,
             request_tx,
             response_tx,
+            connection_state_manager,
             subscriptions,
         }))
     }
 
-    async fn evaluate_manager_status(&self) -> Result<()> {
-        let connection_state = self.connection_state().await;
+    async fn evaluate_connection_status(&self) -> Result<()> {
+        let connection_state = self.connection_state_manager.snapshot();
         match connection_state.as_ref() {
             ConnectionState::Connected => Ok(()),
             ConnectionState::Failed(_) | ConnectionState::Disconnected => {
@@ -92,7 +95,7 @@ impl LnmWebSocketRepo {
 impl WebSocketRepository for LnmWebSocketRepo {
     async fn is_connected(&self) -> bool {
         let handle_guard = self
-            .manager_handle
+            .event_loop_handle
             .lock()
             .expect("manager_handle mutex can't be poisoned");
         if let Some(handle) = handle_guard.as_ref() {
@@ -102,12 +105,11 @@ impl WebSocketRepository for LnmWebSocketRepo {
     }
 
     async fn connection_state(&self) -> Arc<ConnectionState> {
-        let connection_state_guard = self.connection_state.lock().await;
-        (*connection_state_guard).clone()
+        self.connection_state_manager.snapshot()
     }
 
     async fn subscribe(&self, channels: Vec<LnmWebSocketChannel>) -> Result<()> {
-        self.evaluate_manager_status().await?;
+        self.evaluate_connection_status().await?;
 
         let channels: HashSet<LnmWebSocketChannel> = channels.into_iter().collect();
         if channels.is_empty() {
@@ -184,7 +186,7 @@ impl WebSocketRepository for LnmWebSocketRepo {
     }
 
     async fn unsubscribe(&self, channels: Vec<LnmWebSocketChannel>) -> Result<()> {
-        self.evaluate_manager_status().await?;
+        self.evaluate_connection_status().await?;
 
         let channels: HashSet<LnmWebSocketChannel> = channels.into_iter().collect();
         if channels.is_empty() {
@@ -274,7 +276,7 @@ impl WebSocketRepository for LnmWebSocketRepo {
     }
 
     async fn receiver(&self) -> Result<ResponseReceiver> {
-        self.evaluate_manager_status().await?;
+        self.evaluate_connection_status().await?;
 
         let broadcast_rx = self.response_tx.subscribe();
         Ok(broadcast_rx)
@@ -283,7 +285,7 @@ impl WebSocketRepository for LnmWebSocketRepo {
     async fn disconnect(&self) -> Result<()> {
         let handle_opt = {
             let mut handle_guard = self
-                .manager_handle
+                .event_loop_handle
                 .lock()
                 .expect("manager_handle mutex can't be poisoned");
             handle_guard.take()
@@ -334,7 +336,7 @@ impl WebSocketRepository for LnmWebSocketRepo {
 
 impl Drop for LnmWebSocketRepo {
     fn drop(&mut self) {
-        if let Ok(mut handle) = self.manager_handle.lock() {
+        if let Ok(mut handle) = self.event_loop_handle.lock() {
             if let Some(join_handle) = handle.take() {
                 join_handle.abort();
             }
