@@ -11,8 +11,8 @@ use websocket::{WebSocketApiConfig, WebSocketApiContext, error::Result};
 
 pub struct ApiContext {
     domain: String,
-    rest: RestApiContext,
-    ws: Mutex<Option<Arc<WebSocketApiContext>>>,
+    pub rest: RestApiContext,
+    ws: Mutex<Option<WebSocketApiContext>>,
 }
 
 impl ApiContext {
@@ -31,11 +31,7 @@ impl ApiContext {
         }))
     }
 
-    pub fn rest(&self) -> &RestApiContext {
-        &self.rest
-    }
-
-    pub async fn connect_ws(&self) -> Result<Arc<WebSocketApiContext>> {
+    pub async fn connect_ws(&self) -> Result<WebSocketApiContext> {
         let mut ws_guard = self.ws.lock().await;
 
         if let Some(ws) = ws_guard.as_ref() {
@@ -46,7 +42,7 @@ impl ApiContext {
 
         let domain = self.domain.clone();
         let ws_config = WebSocketApiConfig::default();
-        let new_ws = Arc::new(websocket::new(ws_config, domain).await?);
+        let new_ws = websocket::new(ws_config, domain).await?;
 
         *ws_guard = Some(new_ws.clone());
 
