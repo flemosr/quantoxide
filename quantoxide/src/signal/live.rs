@@ -233,18 +233,23 @@ impl LiveSignalController {
         self.state_manager.snapshot()
     }
 
+    fn try_consume_handle(&self) -> Option<JoinHandle<()>> {
+        let mut handle_guard = self
+            .handle
+            .lock()
+            .expect("`LiveSignalController` mutex can't be poisoned");
+        handle_guard.take()
+    }
+
     /// Tries to perform a clean shutdown of the live signal process and consumes
     /// the task handle. If a clean shutdown fails, the process is aborted.
     /// This method can only be called once per controller instance.
     /// Returns an error if the process had to be aborted, or if it the handle
     /// was already consumed.
     pub async fn shutdown(&self) -> Result<()> {
-        let mut handle_guard = self.handle.lock().expect("handle lock can't be poisoned");
-        if let Some(mut handle) = handle_guard.take() {
+        if let Some(mut handle) = self.try_consume_handle() {
             self.state_manager
                 .update(LiveSignalState::ShutdownInitiated);
-
-            drop(handle_guard);
 
             let shutdown_send_res = self.shutdown_tx.send(()).map_err(|e| {
                 handle.abort();
@@ -271,9 +276,9 @@ impl LiveSignalController {
             return shutdown_res;
         }
 
-        return Err(SignalError::Generic(
+        Err(SignalError::Generic(
             "Live signal process was already shutdown".to_string(),
-        ));
+        ))
     }
 }
 
@@ -374,10 +379,10 @@ impl LiveSignalEngine {
     pub fn start(self) -> Arc<LiveSignalController> {
         let shutdown_timeout = self.config.shutdown_timeout;
 
-        let state_manager = LiveSignalStateManager::new();
-
         // Internal channel for shutdown signal
         let (shutdown_tx, _) = broadcast::channel::<()>(1);
+
+        let state_manager = LiveSignalStateManager::new();
 
         let handle = LiveSignalProcess::new(
             self.config,
