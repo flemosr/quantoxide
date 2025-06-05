@@ -200,6 +200,32 @@ impl SyncProcess {
             }
         }
     }
+
+    fn spawn_recovery_loop(self) -> JoinHandle<()> {
+        tokio::spawn(async move {
+            loop {
+                self.state_manager.update(SyncState::Starting).await;
+
+                let mut shutdown_rx = self.shutdown_tx.subscribe();
+
+                tokio::select! {
+                    run_res = self.run() => {
+                        let Err(sync_error) = run_res;
+                        self.state_manager.update(SyncState::Failed(sync_error)).await;
+                    }
+                    shutdown_res = shutdown_rx.recv() => {
+                        if let Err(e) = shutdown_res {
+                            self.state_manager.update(SyncState::Failed(SyncError::ShutdownRecv(e))).await;
+                        }
+                        return;
+                    }
+                };
+
+                self.state_manager.update(SyncState::Restarting).await;
+                time::sleep(self.config.restart_interval).await;
+            }
+        })
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -392,68 +418,36 @@ impl From<&LiveConfig> for SyncConfig {
 }
 
 pub struct SyncEngine {
-    process: SyncProcess,
-    restart_interval: time::Duration,
-    shutdown_tx: broadcast::Sender<()>,
-    shutdown_timeout: time::Duration,
-    state_manager: SyncStateManager,
+    config: SyncConfig,
+    db: Arc<DbContext>,
+    api: Arc<ApiContext>,
 }
 
 impl SyncEngine {
     pub fn new(config: SyncConfig, db: Arc<DbContext>, api: Arc<ApiContext>) -> Self {
-        let restart_interval = config.restart_interval();
-        let shutdown_timeout = config.shutdown_timeout();
+        Self { config, db, api }
+    }
+
+    pub fn start(self) -> Arc<SyncController> {
+        let shutdown_timeout = self.config.shutdown_timeout();
 
         // Internal channel for shutdown signal
         let (shutdown_tx, _) = broadcast::channel::<()>(1);
 
         let state_manager = SyncStateManager::new();
 
-        let process = SyncProcess::new(config, db, api, shutdown_tx.clone(), state_manager.clone());
-
-        Self {
-            process,
-            restart_interval,
-            shutdown_tx,
-            shutdown_timeout,
-            state_manager,
-        }
-    }
-
-    async fn process_recovery_loop(self) {
-        loop {
-            self.state_manager.update(SyncState::Starting).await;
-
-            let mut shutdown_rx = self.shutdown_tx.subscribe();
-
-            tokio::select! {
-                run_res = self.process.run() => {
-                    let Err(sync_error) = run_res;
-                    self.state_manager.update(SyncState::Failed(sync_error)).await;
-                }
-                shutdown_res = shutdown_rx.recv() => {
-                    if let Err(e) = shutdown_res {
-                        self.state_manager.update(SyncState::Failed(SyncError::ShutdownRecv(e))).await;
-                    }
-                    return;
-                }
-            };
-
-            self.state_manager.update(SyncState::Restarting).await;
-            time::sleep(self.restart_interval).await;
-        }
-    }
-
-    pub fn start(self) -> Result<Arc<SyncController>> {
-        let shutdown_tx = self.shutdown_tx.clone();
-        let shutdown_timeout = self.shutdown_timeout;
-        let state_manager = self.state_manager.clone();
-
-        let handle = tokio::spawn(self.process_recovery_loop());
+        let handle = SyncProcess::new(
+            self.config,
+            self.db,
+            self.api,
+            shutdown_tx.clone(),
+            state_manager.clone(),
+        )
+        .spawn_recovery_loop();
 
         let sync_controller =
             SyncController::new(handle, shutdown_tx, shutdown_timeout, state_manager);
 
-        Ok(Arc::new(sync_controller))
+        Arc::new(sync_controller)
     }
 }
