@@ -216,21 +216,22 @@ impl LiveController {
         self.state_manager.snapshot()
     }
 
+    fn try_consume_handle(&self) -> Option<JoinHandle<()>> {
+        let mut handle_guard = self
+            .handle
+            .lock()
+            .expect("`LiveController` mutex can't be poisoned");
+        handle_guard.take()
+    }
+
     /// Tries to perform a clean shutdown of the live trade process and consumes
     /// the task handle. If a clean shutdown fails, the process is aborted.
     /// This method can only be called once per controller instance.
     /// Returns an error if the process had to be aborted, or if it the handle
     /// was already consumed.
     pub async fn shutdown(&self) -> Result<()> {
-        let mut handle_guard = self
-            .handle
-            .lock()
-            .map_err(|e| LiveError::Generic(e.to_string()))?;
-
-        if let Some(mut handle) = handle_guard.take() {
+        if let Some(mut handle) = self.try_consume_handle() {
             self.state_manager.update(LiveState::ShutdownInitiated);
-
-            drop(handle_guard);
 
             // Stop live trade process
 
@@ -282,9 +283,9 @@ impl LiveController {
                 .and(sync_shutdown_res);
         }
 
-        return Err(LiveError::Generic(
+        Err(LiveError::Generic(
             "Live trade process was already shutdown".to_string(),
-        ));
+        ))
     }
 }
 
@@ -448,9 +449,7 @@ impl LiveEngine {
 
     pub async fn start(mut self) -> Result<Arc<LiveController>> {
         let config = SyncConfig::from(&self.config);
-        let sync_controller = SyncEngine::new(config, self.db.clone(), self.api.clone())
-            .start()
-            .map_err(|e| LiveError::Generic(e.to_string()))?;
+        let sync_controller = SyncEngine::new(config, self.db.clone(), self.api.clone()).start();
 
         let config = LiveSignalConfig::from(&self.config);
         let signal_controller = LiveSignalEngine::new(
