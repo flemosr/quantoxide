@@ -5,14 +5,9 @@ use super::error::WebSocketApiError;
 #[derive(Debug)]
 pub enum ConnectionState {
     Connected,
+    DisconnectInitiated,
     Disconnected,
     Failed(WebSocketApiError),
-}
-
-pub trait ConnectionStateReader: Send + Sync {
-    fn snapshot(&self) -> Arc<ConnectionState>;
-
-    fn is_connected(&self) -> bool;
 }
 
 pub struct ConnectionStateManager(Mutex<Arc<ConnectionState>>);
@@ -30,17 +25,15 @@ impl ConnectionStateManager {
 
         *state_guard = Arc::new(new_state)
     }
-}
 
-impl ConnectionStateReader for ConnectionStateManager {
-    fn snapshot(&self) -> Arc<ConnectionState> {
+    pub fn snapshot(&self) -> Arc<ConnectionState> {
         self.0
             .lock()
             .expect("`ConnectionStateManager` mutex can't be poisoned")
             .clone()
     }
 
-    fn is_connected(&self) -> bool {
+    pub fn is_connected(&self) -> bool {
         matches!(self.snapshot().as_ref(), ConnectionState::Connected)
     }
 }
