@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::sync::{Arc, Mutex as SyncMutex};
 
 use chrono::Duration;
 use tokio::{
@@ -40,59 +40,69 @@ pub enum SyncState {
 pub type SyncTransmiter = broadcast::Sender<Arc<SyncState>>;
 pub type SyncReceiver = broadcast::Receiver<Arc<SyncState>>;
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 struct SyncStateManager {
-    state: Arc<Mutex<Arc<SyncState>>>,
+    state: Arc<SyncMutex<Arc<SyncState>>>,
     state_tx: SyncTransmiter,
 }
 
 impl SyncStateManager {
-    pub fn new() -> Self {
-        let state = Arc::new(Mutex::new(Arc::new(SyncState::NotInitiated)));
+    pub fn new() -> Arc<Self> {
+        let state = Arc::new(SyncMutex::new(Arc::new(SyncState::NotInitiated)));
         let (state_tx, _) = broadcast::channel::<Arc<SyncState>>(100);
 
-        Self { state, state_tx }
+        Arc::new(Self { state, state_tx })
     }
 
-    pub async fn snapshot(&self) -> Arc<SyncState> {
-        self.state.lock().await.clone()
+    pub fn snapshot(&self) -> Arc<SyncState> {
+        self.state
+            .lock()
+            .expect("`SyncStateManager` mutex can't be poisoned")
+            .clone()
     }
 
     pub fn receiver(&self) -> SyncReceiver {
         self.state_tx.subscribe()
     }
 
-    async fn send_state_update(&self, new_state: Arc<SyncState>) {
-        // We can safely ignore errors since they only mean that there are no
-        // receivers.
-        let _ = self.state_tx.send(new_state);
-    }
-
-    pub async fn update(&self, new_state: SyncState) {
+    pub fn update(&self, new_state: SyncState) {
         let new_state = Arc::new(new_state);
 
-        let mut state_guard = self.state.lock().await;
+        let mut state_guard = self
+            .state
+            .lock()
+            .expect("`SyncStateManager` mutex can't be poisoned");
         *state_guard = new_state.clone();
         drop(state_guard);
 
-        self.send_state_update(new_state).await;
+        // Ignore no-receivers errors
+        let _ = self.state_tx.send(new_state);
     }
 
-    pub async fn handle_history_state_updates(
-        self,
+    /// Clean up is not needed since the task is terminated when
+    /// `history_state_tx` is dropped.
+    pub fn spawn_history_state_update_handler(
+        &self,
         mut history_state_rx: mpsc::Receiver<PriceHistoryState>,
     ) {
-        while let Some(new_history_state) = history_state_rx.recv().await {
-            let mut state_guard = self.state.lock().await;
-            if let SyncState::Starting | SyncState::InProgress(_) = **state_guard {
-                let new_state = Arc::new(SyncState::InProgress(new_history_state));
+        let state = self.state.clone();
+        let state_tx = self.state_tx.clone();
+        tokio::spawn(async move {
+            while let Some(new_history_state) = history_state_rx.recv().await {
+                let mut state_guard = state
+                    .lock()
+                    .expect("`SyncStateManager` mutex can't be poisoned");
+                if let SyncState::Starting | SyncState::InProgress(_) = **state_guard {
+                    let new_state = Arc::new(SyncState::InProgress(new_history_state));
 
-                *state_guard = new_state.clone();
-                drop(state_guard);
+                    *state_guard = new_state.clone();
+                    drop(state_guard);
 
-                self.send_state_update(new_state).await;
+                    // Ignore no-receivers errors
+                    let _ = state_tx.send(new_state);
+                }
             }
-        }
+        });
     }
 }
 
@@ -102,7 +112,7 @@ struct SyncProcess {
     db: Arc<DbContext>,
     api: Arc<ApiContext>,
     shutdown_tx: broadcast::Sender<()>,
-    state_manager: SyncStateManager,
+    state_manager: Arc<SyncStateManager>,
 }
 
 impl SyncProcess {
@@ -111,7 +121,7 @@ impl SyncProcess {
         db: Arc<DbContext>,
         api: Arc<ApiContext>,
         shutdown_tx: broadcast::Sender<()>,
-        state_manager: SyncStateManager,
+        state_manager: Arc<SyncStateManager>,
     ) -> Self {
         Self {
             config,
@@ -146,13 +156,13 @@ impl SyncProcess {
         )
     }
 
-    pub async fn run(&self) -> Result<Never> {
+    async fn run(&self) -> Result<Never> {
         // Initial price history sync
 
         let (history_state_tx, history_state_rx) = mpsc::channel::<PriceHistoryState>(100);
 
-        let state_manager = self.state_manager.clone();
-        tokio::spawn(state_manager.handle_history_state_updates(history_state_rx));
+        self.state_manager
+            .spawn_history_state_update_handler(history_state_rx);
 
         let sync_price_history_task = self.price_history_task(Some(history_state_tx));
         sync_price_history_task.run().await?;
@@ -177,7 +187,7 @@ impl SyncProcess {
 
         // Sync achieved
 
-        self.state_manager.update(SyncState::Synced(None)).await;
+        self.state_manager.update(SyncState::Synced(None));
 
         let mut price_tick_rx = price_tick_tx.subscribe();
 
@@ -189,7 +199,7 @@ impl SyncProcess {
                 }
                 tick_res = price_tick_rx.recv() => {
                     match tick_res {
-                        Ok(tick) => self.state_manager.update(SyncState::Synced(Some(tick))).await,
+                        Ok(tick) => self.state_manager.update(SyncState::Synced(Some(tick))),
                         Err(e) => return Err(SyncError::Generic(e.to_string()))
                     }
                 }
@@ -201,27 +211,27 @@ impl SyncProcess {
         }
     }
 
-    fn spawn_recovery_loop(self) -> JoinHandle<()> {
+    pub fn spawn_recovery_loop(self) -> JoinHandle<()> {
         tokio::spawn(async move {
             loop {
-                self.state_manager.update(SyncState::Starting).await;
+                self.state_manager.update(SyncState::Starting);
 
                 let mut shutdown_rx = self.shutdown_tx.subscribe();
 
                 tokio::select! {
                     run_res = self.run() => {
                         let Err(sync_error) = run_res;
-                        self.state_manager.update(SyncState::Failed(sync_error)).await;
+                        self.state_manager.update(SyncState::Failed(sync_error));
                     }
                     shutdown_res = shutdown_rx.recv() => {
                         if let Err(e) = shutdown_res {
-                            self.state_manager.update(SyncState::Failed(SyncError::ShutdownRecv(e))).await;
+                            self.state_manager.update(SyncState::Failed(SyncError::ShutdownRecv(e)));
                         }
                         return;
                     }
                 };
 
-                self.state_manager.update(SyncState::Restarting).await;
+                self.state_manager.update(SyncState::Restarting);
                 time::sleep(self.config.restart_interval).await;
             }
         })
@@ -233,7 +243,7 @@ pub struct SyncController {
     handle: Arc<Mutex<Option<JoinHandle<()>>>>,
     shutdown_tx: broadcast::Sender<()>,
     shutdown_timeout: time::Duration,
-    state_manager: SyncStateManager,
+    state_manager: Arc<SyncStateManager>,
 }
 
 impl SyncController {
@@ -241,7 +251,7 @@ impl SyncController {
         handle: JoinHandle<()>,
         shutdown_tx: broadcast::Sender<()>,
         shutdown_timeout: time::Duration,
-        state_manager: SyncStateManager,
+        state_manager: Arc<SyncStateManager>,
     ) -> Self {
         Self {
             handle: Arc::new(Mutex::new(Some(handle))),
@@ -256,7 +266,7 @@ impl SyncController {
     }
 
     pub async fn state_snapshot(&self) -> Arc<SyncState> {
-        self.state_manager.snapshot().await
+        self.state_manager.snapshot()
     }
 
     /// Tries to perform a clean shutdown of the sync process and consumes the
@@ -270,16 +280,14 @@ impl SyncController {
             if let Err(e) = self.shutdown_tx.send(()) {
                 handle.abort();
 
-                self.state_manager.update(SyncState::Shutdown).await;
+                self.state_manager.update(SyncState::Shutdown);
 
                 return Err(SyncError::Generic(format!(
                     "Failed to send shutdown request, {e}",
                 )));
             }
 
-            self.state_manager
-                .update(SyncState::ShutdownInitiated)
-                .await;
+            self.state_manager.update(SyncState::ShutdownInitiated);
 
             let shutdown_res = tokio::select! {
                 join_res = &mut handle => {
@@ -291,7 +299,7 @@ impl SyncController {
                 }
             };
 
-            self.state_manager.update(SyncState::Shutdown).await;
+            self.state_manager.update(SyncState::Shutdown);
             return shutdown_res;
         }
 
