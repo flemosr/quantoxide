@@ -9,7 +9,7 @@ use tokio::{
 use super::super::{
     error::{Result, WebSocketApiError},
     models::{LnmJsonRpcRequest, LnmJsonRpcResponse, WebSocketApiRes},
-    state::{ConnectionState, ConnectionStateManager, ConnectionStateReader},
+    state::{ConnectionState, ConnectionStateManager},
 };
 
 mod connection;
@@ -175,7 +175,7 @@ impl WebSocketEventLoop {
         disconnect_rx: DisconnectReceiver,
         request_rx: RequestReceiver,
         response_tx: ResponseTransmiter,
-    ) -> Result<(JoinHandle<Result<()>>, Arc<dyn ConnectionStateReader>)> {
+    ) -> Result<(JoinHandle<Result<()>>, Arc<ConnectionStateManager>)> {
         let connection_state_manager = ConnectionStateManager::new();
 
         let event_loop = Self::new(
