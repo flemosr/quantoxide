@@ -15,7 +15,7 @@ use super::{
     error::{Result, WebSocketApiError},
     models::{LnmJsonRpcReqMethod, LnmJsonRpcRequest, LnmWebSocketChannel, WebSocketApiRes},
     repositories::WebSocketRepository,
-    state::{ConnectionState, ConnectionStateReader},
+    state::{ConnectionState, ConnectionStateManager},
 };
 
 mod event_loop;
@@ -38,7 +38,7 @@ pub struct LnmWebSocketRepo {
     disconnect_tx: DisconnectTransmiter,
     request_tx: RequestTransmiter,
     response_tx: ResponseTransmiter,
-    connection_state_reader: Arc<dyn ConnectionStateReader>,
+    connection_state_manager: Arc<ConnectionStateManager>,
     subscriptions: AsyncMutex<HashMap<LnmWebSocketChannel, ChannelStatus>>,
 }
 
@@ -54,7 +54,7 @@ impl LnmWebSocketRepo {
         // External channel for API responses
         let (response_tx, _) = broadcast::channel::<WebSocketApiRes>(100);
 
-        let (event_loop_handle, connection_state_reader) = WebSocketEventLoop::try_spawn(
+        let (event_loop_handle, connection_state_manager) = WebSocketEventLoop::try_spawn(
             api_domain,
             disconnect_rx,
             request_rx,
@@ -68,13 +68,13 @@ impl LnmWebSocketRepo {
             disconnect_tx,
             request_tx,
             response_tx,
-            connection_state_reader,
+            connection_state_manager,
             subscriptions: AsyncMutex::new(HashMap::new()),
         }))
     }
 
     async fn evaluate_connection_status(&self) -> Result<()> {
-        let connection_state = self.connection_state_reader.snapshot();
+        let connection_state = self.connection_state_manager.snapshot();
 
         if matches!(connection_state.as_ref(), ConnectionState::Connected) {
             return Ok(());
@@ -82,16 +82,24 @@ impl LnmWebSocketRepo {
 
         Err(WebSocketApiError::BadConnectionState(connection_state))
     }
+
+    fn try_consume_event_loop_handle(&self) -> Option<JoinHandle<Result<()>>> {
+        let mut handle_guard = self
+            .event_loop_handle
+            .lock()
+            .expect("`event_loop_handle` mutex can't be poisoned");
+        handle_guard.take()
+    }
 }
 
 #[async_trait]
 impl WebSocketRepository for LnmWebSocketRepo {
     async fn is_connected(&self) -> bool {
-        self.connection_state_reader.is_connected()
+        self.connection_state_manager.is_connected()
     }
 
     async fn connection_state(&self) -> Arc<ConnectionState> {
-        self.connection_state_reader.snapshot()
+        self.connection_state_manager.snapshot()
     }
 
     async fn subscribe(&self, channels: Vec<LnmWebSocketChannel>) -> Result<()> {
@@ -269,27 +277,27 @@ impl WebSocketRepository for LnmWebSocketRepo {
     }
 
     async fn disconnect(&self) -> Result<()> {
-        let handle_opt = {
-            let mut handle_guard = self
-                .event_loop_handle
-                .lock()
-                .expect("manager_handle mutex can't be poisoned");
-            handle_guard.take()
-        };
-
-        if let Some(mut handle) = handle_opt {
+        if let Some(mut handle) = self.try_consume_event_loop_handle() {
             if handle.is_finished() {
-                let ws_res = handle.await.map_err(WebSocketApiError::TaskJoin)?;
-                if let Err(e) = ws_res {
-                    return Err(WebSocketApiError::Generic(format!(
-                        "websocket connection was already failed with error {e}"
-                    )));
-                }
+                // The event loop task can only be finished due to errors or
+                // via this `disconnect` method. The `connection_state_manager`
+                // snapshot should reflect the termination condition.
 
-                return Err(WebSocketApiError::Generic(
-                    "websocket disconnected unexpectedly".to_string(),
-                ));
+                let e = match self.connection_state_manager.snapshot().as_ref() {
+                    ConnectionState::Failed(e) => WebSocketApiError::Generic(format!(
+                        "websocket connection was already failed with error {e}"
+                    )),
+                    _ => WebSocketApiError::Generic(
+                        "event loop task terminated without proper connection state update"
+                            .to_string(),
+                    ),
+                };
+
+                return Err(e);
             }
+
+            self.connection_state_manager
+                .update(ConnectionState::DisconnectInitiated);
 
             let disconnect_send_res = self.disconnect_tx.send(()).await.map_err(|e| {
                 handle.abort();
@@ -314,9 +322,9 @@ impl WebSocketRepository for LnmWebSocketRepo {
             return disconnect_res;
         }
 
-        return Err(WebSocketApiError::Generic(
+        Err(WebSocketApiError::Generic(
             "websocket was already disconnected".to_string(),
-        ));
+        ))
     }
 }
 
