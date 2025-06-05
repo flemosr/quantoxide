@@ -1,8 +1,8 @@
-use std::sync::{Arc, Mutex as SyncMutex};
+use std::sync::{Arc, Mutex};
 
 use chrono::Duration;
 use tokio::{
-    sync::{Mutex, broadcast, mpsc},
+    sync::{broadcast, mpsc},
     task::JoinHandle,
     time,
 };
@@ -42,13 +42,13 @@ pub type SyncReceiver = broadcast::Receiver<Arc<SyncState>>;
 
 #[derive(Debug)]
 struct SyncStateManager {
-    state: Arc<SyncMutex<Arc<SyncState>>>,
+    state: Arc<Mutex<Arc<SyncState>>>,
     state_tx: SyncTransmiter,
 }
 
 impl SyncStateManager {
     pub fn new() -> Arc<Self> {
-        let state = Arc::new(SyncMutex::new(Arc::new(SyncState::NotInitiated)));
+        let state = Arc::new(Mutex::new(Arc::new(SyncState::NotInitiated)));
         let (state_tx, _) = broadcast::channel::<Arc<SyncState>>(100);
 
         Arc::new(Self { state, state_tx })
@@ -238,9 +238,9 @@ impl SyncProcess {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct SyncController {
-    handle: Arc<Mutex<Option<JoinHandle<()>>>>,
+    handle: Mutex<Option<JoinHandle<()>>>,
     shutdown_tx: broadcast::Sender<()>,
     shutdown_timeout: time::Duration,
     state_manager: Arc<SyncStateManager>,
@@ -252,13 +252,13 @@ impl SyncController {
         shutdown_tx: broadcast::Sender<()>,
         shutdown_timeout: time::Duration,
         state_manager: Arc<SyncStateManager>,
-    ) -> Self {
-        Self {
-            handle: Arc::new(Mutex::new(Some(handle))),
+    ) -> Arc<Self> {
+        Arc::new(Self {
+            handle: Mutex::new(Some(handle)),
             shutdown_tx,
             shutdown_timeout,
             state_manager,
-        }
+        })
     }
 
     pub fn receiver(&self) -> SyncReceiver {
@@ -269,43 +269,51 @@ impl SyncController {
         self.state_manager.snapshot()
     }
 
+    fn try_consume_handle(&self) -> Option<JoinHandle<()>> {
+        let mut handle_guard = self
+            .handle
+            .lock()
+            .expect("`SyncController` mutex can't be poisoned");
+        handle_guard.take()
+    }
+
     /// Tries to perform a clean shutdown of the sync process and consumes the
     /// task handle. If a clean shutdown fails, the process is aborted.
     /// This method can only be called once per controller instance.
     /// Returns an error if the process had to be aborted, or if it the handle
     /// was already consumed.
     pub async fn shutdown(&self) -> Result<()> {
-        let mut handle_guard = self.handle.lock().await;
-        if let Some(mut handle) = handle_guard.take() {
-            if let Err(e) = self.shutdown_tx.send(()) {
-                handle.abort();
-
-                self.state_manager.update(SyncState::Shutdown);
-
-                return Err(SyncError::Generic(format!(
-                    "Failed to send shutdown request, {e}",
-                )));
-            }
-
+        if let Some(mut handle) = self.try_consume_handle() {
             self.state_manager.update(SyncState::ShutdownInitiated);
 
-            let shutdown_res = tokio::select! {
-                join_res = &mut handle => {
-                    join_res.map_err(SyncError::TaskJoin)
+            let shutdown_send_res = self.shutdown_tx.send(()).map_err(|e| {
+                handle.abort();
+                SyncError::Generic(format!("Failed to send shutdown request, {e}"))
+            });
+
+            let shutdown_res = match shutdown_send_res {
+                Ok(_) => {
+                    tokio::select! {
+                        join_res = &mut handle => {
+                            join_res.map_err(SyncError::TaskJoin)
+                        }
+                        _ = time::sleep(self.shutdown_timeout) => {
+                            handle.abort();
+                            Err(SyncError::Generic("Shutdown timeout".to_string()))
+                        }
+                    }
                 }
-                _ = time::sleep(self.shutdown_timeout) => {
-                    handle.abort();
-                    Err(SyncError::Generic("Shutdown timeout".to_string()))
-                }
+                Err(e) => Err(e),
             };
 
             self.state_manager.update(SyncState::Shutdown);
+
             return shutdown_res;
         }
 
-        return Err(SyncError::Generic(
+        Err(SyncError::Generic(
             "Sync process was already shutdown".to_string(),
-        ));
+        ))
     }
 }
 
@@ -453,9 +461,6 @@ impl SyncEngine {
         )
         .spawn_recovery_loop();
 
-        let sync_controller =
-            SyncController::new(handle, shutdown_tx, shutdown_timeout, state_manager);
-
-        Arc::new(sync_controller)
+        SyncController::new(handle, shutdown_tx, shutdown_timeout, state_manager)
     }
 }
