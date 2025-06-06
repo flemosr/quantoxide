@@ -1,7 +1,7 @@
 use std::sync::{Arc, Mutex};
 
 use chrono::{DateTime, Duration, Utc};
-use tokio::{sync::broadcast, task::JoinHandle};
+use tokio::sync::broadcast;
 
 use lnm_sdk::api::rest::models::BoundedPercentage;
 
@@ -9,7 +9,7 @@ use crate::{
     db::DbContext,
     signal::core::{ConfiguredSignalEvaluator, Signal},
     trade::core::{Operator, TradeController, TradeControllerState, WrappedOperator},
-    util::DateTimeExt,
+    util::{AbortOnDropHandle, DateTimeExt},
 };
 
 pub mod error;
@@ -71,12 +71,12 @@ impl BacktestStateManager {
 
 #[derive(Debug)]
 pub struct BacktestController {
-    handle: Mutex<Option<JoinHandle<()>>>,
+    handle: Mutex<Option<AbortOnDropHandle<()>>>,
     state_manager: Arc<BacktestStateManager>,
 }
 
 impl BacktestController {
-    fn new(handle: JoinHandle<()>, state_manager: Arc<BacktestStateManager>) -> Arc<Self> {
+    fn new(handle: AbortOnDropHandle<()>, state_manager: Arc<BacktestStateManager>) -> Arc<Self> {
         Arc::new(Self {
             handle: Mutex::new(Some(handle)),
             state_manager,
@@ -119,21 +119,9 @@ impl BacktestController {
             return handle.await.map_err(BacktestError::TaskJoin);
         }
 
-        return Err(BacktestError::Generic(
+        Err(BacktestError::Generic(
             "Backtest process was already consumed".to_string(),
-        ));
-    }
-}
-
-impl Drop for BacktestController {
-    fn drop(&mut self) {
-        if let Ok(mut handle_guard) = self.handle.lock() {
-            if let Some(handle) = handle_guard.take() {
-                if !handle.is_finished() {
-                    handle.abort();
-                }
-            }
-        }
+        ))
     }
 }
 
@@ -421,7 +409,7 @@ impl BacktestEngine {
         Ok(final_state)
     }
 
-    pub fn start(self) -> Result<Arc<BacktestController>> {
+    pub fn start(self) -> Arc<BacktestController> {
         let state_manager = self.state_manager.clone();
 
         let handle = tokio::spawn(async move {
@@ -433,10 +421,9 @@ impl BacktestEngine {
             };
 
             state_manager.update(final_backtest_state);
-        });
+        })
+        .into();
 
-        let backtest_controller = BacktestController::new(handle, state_manager);
-
-        Ok(backtest_controller)
+        BacktestController::new(handle, state_manager)
     }
 }
