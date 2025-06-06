@@ -11,7 +11,7 @@ use crate::{
         live::{LiveSignalConfig, LiveSignalController, LiveSignalEngine, LiveSignalState},
     },
     sync::{SyncConfig, SyncController, SyncEngine, SyncState},
-    util::Never,
+    util::{AbortOnDropHandle, Never},
 };
 
 use super::core::{Operator, TradeController, TradeControllerState, WrappedOperator};
@@ -149,7 +149,7 @@ impl LiveProcess {
         ))
     }
 
-    pub fn spawn_recovery_loop(mut self) -> JoinHandle<()> {
+    pub fn spawn_recovery_loop(mut self) -> AbortOnDropHandle<()> {
         tokio::spawn(async move {
             loop {
                 self.state_manager.update(LiveState::Starting);
@@ -173,14 +173,14 @@ impl LiveProcess {
 
                 time::sleep(self.restart_interval).await;
             }
-        })
+        }).into()
     }
 }
 
 pub struct LiveController {
     sync_controller: Arc<SyncController>,
     signal_controller: Arc<LiveSignalController>,
-    handle: Mutex<Option<JoinHandle<()>>>,
+    handle: Mutex<Option<AbortOnDropHandle<()>>>,
     shutdown_tx: broadcast::Sender<()>,
     shutdown_timeout: time::Duration,
     state_manager: Arc<LiveStateManager>,
@@ -191,7 +191,7 @@ impl LiveController {
     fn new(
         sync_controller: Arc<SyncController>,
         signal_controller: Arc<LiveSignalController>,
-        handle: JoinHandle<()>,
+        handle: AbortOnDropHandle<()>,
         shutdown_tx: broadcast::Sender<()>,
         shutdown_timeout: time::Duration,
         state_manager: Arc<LiveStateManager>,
@@ -216,7 +216,7 @@ impl LiveController {
         self.state_manager.snapshot()
     }
 
-    fn try_consume_handle(&self) -> Option<JoinHandle<()>> {
+    fn try_consume_handle(&self) -> Option<AbortOnDropHandle<()>> {
         let mut handle_guard = self
             .handle
             .lock()
@@ -286,16 +286,6 @@ impl LiveController {
         Err(LiveError::Generic(
             "Live trade process was already shutdown".to_string(),
         ))
-    }
-}
-
-impl Drop for LiveController {
-    fn drop(&mut self) {
-        if let Ok(mut handle_guard) = self.handle.lock() {
-            if let Some(handle) = handle_guard.take() {
-                handle.abort();
-            }
-        }
     }
 }
 
@@ -417,7 +407,6 @@ pub struct LiveEngine {
     api: Arc<ApiContext>,
     evaluators: Arc<Vec<ConfiguredSignalEvaluator>>,
     operator: WrappedOperator,
-    state_manager: Arc<LiveStateManager>,
 }
 
 impl LiveEngine {
@@ -434,7 +423,6 @@ impl LiveEngine {
             ));
         }
 
-        let state_manager = LiveStateManager::new();
         let operator = WrappedOperator::from(operator);
 
         Ok(Self {
@@ -443,7 +431,6 @@ impl LiveEngine {
             api,
             evaluators: Arc::new(evaluators),
             operator,
-            state_manager,
         })
     }
 
@@ -478,13 +465,15 @@ impl LiveEngine {
         // Internal channel for shutdown signal
         let (shutdown_tx, _) = broadcast::channel::<()>(1);
 
+        let state_manager = LiveStateManager::new();
+
         let handle = LiveProcess::new(
             self.config.restart_interval(),
             self.operator,
             shutdown_tx.clone(),
             signal_controller.clone(),
             trade_controller.clone(),
-            self.state_manager.clone(),
+            state_manager.clone(),
         )
         .spawn_recovery_loop();
 
@@ -494,7 +483,7 @@ impl LiveEngine {
             handle,
             shutdown_tx,
             self.config.shutdown_timeout(),
-            self.state_manager,
+            state_manager,
             trade_controller,
         );
 
