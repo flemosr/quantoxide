@@ -1,7 +1,9 @@
 use serde::{Deserialize, Serialize, de};
 use std::{convert::TryFrom, fmt};
 
-use super::{Leverage, Margin, Price, SATS_PER_BTC, error::QuantityValidationError};
+use super::{
+    BoundedPercentage, Leverage, Margin, Price, SATS_PER_BTC, error::QuantityValidationError,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Quantity(u64);
@@ -22,6 +24,32 @@ impl Quantity {
     ) -> Result<Self, QuantityValidationError> {
         let qtd = margin.into_u64() as f64 * leverage.into_f64() / SATS_PER_BTC * price.into_f64();
         Self::try_from(qtd.floor() as u64)
+    }
+
+    /// Calculates a quantity based on a percentage of the given balance.
+    ///
+    /// This function converts a balance in sats to USD using the provided market price,
+    /// then calculates what quantity corresponds to the specified percentage of that balance.
+    ///
+    /// # Arguments
+    ///
+    /// * `balance` - The balance in sats
+    /// * `market_price` - The current market price in USD per BTC
+    /// * `balance_perc` - The percentage of the balance to use for the calculation
+    ///
+    /// # Returns
+    ///
+    /// Returns `Ok(Quantity)` if the calculated quantity is within valid bounds,
+    /// or `Err(QuantityValidationError)` if the resulting quantity is too low or too high.
+    pub fn try_from_balance_perc(
+        balance: u64,
+        market_price: Price,
+        balance_perc: BoundedPercentage,
+    ) -> Result<Self, QuantityValidationError> {
+        let balance_usd = balance as f64 * market_price.into_f64() / SATS_PER_BTC;
+        let quantity_target = balance_usd * balance_perc.into_f64() / 100.;
+
+        Quantity::try_from(quantity_target.floor())
     }
 }
 
@@ -57,11 +85,7 @@ impl TryFrom<i32> for Quantity {
     type Error = QuantityValidationError;
 
     fn try_from(quantity: i32) -> Result<Self, Self::Error> {
-        if quantity < 0 {
-            return Err(QuantityValidationError::NotPositive);
-        }
-
-        Self::try_from(quantity as u64)
+        Self::try_from(quantity.max(0) as u64)
     }
 }
 
@@ -69,17 +93,7 @@ impl TryFrom<f64> for Quantity {
     type Error = QuantityValidationError;
 
     fn try_from(quantity: f64) -> Result<Self, Self::Error> {
-        if !quantity.is_finite() {
-            return Err(QuantityValidationError::NotFinite);
-        }
-
-        if quantity < 0. {
-            return Err(QuantityValidationError::NotPositive);
-        }
-
-        let quantity_u64 = quantity as u64;
-
-        Self::try_from(quantity_u64)
+        Self::try_from(quantity.max(0.) as u64)
     }
 }
 
