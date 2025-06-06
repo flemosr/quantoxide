@@ -51,9 +51,6 @@ pub enum LeverageValidationError {
 
     #[error("Leverage must be at most 100")]
     TooHigh,
-
-    #[error("Leverage must be a finite number")]
-    NotFinite,
 }
 
 #[derive(Debug, Error)]

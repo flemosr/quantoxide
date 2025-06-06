@@ -32,10 +32,6 @@ impl TryFrom<f64> for Leverage {
     type Error = LeverageValidationError;
 
     fn try_from(leverage: f64) -> Result<Self, Self::Error> {
-        if !leverage.is_finite() {
-            return Err(LeverageValidationError::NotFinite);
-        }
-
         if leverage < 1.0 {
             return Err(LeverageValidationError::TooLow);
         }
