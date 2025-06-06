@@ -3,7 +3,6 @@ use std::{result, sync::Arc};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use futures::future;
-use tokio::task::JoinHandle;
 
 use lnm_sdk::api::{
     ApiContext,
@@ -17,7 +16,7 @@ use crate::{
     db::DbContext,
     sync::{SyncReceiver, SyncState},
     trade::core::RiskParams,
-    util::Never,
+    util::{AbortOnDropHandle, Never},
 };
 
 use super::{
@@ -56,7 +55,7 @@ pub struct LiveTradeController {
     start_time: DateTime<Utc>,
     start_balance: u64,
     state_manager: Arc<LiveTradeControllerStateManager>,
-    handle: JoinHandle<()>,
+    handle: AbortOnDropHandle<()>,
 }
 
 impl LiveTradeController {
@@ -65,7 +64,7 @@ impl LiveTradeController {
         api: Arc<ApiContext>,
         sync_rx: SyncReceiver,
         state_manager: Arc<LiveTradeControllerStateManager>,
-    ) -> JoinHandle<()> {
+    ) -> AbortOnDropHandle<()> {
         tokio::spawn(async move {
             let handler = async || -> LiveResult<Never> {
                 let mut sync_rx = sync_rx;
@@ -145,6 +144,7 @@ impl LiveTradeController {
             let new_state = LiveTradeControllerState::NotViable(e);
             state_manager.update(new_state).await;
         })
+        .into()
     }
 
     pub async fn new(
