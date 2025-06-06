@@ -11,6 +11,12 @@ use super::{
 
 #[derive(Error, Debug)]
 pub enum TradeError {
+    #[error("Balance is too low error")]
+    BalanceTooLow,
+
+    #[error("Balance is too high error")]
+    BalanceTooHigh,
+
     #[error("RiskParamsConversion error {0}")]
     RiskParamsConversion(PriceValidationError),
 

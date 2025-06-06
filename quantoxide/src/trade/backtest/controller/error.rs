@@ -5,7 +5,7 @@ use thiserror::Error;
 
 use lnm_sdk::api::rest::models::{
     Price, TradeSide,
-    error::{MarginValidationError, PriceValidationError, QuantityValidationError},
+    error::{MarginValidationError, PriceValidationError},
 };
 
 use crate::db::{error::DbError, models::PriceHistoryEntry};
@@ -14,9 +14,6 @@ use crate::db::{error::DbError, models::PriceHistoryEntry};
 pub enum SimulatedTradeControllerError {
     #[error("[MarginValidation] {0}")]
     MarginValidation(#[from] MarginValidationError),
-
-    #[error("[QuantityValidation] {0}")]
-    QuantityValidation(#[from] QuantityValidationError),
 
     #[error("[PriceValidation] {0}")]
     PriceValidation(#[from] PriceValidationError),
