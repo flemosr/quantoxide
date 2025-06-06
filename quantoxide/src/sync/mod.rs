@@ -12,7 +12,7 @@ use lnm_sdk::api::ApiContext;
 use crate::{
     db::{DbContext, models::PriceTick},
     trade::live::LiveConfig,
-    util::Never,
+    util::{AbortOnDropHandle, Never},
 };
 
 pub mod error;
@@ -132,28 +132,30 @@ impl SyncProcess {
         }
     }
 
-    fn price_history_task(
+    async fn run_price_history_task(
         &self,
         history_state_tx: Option<PriceHistoryStateTransmiter>,
-    ) -> SyncPriceHistoryTask {
-        SyncPriceHistoryTask::new(
+    ) -> sync_price_history_task::error::Result<()> {
+        let task = SyncPriceHistoryTask::new(
             self.config.clone(),
             self.db.clone(),
             self.api.clone(),
             history_state_tx,
-        )
+        );
+        task.run().await
     }
 
-    fn real_time_collection_task(
+    fn spawn_real_time_collection_task(
         &self,
         price_tick_tx: broadcast::Sender<PriceTick>,
-    ) -> RealTimeCollectionTask {
-        RealTimeCollectionTask::new(
+    ) -> AbortOnDropHandle<real_time_collection_task::error::Result<()>> {
+        let task = RealTimeCollectionTask::new(
             self.db.clone(),
             self.api.clone(),
             self.shutdown_tx.clone(),
             price_tick_tx,
-        )
+        );
+        task.spawn()
     }
 
     async fn run(&self) -> Result<Never> {
@@ -164,23 +166,23 @@ impl SyncProcess {
         self.state_manager
             .spawn_history_state_update_handler(history_state_rx);
 
-        let sync_price_history_task = self.price_history_task(Some(history_state_tx));
-        sync_price_history_task.run().await?;
+        self.run_price_history_task(Some(history_state_tx)).await?;
 
         // Start to collect real-time data
 
         let (price_tick_tx, _) = broadcast::channel::<PriceTick>(100);
 
-        let real_time_collection_task = self.real_time_collection_task(price_tick_tx.clone());
-        let mut real_time_handle = tokio::spawn(real_time_collection_task.run());
+        let mut real_time_collection_handle =
+            self.spawn_real_time_collection_task(price_tick_tx.clone());
 
         // Additional price history sync to ensure overlap with real-time data
 
-        let sync_price_history_task = self.price_history_task(None);
-        sync_price_history_task.run().await?;
+        self.run_price_history_task(None).await?;
 
-        if real_time_handle.is_finished() {
-            real_time_handle.await.map_err(SyncError::TaskJoin)??;
+        if real_time_collection_handle.is_finished() {
+            real_time_collection_handle
+                .await
+                .map_err(SyncError::TaskJoin)??;
 
             return Err(SyncError::UnexpectedRealTimeCollectionShutdown);
         }
@@ -193,7 +195,7 @@ impl SyncProcess {
 
         loop {
             tokio::select! {
-                rt_res = &mut real_time_handle => {
+                rt_res =  &mut real_time_collection_handle => {
                     rt_res.map_err(SyncError::TaskJoin)??;
                     return Err(SyncError::UnexpectedRealTimeCollectionShutdown);
                 }
@@ -204,8 +206,7 @@ impl SyncProcess {
                     }
                 }
                 _ = time::sleep(self.config.re_sync_history_interval) => {
-                    let sync_price_history_task = self.price_history_task(None);
-                    sync_price_history_task.run().await?;
+                    self.run_price_history_task(None).await?;
                 }
             }
         }
@@ -314,6 +315,16 @@ impl SyncController {
         Err(SyncError::Generic(
             "Sync process was already shutdown".to_string(),
         ))
+    }
+}
+
+impl Drop for SyncController {
+    fn drop(&mut self) {
+        if let Ok(mut handle_guard) = self.handle.lock() {
+            if let Some(handle) = handle_guard.take() {
+                handle.abort();
+            }
+        }
     }
 }
 
