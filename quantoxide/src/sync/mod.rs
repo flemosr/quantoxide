@@ -3,7 +3,6 @@ use std::sync::{Arc, Mutex};
 use chrono::Duration;
 use tokio::{
     sync::{broadcast, mpsc},
-    task::JoinHandle,
     time,
 };
 
@@ -212,7 +211,7 @@ impl SyncProcess {
         }
     }
 
-    pub fn spawn_recovery_loop(self) -> JoinHandle<()> {
+    pub fn spawn_recovery_loop(self) -> AbortOnDropHandle<()> {
         tokio::spawn(async move {
             loop {
                 self.state_manager.update(SyncState::Starting);
@@ -235,13 +234,13 @@ impl SyncProcess {
                 self.state_manager.update(SyncState::Restarting);
                 time::sleep(self.config.restart_interval).await;
             }
-        })
+        }).into()
     }
 }
 
 #[derive(Debug)]
 pub struct SyncController {
-    handle: Mutex<Option<JoinHandle<()>>>,
+    handle: Mutex<Option<AbortOnDropHandle<()>>>,
     shutdown_tx: broadcast::Sender<()>,
     shutdown_timeout: time::Duration,
     state_manager: Arc<SyncStateManager>,
@@ -249,7 +248,7 @@ pub struct SyncController {
 
 impl SyncController {
     fn new(
-        handle: JoinHandle<()>,
+        handle: AbortOnDropHandle<()>,
         shutdown_tx: broadcast::Sender<()>,
         shutdown_timeout: time::Duration,
         state_manager: Arc<SyncStateManager>,
@@ -270,7 +269,7 @@ impl SyncController {
         self.state_manager.snapshot()
     }
 
-    fn try_consume_handle(&self) -> Option<JoinHandle<()>> {
+    fn try_consume_handle(&self) -> Option<AbortOnDropHandle<()>> {
         let mut handle_guard = self
             .handle
             .lock()
@@ -315,16 +314,6 @@ impl SyncController {
         Err(SyncError::Generic(
             "Sync process was already shutdown".to_string(),
         ))
-    }
-}
-
-impl Drop for SyncController {
-    fn drop(&mut self) {
-        if let Ok(mut handle_guard) = self.handle.lock() {
-            if let Some(handle) = handle_guard.take() {
-                handle.abort();
-            }
-        }
     }
 }
 

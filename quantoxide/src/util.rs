@@ -63,6 +63,7 @@ impl DateTimeExt for DateTime<Utc> {
 ///     // handle.await.unwrap();
 /// } // Task is aborted here
 /// ```
+#[derive(Debug)]
 pub struct AbortOnDropHandle<T>(JoinHandle<T>);
 
 impl<T> From<JoinHandle<T>> for AbortOnDropHandle<T> {
