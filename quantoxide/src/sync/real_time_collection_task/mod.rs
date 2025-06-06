@@ -10,7 +10,10 @@ use lnm_sdk::api::{
     },
 };
 
-use crate::db::{DbContext, models::PriceTick};
+use crate::{
+    db::{DbContext, models::PriceTick},
+    util::AbortOnDropHandle,
+};
 
 pub mod error;
 
@@ -38,7 +41,7 @@ impl RealTimeCollectionTask {
         }
     }
 
-    pub async fn run(self) -> Result<()> {
+    async fn run(self) -> Result<()> {
         let ws = self.api.connect_ws().await?;
 
         let mut ws_rx = ws.receiver().await?;
@@ -76,5 +79,9 @@ impl RealTimeCollectionTask {
                 }
             }
         }
+    }
+
+    pub fn spawn(self) -> AbortOnDropHandle<Result<()>> {
+        tokio::spawn(self.run()).into()
     }
 }
