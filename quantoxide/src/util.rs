@@ -1,4 +1,12 @@
+use std::{
+    future::Future,
+    ops::{Deref, DerefMut},
+    pin::Pin,
+    task::{Context, Poll},
+};
+
 use chrono::{DateTime, Duration, SubsecRound, Utc};
+use tokio::task::{JoinError, JoinHandle};
 
 /// A type that can not be instantiated
 pub enum Never {}
@@ -21,5 +29,72 @@ impl DateTimeExt for DateTime<Utc> {
 
     fn is_round(&self) -> bool {
         *self == self.trunc_subsecs(0)
+    }
+}
+
+/// A wrapper around `tokio::task::JoinHandle` that automatically aborts the task
+/// when the wrapper is dropped, while allowing access to the handle.
+///
+/// This is useful for ensuring that spawned tasks are cleaned up when they go out
+/// of scope, preventing resource leaks.
+///
+/// # Important Notes
+///
+/// - When dropped, this calls `abort()` on the task, which does **not** run destructors
+///   or cleanup code. Tasks should be designed to handle abrupt cancellation.
+/// - Implements `Deref` and `DerefMut` for transparent access to `JoinHandle` methods
+/// - Implements `Future` so it can be awaited just like a regular `JoinHandle`
+///
+/// # Examples
+///
+/// ```
+/// use quantoxide::util::AbortOnDropHandle;
+///
+/// async fn example() {
+///     // Task will be aborted when handle goes out of scope
+///     let handle = AbortOnDropHandle::from(tokio::spawn(async {
+///         loop {
+///             // Long-running work...
+///             tokio::time::sleep(Duration::from_secs(1)).await;
+///         }
+///     }));
+///
+///     // Can still await the handle if needed
+///     // handle.await.unwrap();
+/// } // Task is aborted here
+/// ```
+pub struct AbortOnDropHandle<T>(JoinHandle<T>);
+
+impl<T> From<JoinHandle<T>> for AbortOnDropHandle<T> {
+    fn from(handle: JoinHandle<T>) -> Self {
+        Self(handle)
+    }
+}
+
+impl<T> Deref for AbortOnDropHandle<T> {
+    type Target = JoinHandle<T>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<T> DerefMut for AbortOnDropHandle<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl<T> Future for AbortOnDropHandle<T> {
+    type Output = Result<T, JoinError>;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        Pin::new(&mut self.0).poll(cx)
+    }
+}
+
+impl<T> Drop for AbortOnDropHandle<T> {
+    fn drop(&mut self) {
+        self.0.abort();
     }
 }
