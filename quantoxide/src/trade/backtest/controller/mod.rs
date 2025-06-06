@@ -5,13 +5,13 @@ use chrono::{DateTime, Utc};
 use tokio::sync::Mutex;
 
 use lnm_sdk::api::rest::models::{
-    BoundedPercentage, Leverage, LowerBoundedPercentage, Price, Quantity, SATS_PER_BTC, Trade,
-    TradeSide,
+    BoundedPercentage, Leverage, LowerBoundedPercentage, Price, Quantity, Trade, TradeSide,
+    error::QuantityValidationError,
 };
 
 use super::super::{
     core::{PriceTrigger, RiskParams, TradeController, TradeControllerState},
-    error::Result,
+    error::{Result, TradeError},
 };
 
 pub mod error;
@@ -229,18 +229,15 @@ impl SimulatedTradeController {
         let market_price = Price::round(state_guard.market_price)
             .map_err(SimulatedTradeControllerError::PriceValidation)?;
 
-        let quantity = {
-            let balance_usd = state_guard.balance as f64 * market_price.into_f64() / SATS_PER_BTC;
-            let quantity_target = balance_usd * balance_perc.into_f64() / 100.;
-            if quantity_target < 1. {
-                return Err(SimulatedTradeControllerError::Generic(
-                    "balance is too low".to_string(),
-                ))?;
-            }
-
-            Quantity::try_from(quantity_target.floor())
-                .map_err(SimulatedTradeControllerError::QuantityValidation)?
-        };
+        let quantity = Quantity::try_from_balance_perc(
+            state_guard.balance.max(0) as u64,
+            market_price,
+            balance_perc,
+        )
+        .map_err(|e| match e {
+            QuantityValidationError::TooLow => TradeError::BalanceTooLow,
+            QuantityValidationError::TooHigh => TradeError::BalanceTooHigh,
+        })?;
 
         let (side, stoploss, takeprofit) = risk_params.into_trade_params(market_price)?;
 
