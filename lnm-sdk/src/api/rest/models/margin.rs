@@ -60,8 +60,8 @@ impl TryFrom<u64> for Margin {
     type Error = MarginValidationError;
 
     fn try_from(value: u64) -> Result<Self, Self::Error> {
-        if value == 0 {
-            return Err(MarginValidationError::Zero);
+        if value < 1 {
+            return Err(MarginValidationError::TooLow);
         }
 
         Ok(Self(value as u64))
@@ -72,31 +72,7 @@ impl TryFrom<i32> for Margin {
     type Error = MarginValidationError;
 
     fn try_from(value: i32) -> Result<Self, Self::Error> {
-        if value < 0 {
-            return Err(MarginValidationError::Negative);
-        }
-
-        Self::try_from(value as u64)
-    }
-}
-
-impl TryFrom<f64> for Margin {
-    type Error = MarginValidationError;
-
-    fn try_from(value: f64) -> Result<Self, Self::Error> {
-        if !value.is_finite() {
-            return Err(MarginValidationError::NotFinite);
-        }
-
-        if value < 0. {
-            return Err(MarginValidationError::Negative);
-        }
-
-        if value != value.trunc() {
-            return Err(MarginValidationError::NotInteger);
-        }
-
-        Ok(Margin(value as u64))
+        Self::try_from(value.max(0) as u64)
     }
 }
 

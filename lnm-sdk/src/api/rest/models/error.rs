@@ -67,17 +67,11 @@ pub enum QuantityValidationError {
 
 #[derive(Debug, Error)]
 pub enum MarginValidationError {
-    #[error("Margin can't be negative")]
-    Negative,
-
-    #[error("Margin can't be zero")]
-    Zero,
+    #[error("Margin must be at least 1")]
+    TooLow,
 
     #[error("Margin must be a finite number")]
     NotFinite,
-
-    #[error("Margin must be an integer")]
-    NotInteger,
 }
 
 #[derive(Debug, Error)]
