@@ -117,7 +117,7 @@ impl LiveSignalProcess {
             };
 
             if !matches!(
-                self.sync_controller.state_snapshot().await.as_ref(),
+                self.sync_controller.state_snapshot().as_ref(),
                 SyncState::Synced(_)
             ) {
                 while let Ok(sync_state) = self.sync_controller.receiver().recv().await {

@@ -265,7 +265,7 @@ impl SyncController {
         self.state_manager.receiver()
     }
 
-    pub async fn state_snapshot(&self) -> Arc<SyncState> {
+    pub fn state_snapshot(&self) -> Arc<SyncState> {
         self.state_manager.snapshot()
     }
 
