@@ -1,13 +1,13 @@
 use std::sync::{Arc, Mutex};
 
 use chrono::Utc;
-use tokio::{sync::broadcast, task::JoinHandle, time};
+use tokio::{sync::broadcast, time};
 
 use crate::{
     db::DbContext,
     sync::{SyncController, SyncState},
     trade::live::LiveConfig,
-    util::{DateTimeExt, Never},
+    util::{AbortOnDropHandle, DateTimeExt, Never},
 };
 
 use super::{
@@ -175,7 +175,7 @@ impl LiveSignalProcess {
         }
     }
 
-    fn spawn_recovery_loop(self) -> JoinHandle<()> {
+    fn spawn_recovery_loop(self) -> AbortOnDropHandle<()> {
         tokio::spawn(async move {
             loop {
                 self.state_manager.update(LiveSignalState::Starting);
@@ -198,13 +198,13 @@ impl LiveSignalProcess {
                 self.state_manager.update(LiveSignalState::Restarting);
                 time::sleep(self.config.restart_interval).await;
             }
-        })
+        }).into()
     }
 }
 
 #[derive(Debug)]
 pub struct LiveSignalController {
-    handle: Mutex<Option<JoinHandle<()>>>,
+    handle: Mutex<Option<AbortOnDropHandle<()>>>,
     shutdown_tx: broadcast::Sender<()>,
     shutdown_timeout: time::Duration,
     state_manager: Arc<LiveSignalStateManager>,
@@ -212,7 +212,7 @@ pub struct LiveSignalController {
 
 impl LiveSignalController {
     fn new(
-        handle: JoinHandle<()>,
+        handle: AbortOnDropHandle<()>,
         shutdown_tx: broadcast::Sender<()>,
         shutdown_timeout: time::Duration,
         state_manager: Arc<LiveSignalStateManager>,
@@ -233,7 +233,7 @@ impl LiveSignalController {
         self.state_manager.snapshot()
     }
 
-    fn try_consume_handle(&self) -> Option<JoinHandle<()>> {
+    fn try_consume_handle(&self) -> Option<AbortOnDropHandle<()>> {
         let mut handle_guard = self
             .handle
             .lock()
@@ -279,16 +279,6 @@ impl LiveSignalController {
         Err(SignalError::Generic(
             "Live signal process was already shutdown".to_string(),
         ))
-    }
-}
-
-impl Drop for LiveSignalController {
-    fn drop(&mut self) {
-        if let Ok(mut handle_guard) = self.handle.lock() {
-            if let Some(handle) = handle_guard.take() {
-                handle.abort();
-            }
-        }
     }
 }
 
