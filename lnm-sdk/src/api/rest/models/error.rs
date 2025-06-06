@@ -32,16 +32,13 @@ pub enum LowerBoundedPercentageValidationError {
 #[derive(Debug, Error)]
 pub enum PriceValidationError {
     #[error("Price must be at least {}. Value: {value}", Price::MIN)]
-    AtLeastOne { value: f64 },
+    TooLow { value: f64 },
 
     #[error("Price must be a multiple of 0.5. Value: {value}")]
     NotMultipleOfTick { value: f64 },
 
     #[error("Price must be at most {}. Value: {value}", Price::MAX)]
-    AboveMaximum { value: f64 },
-
-    #[error("Invalid percentage change")]
-    InvalidPercentage,
+    TooHigh { value: f64 },
 }
 
 #[derive(Debug, Error)]

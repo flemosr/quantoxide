@@ -226,11 +226,11 @@ impl TryFrom<f64> for Price {
 
     fn try_from(value: f64) -> Result<Self, Self::Error> {
         if value < Self::MIN.0 {
-            return Err(PriceValidationError::AtLeastOne { value });
+            return Err(PriceValidationError::TooLow { value });
         }
 
         if value > Self::MAX.0 {
-            return Err(PriceValidationError::AboveMaximum { value });
+            return Err(PriceValidationError::TooHigh { value });
         }
 
         let calc = value / Self::TICK;
