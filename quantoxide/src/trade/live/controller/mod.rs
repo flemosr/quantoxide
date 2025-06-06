@@ -7,15 +7,15 @@ use futures::future;
 use lnm_sdk::api::{
     ApiContext,
     rest::models::{
-        BoundedPercentage, Leverage, LowerBoundedPercentage, Price, Quantity, SATS_PER_BTC, Trade,
-        TradeExecution, TradeSide,
+        BoundedPercentage, Leverage, LowerBoundedPercentage, Price, Quantity, Trade,
+        TradeExecution, TradeSide, error::QuantityValidationError,
     },
 };
 
 use crate::{
     db::DbContext,
     sync::{SyncReceiver, SyncState},
-    trade::core::RiskParams,
+    trade::{core::RiskParams, error::TradeError},
     util::{AbortOnDropHandle, Never},
 };
 
@@ -33,21 +33,6 @@ use state::{
     LiveTradeControllerReceiver, LiveTradeControllerState, LiveTradeControllerStateManager,
     LiveTradeControllerStatus,
 };
-
-fn calculate_quantity(
-    balance: u64,
-    market_price: Price,
-    balance_perc: BoundedPercentage,
-) -> Result<Quantity> {
-    let balance_usd = balance as f64 * market_price.into_f64() / SATS_PER_BTC;
-    let quantity_target = balance_usd * balance_perc.into_f64() / 100.;
-
-    if quantity_target < 1. {
-        return Err(LiveError::Generic("balance is too low".to_string()))?;
-    }
-
-    Ok(Quantity::try_from(quantity_target.floor()).map_err(LiveError::QuantityValidation)?)
-}
 
 pub struct LiveTradeController {
     db: Arc<DbContext>,
@@ -210,11 +195,16 @@ impl LiveTradeController {
     ) -> Result<()> {
         let locked_status = self.state_manager.try_lock_status().await?;
 
-        let est_price = self.get_estimated_market_price().await?;
+        let market_price = self.get_estimated_market_price().await?;
 
-        let (side, stoploss, takeprofit) = risk_params.into_trade_params(est_price)?;
+        let (side, stoploss, takeprofit) = risk_params.into_trade_params(market_price)?;
 
-        let quantity = calculate_quantity(locked_status.balance(), est_price, balance_perc)?;
+        let quantity =
+            Quantity::try_from_balance_perc(locked_status.balance(), market_price, balance_perc)
+                .map_err(|e| match e {
+                    QuantityValidationError::TooLow => TradeError::BalanceTooLow,
+                    QuantityValidationError::TooHigh => TradeError::BalanceTooHigh,
+                })?;
 
         let trade = match self
             .api
