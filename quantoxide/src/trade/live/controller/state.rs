@@ -315,32 +315,31 @@ impl LiveTradeControllerStateManager {
         self.state_tx.subscribe()
     }
 
-    async fn send_state_update(&self, new_state: Arc<LiveTradeControllerState>) {
-        // We can safely ignore errors since they only mean that there are no
-        // receivers.
+    fn update_state_guard(
+        &self,
+        mut state_guard: MutexGuard<'_, Arc<LiveTradeControllerState>>,
+        new_state: LiveTradeControllerState,
+    ) {
+        let new_state = Arc::new(new_state);
+
+        *state_guard = new_state.clone();
+        drop(state_guard);
+
+        // Ignore no-receivers errors
         let _ = self.state_tx.send(new_state);
     }
 
     pub async fn update(&self, new_state: LiveTradeControllerState) {
-        let new_state = Arc::new(new_state);
+        let state_guard = self.state.lock().await;
 
-        let mut state_guard = self.state.lock().await;
-        *state_guard = new_state.clone();
-        drop(state_guard);
-
-        self.send_state_update(new_state).await
+        self.update_state_guard(state_guard, new_state)
     }
 
-    pub async fn update_status(
+    pub async fn update_from_locked_ready_status(
         &self,
-        mut locked_status: LockedLiveTradeControllerStatus<'_>,
-        new_status: LiveTradeControllerStatus,
+        locked_ready_status: LockedLiveTradeControllerReadyStatus<'_>,
+        new_state: LiveTradeControllerState,
     ) {
-        let new_state = Arc::new(LiveTradeControllerState::Ready(new_status));
-
-        *locked_status.state_guard = new_state.clone();
-        drop(locked_status);
-
-        self.send_state_update(new_state).await
+        self.update_state_guard(locked_ready_status.state_guard, new_state)
     }
 }
