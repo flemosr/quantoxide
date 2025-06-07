@@ -1,6 +1,6 @@
 use std::{collections::VecDeque, num::NonZeroU64};
 
-use chrono::{DateTime, Duration, Utc};
+use chrono::{DateTime, Duration, TimeDelta, Utc};
 
 use crate::{db::models::PartialPriceHistoryEntryLOCF, util::DateTimeExt};
 
@@ -69,7 +69,44 @@ impl MovingAverageEvaluator {
 pub struct IndicatorsEvaluator;
 
 impl IndicatorsEvaluator {
-    pub const WINDOW_SIZE_SEC: usize = 300;
+    const WINDOW_SIZE_SEC: usize = 300; // From MovingAverage 300
+
+    const WINDOW_DIFF: TimeDelta = Duration::seconds(Self::WINDOW_SIZE_SEC as i64 - 1);
+
+    /// Calculates the data range required to evaluate indicators affected by updated LOCF entries.
+    ///
+    /// # Arguments
+    ///
+    /// * `start_locf_sec` - The start timestamp of the updated LOCF entries range
+    /// * `end_locf_sec` - The end timestamp of the updated LOCF entries range
+    ///
+    /// # Returns
+    ///
+    /// Returns a tuple containing:
+    /// * `start_indicator_sec` - The earliest timestamp needed for indicator data fetching
+    /// * `end_indicator_sec` - The latest timestamp needed for indicator data fetching
+    ///
+    /// The returned range is expanded by `WINDOW_SIZE_SEC - 1` seconds on both sides to account
+    /// for the rolling window requirements of indicator calculations.
+    ///
+    /// # Errors
+    ///
+    /// Returns `IndicatorError::Generic` if `end_locf_sec` is earlier than `start_locf_sec`.
+    pub fn get_indicator_calculation_range(
+        start_locf_sec: DateTime<Utc>,
+        end_locf_sec: DateTime<Utc>,
+    ) -> Result<(DateTime<Utc>, DateTime<Utc>)> {
+        if end_locf_sec < start_locf_sec {
+            return Err(IndicatorError::Generic(format!(
+                "end_locf_sec lt start_locf_sec"
+            )));
+        }
+
+        let start_indicator_sec = start_locf_sec - Self::WINDOW_DIFF;
+        let end_indicator_sec = end_locf_sec + Self::WINDOW_DIFF;
+
+        Ok((start_indicator_sec, end_indicator_sec))
+    }
 
     pub fn evaluate(
         locf_entries: Vec<PartialPriceHistoryEntryLOCF>,
