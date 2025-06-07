@@ -2,7 +2,10 @@ use std::{collections::VecDeque, num::NonZeroU64};
 
 use chrono::{DateTime, Duration, TimeDelta, Utc};
 
-use crate::{db::models::PartialPriceHistoryEntryLOCF, util::DateTimeExt};
+use crate::{
+    db::models::{PartialPriceHistoryEntryLOCF, PriceHistoryEntryLOCF},
+    util::DateTimeExt,
+};
 
 pub mod error;
 
@@ -109,18 +112,18 @@ impl IndicatorsEvaluator {
     }
 
     pub fn evaluate(
-        locf_entries: Vec<PartialPriceHistoryEntryLOCF>,
+        partial_locf_entries: Vec<PartialPriceHistoryEntryLOCF>,
         start_locf_sec: DateTime<Utc>,
-    ) -> Result<Vec<IndicatorValues>> {
-        if locf_entries.is_empty() {
+    ) -> Result<Vec<PriceHistoryEntryLOCF>> {
+        if partial_locf_entries.is_empty() {
             return Err(IndicatorError::Generic(format!("locf_entries is empty")));
         }
-        if locf_entries.first().expect("not empty").time > start_locf_sec {
+        if partial_locf_entries.first().expect("not empty").time > start_locf_sec {
             return Err(IndicatorError::Generic(format!(
                 "initial locf entries time gt than start_locf_sec"
             )));
         }
-        if locf_entries.last().expect("not empty").time < start_locf_sec {
+        if partial_locf_entries.last().expect("not empty").time < start_locf_sec {
             return Err(IndicatorError::Generic(format!(
                 "closing locf entries time lt than start_locf_sec"
             )));
@@ -130,35 +133,36 @@ impl IndicatorsEvaluator {
         let mut ma_60_eval = MovingAverageEvaluator::new(NonZeroU64::new(60).unwrap());
         let mut ma_300_eval = MovingAverageEvaluator::new(NonZeroU64::new(300).unwrap());
 
-        let mut indicators = Vec::new();
+        let mut full_locf_entries = Vec::new();
         let mut last_time = None;
 
-        for entry in locf_entries {
-            if !entry.time.is_round() {
+        for partial_entry in partial_locf_entries {
+            if !partial_entry.time.is_round() {
                 return Err(IndicatorError::Generic(format!(
                     "locf entry with invalid time {}",
-                    entry.time
+                    partial_entry.time
                 )));
             }
             if last_time.map_or(false, |last_time| {
-                entry.time != last_time + Duration::seconds(1)
+                partial_entry.time != last_time + Duration::seconds(1)
             }) {
                 return Err(IndicatorError::Generic(format!(
                     "locf entries are not continuous. jumped from {} to {}",
                     last_time.expect("last_time can't be None"),
-                    entry.time
+                    partial_entry.time
                 )));
             }
 
-            last_time = Some(entry.time);
+            last_time = Some(partial_entry.time);
 
-            let ma_5 = ma_5_eval.update(entry.value);
-            let ma_60 = ma_60_eval.update(entry.value);
-            let ma_300 = ma_300_eval.update(entry.value);
+            let ma_5 = ma_5_eval.update(partial_entry.value);
+            let ma_60 = ma_60_eval.update(partial_entry.value);
+            let ma_300 = ma_300_eval.update(partial_entry.value);
 
-            if entry.time >= start_locf_sec {
-                indicators.push(IndicatorValues {
-                    time: entry.time,
+            if partial_entry.time >= start_locf_sec {
+                full_locf_entries.push(PriceHistoryEntryLOCF {
+                    time: partial_entry.time,
+                    value: partial_entry.value,
                     ma_5,
                     ma_60,
                     ma_300,
@@ -166,6 +170,6 @@ impl IndicatorsEvaluator {
             }
         }
 
-        Ok(indicators)
+        Ok(full_locf_entries)
     }
 }
