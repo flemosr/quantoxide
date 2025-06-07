@@ -281,13 +281,11 @@ impl PriceHistoryRepository for PgPriceHistoryRepo {
         .await
         .map_err(DbError::Query)?;
 
-        // Moving averages from start_locf_sec until end_locf_sec + max period
-        // secs could be affected.
+        // Update indicators affected by the updated LOCF entries
 
-        let start_indicator_sec =
-            start_locf_sec - Duration::seconds(IndicatorsEvaluator::WINDOW_SIZE_SEC as i64 - 1);
-        let end_indicator_sec =
-            end_locf_sec + Duration::seconds(IndicatorsEvaluator::WINDOW_SIZE_SEC as i64 - 1);
+        let (start_indicator_sec, end_indicator_sec) =
+            IndicatorsEvaluator::get_indicator_calculation_range(start_locf_sec, end_locf_sec)
+                .map_err(|e| DbError::Generic(e.to_string()))?;
 
         let locf_entries = sqlx::query_as!(
             PartialPriceHistoryEntryLOCF,
