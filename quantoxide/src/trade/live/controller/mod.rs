@@ -30,8 +30,8 @@ use super::{
 pub mod state;
 
 use state::{
-    LiveTradeControllerReceiver, LiveTradeControllerState, LiveTradeControllerStateManager,
-    LiveTradeControllerStatus,
+    LiveTradeControllerReadyStatus, LiveTradeControllerReceiver, LiveTradeControllerState,
+    LiveTradeControllerStateManager,
 };
 
 pub struct LiveTradeController {
@@ -66,32 +66,37 @@ impl LiveTradeController {
                                 state_manager.update(new_state).await;
                             }
                             SyncState::Synced(_) => {
-                                match state_manager.try_lock_status().await {
-                                    Ok(locked_status) => {
-                                        let mut status = locked_status.to_owned();
+                                match state_manager.try_lock_ready_status().await {
+                                    Ok(locked_ready_status) => {
+                                        let mut status = locked_ready_status.to_owned();
 
-                                        let status_changed = match status
+                                        let new_state = match status
                                             .reevaluate(db.as_ref(), api.as_ref())
                                             .await
                                         {
-                                            Ok(status_changed) => status_changed,
+                                            Ok(status_changed) => {
+                                                if !status_changed {
+                                                    // No need to update `LiveTradeControllerState`
+                                                    continue;
+                                                }
+                                                LiveTradeControllerState::Ready(status)
+                                            }
                                             Err(e) => {
                                                 // Recoverable error
-                                                let new_state = LiveTradeControllerState::Failed(e);
-                                                state_manager.update(new_state).await;
-                                                continue;
+                                                LiveTradeControllerState::Failed(e)
                                             }
                                         };
 
-                                        if status_changed {
-                                            state_manager
-                                                .update_status(locked_status, status)
-                                                .await;
-                                        }
+                                        state_manager
+                                            .update_from_locked_ready_status(
+                                                locked_ready_status,
+                                                new_state,
+                                            )
+                                            .await;
                                     }
                                     Err(_) => {
                                         // Try to obtain `LiveTradeControllerStatus` via API
-                                        let status = match LiveTradeControllerStatus::new(
+                                        let status = match LiveTradeControllerReadyStatus::new(
                                             db.as_ref(),
                                             api.as_ref(),
                                         )
