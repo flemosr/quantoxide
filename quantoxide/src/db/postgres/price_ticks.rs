@@ -6,7 +6,10 @@ use sqlx::{Pool, Postgres};
 
 use lnm_sdk::api::websocket::models::PriceTickLNM;
 
-use crate::db::models::PriceTick;
+use crate::{
+    db::models::{PartialPriceHistoryEntryLOCF, PriceTick},
+    indicators::IndicatorsEvaluator,
+};
 
 use super::super::{
     error::{DbError, Result},
@@ -142,13 +145,17 @@ impl PriceTicksRepository for PgPriceTicksRepo {
         time: &DateTime<Utc>,
         range_secs: usize,
     ) -> Result<Vec<PriceHistoryEntryLOCF>> {
-        let locf_sec = time.trunc_subsecs(0);
-        let min_locf_sec = locf_sec - Duration::seconds(range_secs as i64 - 1);
+        if range_secs < 1 {
+            return Err(DbError::Generic("`range_secs` must be gte 1".to_string()));
+        }
+
+        let end_locf_sec = time.trunc_subsecs(0);
+        let start_locf_sec = end_locf_sec - Duration::seconds(range_secs as i64 - 1);
 
         let entries_locf = sqlx::query_as!(
             PriceHistoryEntryLOCF,
             "SELECT * FROM price_history_locf WHERE time >= $1 ORDER BY time ASC LIMIT $2",
-            min_locf_sec,
+            start_locf_sec,
             range_secs as i32
         )
         .fetch_all(self.pool())
@@ -159,18 +166,14 @@ impl PriceTicksRepository for PgPriceTicksRepo {
             return Ok(entries_locf);
         }
 
-        // `locf_sec` is not present in the current historical data.
-        // indicators will have to be estimated from historical prices
+        // Range is not present in the current historical data. Indicators will have to be
+        // calculated from historical prices.
 
-        const MAX_MA_PERIOD_SECS: i64 = 300;
-        let start_ma_sec = min_locf_sec - Duration::seconds(MAX_MA_PERIOD_SECS - 1);
-        let end_ma_sec = locf_sec;
-
-        // At least one price entry must exist before `min_locf_sec` in order to
-        // compute locf values and indicators.
+        // At least one price entry must exist before `start_locf_sec` in order to compute locf
+        // values and indicators.
         let is_time_valid = sqlx::query_scalar!(
             "SELECT EXISTS (SELECT 1 FROM price_history WHERE time <= $1)",
-            min_locf_sec
+            start_locf_sec
         )
         .fetch_one(self.pool())
         .await
@@ -179,12 +182,21 @@ impl PriceTicksRepository for PgPriceTicksRepo {
 
         if !is_time_valid {
             return Err(DbError::Generic(format!(
-                "The is not price entry with time lte {min_locf_sec}"
+                "There is no price history entry with time lte {start_locf_sec}"
             )));
         }
 
-        let entries_locf = sqlx::query_as!(
-            PriceHistoryEntryLOCF,
+        let (start_indicator_sec, end_indicator_sec) =
+            IndicatorsEvaluator::get_indicator_calculation_range(start_locf_sec, end_locf_sec)
+                .map_err(|e| DbError::Generic(e.to_string()))?;
+
+        struct CoalescedEntry {
+            pub time: Option<DateTime<Utc>>,
+            pub value: Option<f64>,
+        }
+
+        let coalesced_entries = sqlx::query_as!(
+            CoalescedEntry,
             r#"
                 WITH price_data AS (
                     SELECT
@@ -213,33 +225,32 @@ impl PriceTicksRepository for PgPriceTicksRepo {
                         LIMIT 1
                     ) pt ON true
                     ORDER BY time ASC
-                ),
-                eval_indicators AS (
-                    SELECT
-                        time,
-                        value,
-                        AVG(value) OVER (ORDER BY time ASC ROWS BETWEEN 4 PRECEDING AND CURRENT ROW) AS ma_5,
-                        AVG(value) OVER (ORDER BY time ASC ROWS BETWEEN 59 PRECEDING AND CURRENT ROW) AS ma_60,
-                        AVG(value) OVER (ORDER BY time ASC ROWS BETWEEN 299 PRECEDING AND CURRENT ROW) AS ma_300
-                    FROM price_data
                 )
-                SELECT
-                    time as "time!",
-                    value as "value!",
-                    ma_5 as "ma_5",
-                    ma_60 as "ma_60",
-                    ma_300 as "ma_300"
-                FROM eval_indicators
-                WHERE eval_indicators.time >= $3
+                SELECT time, value
+                FROM price_data
             "#,
-            start_ma_sec,
-            end_ma_sec,
-            min_locf_sec
+            start_indicator_sec,
+            end_indicator_sec
         )
         .fetch_all(self.pool())
         .await
         .map_err(DbError::Query)?;
 
-        Ok(entries_locf)
+        let partial_locf_entries = coalesced_entries
+            .into_iter()
+            .map(|coalesced| PartialPriceHistoryEntryLOCF {
+                time: coalesced
+                    .time
+                    .expect("generate_series() can't produce NULL timestamps"),
+                value: coalesced
+                    .value
+                    .expect("COALESCE can't return NULL due to validation and LOCF logic"),
+            })
+            .collect();
+
+        let full_locf_entries = IndicatorsEvaluator::evaluate(partial_locf_entries, start_locf_sec)
+            .map_err(|e| DbError::Generic(e.to_string()))?;
+
+        Ok(full_locf_entries)
     }
 }
