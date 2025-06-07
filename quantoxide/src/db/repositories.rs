@@ -162,18 +162,33 @@ pub trait PriceTicksRepository: Send + Sync {
         start: DateTime<Utc>,
     ) -> Result<Option<(DateTime<Utc>, f64, f64)>>;
 
-    /// Evaluates Last-Observation-Carried-Forward (LOCF) entries around a specific time.
-    /// Calculates the LOCF price values and related moving averages for a time window.
+    /// Computes Last Observation Carried Forward (LOCF) price entries with technical indicators
+    /// for a specified time range ending at the given timestamp.
     ///
-    /// Parameters:
-    ///   - `time`: The reference time point
-    ///   - `range_secs`: Number of seconds to include in the range
+    /// This method attempts to retrieve pre-computed LOCF entries from the `price_history_locf`
+    /// table first. If the required entries are not available (e.g., for real-time data or gaps
+    /// in historical data), it dynamically computes them by:
+    /// 1. Fetching raw price data from both `price_history` and `price_ticks` tables
+    /// 2. Applying LOCF logic to fill gaps in the time series
+    /// 3. Computing technical indicators using `IndicatorsEvaluator`
     ///
-    /// Returns:
-    ///   - `Ok(Vec<PriceHistoryEntryLOCF>)` containing the LOCF entries with indicators
-    ///   - Empty vector if no valid data exists for the requested range
-    ///   - `Err` on database errors
-    async fn eval_entries_locf(
+    /// # Arguments
+    ///
+    /// * `time` - The end timestamp for the range (will be truncated to seconds)
+    /// * `range_secs` - The number of seconds to include in the range (working backwards from `time`)
+    ///
+    /// # Returns
+    ///
+    /// Returns a `Vec<PriceHistoryEntryLOCF>` containing exactly `range_secs` entries if successful,
+    /// ordered chronologically from earliest to latest.
+    ///
+    /// # Errors
+    ///
+    /// Returns `DbError` if:
+    /// - No price data exists at or before the start of the requested range
+    /// - Database queries fail
+    /// - Indicator calculation fails due to data inconsistencies
+    async fn compute_locf_entries_for_range(
         &self,
         time: &DateTime<Utc>,
         range_secs: usize,

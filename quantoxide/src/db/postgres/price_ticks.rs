@@ -140,7 +140,7 @@ impl PriceTicksRepository for PgPriceTicksRepo {
         }
     }
 
-    async fn eval_entries_locf(
+    async fn compute_locf_entries_for_range(
         &self,
         time: &DateTime<Utc>,
         range_secs: usize,
