@@ -198,18 +198,21 @@ impl LiveTradeController {
         balance_perc: BoundedPercentage,
         leverage: Leverage,
     ) -> Result<()> {
-        let locked_status = self.state_manager.try_lock_status().await?;
+        let locked_ready_status = self.state_manager.try_lock_ready_status().await?;
 
         let market_price = self.get_estimated_market_price().await?;
 
         let (side, stoploss, takeprofit) = risk_params.into_trade_params(market_price)?;
 
-        let quantity =
-            Quantity::try_from_balance_perc(locked_status.balance(), market_price, balance_perc)
-                .map_err(|e| match e {
-                    QuantityValidationError::TooLow => TradeError::BalanceTooLow,
-                    QuantityValidationError::TooHigh => TradeError::BalanceTooHigh,
-                })?;
+        let quantity = Quantity::try_from_balance_perc(
+            locked_ready_status.balance(),
+            market_price,
+            balance_perc,
+        )
+        .map_err(|e| match e {
+            QuantityValidationError::TooLow => TradeError::BalanceTooLow,
+            QuantityValidationError::TooHigh => TradeError::BalanceTooHigh,
+        })?;
 
         let trade = match self
             .api
@@ -237,24 +240,26 @@ impl LiveTradeController {
             }
         };
 
-        let mut new_status = locked_status.to_owned();
+        let mut new_status = locked_ready_status.to_owned();
 
         new_status.register_running_trade(trade)?;
 
+        let new_state = LiveTradeControllerState::Ready(new_status);
+
         self.state_manager
-            .update_status(locked_status, new_status)
+            .update_from_locked_ready_status(locked_ready_status, new_state)
             .await;
 
         Ok(())
     }
 
     async fn close_trades(&self, side: TradeSide) -> Result<()> {
-        let locked_status = self.state_manager.try_lock_status().await?;
+        let locked_ready_status = self.state_manager.try_lock_ready_status().await?;
 
-        let mut new_status = locked_status.to_owned();
+        let mut new_status = locked_ready_status.to_owned();
         let mut to_close = Vec::new();
 
-        for (id, trade) in locked_status.running() {
+        for (id, trade) in locked_ready_status.running() {
             if trade.side() == side {
                 to_close.push(id.clone());
             }
@@ -288,8 +293,10 @@ impl LiveTradeController {
             new_status.close_trades(closed)?;
         }
 
+        let new_state = LiveTradeControllerState::Ready(new_status);
+
         self.state_manager
-            .update_status(locked_status, new_status)
+            .update_from_locked_ready_status(locked_ready_status, new_state)
             .await;
 
         Ok(())
@@ -337,9 +344,9 @@ impl TradeController for LiveTradeController {
     }
 
     async fn close_all(&self) -> Result<()> {
-        let locked_status = self.state_manager.try_lock_status().await?;
+        let locked_ready_status = self.state_manager.try_lock_ready_status().await?;
 
-        let mut new_status = locked_status.to_owned();
+        let mut new_status = locked_ready_status.to_owned();
 
         let closed = match futures::try_join!(
             self.api.rest.futures.cancel_all_trades(),
@@ -360,8 +367,10 @@ impl TradeController for LiveTradeController {
 
         new_status.close_trades(closed)?;
 
+        let new_state = LiveTradeControllerState::Ready(new_status);
+
         self.state_manager
-            .update_status(locked_status, new_status)
+            .update_from_locked_ready_status(locked_ready_status, new_state)
             .await;
 
         Ok(())
@@ -369,7 +378,7 @@ impl TradeController for LiveTradeController {
 
     async fn state(&self) -> Result<TradeControllerState> {
         let status = {
-            let locked = self.state_manager.try_lock_status().await?;
+            let locked = self.state_manager.try_lock_ready_status().await?;
             locked.to_owned()
         };
 
