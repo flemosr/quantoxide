@@ -6,7 +6,9 @@ use sqlx::{Pool, Postgres, Transaction};
 
 use lnm_sdk::api::rest::models::PriceEntryLNM;
 
-use crate::util::DateTimeExt;
+use crate::{
+    db::models::PartialPriceHistoryEntryLOCF, indicators::IndicatorsEvaluator, util::DateTimeExt,
+};
 
 use super::super::{
     error::{DbError, Result},
@@ -194,6 +196,19 @@ impl PriceHistoryRepository for PgPriceHistoryRepo {
         if entries.is_empty() {
             return Ok(());
         }
+        if next_observed_time.map_or(false, |time| time <= entries.first().unwrap().time()) {
+            return Err(DbError::Generic(
+                "next observed time lte first entry time".to_string(),
+            ));
+        }
+        for window in entries.windows(2) {
+            if window[0].time() < window[1].time() {
+                return Err(DbError::Generic(
+                    "entries must be sorted by time in descending order (latest times first)"
+                        .to_string(),
+                ));
+            }
+        }
 
         let mut tx = self.start_transaction().await?;
 
@@ -216,7 +231,7 @@ impl PriceHistoryRepository for PgPriceHistoryRepo {
             next_entry_time = Some(entry.time());
         }
 
-        // We can assume that `price_history_locf` is up-to-date in regards to the previously
+        // It can be assumed that `price_history_locf` is up-to-date in regards to the previously
         // added price entries.
         // A new entry-batch will potentially affect the values of all locf entries between its own
         // `min_locf_sec` and the `locf_sec` corresponding to the observed entry just AFTER it.
@@ -227,7 +242,7 @@ impl PriceHistoryRepository for PgPriceHistoryRepo {
         // carrying the corresponding locf value forward.
 
         let earliest_entry_time = entries.last().expect("not empty").time();
-        let start_locf_sec = earliest_entry_time.ceil_sec();
+        let added_start_locf_sec = earliest_entry_time.ceil_sec();
 
         let prev_locf_sec = sqlx::query_scalar!(
             "SELECT max(time) FROM price_history_locf WHERE time <= $1",
@@ -236,8 +251,9 @@ impl PriceHistoryRepository for PgPriceHistoryRepo {
         .fetch_one(&mut *tx)
         .await
         .map_err(DbError::Query)?;
-        // `prev_locf_sec` will be `None` only when `added_locf_sec` is the new min locf time
-        let start_locf_sec = prev_locf_sec.unwrap_or(start_locf_sec);
+
+        // `prev_locf_sec` will be `None` only if `added_start_locf_sec` is the new min locf time
+        let start_locf_sec = prev_locf_sec.unwrap_or(added_start_locf_sec);
 
         let latest_batch_time = entries.first().expect("not empty").time();
         let latest_ob_time_after_batch = next_observed_time.unwrap_or(latest_batch_time);
@@ -268,55 +284,44 @@ impl PriceHistoryRepository for PgPriceHistoryRepo {
         // Moving averages from start_locf_sec until end_locf_sec + max period
         // secs could be affected.
 
-        const MAX_MA_PERIOD_SECS: i64 = 300;
-        let start_ma_sec = start_locf_sec - Duration::seconds(MAX_MA_PERIOD_SECS - 1);
-        let end_ma_sec = end_locf_sec + Duration::seconds(MAX_MA_PERIOD_SECS - 1);
+        let start_indicator_sec =
+            start_locf_sec - Duration::seconds(IndicatorsEvaluator::WINDOW_SIZE_SEC as i64 - 1);
+        let end_indicator_sec =
+            end_locf_sec + Duration::seconds(IndicatorsEvaluator::WINDOW_SIZE_SEC as i64 - 1);
 
-        sqlx::query!(
+        let locf_entries = sqlx::query_as!(
+            PartialPriceHistoryEntryLOCF,
             r#"
-                WITH price_data AS (
-                    SELECT time, value, ROW_NUMBER() OVER (ORDER BY time) AS rn
-                    FROM price_history_locf
-                    WHERE time >= $1 AND time <= $2
-                    ORDER BY time ASC
-                ),
-                eval_indicators AS (
-                    SELECT
-                        time,
-                        CASE
-                            WHEN rn >= 5
-                            THEN AVG(value) OVER (ORDER BY time ASC ROWS BETWEEN 4 PRECEDING AND CURRENT ROW)
-                            ELSE NULL
-                        END AS ma_5,
-                        CASE
-                            WHEN rn >= 60
-                            THEN AVG(value) OVER (ORDER BY time ASC ROWS BETWEEN 59 PRECEDING AND CURRENT ROW)
-                            ELSE NULL
-                        END AS ma_60,
-                        CASE
-                            WHEN rn >= 300
-                            THEN AVG(value) OVER (ORDER BY time ASC ROWS BETWEEN 299 PRECEDING AND CURRENT ROW)
-                            ELSE NULL
-                        END AS ma_300
-                    FROM price_data
-                )
-                UPDATE price_history_locf
-                SET
-                    ma_5 = eval_indicators.ma_5,
-                    ma_60 = eval_indicators.ma_60,
-                    ma_300 = eval_indicators.ma_300
-                FROM eval_indicators
-                WHERE
-                    eval_indicators.time >= $3
-                    AND price_history_locf.time = eval_indicators.time
+                SELECT time, value
+                FROM price_history_locf
+                WHERE time >= $1 AND time <= $2 ORDER BY time ASC
             "#,
-            start_ma_sec,
-            end_ma_sec,
-            start_locf_sec
+            start_indicator_sec,
+            end_indicator_sec
         )
-        .execute(&mut *tx)
+        .fetch_all(&mut *tx)
         .await
         .map_err(DbError::Query)?;
+
+        let indicators = IndicatorsEvaluator::evaluate(locf_entries, start_locf_sec)
+            .map_err(|e| DbError::Generic(e.to_string()))?;
+
+        for indicator_values in indicators {
+            sqlx::query!(
+                r#"
+                    UPDATE price_history_locf
+                    SET ma_5 = $1, ma_60 = $2, ma_300 = $3
+                    WHERE time = $4
+                "#,
+                indicator_values.ma_5(),
+                indicator_values.ma_60(),
+                indicator_values.ma_300(),
+                indicator_values.time()
+            )
+            .execute(&mut *tx)
+            .await
+            .map_err(DbError::Query)?;
+        }
 
         tx.commit().await.map_err(DbError::TransactionCommit)?;
 
