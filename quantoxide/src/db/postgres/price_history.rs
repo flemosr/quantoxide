@@ -34,11 +34,6 @@ impl PgPriceHistoryRepo {
     }
 }
 
-struct GapEntry {
-    time: Option<DateTime<Utc>>,
-    is_gap: Option<bool>,
-}
-
 #[async_trait]
 impl PriceHistoryRepository for PgPriceHistoryRepo {
     async fn get_earliest_entry_gap(&self) -> Result<Option<PriceHistoryEntry>> {
@@ -144,6 +139,11 @@ impl PriceHistoryRepository for PgPriceHistoryRepo {
     }
 
     async fn get_gaps(&self) -> Result<Vec<(DateTime<Utc>, DateTime<Utc>)>> {
+        struct GapEntry {
+            time: Option<DateTime<Utc>>,
+            is_gap: Option<bool>,
+        }
+
         let entries = sqlx::query_as!(
             GapEntry,
             r#"
