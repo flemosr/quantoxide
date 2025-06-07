@@ -7,3 +7,5 @@ pub mod signal;
 pub mod trade;
 
 pub mod util;
+
+pub mod indicators;
