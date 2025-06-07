@@ -15,7 +15,7 @@ use crate::{db::DbContext, sync::SyncState, trade::core::PriceTrigger};
 use super::super::error::{LiveError, Result as LiveResult};
 
 #[derive(Debug, Clone)]
-pub struct LiveTradeControllerStatus {
+pub struct LiveTradeControllerReadyStatus {
     last_trade_time: Option<DateTime<Utc>>,
     balance: u64,
     last_evaluation_time: DateTime<Utc>,
@@ -24,7 +24,7 @@ pub struct LiveTradeControllerStatus {
     closed: Vec<LnmTrade>,
 }
 
-impl LiveTradeControllerStatus {
+impl LiveTradeControllerReadyStatus {
     pub async fn new(db: &DbContext, api: &ApiContext) -> LiveResult<Self> {
         let (lastest_entry_time, _) = db
             .price_ticks
@@ -158,20 +158,15 @@ impl LiveTradeControllerStatus {
 
         if self
             .last_trade_time
-            .map_or(false, |last| last >= new_trade.creation_ts())
+            .map_or(true, |last| new_trade.creation_ts() > last)
         {
-            return Err(LiveError::Generic(format!(
-                "`new_trade` {} `creation_ts` is not gt than `last_trade_time`",
-                new_trade.id(),
-            )));
+            self.last_trade_time = Some(new_trade.creation_ts());
         }
-
-        self.last_trade_time = Some(new_trade.creation_ts());
 
         self.balance = {
             self.balance as i64
                 - new_trade.margin().into_i64()
-                - new_trade.maintenance_margin() as i64
+                - new_trade.maintenance_margin()
                 - new_trade.opening_fee() as i64
         }
         .max(0) as u64;
@@ -187,14 +182,12 @@ impl LiveTradeControllerStatus {
         let mut new_last_trade_time: Option<DateTime<Utc>> = None;
 
         for closed_trade in closed_trades {
-            let closed_ts = if let Some(closed_ts) = closed_trade.closed_ts() {
-                closed_ts
-            } else {
-                return Err(LiveError::Generic(format!(
+            let closed_ts = closed_trade.closed_ts().ok_or_else(|| {
+                LiveError::Generic(format!(
                     "`closed_trade` {} is not closed",
                     closed_trade.id(),
-                )));
-            };
+                ))
+            })?;
 
             if !self.running.contains_key(&closed_trade.id()) {
                 return Err(LiveError::Generic(format!(
@@ -203,18 +196,11 @@ impl LiveTradeControllerStatus {
                 )));
             }
 
-            if self.last_trade_time.map_or(false, |last| last >= closed_ts) {
-                return Err(LiveError::Generic(format!(
-                    "`closed_trade` {} `closed_ts` is not gt than `last_trade_time`",
-                    closed_trade.id(),
-                )));
+            if new_last_trade_time.map_or(true, |last| closed_ts > last) {
+                new_last_trade_time = Some(closed_ts);
             }
 
             closed_map.insert(closed_trade.id(), closed_trade);
-
-            if new_last_trade_time.map_or(true, |last_closed| closed_ts > last_closed) {
-                new_last_trade_time = Some(closed_ts);
-            }
         }
 
         let mut new_running = HashMap::new();
@@ -223,7 +209,7 @@ impl LiveTradeControllerStatus {
 
         for (id, trade) in &self.running {
             if let Some(closed_trade) = closed_map.remove(id) {
-                new_balance += trade.margin().into_i64() + trade.maintenance_margin() as i64
+                new_balance += trade.margin().into_i64() + trade.maintenance_margin()
                     - closed_trade.closing_fee() as i64
                     + closed_trade.pl();
 
@@ -247,17 +233,17 @@ impl LiveTradeControllerStatus {
 pub enum LiveTradeControllerState {
     Starting,
     WaitingForSync(Arc<SyncState>),
-    Ready(LiveTradeControllerStatus),
+    Ready(LiveTradeControllerReadyStatus),
     Failed(LiveError),
     NotViable(LiveError),
 }
 
-pub struct LockedLiveTradeControllerStatus<'a> {
+pub struct LockedLiveTradeControllerReadyStatus<'a> {
     state_guard: MutexGuard<'a, Arc<LiveTradeControllerState>>,
 }
 
 impl<'a> TryFrom<MutexGuard<'a, Arc<LiveTradeControllerState>>>
-    for LockedLiveTradeControllerStatus<'a>
+    for LockedLiveTradeControllerReadyStatus<'a>
 {
     type Error = LiveError;
 
@@ -271,8 +257,8 @@ impl<'a> TryFrom<MutexGuard<'a, Arc<LiveTradeControllerState>>>
     }
 }
 
-impl<'a> LockedLiveTradeControllerStatus<'a> {
-    fn as_status(&self) -> &LiveTradeControllerStatus {
+impl<'a> LockedLiveTradeControllerReadyStatus<'a> {
+    fn as_status(&self) -> &LiveTradeControllerReadyStatus {
         match self.state_guard.as_ref() {
             LiveTradeControllerState::Ready(status) => status,
             _ => panic!("state must be ready"),
@@ -295,7 +281,7 @@ impl<'a> LockedLiveTradeControllerStatus<'a> {
         &self.as_status().closed
     }
 
-    pub fn to_owned(&self) -> LiveTradeControllerStatus {
+    pub fn to_owned(&self) -> LiveTradeControllerReadyStatus {
         self.as_status().clone()
     }
 }
@@ -316,9 +302,9 @@ impl LiveTradeControllerStateManager {
         Arc::new(Self { state, state_tx })
     }
 
-    pub async fn try_lock_status(&self) -> LiveResult<LockedLiveTradeControllerStatus> {
+    pub async fn try_lock_ready_status(&self) -> LiveResult<LockedLiveTradeControllerReadyStatus> {
         let state_guard = self.state.lock().await;
-        LockedLiveTradeControllerStatus::try_from(state_guard)
+        LockedLiveTradeControllerReadyStatus::try_from(state_guard)
     }
 
     pub async fn snapshot(&self) -> Arc<LiveTradeControllerState> {
