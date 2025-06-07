@@ -287,7 +287,7 @@ impl PriceHistoryRepository for PgPriceHistoryRepo {
             IndicatorsEvaluator::get_indicator_calculation_range(start_locf_sec, end_locf_sec)
                 .map_err(|e| DbError::Generic(e.to_string()))?;
 
-        let locf_entries = sqlx::query_as!(
+        let partial_locf_entries = sqlx::query_as!(
             PartialPriceHistoryEntryLOCF,
             r#"
                 SELECT time, value
@@ -301,20 +301,20 @@ impl PriceHistoryRepository for PgPriceHistoryRepo {
         .await
         .map_err(DbError::Query)?;
 
-        let indicators = IndicatorsEvaluator::evaluate(locf_entries, start_locf_sec)
+        let full_locf_entries = IndicatorsEvaluator::evaluate(partial_locf_entries, start_locf_sec)
             .map_err(|e| DbError::Generic(e.to_string()))?;
 
-        for indicator_values in indicators {
+        for locf_entry in full_locf_entries {
             sqlx::query!(
                 r#"
                     UPDATE price_history_locf
                     SET ma_5 = $1, ma_60 = $2, ma_300 = $3
                     WHERE time = $4
                 "#,
-                indicator_values.ma_5(),
-                indicator_values.ma_60(),
-                indicator_values.ma_300(),
-                indicator_values.time()
+                locf_entry.ma_5,
+                locf_entry.ma_60,
+                locf_entry.ma_300,
+                locf_entry.time
             )
             .execute(&mut *tx)
             .await
