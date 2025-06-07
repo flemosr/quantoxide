@@ -1,0 +1,29 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                WITH price_data AS (\n                    SELECT\n                        s.time,\n                        CASE\n                            WHEN pt.last_price IS NOT NULL AND ph.value IS NOT NULL THEN\n                                CASE\n                                    WHEN ph_time < pt_time THEN pt.last_price\n                                    ELSE ph.value\n                                END\n                            ELSE COALESCE(pt.last_price, ph.value)\n                        END AS value\n                    FROM generate_series($1, $2, '1 second'::interval) AS s(time)\n                    LEFT JOIN LATERAL (\n                        SELECT time AS ph_time, value\n                        FROM price_history\n                        WHERE time <= s.time\n                        ORDER BY time DESC\n                        LIMIT 1\n                    ) ph ON true\n                    LEFT JOIN LATERAL (\n                        SELECT time AS pt_time, last_price\n                        FROM price_ticks\n                        WHERE time <= s.time\n                        ORDER BY time DESC\n                        LIMIT 1\n                    ) pt ON true\n                    ORDER BY time ASC\n                )\n                SELECT time, value\n                FROM price_data\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "time",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 1,
+        "name": "value",
+        "type_info": "Float8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Timestamptz",
+        "Timestamptz"
+      ]
+    },
+    "nullable": [
+      null,
+      null
+    ]
+  },
+  "hash": "bdfd3c260ad44035cc5eb374cedb7de5456bce404f4bbc4f0fd158f7b6f3f42e"
+}
