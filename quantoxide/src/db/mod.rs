@@ -94,86 +94,91 @@ impl DbContext {
 
         struct LocfHealthCheck {
             start_exists: Option<bool>,
-            end_exists: Option<bool>,
-            // True if the last entry has a `NULL` `ma_5` indicator, which indicates incomplete
-            // initialization.
-            likely_corrupted: Option<bool>,
+            cur_max_time: Option<DateTime<Utc>>,
         }
 
-        let health_check = sqlx::query_as!(
+        let locf_table_check = sqlx::query_as!(
             LocfHealthCheck,
-            "SELECT
-                EXISTS(SELECT 1 FROM price_history_locf WHERE time = $1) as start_exists,
-                EXISTS(SELECT 1 FROM price_history_locf WHERE time = $2) as end_exists,
-                EXISTS(
-                    SELECT 1
-                    FROM price_history_locf
-                    WHERE time = $2 AND ma_5 IS NULL
-                ) as likely_corrupted",
-            start_locf_sec,
-            end_locf_sec
+            r#"
+                SELECT
+                    EXISTS(SELECT 1 FROM price_history_locf WHERE time = $1) as start_exists,
+                    MAX(time) as cur_max_time FROM price_history_locf
+            "#,
+            start_locf_sec
         )
         .fetch_one(pool)
         .await
         .map_err(DbError::Query)?;
 
-        let is_healthy = health_check.start_exists.unwrap_or(false)
-            && health_check.end_exists.unwrap_or(false)
-            && !health_check.likely_corrupted.unwrap_or(true);
+        let mut batch_start = match (locf_table_check.start_exists, locf_table_check.cur_max_time) {
+            (Some(start_exists), Some(cur_max_locf_time)) => {
+                if !start_exists || cur_max_locf_time > end_locf_sec {
+                    // Assume table is corrupted
 
-        if is_healthy {
-            println!(
-                "`price_history_locf` table appears to be up-to-date. Skipping initialization"
-            );
-            return Ok(());
-        }
+                    println!("`price_history_locf` table needs to be recreated");
 
-        println!("`price_history_locf` table needs to be recreated. Starting...");
+                    println!("Deleting previous `price_history_locf` entries...",);
 
-        println!("Deleting previous `price_history_locf` entries...",);
+                    sqlx::query!("DELETE FROM price_history_locf")
+                        .execute(pool)
+                        .await
+                        .map_err(DbError::Query)?;
 
-        // Recreate `price_history_locf` table
+                    println!(
+                        "Deleted previous `price_history_locf` entries. Recreating from {start_locf_sec}"
+                    );
 
-        sqlx::query!("DELETE FROM price_history_locf")
-            .execute(pool)
-            .await
-            .map_err(DbError::Query)?;
+                    start_locf_sec
+                } else if cur_max_locf_time == end_locf_sec {
+                    println!(
+                        "`price_history_locf` table appears to be up-to-date. Skipping initialization"
+                    );
+                    return Ok(());
+                } else {
+                    // cur_max_locf_time < end_locf_sec
 
-        println!("Deleted previous `price_history_locf` entries. Recreating base entries..");
+                    println!(
+                        "`price_history_locf` initialization is in progress. Restarting from {cur_max_locf_time}"
+                    );
 
-        sqlx::query!(
-            r#"
-                INSERT INTO price_history_locf (time, value)
-                SELECT s.time, t.value
-                FROM generate_series($1, $2, '1 second'::interval) AS s(time)
-                LEFT JOIN LATERAL (
-                    SELECT value
-                    FROM price_history
-                    WHERE time <= s.time
-                    ORDER BY time DESC
-                    LIMIT 1
-                ) t ON true
-            "#,
-            start_locf_sec,
-            end_locf_sec
-        )
-        .execute(pool)
-        .await
-        .map_err(DbError::Query)?;
-
-        println!("Recreated `price_history_locf` base entries");
-
-        println!("Processing indicators in batches...");
-
-        let mut batch_start = start_locf_sec;
+                    cur_max_locf_time
+                }
+            }
+            _ => {
+                println!(
+                    "`price_history_locf` table needs to be initialized. Starting from {start_locf_sec}"
+                );
+                start_locf_sec
+            }
+        };
 
         while batch_start <= end_locf_sec {
-            let mut tx = pool.begin().await.map_err(DbError::TransactionBegin)?;
-
             let batch_end =
                 (batch_start + Duration::seconds(Self::INIT_LOCF_BATCH_SIZE - 1)).min(end_locf_sec);
 
-            println!("Processing indicators batch: {batch_start} to {batch_end}");
+            println!("Processing locf entries batch: {batch_start} to {batch_end}");
+
+            let mut tx = pool.begin().await.map_err(DbError::TransactionBegin)?;
+
+            sqlx::query!(
+                r#"
+                    INSERT INTO price_history_locf (time, value)
+                    SELECT s.time, t.value
+                    FROM generate_series($1, $2, '1 second'::interval) AS s(time)
+                    LEFT JOIN LATERAL (
+                        SELECT value
+                        FROM price_history
+                        WHERE time <= s.time
+                        ORDER BY time DESC
+                        LIMIT 1
+                    ) t ON true
+                "#,
+                batch_start,
+                batch_end
+            )
+            .execute(&mut *tx)
+            .await
+            .map_err(DbError::Query)?;
 
             let (start_indicator_sec, end_indicator_sec) =
                 IndicatorsEvaluator::get_indicator_calculation_range(batch_start, batch_end)
