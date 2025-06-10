@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                            UPDATE price_history_locf\n                            SET ma_5 = $1, ma_60 = $2, ma_300 = $3\n                            WHERE time = $4\n                        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Float8",
+        "Float8",
+        "Float8",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "4df4e3a623b8254b3e44d4e9f9f4008a4e1261c981524c60be9769469f3d4800"
+}
