@@ -178,3 +178,6 @@ impl IndicatorsEvaluator {
         Ok(full_locf_entries)
     }
 }
+
+#[cfg(test)]
+mod test;
