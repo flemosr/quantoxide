@@ -100,9 +100,10 @@ impl IndicatorsEvaluator {
         end_locf_sec: DateTime<Utc>,
     ) -> Result<(DateTime<Utc>, DateTime<Utc>)> {
         if end_locf_sec < start_locf_sec {
-            return Err(IndicatorError::Generic(format!(
-                "end_locf_sec lt start_locf_sec"
-            )));
+            return Err(IndicatorError::InvalidDateRange {
+                start: start_locf_sec,
+                end: end_locf_sec,
+            });
         }
 
         let start_indicator_sec = start_locf_sec - Self::WINDOW_DIFF;
@@ -116,17 +117,23 @@ impl IndicatorsEvaluator {
         start_locf_sec: DateTime<Utc>,
     ) -> Result<Vec<PriceHistoryEntryLOCF>> {
         if partial_locf_entries.is_empty() {
-            return Err(IndicatorError::Generic(format!("locf_entries is empty")));
+            return Err(IndicatorError::EmptyInput);
         }
-        if partial_locf_entries.first().expect("not empty").time > start_locf_sec {
-            return Err(IndicatorError::Generic(format!(
-                "initial locf entries time gt than start_locf_sec"
-            )));
+
+        let first_entry = partial_locf_entries.first().expect("not empty");
+        if first_entry.time > start_locf_sec {
+            return Err(IndicatorError::InvalidStartTime {
+                first_entry_time: first_entry.time,
+                start_time: start_locf_sec,
+            });
         }
-        if partial_locf_entries.last().expect("not empty").time < start_locf_sec {
-            return Err(IndicatorError::Generic(format!(
-                "closing locf entries time lt than start_locf_sec"
-            )));
+
+        let last_entry = partial_locf_entries.last().expect("not empty");
+        if last_entry.time < start_locf_sec {
+            return Err(IndicatorError::InvalidEndTime {
+                last_entry_time: last_entry.time,
+                start_time: start_locf_sec,
+            });
         }
 
         let mut ma_5_eval = MovingAverageEvaluator::new(NonZeroU64::new(5).unwrap());
@@ -138,19 +145,17 @@ impl IndicatorsEvaluator {
 
         for partial_entry in partial_locf_entries {
             if !partial_entry.time.is_round() {
-                return Err(IndicatorError::Generic(format!(
-                    "locf entry with invalid time {}",
-                    partial_entry.time
-                )));
+                return Err(IndicatorError::InvalidEntryTime {
+                    time: partial_entry.time,
+                });
             }
-            if last_time.map_or(false, |last_time| {
-                partial_entry.time != last_time + Duration::seconds(1)
-            }) {
-                return Err(IndicatorError::Generic(format!(
-                    "locf entries are not continuous. jumped from {} to {}",
-                    last_time.expect("last_time can't be None"),
-                    partial_entry.time
-                )));
+            if let Some(last) = last_time {
+                if partial_entry.time != last + Duration::seconds(1) {
+                    return Err(IndicatorError::DiscontinuousEntries {
+                        from: last,
+                        to: partial_entry.time,
+                    });
+                }
             }
 
             last_time = Some(partial_entry.time);
