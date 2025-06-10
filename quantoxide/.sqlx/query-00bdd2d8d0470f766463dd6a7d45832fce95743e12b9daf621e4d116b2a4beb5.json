@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                SELECT\n                    EXISTS(SELECT 1 FROM price_history_locf WHERE time = $1) as start_exists,\n                    MAX(time) as cur_max_time FROM price_history_locf\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "start_exists",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 1,
+        "name": "cur_max_time",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Timestamptz"
+      ]
+    },
+    "nullable": [
+      null,
+      null
+    ]
+  },
+  "hash": "00bdd2d8d0470f766463dd6a7d45832fce95743e12b9daf621e4d116b2a4beb5"
+}
