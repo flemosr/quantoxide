@@ -141,7 +141,7 @@ impl DbContext {
                         "`price_history_locf` initialization is in progress. Restarting from {cur_max_locf_time}"
                     );
 
-                    cur_max_locf_time
+                    cur_max_locf_time + chrono::Duration::seconds(1)
                 }
             }
             _ => {
