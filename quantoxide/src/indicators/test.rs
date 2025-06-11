@@ -18,10 +18,9 @@ mod get_indicator_calculation_range {
         let start = datetime_from_timestamp(1000);
         let end = datetime_from_timestamp(2000);
 
-        let result = IndicatorsEvaluator::get_indicator_calculation_range(start, end);
-        assert!(result.is_ok());
+        let calc_start = IndicatorsEvaluator::get_first_required_locf_entry(start);
+        let calc_end = IndicatorsEvaluator::get_last_affected_locf_entry(end);
 
-        let (calc_start, calc_end) = result.unwrap();
         assert_eq!(calc_start, datetime_from_timestamp(701)); // 1000 - 299
         assert_eq!(calc_end, datetime_from_timestamp(2299)); // 2000 + 299
     }
@@ -30,29 +29,11 @@ mod get_indicator_calculation_range {
     fn test_start_equals_end() {
         let time = datetime_from_timestamp(1500);
 
-        let result = IndicatorsEvaluator::get_indicator_calculation_range(time, time);
-        assert!(result.is_ok());
+        let calc_start = IndicatorsEvaluator::get_first_required_locf_entry(time);
+        let calc_end = IndicatorsEvaluator::get_last_affected_locf_entry(time);
 
-        let (calc_start, calc_end) = result.unwrap();
         assert_eq!(calc_start, datetime_from_timestamp(1201)); // 1500 - 299
         assert_eq!(calc_end, datetime_from_timestamp(1799)); // 1500 + 299
-    }
-
-    #[test]
-    fn test_invalid_range_end_before_start() {
-        let start = datetime_from_timestamp(2000);
-        let end = datetime_from_timestamp(1000);
-
-        let result = IndicatorsEvaluator::get_indicator_calculation_range(start, end);
-        assert!(result.is_err());
-
-        match result.unwrap_err() {
-            IndicatorError::InvalidDateRange { start: s, end: e } => {
-                assert_eq!(s, start);
-                assert_eq!(e, end);
-            }
-            _ => panic!("Expected InvalidDateRange error"),
-        }
     }
 }
 
