@@ -173,9 +173,8 @@ impl DbContext {
             .await
             .map_err(DbError::Query)?;
 
-            let (start_indicator_sec, _) =
-                IndicatorsEvaluator::get_indicator_calculation_range(batch_start, batch_end)
-                    .map_err(|e| DbError::Generic(e.to_string()))?;
+            let start_indicator_sec =
+                IndicatorsEvaluator::get_first_required_locf_entry(batch_start);
 
             let partial_locf_entries = sqlx::query_as!(
                 PartialPriceHistoryEntryLOCF,
