@@ -181,7 +181,6 @@ impl LiveSignalProcess {
                 self.state_manager.update(LiveSignalState::Starting);
 
                 let mut shutdown_rx = self.shutdown_tx.subscribe();
-
                 tokio::select! {
                     run_res = self.run() => {
                         let Err(signal_error) = run_res;
@@ -196,7 +195,21 @@ impl LiveSignalProcess {
                 };
 
                 self.state_manager.update(LiveSignalState::Restarting);
-                time::sleep(self.config.restart_interval).await;
+
+                // Handle shutdown signals while waiting for `restart_interval`
+
+                let mut shutdown_rx = self.shutdown_tx.subscribe();
+                tokio::select! {
+                    _ = time::sleep(self.config.restart_interval) => {
+                        // Continue with the restart loop
+                    }
+                    shutdown_res = shutdown_rx.recv() => {
+                        if let Err(e) = shutdown_res {
+                            self.state_manager.update(LiveSignalState::Failed(SignalError::Generic(e.to_string())));
+                        }
+                        return;
+                    }
+                }
             }
         }).into()
     }
