@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use chrono::{DateTime, Duration, Utc};
+use chrono::{DateTime, Utc};
 use sqlx::{Pool, Postgres, Transaction};
 
 use lnm_sdk::api::rest::models::PriceEntryLNM;
@@ -283,9 +283,10 @@ impl PriceHistoryRepository for PgPriceHistoryRepo {
 
         // Update indicators affected by the updated LOCF entries
 
-        let (start_indicator_sec, end_indicator_sec) =
-            IndicatorsEvaluator::get_indicator_calculation_range(start_locf_sec, end_locf_sec)
-                .map_err(|e| DbError::Generic(e.to_string()))?;
+        let start_indicator_sec =
+            IndicatorsEvaluator::get_first_required_locf_entry(start_locf_sec);
+
+        let end_indicator_sec = IndicatorsEvaluator::get_last_affected_locf_entry(end_locf_sec);
 
         let partial_locf_entries = sqlx::query_as!(
             PartialPriceHistoryEntryLOCF,
