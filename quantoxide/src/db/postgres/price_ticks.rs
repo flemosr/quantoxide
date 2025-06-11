@@ -186,9 +186,8 @@ impl PriceTicksRepository for PgPriceTicksRepo {
             )));
         }
 
-        let (start_indicator_sec, _) =
-            IndicatorsEvaluator::get_indicator_calculation_range(start_locf_sec, end_locf_sec)
-                .map_err(|e| DbError::Generic(e.to_string()))?;
+        let start_indicator_sec =
+            IndicatorsEvaluator::get_first_required_locf_entry(start_locf_sec);
 
         struct CoalescedEntry {
             pub time: Option<DateTime<Utc>>,
