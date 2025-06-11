@@ -186,7 +186,7 @@ impl PriceTicksRepository for PgPriceTicksRepo {
             )));
         }
 
-        let (start_indicator_sec, end_indicator_sec) =
+        let (start_indicator_sec, _) =
             IndicatorsEvaluator::get_indicator_calculation_range(start_locf_sec, end_locf_sec)
                 .map_err(|e| DbError::Generic(e.to_string()))?;
 
@@ -230,7 +230,7 @@ impl PriceTicksRepository for PgPriceTicksRepo {
                 FROM price_data
             "#,
             start_indicator_sec,
-            end_indicator_sec
+            end_locf_sec
         )
         .fetch_all(self.pool())
         .await
