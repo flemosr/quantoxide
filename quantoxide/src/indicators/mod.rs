@@ -76,40 +76,38 @@ impl IndicatorsEvaluator {
 
     const WINDOW_DIFF: TimeDelta = Duration::seconds(Self::WINDOW_SIZE_SEC as i64 - 1);
 
-    /// Calculates the data range required to evaluate indicators affected by updated LOCF entries.
+    /// Calculates the timestamp of the first LOCF entry needed to compute indicators for
+    /// the given timestamp.
     ///
     /// # Arguments
     ///
-    /// * `start_locf_sec` - The start timestamp of the updated LOCF entries range
-    /// * `end_locf_sec` - The end timestamp of the updated LOCF entries range
+    /// * `locf_sec` - A valid LOCF timestamp
     ///
     /// # Returns
     ///
-    /// Returns a tuple containing:
-    /// * `start_indicator_sec` - The earliest timestamp needed for indicator data fetching
-    /// * `end_indicator_sec` - The latest timestamp needed for indicator data fetching
-    ///
-    /// The returned range is expanded by `WINDOW_SIZE_SEC - 1` seconds on both sides to account
+    /// Returns the timestamp corresponding to the first entry of the LOCF range that is
+    /// necessary to calculate the indicators corresponding to `locf_sec`.
+    /// This timestamp is `WINDOW_SIZE_SEC - 1` seconds earlier than the input to account
     /// for the rolling window requirements of indicator calculations.
-    ///
-    /// # Errors
-    ///
-    /// Returns `IndicatorError::Generic` if `end_locf_sec` is earlier than `start_locf_sec`.
-    pub fn get_indicator_calculation_range(
-        start_locf_sec: DateTime<Utc>,
-        end_locf_sec: DateTime<Utc>,
-    ) -> Result<(DateTime<Utc>, DateTime<Utc>)> {
-        if end_locf_sec < start_locf_sec {
-            return Err(IndicatorError::InvalidDateRange {
-                start: start_locf_sec,
-                end: end_locf_sec,
-            });
-        }
+    pub fn get_first_required_locf_entry(locf_sec: DateTime<Utc>) -> DateTime<Utc> {
+        locf_sec - Self::WINDOW_DIFF
+    }
 
-        let start_indicator_sec = start_locf_sec - Self::WINDOW_DIFF;
-        let end_indicator_sec = end_locf_sec + Self::WINDOW_DIFF;
-
-        Ok((start_indicator_sec, end_indicator_sec))
+    /// Calculates the timestamp of the last LOCF entry whose indicators will be
+    /// affected by the LOCF entry corresponding to the given timestamp.
+    ///
+    /// # Arguments
+    ///
+    /// * `locf_sec` - A valid LOCF timestamp
+    ///
+    /// # Returns
+    ///
+    /// Returns the timestamp corresponding to the last entry of the LOCF range whose
+    /// indicators will be affected by the entry corresponding to `locf_sec`.
+    /// This timestamp is `WINDOW_SIZE_SEC - 1` seconds later than the input to account
+    /// for the rolling window requirements of indicator calculations.
+    pub fn get_last_affected_locf_entry(locf_sec: DateTime<Utc>) -> DateTime<Utc> {
+        locf_sec + Self::WINDOW_DIFF
     }
 
     pub fn evaluate(
