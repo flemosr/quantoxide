@@ -44,14 +44,7 @@ impl DbContext {
 
         Self::initialize_locf_table(&pool).await?;
 
-        println!("Checking database connection...");
-        let row = sqlx::query_scalar!("SELECT $1::bigint", 150)
-            .fetch_one(&pool)
-            .await
-            .map_err(DbError::Query)?;
-
-        assert_eq!(row, Some(150));
-        println!("Database check successful");
+        println!("Database ready");
 
         let pool = Arc::new(pool);
         let price_history = Box::new(PgPriceHistoryRepo::new(pool.clone()));
