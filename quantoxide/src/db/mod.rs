@@ -202,34 +202,35 @@ impl DbContext {
                 IndicatorsEvaluator::evaluate(partial_locf_entries, batch_start)
                     .map_err(|e| DbError::Generic(e.to_string()))?;
 
-            // Build arrays for unnest
-            let times: Vec<_> = full_locf_entries.iter().map(|e| e.time).collect();
-            let ma_5s: Vec<_> = full_locf_entries.iter().map(|e| e.ma_5).collect();
-            let ma_60s: Vec<_> = full_locf_entries.iter().map(|e| e.ma_60).collect();
-            let ma_300s: Vec<_> = full_locf_entries.iter().map(|e| e.ma_300).collect();
+            if !full_locf_entries.is_empty() {
+                let times: Vec<_> = full_locf_entries.iter().map(|e| e.time).collect();
+                let ma_5s: Vec<_> = full_locf_entries.iter().map(|e| e.ma_5).collect();
+                let ma_60s: Vec<_> = full_locf_entries.iter().map(|e| e.ma_60).collect();
+                let ma_300s: Vec<_> = full_locf_entries.iter().map(|e| e.ma_300).collect();
 
-            sqlx::query!(
-                r#"
-                    UPDATE price_history_locf AS phl
-                    SET
-                        ma_5 = updates.ma_5,
-                        ma_60 = updates.ma_60,
-                        ma_300 = updates.ma_300
-                    FROM (
-                        SELECT *
-                        FROM unnest($1::timestamptz[], $2::float8[], $3::float8[], $4::float8[])
-                        AS t(time, ma_5, ma_60, ma_300)
-                    ) AS updates
-                    WHERE phl.time = updates.time
-                "#,
-                &times,
-                &ma_5s as &[Option<f64>],
-                &ma_60s as &[Option<f64>],
-                &ma_300s as &[Option<f64>]
-            )
-            .execute(&mut *tx)
-            .await
-            .map_err(DbError::Query)?;
+                sqlx::query!(
+                    r#"
+                        UPDATE price_history_locf AS phl
+                        SET
+                            ma_5 = updates.ma_5,
+                            ma_60 = updates.ma_60,
+                            ma_300 = updates.ma_300
+                        FROM (
+                            SELECT *
+                            FROM unnest($1::timestamptz[], $2::float8[], $3::float8[], $4::float8[])
+                            AS t(time, ma_5, ma_60, ma_300)
+                        ) AS updates
+                        WHERE phl.time = updates.time
+                    "#,
+                    &times,
+                    &ma_5s as &[Option<f64>],
+                    &ma_60s as &[Option<f64>],
+                    &ma_300s as &[Option<f64>]
+                )
+                .execute(&mut *tx)
+                .await
+                .map_err(DbError::Query)?;
+            }
 
             tx.commit().await.map_err(DbError::TransactionCommit)?;
 
