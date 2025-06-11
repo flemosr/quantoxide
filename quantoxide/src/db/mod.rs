@@ -180,7 +180,7 @@ impl DbContext {
             .await
             .map_err(DbError::Query)?;
 
-            let (start_indicator_sec, end_indicator_sec) =
+            let (start_indicator_sec, _) =
                 IndicatorsEvaluator::get_indicator_calculation_range(batch_start, batch_end)
                     .map_err(|e| DbError::Generic(e.to_string()))?;
 
@@ -192,7 +192,7 @@ impl DbContext {
                     WHERE time >= $1 AND time <= $2 ORDER BY time ASC
                 "#,
                 start_indicator_sec,
-                end_indicator_sec
+                batch_end
             )
             .fetch_all(&mut *tx)
             .await
@@ -216,7 +216,8 @@ impl DbContext {
                         ma_60 = updates.ma_60,
                         ma_300 = updates.ma_300
                     FROM (
-                        SELECT * FROM unnest($1::timestamptz[], $2::float8[], $3::float8[], $4::float8[])
+                        SELECT *
+                        FROM unnest($1::timestamptz[], $2::float8[], $3::float8[], $4::float8[])
                         AS t(time, ma_5, ma_60, ma_300)
                     ) AS updates
                     WHERE phl.time = updates.time
