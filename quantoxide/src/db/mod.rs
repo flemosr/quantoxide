@@ -63,7 +63,7 @@ impl DbContext {
         }))
     }
 
-    const INIT_LOCF_BATCH_SIZE: i64 = 10_000;
+    const INIT_LOCF_BATCH_SIZE: i64 = 50_000;
 
     async fn initialize_locf_table(pool: &PgPool) -> Result<()> {
         struct PriceHistoryRange {
