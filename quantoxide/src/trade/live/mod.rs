@@ -156,7 +156,6 @@ impl LiveProcess {
                 self.state_manager.update(LiveState::Starting);
 
                 let mut shutdown_rx = self.shutdown_tx.subscribe();
-
                 tokio::select! {
                     run_res = self.run() => {
                         let Err(e) = run_res;
@@ -166,13 +165,26 @@ impl LiveProcess {
                         if let Err(e) = shutdown_res {
                             self.state_manager.update(LiveState::Failed(LiveError::Generic(e.to_string())));
                         }
-                        return ;
+                        return;
                     }
                 };
 
                 self.state_manager.update(LiveState::Restarting);
 
-                time::sleep(self.restart_interval).await;
+                // Handle shutdown signals while waiting for `restart_interval`
+
+                let mut shutdown_rx = self.shutdown_tx.subscribe();
+                tokio::select! {
+                    _ = time::sleep(self.restart_interval) => {
+                        // Continue with the restart loop
+                    }
+                    shutdown_res = shutdown_rx.recv() => {
+                        if let Err(e) = shutdown_res {
+                            self.state_manager.update(LiveState::Failed(LiveError::Generic(e.to_string())));
+                        }
+                        return;
+                    }
+                }
             }
         }).into()
     }
