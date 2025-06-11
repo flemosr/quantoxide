@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                    UPDATE price_history_locf AS phl\n                    SET\n                        ma_5 = updates.ma_5,\n                        ma_60 = updates.ma_60,\n                        ma_300 = updates.ma_300\n                    FROM (\n                        SELECT *\n                        FROM unnest($1::timestamptz[], $2::float8[], $3::float8[], $4::float8[])\n                        AS t(time, ma_5, ma_60, ma_300)\n                    ) AS updates\n                    WHERE phl.time = updates.time\n                ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "TimestamptzArray",
+        "Float8Array",
+        "Float8Array",
+        "Float8Array"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "f5b50bd31ea0836187262b74c1b5ccf9cdc073f0f0481217de572d8a20bd1602"
+}
