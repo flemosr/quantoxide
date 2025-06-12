@@ -182,6 +182,14 @@ impl SyncPriceHistoryTask {
                 if history_state.has_gaps() {
                     return Err(SyncPriceHistoryError::NoGapEntriesReceived);
                 } else {
+                    if let Some(upper_history_bound) = history_state.get_upper_history_bound() {
+                        // Synced with full history. Remove redundant price ticks
+                        self.db
+                            .price_ticks
+                            .remove_ticks(upper_history_bound)
+                            .await?;
+                    }
+
                     return Ok(());
                 }
             }
