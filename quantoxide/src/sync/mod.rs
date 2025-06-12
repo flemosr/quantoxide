@@ -95,7 +95,10 @@ impl SyncStateManager {
                 let mut state_guard = state
                     .lock()
                     .expect("`SyncStateManager` mutex can't be poisoned");
-                if let SyncState::Starting | SyncState::InProgress(_) = **state_guard {
+                if let SyncState::Starting
+                | SyncState::InProgress(_)
+                | SyncState::WaitingForResync = **state_guard
+                {
                     let new_state = Arc::new(SyncState::InProgress(new_history_state));
 
                     *state_guard = new_state.clone();
