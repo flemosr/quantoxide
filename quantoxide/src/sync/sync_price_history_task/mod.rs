@@ -1,6 +1,6 @@
 use std::{collections::HashSet, sync::Arc};
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Duration, Utc};
 use tokio::{sync::mpsc, time};
 
 use lnm_sdk::api::{ApiContext, rest::models::PriceEntryLNM};
@@ -160,24 +160,22 @@ impl SyncPriceHistoryTask {
 
     async fn handle_history_update(&self, new_history_state: &PriceHistoryState) -> Result<()> {
         if let Some(history_state_tx) = self.history_state_tx.as_ref() {
-            if !history_state_tx.is_closed() {
-                history_state_tx
-                    .send(new_history_state.clone())
-                    .await
-                    .map_err(|_| SyncPriceHistoryError::HistoryUpdateHandlerFailed)?;
-            }
+            history_state_tx
+                .send(new_history_state.clone())
+                .await
+                .map_err(|_| SyncPriceHistoryError::HistoryUpdateHandlerFailed)?;
         }
 
         Ok(())
     }
 
-    pub async fn run(self) -> Result<()> {
+    pub async fn backfill(self) -> Result<()> {
         let mut history_state =
             PriceHistoryState::evaluate(&self.db, self.config.sync_history_reach).await?;
         self.handle_history_update(&history_state).await?;
 
         loop {
-            let (download_from, download_to) = history_state.next_download_bounds();
+            let (download_from, download_to) = history_state.next_download_range_backfill();
 
             let new_entries_received = self.partial_download(download_from, download_to).await?;
             if !new_entries_received {
@@ -191,6 +189,35 @@ impl SyncPriceHistoryTask {
             history_state =
                 PriceHistoryState::evaluate(&self.db, self.config.sync_history_reach).await?;
             self.handle_history_update(&history_state).await?;
+        }
+    }
+
+    pub async fn live(self, range: Duration) -> Result<()> {
+        let history_state =
+            PriceHistoryState::evaluate(&self.db, self.config.sync_history_reach).await?;
+        self.handle_history_update(&history_state).await?;
+
+        let initial_upper_history_bound = history_state.get_upper_history_bound();
+
+        self.partial_download(initial_upper_history_bound.as_ref(), None)
+            .await?;
+
+        // Now it can be assumed that the history upper bound matches the current time
+
+        loop {
+            let history_state =
+                PriceHistoryState::evaluate(&self.db, self.config.sync_history_reach).await?;
+            self.handle_history_update(&history_state).await?;
+
+            if let Some(lastest_history_range) = history_state.tail_continuous_duration() {
+                if lastest_history_range >= range {
+                    return Ok(());
+                }
+            }
+
+            let (download_from, download_to) = history_state.next_download_range_live();
+
+            self.partial_download(download_from, download_to).await?;
         }
     }
 }
