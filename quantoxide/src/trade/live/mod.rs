@@ -11,7 +11,7 @@ use crate::{
         core::{ConfiguredSignalEvaluator, Signal},
         live::{LiveSignalConfig, LiveSignalController, LiveSignalEngine, LiveSignalState},
     },
-    sync::{SyncConfig, SyncController, SyncEngine, SyncState},
+    sync::{SyncConfig, SyncController, SyncEngine, SyncMode, SyncState},
     util::{AbortOnDropHandle, Never},
 };
 
@@ -449,7 +449,8 @@ impl LiveEngine {
 
     pub async fn start(mut self) -> Result<Arc<LiveController>> {
         let config = SyncConfig::from(&self.config);
-        let sync_controller = SyncEngine::new(config, self.db.clone(), self.api.clone()).start();
+        let sync_controller =
+            SyncEngine::new(config, self.db.clone(), self.api.clone(), SyncMode::Full).start();
 
         let config = LiveSignalConfig::from(&self.config);
         let signal_controller = LiveSignalEngine::new(
