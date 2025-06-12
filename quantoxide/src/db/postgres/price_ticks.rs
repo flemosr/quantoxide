@@ -252,4 +252,13 @@ impl PriceTicksRepository for PgPriceTicksRepo {
 
         Ok(full_locf_entries)
     }
+
+    async fn remove_ticks(&self, before: DateTime<Utc>) -> Result<()> {
+        sqlx::query!("DELETE FROM price_ticks WHERE time <= $1", before)
+            .execute(self.pool())
+            .await
+            .map_err(DbError::Query)?;
+
+        Ok(())
+    }
 }
