@@ -281,6 +281,9 @@ impl SyncProcess {
 
         let mut price_tick_rx = price_tick_tx.subscribe();
 
+        let new_re_sync_timer = || Box::pin(time::sleep(self.config.re_sync_history_interval));
+        let mut re_sync_timer = new_re_sync_timer();
+
         loop {
             tokio::select! {
                 rt_res = &mut real_time_collection_handle => {
@@ -293,9 +296,10 @@ impl SyncProcess {
                         Err(e) => return Err(SyncError::Generic(e.to_string()))
                     }
                 }
-                _ = time::sleep(self.config.re_sync_history_interval) => {
+                _ = &mut re_sync_timer => {
                     // Ensure the price history db remains relatively up-to-date
                     self.run_price_history_task_backfill(None).await?;
+                    re_sync_timer = new_re_sync_timer();
                 }
             }
         }
