@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM price_ticks WHERE time <= $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "6e62b80ab7eba8b7e35d78c9797c58bd4d2c02303bfec618b3cbbde2be9042e5"
+}
