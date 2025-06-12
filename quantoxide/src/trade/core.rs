@@ -212,7 +212,7 @@ impl fmt::Display for TradeControllerState {
         writeln!(f, "  closed_positions:")?;
         writeln!(f, "    trades: {}", self.closed_len)?;
         writeln!(f, "    pl: {}", self.closed_pl)?;
-        writeln!(f, "    fees: {}", self.closed_fees)?;
+        write!(f, "    fees: {}", self.closed_fees)?;
 
         Ok(())
     }
