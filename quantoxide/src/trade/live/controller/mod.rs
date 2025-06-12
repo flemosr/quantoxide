@@ -59,6 +59,7 @@ impl LiveTradeController {
                             SyncState::NotInitiated
                             | SyncState::Starting
                             | SyncState::InProgress(_)
+                            | SyncState::WaitingForResync
                             | SyncState::Failed(_)
                             | SyncState::Restarting => {
                                 let new_state =
