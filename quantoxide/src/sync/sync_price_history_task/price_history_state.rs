@@ -74,13 +74,42 @@ impl PriceHistoryState {
         })
     }
 
-    pub fn next_download_bounds(&self) -> (Option<&DateTime<Utc>>, Option<&DateTime<Utc>>) {
+    pub fn next_download_range_backfill(&self) -> (Option<&DateTime<Utc>>, Option<&DateTime<Utc>>) {
         let history_bounds = match &self.bounds {
             Some(bounds) => bounds,
             None => return (None, None),
         };
 
         if let Some((gap_from, gap_to)) = self.entry_gaps.first() {
+            return (Some(gap_from), Some(gap_to));
+        }
+        if history_bounds.0 > self.reach_time {
+            return (None, Some(&history_bounds.0));
+        }
+        (Some(&history_bounds.1), None)
+    }
+
+    pub fn get_upper_history_bound(&self) -> Option<DateTime<Utc>> {
+        Some(self.bounds?.1)
+    }
+
+    pub fn tail_continuous_duration(&self) -> Option<Duration> {
+        let history_bounds = &self.bounds?;
+
+        if let Some((_, gap_to)) = self.entry_gaps.last() {
+            return Some(history_bounds.1 - *gap_to);
+        }
+
+        Some(history_bounds.1 - history_bounds.0)
+    }
+
+    pub fn next_download_range_live(&self) -> (Option<&DateTime<Utc>>, Option<&DateTime<Utc>>) {
+        let history_bounds = match &self.bounds {
+            Some(bounds) => bounds,
+            None => return (None, None),
+        };
+
+        if let Some((gap_from, gap_to)) = self.entry_gaps.last() {
             return (Some(gap_from), Some(gap_to));
         }
         if history_bounds.0 > self.reach_time {
