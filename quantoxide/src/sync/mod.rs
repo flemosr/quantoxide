@@ -1,4 +1,7 @@
-use std::sync::{Arc, Mutex};
+use std::{
+    pin::Pin,
+    sync::{Arc, Mutex},
+};
 
 use chrono::Duration;
 use tokio::{
@@ -30,6 +33,7 @@ pub enum SyncState {
     Starting,
     InProgress(PriceHistoryState),
     Synced(Option<PriceTick>),
+    WaitingForResync,
     Failed(SyncError),
     Restarting,
     ShutdownInitiated,
@@ -105,11 +109,11 @@ impl SyncStateManager {
     }
 }
 
-#[derive(Clone)]
 struct SyncProcess {
     config: SyncConfig,
     db: Arc<DbContext>,
     api: Arc<ApiContext>,
+    mode: SyncMode,
     shutdown_tx: broadcast::Sender<()>,
     state_manager: Arc<SyncStateManager>,
 }
@@ -119,6 +123,7 @@ impl SyncProcess {
         config: SyncConfig,
         db: Arc<DbContext>,
         api: Arc<ApiContext>,
+        mode: SyncMode,
         shutdown_tx: broadcast::Sender<()>,
         state_manager: Arc<SyncStateManager>,
     ) -> Self {
@@ -126,22 +131,39 @@ impl SyncProcess {
             config,
             db,
             api,
+            mode,
             shutdown_tx,
             state_manager,
         }
     }
 
-    async fn run_price_history_task(
+    async fn run_price_history_task_backfill(
         &self,
         history_state_tx: Option<PriceHistoryStateTransmiter>,
     ) -> sync_price_history_task::error::Result<()> {
-        let task = SyncPriceHistoryTask::new(
+        SyncPriceHistoryTask::new(
             self.config.clone(),
             self.db.clone(),
             self.api.clone(),
             history_state_tx,
-        );
-        task.run().await
+        )
+        .backfill()
+        .await
+    }
+
+    async fn run_price_history_task_live(
+        &self,
+        history_state_tx: Option<PriceHistoryStateTransmiter>,
+        range: Duration,
+    ) -> sync_price_history_task::error::Result<()> {
+        SyncPriceHistoryTask::new(
+            self.config.clone(),
+            self.db.clone(),
+            self.api.clone(),
+            history_state_tx,
+        )
+        .live(range)
+        .await
     }
 
     fn spawn_real_time_collection_task(
@@ -157,16 +179,23 @@ impl SyncProcess {
         task.spawn()
     }
 
-    async fn run(&self) -> Result<Never> {
-        // Initial price history sync
+    async fn run_backfill(&self) -> Result<Never> {
+        loop {
+            let (history_state_tx, history_state_rx) = mpsc::channel::<PriceHistoryState>(100);
 
-        let (history_state_tx, history_state_rx) = mpsc::channel::<PriceHistoryState>(100);
+            self.state_manager
+                .spawn_history_state_update_handler(history_state_rx);
 
-        self.state_manager
-            .spawn_history_state_update_handler(history_state_rx);
+            self.run_price_history_task_backfill(Some(history_state_tx))
+                .await?;
 
-        self.run_price_history_task(Some(history_state_tx)).await?;
+            self.state_manager.update(SyncState::WaitingForResync);
 
+            time::sleep(self.config.re_sync_history_interval).await;
+        }
+    }
+
+    async fn run_live(&self, range: Duration) -> Result<Never> {
         // Start to collect real-time data
 
         let (price_tick_tx, _) = broadcast::channel::<PriceTick>(100);
@@ -174,9 +203,16 @@ impl SyncProcess {
         let mut real_time_collection_handle =
             self.spawn_real_time_collection_task(price_tick_tx.clone());
 
-        // Additional price history sync to ensure overlap with real-time data
+        // Ensure the database contains all entries from the last `range` duration
+        // (e.g., if range is 1 hour, we need all data from the past hour available).
 
-        self.run_price_history_task(None).await?;
+        let (history_state_tx, history_state_rx) = mpsc::channel::<PriceHistoryState>(100);
+
+        self.state_manager
+            .spawn_history_state_update_handler(history_state_rx);
+
+        self.run_price_history_task_live(Some(history_state_tx), range)
+            .await?;
 
         if real_time_collection_handle.is_finished() {
             real_time_collection_handle
@@ -194,7 +230,57 @@ impl SyncProcess {
 
         loop {
             tokio::select! {
-                rt_res =  &mut real_time_collection_handle => {
+                rt_res = &mut real_time_collection_handle => {
+                    rt_res.map_err(SyncError::TaskJoin)??;
+                    return Err(SyncError::UnexpectedRealTimeCollectionShutdown);
+                }
+                tick_res = price_tick_rx.recv() => {
+                    match tick_res {
+                        Ok(tick) => self.state_manager.update(SyncState::Synced(Some(tick))),
+                        Err(e) => return Err(SyncError::Generic(e.to_string()))
+                    }
+                }
+            }
+        }
+    }
+
+    async fn run_full(&self) -> Result<Never> {
+        let (history_state_tx, history_state_rx) = mpsc::channel::<PriceHistoryState>(100);
+
+        self.state_manager
+            .spawn_history_state_update_handler(history_state_rx);
+
+        self.run_price_history_task_backfill(Some(history_state_tx))
+            .await?;
+
+        // Start to collect real-time data
+
+        let (price_tick_tx, _) = broadcast::channel::<PriceTick>(100);
+
+        let mut real_time_collection_handle =
+            self.spawn_real_time_collection_task(price_tick_tx.clone());
+
+        // Additional price history backfill to ensure overlap with real-time data
+
+        self.run_price_history_task_backfill(None).await?;
+
+        if real_time_collection_handle.is_finished() {
+            real_time_collection_handle
+                .await
+                .map_err(SyncError::TaskJoin)??;
+
+            return Err(SyncError::UnexpectedRealTimeCollectionShutdown);
+        }
+
+        // Sync achieved
+
+        self.state_manager.update(SyncState::Synced(None));
+
+        let mut price_tick_rx = price_tick_tx.subscribe();
+
+        loop {
+            tokio::select! {
+                rt_res = &mut real_time_collection_handle => {
                     rt_res.map_err(SyncError::TaskJoin)??;
                     return Err(SyncError::UnexpectedRealTimeCollectionShutdown);
                 }
@@ -205,9 +291,18 @@ impl SyncProcess {
                     }
                 }
                 _ = time::sleep(self.config.re_sync_history_interval) => {
-                    self.run_price_history_task(None).await?;
+                    // Ensure the price history db remains relatively up-to-date
+                    self.run_price_history_task_backfill(None).await?;
                 }
             }
+        }
+    }
+
+    fn run_mode(&self) -> Pin<Box<dyn Future<Output = Result<Never>> + Send + '_>> {
+        match &self.mode {
+            SyncMode::Backfill => Box::pin(self.run_backfill()),
+            SyncMode::Live { range } => Box::pin(self.run_live(*range)),
+            SyncMode::Full => Box::pin(self.run_full()),
         }
     }
 
@@ -218,7 +313,7 @@ impl SyncProcess {
 
                 let mut shutdown_rx = self.shutdown_tx.subscribe();
                 tokio::select! {
-                    run_res = self.run() => {
+                    run_res = self.run_mode() => {
                         let Err(sync_error) = run_res;
                         self.state_manager.update(SyncState::Failed(sync_error));
                     }
@@ -446,15 +541,33 @@ impl From<&LiveConfig> for SyncConfig {
     }
 }
 
+#[derive(Debug)]
+pub enum SyncMode {
+    Backfill,
+    Live { range: Duration },
+    Full,
+}
+
 pub struct SyncEngine {
     config: SyncConfig,
     db: Arc<DbContext>,
     api: Arc<ApiContext>,
+    mode: SyncMode,
 }
 
 impl SyncEngine {
-    pub fn new(config: SyncConfig, db: Arc<DbContext>, api: Arc<ApiContext>) -> Self {
-        Self { config, db, api }
+    pub fn new(
+        config: SyncConfig,
+        db: Arc<DbContext>,
+        api: Arc<ApiContext>,
+        mode: SyncMode,
+    ) -> Self {
+        Self {
+            config,
+            db,
+            api,
+            mode,
+        }
     }
 
     pub fn start(self) -> Arc<SyncController> {
@@ -469,6 +582,7 @@ impl SyncEngine {
             self.config,
             self.db,
             self.api,
+            self.mode,
             shutdown_tx.clone(),
             state_manager.clone(),
         )
