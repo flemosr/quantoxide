@@ -193,4 +193,6 @@ pub trait PriceTicksRepository: Send + Sync {
         time: &DateTime<Utc>,
         range_secs: usize,
     ) -> Result<Vec<PriceHistoryEntryLOCF>>;
+
+    async fn remove_ticks(&self, before: DateTime<Utc>) -> Result<()>;
 }
