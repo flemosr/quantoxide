@@ -308,6 +308,7 @@ pub struct LiveConfig {
     api_error_cooldown: time::Duration,
     api_error_max_trials: u32,
     api_history_batch_size: usize,
+    sync_mode_full: bool,
     sync_history_reach: Duration,
     re_sync_history_interval: time::Duration,
     signal_eval_interval: time::Duration,
@@ -322,6 +323,7 @@ impl Default for LiveConfig {
             api_error_cooldown: time::Duration::from_secs(10),
             api_error_max_trials: 3,
             api_history_batch_size: 1000,
+            sync_mode_full: false,
             sync_history_reach: Duration::hours(24 * 7 * 4),
             re_sync_history_interval: time::Duration::from_secs(300),
             signal_eval_interval: time::Duration::from_secs(1),
@@ -346,6 +348,10 @@ impl LiveConfig {
 
     pub fn api_history_batch_size(&self) -> usize {
         self.api_history_batch_size
+    }
+
+    pub fn sync_mode_full(&self) -> bool {
+        self.sync_mode_full
     }
 
     pub fn sync_history_reach(&self) -> Duration {
@@ -385,6 +391,11 @@ impl LiveConfig {
 
     pub fn set_api_history_batch_size(mut self, size: usize) -> Self {
         self.api_history_batch_size = size;
+        self
+    }
+
+    pub fn set_sync_mode_full(mut self, sync_mode_full: bool) -> Self {
+        self.sync_mode_full = sync_mode_full;
         self
     }
 
@@ -448,23 +459,24 @@ impl LiveEngine {
     }
 
     pub async fn start(mut self) -> Result<Arc<LiveController>> {
-        let max_evaluator_window_secs = self
-            .evaluators
-            .iter()
-            .map(|evaluator| evaluator.context_window_secs())
-            .max()
-            .expect("`evaluators` can't be empty");
+        let sync_mode = if self.config.sync_mode_full() {
+            SyncMode::Full
+        } else {
+            let max_evaluator_window_secs = self
+                .evaluators
+                .iter()
+                .map(|evaluator| evaluator.context_window_secs())
+                .max()
+                .expect("`evaluators` can't be empty");
 
-        let config = SyncConfig::from(&self.config);
-        let sync_controller = SyncEngine::new(
-            config,
-            self.db.clone(),
-            self.api.clone(),
             SyncMode::Live {
                 range: Duration::seconds(max_evaluator_window_secs as i64),
-            },
-        )
-        .start();
+            }
+        };
+
+        let config = SyncConfig::from(&self.config);
+        let sync_controller =
+            SyncEngine::new(config, self.db.clone(), self.api.clone(), sync_mode).start();
 
         let config = LiveSignalConfig::from(&self.config);
         let signal_controller = LiveSignalEngine::new(
