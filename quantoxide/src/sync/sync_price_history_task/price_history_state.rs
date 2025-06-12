@@ -148,20 +148,23 @@ impl fmt::Display for PriceHistoryState {
                 writeln!(f, "    start: {} ({start_eval})", start.to_rfc3339())?;
                 writeln!(f, "    end: {} ({end_val})", end.to_rfc3339())?;
 
-                // Only show gaps section if database is not empty
                 if self.entry_gaps.is_empty() {
-                    writeln!(f, "  gaps: no gaps")?;
+                    write!(f, "  gaps: no gaps")?;
                 } else {
                     writeln!(f, "  gaps:")?;
                     for (i, (gap_start, gap_end)) in self.entry_gaps.iter().enumerate() {
                         let gap_hours = (*gap_end - *gap_start).num_minutes() as f32 / 60.;
                         writeln!(f, "    - gap {} (missing {:.2} hours):", i + 1, gap_hours)?;
                         writeln!(f, "        from: {}", gap_start.to_rfc3339())?;
-                        writeln!(f, "        to: {}", gap_end.to_rfc3339())?;
+                        if i == self.entry_gaps.len() - 1 {
+                            write!(f, "        to: {}", gap_end.to_rfc3339())?;
+                        } else {
+                            writeln!(f, "        to: {}", gap_end.to_rfc3339())?;
+                        }
                     }
                 }
             }
-            None => writeln!(f, "  bounds: database is empty")?,
+            None => write!(f, "  bounds: database is empty")?,
         }
 
         Ok(())
