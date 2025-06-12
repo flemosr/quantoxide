@@ -448,9 +448,23 @@ impl LiveEngine {
     }
 
     pub async fn start(mut self) -> Result<Arc<LiveController>> {
+        let max_evaluator_window_secs = self
+            .evaluators
+            .iter()
+            .map(|evaluator| evaluator.context_window_secs())
+            .max()
+            .expect("`evaluators` can't be empty");
+
         let config = SyncConfig::from(&self.config);
-        let sync_controller =
-            SyncEngine::new(config, self.db.clone(), self.api.clone(), SyncMode::Full).start();
+        let sync_controller = SyncEngine::new(
+            config,
+            self.db.clone(),
+            self.api.clone(),
+            SyncMode::Live {
+                range: Duration::seconds(max_evaluator_window_secs as i64),
+            },
+        )
+        .start();
 
         let config = LiveSignalConfig::from(&self.config);
         let signal_controller = LiveSignalEngine::new(
