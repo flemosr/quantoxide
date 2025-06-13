@@ -91,19 +91,13 @@ impl PriceHistoryState {
             ));
         };
 
-        if bounds.0 > range_from || bounds.1 < range_to {
-            return Ok(false);
-        }
-
-        if self
+        let range_within_bounds = bounds.0 <= range_from && bounds.1 >= range_to;
+        let range_without_gaps = !self
             .entry_gaps
             .iter()
-            .any(|(gap_from, gap_to)| range_from < *gap_to && *gap_from < range_to)
-        {
-            return Ok(false);
-        }
+            .any(|(gap_from, gap_to)| range_from < *gap_to && *gap_from < range_to);
 
-        Ok(false)
+        Ok(range_within_bounds && range_without_gaps)
     }
 
     pub fn next_download_range(
