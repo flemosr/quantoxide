@@ -23,9 +23,8 @@ mod sync_price_history_task;
 
 use error::{Result, SyncError};
 use real_time_collection_task::RealTimeCollectionTask;
-use sync_price_history_task::{
-    PriceHistoryState, PriceHistoryStateTransmiter, SyncPriceHistoryTask,
-};
+pub use sync_price_history_task::PriceHistoryState;
+use sync_price_history_task::{PriceHistoryStateTransmiter, SyncPriceHistoryTask};
 
 #[derive(Debug, PartialEq)]
 pub enum SyncState {

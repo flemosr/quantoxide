@@ -8,7 +8,7 @@ use lnm_sdk::api::{ApiContext, rest::models::PriceEntryLNM};
 use crate::db::DbContext;
 
 pub mod error;
-pub mod price_history_state;
+mod price_history_state;
 
 use error::{Result, SyncPriceHistoryError};
 pub use price_history_state::PriceHistoryState;
