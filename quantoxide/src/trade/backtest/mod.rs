@@ -8,6 +8,7 @@ use lnm_sdk::api::rest::models::BoundedPercentage;
 use crate::{
     db::DbContext,
     signal::core::{ConfiguredSignalEvaluator, Signal},
+    sync::PriceHistoryState,
     trade::core::{Operator, TradeController, TradeControllerState, WrappedOperator},
     util::{AbortOnDropHandle, DateTimeExt},
 };
@@ -182,7 +183,7 @@ pub struct BacktestEngine {
 }
 
 impl BacktestEngine {
-    pub fn new(
+    pub async fn new(
         config: BacktestConfig,
         db: Arc<DbContext>,
         evaluators: Vec<ConfiguredSignalEvaluator>,
@@ -204,22 +205,31 @@ impl BacktestEngine {
             ));
         }
 
-        if evaluators.is_empty() {
-            return Err(BacktestError::Generic(
-                "At least one evaluator must be provided".to_string(),
-            ));
-        }
-
         let max_ctx_window = evaluators
             .iter()
             .map(|evaluator| evaluator.context_window_secs())
             .max()
-            .expect("evaluators can't be empty");
+            .ok_or(BacktestError::Generic(
+                "At least one evaluator must be provided".to_string(),
+            ))?;
 
         if config.buffer_size < max_ctx_window {
             return Err(BacktestError::Generic(format!(
                 "buffer size {} is incompatible with max ctx window {}",
                 config.buffer_size, max_ctx_window
+            )));
+        }
+
+        let price_history_state = PriceHistoryState::evaluate(&db, None)
+            .await
+            .map_err(|e| BacktestError::Generic(e.to_string()))?;
+
+        if !price_history_state
+            .is_range_available(start_time, end_time)
+            .map_err(|e| BacktestError::Generic(e.to_string()))?
+        {
+            return Err(BacktestError::Generic(format!(
+                "range ({start_time} to {end_time}) is not available in price history ({price_history_state})"
             )));
         }
 
