@@ -7,11 +7,11 @@ use lnm_sdk::api::{ApiContext, rest::models::PriceEntryLNM};
 
 use crate::db::DbContext;
 
-mod price_history_state;
-pub use price_history_state::PriceHistoryState;
 pub mod error;
+pub mod price_history_state;
 
 use error::{Result, SyncPriceHistoryError};
+pub use price_history_state::PriceHistoryState;
 
 use super::SyncConfig;
 
@@ -171,15 +171,17 @@ impl SyncPriceHistoryTask {
 
     pub async fn backfill(self) -> Result<()> {
         let mut history_state =
-            PriceHistoryState::evaluate(&self.db, self.config.sync_history_reach).await?;
+            PriceHistoryState::evaluate(&self.db, Some(self.config.sync_history_reach)).await?;
         self.handle_history_update(&history_state).await?;
 
         loop {
-            let (download_from, download_to) = history_state.next_download_range_backfill();
+            let (download_from, download_to) = history_state.next_download_range(true)?;
 
-            let new_entries_received = self.partial_download(download_from, download_to).await?;
+            let new_entries_received = self
+                .partial_download(download_from.as_ref(), download_to.as_ref())
+                .await?;
             if !new_entries_received {
-                if history_state.has_gaps() {
+                if history_state.has_gaps()? {
                     return Err(SyncPriceHistoryError::NoGapEntriesReceived);
                 } else {
                     if let Some(upper_history_bound) = history_state.get_upper_history_bound() {
@@ -195,14 +197,14 @@ impl SyncPriceHistoryTask {
             }
 
             history_state =
-                PriceHistoryState::evaluate(&self.db, self.config.sync_history_reach).await?;
+                PriceHistoryState::evaluate(&self.db, Some(self.config.sync_history_reach)).await?;
             self.handle_history_update(&history_state).await?;
         }
     }
 
     pub async fn live(self, range: Duration) -> Result<()> {
         let history_state =
-            PriceHistoryState::evaluate(&self.db, self.config.sync_history_reach).await?;
+            PriceHistoryState::evaluate(&self.db, Some(self.config.sync_history_reach)).await?;
         self.handle_history_update(&history_state).await?;
 
         let initial_upper_history_bound = history_state.get_upper_history_bound();
@@ -214,7 +216,7 @@ impl SyncPriceHistoryTask {
 
         loop {
             let history_state =
-                PriceHistoryState::evaluate(&self.db, self.config.sync_history_reach).await?;
+                PriceHistoryState::evaluate(&self.db, Some(self.config.sync_history_reach)).await?;
             self.handle_history_update(&history_state).await?;
 
             if let Some(lastest_history_range) = history_state.tail_continuous_duration() {
@@ -223,9 +225,10 @@ impl SyncPriceHistoryTask {
                 }
             }
 
-            let (download_from, download_to) = history_state.next_download_range_live();
+            let (download_from, download_to) = history_state.next_download_range(false)?;
 
-            self.partial_download(download_from, download_to).await?;
+            self.partial_download(download_from.as_ref(), download_to.as_ref())
+                .await?;
         }
     }
 }
