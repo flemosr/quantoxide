@@ -74,6 +74,38 @@ impl PriceHistoryState {
         })
     }
 
+    pub fn is_range_available(
+        &self,
+        range_from: DateTime<Utc>,
+        range_to: DateTime<Utc>,
+    ) -> Result<bool> {
+        if range_from >= range_to {
+            return Err(SyncPriceHistoryError::Generic(
+                "`from` gte `to`".to_string(),
+            ));
+        }
+
+        let Some(bounds) = self.bounds else {
+            return Err(SyncPriceHistoryError::Generic(
+                "price history is empty".to_string(),
+            ));
+        };
+
+        if bounds.0 > range_from || bounds.1 < range_to {
+            return Ok(false);
+        }
+
+        if self
+            .entry_gaps
+            .iter()
+            .any(|(gap_from, gap_to)| range_from < *gap_to && *gap_from < range_to)
+        {
+            return Ok(false);
+        }
+
+        Ok(false)
+    }
+
     pub fn next_download_range(
         &self,
         backfilling: bool,
