@@ -35,6 +35,9 @@ pub enum SyncPriceHistoryError {
         gap: DateTime<Utc>,
         reach: DateTime<Utc>,
     },
+
+    #[error("Generic error, {0}")]
+    Generic(String),
 }
 
 pub type Result<T> = result::Result<T, SyncPriceHistoryError>;
