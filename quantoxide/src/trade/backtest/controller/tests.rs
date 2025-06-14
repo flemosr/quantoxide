@@ -62,12 +62,19 @@ async fn test_simulated_trade_controller_long_profit() -> Result<()> {
 
     // Step 3: Open a long trade using 5% of balance;
     let stoploss_perc = BoundedPercentage::try_from(2.0).unwrap(); // 2% stoploss
+    let stoploss_mode = StoplossMode::Fixed;
     let takeprofit_perc = LowerBoundedPercentage::try_from(5.0).unwrap(); // 5% takeprofit
     let balance_perc = BoundedPercentage::try_from(5.0).unwrap(); // 5% of balance
     let leverage = Leverage::try_from(1).unwrap(); // 1x leverage
 
     controller
-        .open_long(stoploss_perc, takeprofit_perc, balance_perc, leverage)
+        .open_long(
+            stoploss_perc,
+            stoploss_mode,
+            takeprofit_perc,
+            balance_perc,
+            leverage,
+        )
         .await?;
 
     let state = controller.state().await?;
@@ -187,12 +194,19 @@ async fn test_simulated_trade_controller_long_loss() -> Result<()> {
 
     // Step 2: Open a long trade using 5% of balance
     let stoploss_perc = BoundedPercentage::try_from(2.0).unwrap(); // 2% stoploss
+    let stoploss_mode = StoplossMode::Fixed;
     let takeprofit_perc = LowerBoundedPercentage::try_from(5.0).unwrap(); // 5% takeprofit
     let balance_perc = BoundedPercentage::try_from(5.0).unwrap(); // 5% of balance
     let leverage = Leverage::try_from(1).unwrap(); // 1x leverage
 
     controller
-        .open_long(stoploss_perc, takeprofit_perc, balance_perc, leverage)
+        .open_long(
+            stoploss_perc,
+            stoploss_mode,
+            takeprofit_perc,
+            balance_perc,
+            leverage,
+        )
         .await?;
 
     let state = controller.state().await?;
@@ -294,12 +308,19 @@ async fn test_simulated_trade_controller_short_profit() -> Result<()> {
 
     // Step 2: Open a short trade using 5% of balance
     let stoploss_perc = BoundedPercentage::try_from(3.0).unwrap(); // 3% stoploss
+    let stoploss_mode = StoplossMode::Fixed;
     let takeprofit_perc = BoundedPercentage::try_from(4.0).unwrap(); // 4% takeprofit
     let balance_perc = BoundedPercentage::try_from(5.0).unwrap(); // 5% of balance
     let leverage = Leverage::try_from(1).unwrap(); // 1x leverage
 
     controller
-        .open_short(stoploss_perc, takeprofit_perc, balance_perc, leverage)
+        .open_short(
+            stoploss_perc,
+            stoploss_mode,
+            takeprofit_perc,
+            balance_perc,
+            leverage,
+        )
         .await?;
 
     let state = controller.state().await?;
@@ -410,12 +431,19 @@ async fn test_simulated_trade_controller_short_loss() -> Result<()> {
 
     // Step 2: Open a short trade using 5% of balance
     let stoploss_perc = BoundedPercentage::try_from(2.0).unwrap(); // 2% stoploss
+    let stoploss_mode = StoplossMode::Fixed;
     let takeprofit_perc = BoundedPercentage::try_from(5.0).unwrap(); // 5% takeprofit
     let balance_perc = BoundedPercentage::try_from(5.0).unwrap(); // 5% of balance
     let leverage = Leverage::try_from(1).unwrap(); // 1x leverage
 
     controller
-        .open_short(stoploss_perc, takeprofit_perc, balance_perc, leverage)
+        .open_short(
+            stoploss_perc,
+            stoploss_mode,
+            takeprofit_perc,
+            balance_perc,
+            leverage,
+        )
         .await?;
 
     let state = controller.state().await?;
