@@ -220,7 +220,7 @@ impl BacktestEngine {
             )));
         }
 
-        let price_history_state = PriceHistoryState::evaluate(&db, None)
+        let price_history_state = PriceHistoryState::evaluate(&db)
             .await
             .map_err(|e| BacktestError::Generic(e.to_string()))?;
 

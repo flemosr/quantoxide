@@ -14,26 +14,7 @@ pub struct PriceHistoryState {
 }
 
 impl PriceHistoryState {
-    pub fn reach_time(&self) -> Option<DateTime<Utc>> {
-        self.reach_time
-    }
-
-    pub fn bounds(&self) -> Option<(DateTime<Utc>, DateTime<Utc>)> {
-        self.bounds
-    }
-    pub fn gaps(&self) -> &Vec<(DateTime<Utc>, DateTime<Utc>)> {
-        &self.gaps
-    }
-
-    pub fn start_bound(&self) -> Option<DateTime<Utc>> {
-        self.bounds.map(|(start, _)| start)
-    }
-
-    pub fn end_bound(&self) -> Option<DateTime<Utc>> {
-        self.bounds.map(|(_, end)| end)
-    }
-
-    pub async fn evaluate(db: &DbContext, reach_opt: Option<Duration>) -> Result<Self> {
+    async fn new(db: &DbContext, reach_opt: Option<Duration>) -> Result<Self> {
         let reach_time = reach_opt.map_or(None, |reach| Some(Utc::now() - reach));
 
         let earliest_entry = match db.price_history.get_earliest_entry().await? {
@@ -93,6 +74,29 @@ impl PriceHistoryState {
         })
     }
 
+    pub async fn evaluate(db: &DbContext) -> Result<Self> {
+        Self::new(db, None).await
+    }
+
+    pub(crate) async fn evaluate_with_reach(db: &DbContext, reach: Duration) -> Result<Self> {
+        Self::new(db, Some(reach)).await
+    }
+
+    pub fn bounds(&self) -> Option<(DateTime<Utc>, DateTime<Utc>)> {
+        self.bounds
+    }
+    pub fn gaps(&self) -> &Vec<(DateTime<Utc>, DateTime<Utc>)> {
+        &self.gaps
+    }
+
+    pub fn bound_start(&self) -> Option<DateTime<Utc>> {
+        self.bounds.map(|(start, _)| start)
+    }
+
+    pub fn bound_end(&self) -> Option<DateTime<Utc>> {
+        self.bounds.map(|(_, end)| end)
+    }
+
     pub fn is_range_available(
         &self,
         range_from: DateTime<Utc>,
@@ -119,7 +123,7 @@ impl PriceHistoryState {
         Ok(range_within_bounds && range_without_gaps)
     }
 
-    pub fn next_download_range(
+    pub(crate) fn next_download_range(
         &self,
         backfilling: bool,
     ) -> Result<(Option<DateTime<Utc>>, Option<DateTime<Utc>>)> {
@@ -171,9 +175,9 @@ impl PriceHistoryState {
         Ok((Some(history_bounds.1), None))
     }
 
-    pub fn get_upper_history_bound(&self) -> Option<DateTime<Utc>> {
-        Some(self.bounds?.1)
-    }
+    // pub fn get_upper_history_bound(&self) -> Option<DateTime<Utc>> {
+    //     Some(self.bounds?.1)
+    // }
 
     pub fn tail_continuous_duration(&self) -> Option<Duration> {
         let history_bounds = &self.bounds?;
@@ -185,7 +189,7 @@ impl PriceHistoryState {
         Some(history_bounds.1 - history_bounds.0)
     }
 
-    pub fn has_gaps(&self) -> Result<bool> {
+    pub(crate) fn has_gaps(&self) -> Result<bool> {
         let Some(reach_time) = self.reach_time else {
             return Err(SyncPriceHistoryError::Generic(
                 "`reach` was not set".to_string(),

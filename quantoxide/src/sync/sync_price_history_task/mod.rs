@@ -171,7 +171,8 @@ impl SyncPriceHistoryTask {
 
     pub async fn backfill(self) -> Result<()> {
         let mut history_state =
-            PriceHistoryState::evaluate(&self.db, Some(self.config.sync_history_reach)).await?;
+            PriceHistoryState::evaluate_with_reach(&self.db, self.config.sync_history_reach)
+                .await?;
         self.handle_history_update(&history_state).await?;
 
         loop {
@@ -184,12 +185,9 @@ impl SyncPriceHistoryTask {
                 if history_state.has_gaps()? {
                     return Err(SyncPriceHistoryError::NoGapEntriesReceived);
                 } else {
-                    if let Some(upper_history_bound) = history_state.get_upper_history_bound() {
+                    if let Some(bound_end) = history_state.bound_end() {
                         // Synced with full history. Remove redundant price ticks
-                        self.db
-                            .price_ticks
-                            .remove_ticks(upper_history_bound)
-                            .await?;
+                        self.db.price_ticks.remove_ticks(bound_end).await?;
                     }
 
                     return Ok(());
@@ -197,26 +195,29 @@ impl SyncPriceHistoryTask {
             }
 
             history_state =
-                PriceHistoryState::evaluate(&self.db, Some(self.config.sync_history_reach)).await?;
+                PriceHistoryState::evaluate_with_reach(&self.db, self.config.sync_history_reach)
+                    .await?;
             self.handle_history_update(&history_state).await?;
         }
     }
 
     pub async fn live(self, range: Duration) -> Result<()> {
         let history_state =
-            PriceHistoryState::evaluate(&self.db, Some(self.config.sync_history_reach)).await?;
+            PriceHistoryState::evaluate_with_reach(&self.db, self.config.sync_history_reach)
+                .await?;
         self.handle_history_update(&history_state).await?;
 
-        let initial_upper_history_bound = history_state.get_upper_history_bound();
+        let initial_bound_end = history_state.bound_end();
 
-        self.partial_download(initial_upper_history_bound.as_ref(), None)
+        self.partial_download(initial_bound_end.as_ref(), None)
             .await?;
 
         // Now it can be assumed that the history upper bound matches the current time
 
         loop {
             let history_state =
-                PriceHistoryState::evaluate(&self.db, Some(self.config.sync_history_reach)).await?;
+                PriceHistoryState::evaluate_with_reach(&self.db, self.config.sync_history_reach)
+                    .await?;
             self.handle_history_update(&history_state).await?;
 
             if let Some(lastest_history_range) = history_state.tail_continuous_duration() {
