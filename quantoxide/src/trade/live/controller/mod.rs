@@ -15,7 +15,10 @@ use lnm_sdk::api::{
 use crate::{
     db::DbContext,
     sync::{SyncReceiver, SyncState},
-    trade::{core::RiskParams, error::TradeError},
+    trade::{
+        core::{RiskParams, StoplossMode},
+        error::TradeError,
+    },
     util::{AbortOnDropHandle, Never},
 };
 
@@ -309,6 +312,7 @@ impl TradeController for LiveTradeController {
     async fn open_long(
         &self,
         stoploss_perc: BoundedPercentage,
+        stoploss_mode: StoplossMode,
         takeprofit_perc: LowerBoundedPercentage,
         balance_perc: BoundedPercentage,
         leverage: Leverage,
@@ -324,6 +328,7 @@ impl TradeController for LiveTradeController {
     async fn open_short(
         &self,
         stoploss_perc: BoundedPercentage,
+        stoploss_mode: StoplossMode,
         takeprofit_perc: BoundedPercentage,
         balance_perc: BoundedPercentage,
         leverage: Leverage,
