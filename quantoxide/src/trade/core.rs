@@ -262,11 +262,18 @@ impl RiskParams {
     }
 }
 
+#[derive(Debug)]
+pub enum StoplossMode {
+    Fixed,
+    // Trailing,
+}
+
 #[async_trait]
 pub trait TradeController: Send + Sync {
     async fn open_long(
         &self,
         stoploss_perc: BoundedPercentage,
+        stoploss_mode: StoplossMode,
         takeprofit_perc: LowerBoundedPercentage,
         balance_perc: BoundedPercentage,
         leverage: Leverage,
@@ -275,6 +282,7 @@ pub trait TradeController: Send + Sync {
     async fn open_short(
         &self,
         stoploss_perc: BoundedPercentage,
+        stoploss_mode: StoplossMode,
         takeprofit_perc: BoundedPercentage,
         balance_perc: BoundedPercentage,
         leverage: Leverage,
