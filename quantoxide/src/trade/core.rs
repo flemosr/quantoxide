@@ -9,7 +9,7 @@ use chrono::{DateTime, Utc};
 use futures::FutureExt;
 
 use lnm_sdk::api::rest::models::{
-    BoundedPercentage, Leverage, LowerBoundedPercentage, Price, Trade, TradeSide,
+    BoundedPercentage, Leverage, LnmTrade, LowerBoundedPercentage, Price, Trade, TradeSide,
 };
 
 use crate::signal::core::Signal;
@@ -262,10 +262,10 @@ impl RiskParams {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StoplossMode {
     Fixed,
-    // Trailing,
+    Trailing,
 }
 
 #[async_trait]
@@ -348,6 +348,74 @@ impl From<Box<dyn Operator>> for WrappedOperator {
     }
 }
 
+pub trait TradeExt: Trade {
+    fn next_stoploss_update_trigger(&self, trailing_stoploss: BoundedPercentage) -> Result<Price> {
+        let curr_stoploss = self
+            .stoploss()
+            .ok_or_else(|| TradeError::Generic("trade stoploss is not set".to_string()))?;
+
+        let trailing_perc_tick = BoundedPercentage::try_from(0.5).expect("is valid percentage");
+
+        match self.side() {
+            TradeSide::Buy => {
+                let next_stoploss = curr_stoploss
+                    .apply_gain(trailing_perc_tick.into())
+                    .map_err(|e| TradeError::Generic(e.to_string()))?;
+                let price_trigger = next_stoploss
+                    .apply_gain(trailing_stoploss.into())
+                    .map_err(|e| TradeError::Generic(e.to_string()))?;
+
+                Ok(price_trigger)
+            }
+            TradeSide::Sell => {
+                let next_stoploss = curr_stoploss
+                    .apply_discount(trailing_perc_tick)
+                    .map_err(|e| TradeError::Generic(e.to_string()))?;
+                let price_trigger = next_stoploss
+                    .apply_discount(trailing_stoploss.into())
+                    .map_err(|e| TradeError::Generic(e.to_string()))?;
+
+                Ok(price_trigger)
+            }
+        }
+    }
+
+    fn eval_trigger_bounds(
+        &self,
+        trailing_stoploss: Option<BoundedPercentage>,
+    ) -> Result<(Price, Price)> {
+        let next_stoploss_update_trigger = trailing_stoploss
+            .map(|tsl| self.next_stoploss_update_trigger(tsl))
+            .transpose()?;
+
+        let (lower_bound, upper_bound) = match self.side() {
+            TradeSide::Buy => {
+                let lower_bound = self.stoploss().unwrap_or(Price::MIN);
+
+                let takeprofit_trigger = self.takeprofit().unwrap_or(Price::MAX);
+                let upper_bound =
+                    takeprofit_trigger.min(next_stoploss_update_trigger.unwrap_or(Price::MAX));
+
+                (lower_bound, upper_bound)
+            }
+
+            TradeSide::Sell => {
+                let takeprofit_trigger = self.takeprofit().unwrap_or(Price::MIN);
+                let lower_bound =
+                    takeprofit_trigger.max(next_stoploss_update_trigger.unwrap_or(Price::MIN));
+
+                let upper_bound = self.stoploss().unwrap_or(Price::MAX);
+
+                (lower_bound, upper_bound)
+            }
+        };
+
+        Ok((lower_bound, upper_bound))
+    }
+}
+
+impl TradeExt for LnmTrade {}
+
 #[derive(Debug, Clone)]
 pub enum PriceTrigger {
     NotSet,
@@ -359,19 +427,12 @@ impl PriceTrigger {
         Self::NotSet
     }
 
-    pub fn update(&mut self, trade: &impl Trade) {
-        let (mut new_min, mut new_max) = match (trade.stoploss(), trade.takeprofit()) {
-            (None, None) => return,
-            (Some(sl), None) => match trade.side() {
-                TradeSide::Buy => (sl, Price::MAX),
-                TradeSide::Sell => (Price::MIN, sl),
-            },
-            (None, Some(tp)) => match trade.side() {
-                TradeSide::Buy => (Price::MIN, tp),
-                TradeSide::Sell => (tp, Price::MAX),
-            },
-            (Some(sl), Some(tp)) => (sl.min(tp), sl.max(tp)),
-        };
+    pub fn update(
+        &mut self,
+        trade: &impl TradeExt,
+        trailing_stoploss: Option<BoundedPercentage>,
+    ) -> Result<()> {
+        let (mut new_min, mut new_max) = trade.eval_trigger_bounds(trailing_stoploss)?;
 
         if let PriceTrigger::Set { min, max } = *self {
             new_min = new_min.max(min);
@@ -382,6 +443,8 @@ impl PriceTrigger {
             min: new_min,
             max: new_max,
         };
+
+        Ok(())
     }
 
     pub fn was_reached(&self, market_price: f64) -> bool {
