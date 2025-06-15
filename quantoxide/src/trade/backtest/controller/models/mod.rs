@@ -5,6 +5,8 @@ use lnm_sdk::api::rest::models::{
     TradeSide, estimate_liquidation_price, estimate_pl,
 };
 
+use super::super::super::core::TradeExt;
+
 use super::error::{Result, SimulatedTradeControllerError};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -104,6 +106,47 @@ impl SimulatedTradeRunning {
             opening_fee,
             closing_fee_reserved,
         })
+    }
+
+    pub fn update_stoploss(&mut self, new_stoploss: Price) -> Result<()> {
+        match self.side {
+            TradeSide::Buy => {
+                if new_stoploss < self.liquidation {
+                    return Err(
+                        SimulatedTradeControllerError::StoplossBelowLiquidationLong {
+                            stoploss: new_stoploss,
+                            liquidation: self.liquidation,
+                        },
+                    );
+                }
+                if new_stoploss >= self.takeprofit {
+                    return Err(SimulatedTradeControllerError::Generic(format!(
+                        "For long position, stoploss ({}) must be below takeprofit ({})",
+                        new_stoploss, self.takeprofit
+                    )));
+                }
+            }
+            TradeSide::Sell => {
+                if new_stoploss > self.liquidation {
+                    return Err(
+                        SimulatedTradeControllerError::StoplossAboveLiquidationShort {
+                            stoploss: new_stoploss,
+                            liquidation: self.liquidation,
+                        },
+                    );
+                }
+                if new_stoploss <= self.takeprofit {
+                    return Err(SimulatedTradeControllerError::Generic(format!(
+                        "For short position, stoploss ({}) must be above takeprofit ({})",
+                        new_stoploss, self.takeprofit
+                    )));
+                }
+            }
+        }
+
+        self.stoploss = new_stoploss;
+
+        Ok(())
     }
 
     pub fn closing_fee_reserved(&self) -> u64 {
@@ -215,6 +258,8 @@ impl Trade for SimulatedTradeRunning {
         false
     }
 }
+
+impl TradeExt for SimulatedTradeRunning {}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SimulatedTradeClosed {
