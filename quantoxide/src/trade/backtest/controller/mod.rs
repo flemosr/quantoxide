@@ -10,7 +10,9 @@ use lnm_sdk::api::rest::models::{
 };
 
 use super::super::{
-    core::{PriceTrigger, RiskParams, StoplossMode, TradeController, TradeControllerState},
+    core::{
+        PriceTrigger, RiskParams, StoplossMode, TradeController, TradeControllerState, TradeExt,
+    },
     error::{Result, TradeError},
 };
 
@@ -37,7 +39,7 @@ struct SimulatedTradeControllerState {
     balance: i64,
     last_trade_time: Option<DateTime<Utc>>,
     trigger: PriceTrigger,
-    running: Vec<SimulatedTradeRunning>,
+    running: Vec<(SimulatedTradeRunning, Option<BoundedPercentage>)>,
     closed: Vec<SimulatedTradeClosed>,
     closed_pl: i64,
     closed_fees: u64,
@@ -119,7 +121,7 @@ impl SimulatedTradeController {
         let mut new_trigger = PriceTrigger::new();
         let mut remaining_running_trades = Vec::new();
 
-        for trade in state_guard.running.drain(..) {
+        for (mut trade, trailing_stoploss) in state_guard.running.drain(..) {
             // Check if price reached stoploss or takeprofit
 
             let (trade_min_opt, trade_max_opt) = match trade.side() {
@@ -141,8 +143,36 @@ impl SimulatedTradeController {
                 }
             }
 
-            new_trigger.update(&trade);
-            remaining_running_trades.push(trade);
+            if let Some(trailing_stoploss) = trailing_stoploss {
+                let next_stoploss_update_trigger =
+                    trade.next_stoploss_update_trigger(trailing_stoploss)?;
+
+                let market_price = Price::round(market_price)
+                    .map_err(|e| SimulatedTradeControllerError::Generic(e.to_string()))?;
+
+                let new_stoploss = match trade.side() {
+                    TradeSide::Buy if market_price >= next_stoploss_update_trigger => {
+                        let new_stoploss = market_price
+                            .apply_discount(trailing_stoploss)
+                            .map_err(|e| SimulatedTradeControllerError::Generic(e.to_string()))?;
+                        Some(new_stoploss)
+                    }
+                    TradeSide::Sell if market_price <= next_stoploss_update_trigger => {
+                        let new_stoploss = market_price
+                            .apply_gain(trailing_stoploss.into())
+                            .map_err(|e| SimulatedTradeControllerError::Generic(e.to_string()))?;
+                        Some(new_stoploss)
+                    }
+                    _ => None,
+                };
+
+                if let Some(new_stoploss) = new_stoploss {
+                    trade.update_stoploss(new_stoploss)?;
+                }
+            }
+
+            new_trigger.update(&trade, trailing_stoploss)?;
+            remaining_running_trades.push((trade, trailing_stoploss));
         }
 
         state_guard.balance = new_balance;
@@ -184,7 +214,7 @@ impl SimulatedTradeController {
         let mut new_trigger = PriceTrigger::new();
         let mut remaining_running_trades = Vec::new();
 
-        for trade in state_guard.running.drain(..) {
+        for (trade, trailing_stoploss) in state_guard.running.drain(..) {
             let should_be_closed = match &close {
                 Close::Side(side) if *side == trade.side() => true,
                 Close::All => true,
@@ -194,8 +224,8 @@ impl SimulatedTradeController {
             if should_be_closed {
                 close_trade(trade);
             } else {
-                new_trigger.update(&trade);
-                remaining_running_trades.push(trade);
+                new_trigger.update(&trade, trailing_stoploss)?;
+                remaining_running_trades.push((trade, trailing_stoploss));
             }
         }
 
@@ -217,6 +247,7 @@ impl SimulatedTradeController {
         balance_perc: BoundedPercentage,
         leverage: Leverage,
         risk_params: RiskParams,
+        stoploss_mode: StoplossMode,
     ) -> Result<()> {
         let mut state_guard = self.state.lock().await;
 
@@ -239,6 +270,22 @@ impl SimulatedTradeController {
             QuantityValidationError::TooHigh => TradeError::BalanceTooHigh,
         })?;
 
+        let stoploss_perc = match risk_params {
+            RiskParams::Long {
+                stoploss_perc,
+                takeprofit_perc: _,
+            } => stoploss_perc,
+            RiskParams::Short {
+                stoploss_perc,
+                takeprofit_perc: _,
+            } => stoploss_perc,
+        };
+
+        let trailing_stoploss = match stoploss_mode {
+            StoplossMode::Fixed => None,
+            StoplossMode::Trailing => Some(stoploss_perc),
+        };
+
         let (side, stoploss, takeprofit) = risk_params.into_trade_params(market_price)?;
 
         let trade = SimulatedTradeRunning::new(
@@ -257,8 +304,9 @@ impl SimulatedTradeController {
             + trade.opening_fee() as i64;
 
         state_guard.last_trade_time = Some(state_guard.time);
-        state_guard.trigger.update(&trade);
-        state_guard.running.push(trade);
+
+        state_guard.trigger.update(&trade, trailing_stoploss)?;
+        state_guard.running.push((trade, trailing_stoploss));
 
         Ok(())
     }
@@ -279,7 +327,7 @@ impl TradeController for SimulatedTradeController {
             takeprofit_perc,
         };
 
-        self.create_running(balance_perc, leverage, risk_params)
+        self.create_running(balance_perc, leverage, risk_params, stoploss_mode)
             .await?;
 
         Ok(())
@@ -298,7 +346,7 @@ impl TradeController for SimulatedTradeController {
             takeprofit_perc,
         };
 
-        self.create_running(balance_perc, leverage, risk_params)
+        self.create_running(balance_perc, leverage, risk_params, stoploss_mode)
             .await?;
 
         Ok(())
@@ -338,7 +386,7 @@ impl TradeController for SimulatedTradeController {
         // short trades, in order to obtain more conservative prices. It is
         // expected that prices won't need to be rounded most of the time.
 
-        for trade in state_guard.running.iter() {
+        for (trade, _) in state_guard.running.iter() {
             let market_price = match trade.side() {
                 TradeSide::Buy => {
                     running_long_qtd += 1;
