@@ -508,3 +508,131 @@ async fn test_simulated_trade_controller_short_loss() -> Result<()> {
 
     Ok(())
 }
+
+#[tokio::test]
+async fn test_simulated_trade_controller_trailing_stoploss_long() {
+    let start_time = Utc::now();
+    let start_balance = 100_000_000;
+    let market_price = 100_000.0;
+    let fee_perc = BoundedPercentage::try_from(0.1).unwrap(); // 0.1% fee
+    let max_running_qtd = 10;
+
+    let controller = SimulatedTradeController::new(
+        max_running_qtd,
+        fee_perc,
+        start_time,
+        market_price,
+        start_balance,
+    );
+
+    // Open long position with trailing stop-loss
+    controller
+        .open_long(
+            BoundedPercentage::try_from(2.0).unwrap(), // 2% trailing stop-loss
+            StoplossMode::Trailing,
+            LowerBoundedPercentage::try_from(4.0).unwrap(), // 4% take-profit
+            BoundedPercentage::try_from(10.0).unwrap(),     // 10% of balance
+            Leverage::try_from(1).unwrap(),
+        )
+        .await
+        .unwrap();
+
+    let state = controller.state().await.unwrap();
+    let expected_balance = start_balance - state.running_long_margin() - state.running_fees();
+
+    assert_eq!(state.current_time(), start_time);
+    assert_eq!(state.current_balance(), expected_balance);
+    assert_eq!(state.market_price(), market_price);
+    assert_eq!(state.running_long_len(), 1);
+    assert_eq!(state.running_short_len(), 0);
+    assert_eq!(state.closed_len(), 0);
+
+    // Price increases to 102_000 (2% increase)
+    // Trailing stoploss should move from 98_000 to 99_960 (2% below 102_000)
+    let time = start_time + chrono::Duration::seconds(1);
+    controller.tick_update(time, 102_000.0).await.unwrap();
+
+    let state = controller.state().await.unwrap();
+    assert_eq!(state.running_long_len(), 1); // Position still open
+
+    // Price drops to 99_960.5
+    // Should still be above new stop-loss (99_960)
+    let time = time + chrono::Duration::seconds(1);
+    controller.tick_update(time, 99_960.5).await.unwrap();
+
+    let state = controller.state().await.unwrap();
+    assert_eq!(state.running_long_len(), 1); // Position still open
+
+    // Price drops to 99_960
+    // Should trigger the trailing stop-loss (99_960)
+    let time = time + chrono::Duration::seconds(1);
+    controller.tick_update(time, 99_960.0).await.unwrap();
+
+    let state = controller.state().await.unwrap();
+    assert_eq!(state.running_long_len(), 0); // Position closed
+    assert_eq!(state.closed_len(), 1);
+}
+
+#[tokio::test]
+async fn test_simulated_trade_controller_trailing_stoploss_short() {
+    let start_time = Utc::now();
+    let start_balance = 100_000_000;
+    let market_price = 100_000.0;
+    let fee_perc = BoundedPercentage::try_from(0.1).unwrap(); // 0.1% fee
+    let max_running_qtd = 10;
+
+    let controller = SimulatedTradeController::new(
+        max_running_qtd,
+        fee_perc,
+        start_time,
+        market_price,
+        start_balance,
+    );
+
+    // Open short position with trailing stop-loss
+    controller
+        .open_short(
+            BoundedPercentage::try_from(2.0).unwrap(), // 2% trailing stop-loss
+            StoplossMode::Trailing,
+            BoundedPercentage::try_from(4.0).unwrap(), // 4% take-profit
+            BoundedPercentage::try_from(10.0).unwrap(), // 10% of balance
+            Leverage::try_from(1).unwrap(),
+        )
+        .await
+        .unwrap();
+
+    let state = controller.state().await.unwrap();
+    let expected_balance = start_balance - state.running_short_margin() - state.running_fees();
+
+    assert_eq!(state.current_time(), start_time);
+    assert_eq!(state.current_balance(), expected_balance);
+    assert_eq!(state.market_price(), market_price);
+    assert_eq!(state.running_long_len(), 0);
+    assert_eq!(state.running_short_len(), 1);
+    assert_eq!(state.closed_len(), 0);
+
+    // Price decreases to 98_000 (2% decrease)
+    // Trailing stoploss should move from 102_000 to 99_960 (2% above 98_000)
+    let time = start_time + chrono::Duration::seconds(1);
+    controller.tick_update(time, 98_000.0).await.unwrap();
+
+    let state = controller.state().await.unwrap();
+    assert_eq!(state.running_short_len(), 1); // Position still open
+
+    // Price increases to 99_959.5
+    // Should still be below new stop-loss (99_960)
+    let time = time + chrono::Duration::seconds(1);
+    controller.tick_update(time, 99_959.5).await.unwrap();
+
+    let state = controller.state().await.unwrap();
+    assert_eq!(state.running_short_len(), 1); // Position still open
+
+    // Price increases to 99_960
+    // Should trigger the trailing stop-loss (99_960)
+    let time = time + chrono::Duration::seconds(1);
+    controller.tick_update(time, 99_960.0).await.unwrap();
+
+    let state = controller.state().await.unwrap();
+    assert_eq!(state.running_short_len(), 0); // Position closed
+    assert_eq!(state.closed_len(), 1);
+}
