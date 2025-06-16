@@ -201,10 +201,27 @@ impl LiveTradeController {
         risk_params: RiskParams,
         balance_perc: BoundedPercentage,
         leverage: Leverage,
+        stoploss_mode: StoplossMode,
     ) -> Result<()> {
         let locked_ready_status = self.state_manager.try_lock_ready_status().await?;
 
         let market_price = self.get_estimated_market_price().await?;
+
+        let stoploss_perc = match risk_params {
+            RiskParams::Long {
+                stoploss_perc,
+                takeprofit_perc: _,
+            } => stoploss_perc,
+            RiskParams::Short {
+                stoploss_perc,
+                takeprofit_perc: _,
+            } => stoploss_perc,
+        };
+
+        let trailing_stoploss = match stoploss_mode {
+            StoplossMode::Fixed => None,
+            StoplossMode::Trailing => Some(stoploss_perc),
+        };
 
         let (side, stoploss, takeprofit) = risk_params.into_trade_params(market_price)?;
 
@@ -246,7 +263,7 @@ impl LiveTradeController {
 
         let mut new_status = locked_ready_status.to_owned();
 
-        new_status.register_running_trade(trade)?;
+        new_status.register_running_trade(trade, trailing_stoploss)?;
 
         let new_state = LiveTradeControllerState::Ready(new_status);
 
@@ -263,7 +280,7 @@ impl LiveTradeController {
         let mut new_status = locked_ready_status.to_owned();
         let mut to_close = Vec::new();
 
-        for (id, trade) in locked_ready_status.running() {
+        for (id, (trade, _)) in locked_ready_status.running() {
             if trade.side() == side {
                 to_close.push(id.clone());
             }
@@ -322,7 +339,8 @@ impl TradeController for LiveTradeController {
             takeprofit_perc,
         };
 
-        self.open_trade(risk_params, balance_perc, leverage).await
+        self.open_trade(risk_params, balance_perc, leverage, stoploss_mode)
+            .await
     }
 
     async fn open_short(
@@ -338,7 +356,8 @@ impl TradeController for LiveTradeController {
             takeprofit_perc,
         };
 
-        self.open_trade(risk_params, balance_perc, leverage).await
+        self.open_trade(risk_params, balance_perc, leverage, stoploss_mode)
+            .await
     }
 
     async fn close_longs(&self) -> Result<()> {
@@ -399,7 +418,7 @@ impl TradeController for LiveTradeController {
         let mut running_pl: i64 = 0;
         let mut running_fees: u64 = 0;
 
-        for trade in status.running().values() {
+        for (trade, _) in status.running().values() {
             match trade.side() {
                 TradeSide::Buy => {
                     running_long_qtd += 1;
