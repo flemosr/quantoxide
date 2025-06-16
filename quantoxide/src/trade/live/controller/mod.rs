@@ -43,7 +43,7 @@ pub struct LiveTradeController {
     start_time: DateTime<Utc>,
     start_balance: u64,
     state_manager: Arc<LiveTradeControllerStateManager>,
-    handle: AbortOnDropHandle<()>,
+    _handle: AbortOnDropHandle<()>,
 }
 
 impl LiveTradeController {
@@ -158,7 +158,7 @@ impl LiveTradeController {
 
         let state_manager = LiveTradeControllerStateManager::new();
 
-        let handle =
+        let _handle =
             Self::spawn_sync_processor(db.clone(), api.clone(), sync_rx, state_manager.clone());
 
         Ok(Arc::new(Self {
@@ -167,7 +167,7 @@ impl LiveTradeController {
             start_time,
             start_balance: user.balance(),
             state_manager,
-            handle,
+            _handle,
         }))
     }
 
@@ -448,11 +448,5 @@ impl TradeController for LiveTradeController {
         );
 
         Ok(trades_state)
-    }
-}
-
-impl Drop for LiveTradeController {
-    fn drop(&mut self) {
-        self.handle.abort();
     }
 }
