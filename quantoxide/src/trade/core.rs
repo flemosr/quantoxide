@@ -7,6 +7,7 @@ use std::{
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use futures::FutureExt;
+use lazy_static::lazy_static;
 
 use lnm_sdk::api::rest::models::{
     BoundedPercentage, Leverage, LnmTrade, LowerBoundedPercentage, Price, Trade, TradeSide,
@@ -15,6 +16,11 @@ use lnm_sdk::api::rest::models::{
 use crate::signal::core::Signal;
 
 use super::error::{Result, TradeError};
+
+lazy_static! {
+    static ref TRAILING_STOPLOSS_PERC_TICK: BoundedPercentage =
+        BoundedPercentage::try_from(0.2).expect("is valid percentage");
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct TradeControllerState {
@@ -354,12 +360,10 @@ pub trait TradeExt: Trade {
             .stoploss()
             .ok_or_else(|| TradeError::Generic("trade stoploss is not set".to_string()))?;
 
-        let trailing_perc_tick = BoundedPercentage::try_from(0.5).expect("is valid percentage");
-
         match self.side() {
             TradeSide::Buy => {
                 let next_stoploss = curr_stoploss
-                    .apply_gain(trailing_perc_tick.into())
+                    .apply_gain(TRAILING_STOPLOSS_PERC_TICK.clone().into())
                     .map_err(|e| TradeError::Generic(e.to_string()))?;
                 let price_trigger = next_stoploss
                     .apply_gain(trailing_stoploss.into())
@@ -369,7 +373,7 @@ pub trait TradeExt: Trade {
             }
             TradeSide::Sell => {
                 let next_stoploss = curr_stoploss
-                    .apply_discount(trailing_perc_tick)
+                    .apply_discount(TRAILING_STOPLOSS_PERC_TICK.clone())
                     .map_err(|e| TradeError::Generic(e.to_string()))?;
                 let price_trigger = next_stoploss
                     .apply_discount(trailing_stoploss.into())
@@ -388,7 +392,7 @@ pub trait TradeExt: Trade {
             .map(|tsl| self.next_stoploss_update_trigger(tsl))
             .transpose()?;
 
-        let (lower_bound, upper_bound) = match self.side() {
+        match self.side() {
             TradeSide::Buy => {
                 let lower_bound = self.stoploss().unwrap_or(Price::MIN);
 
@@ -396,7 +400,7 @@ pub trait TradeExt: Trade {
                 let upper_bound =
                     takeprofit_trigger.min(next_stoploss_update_trigger.unwrap_or(Price::MAX));
 
-                (lower_bound, upper_bound)
+                return Ok((lower_bound, upper_bound));
             }
 
             TradeSide::Sell => {
@@ -406,11 +410,74 @@ pub trait TradeExt: Trade {
 
                 let upper_bound = self.stoploss().unwrap_or(Price::MAX);
 
-                (lower_bound, upper_bound)
+                return Ok((lower_bound, upper_bound));
+            }
+        };
+    }
+
+    fn was_closed_on_range(&self, range_min: f64, range_max: f64) -> bool {
+        match self.side() {
+            TradeSide::Buy => {
+                let stoploss_reached = self
+                    .stoploss()
+                    .map_or(false, |stoploss| stoploss.into_f64() >= range_min);
+                let takeprofit_reached = self
+                    .takeprofit()
+                    .map_or(false, |takeprofit| takeprofit.into_f64() <= range_max);
+
+                return stoploss_reached || takeprofit_reached;
+            }
+            TradeSide::Sell => {
+                let stoploss_reached = self
+                    .stoploss()
+                    .map_or(false, |stoploss| stoploss.into_f64() >= range_max);
+                let takeprofit_reached = self
+                    .takeprofit()
+                    .map_or(false, |takeprofit| takeprofit.into_f64() <= range_min);
+
+                return stoploss_reached || takeprofit_reached;
+            }
+        };
+    }
+
+    fn eval_new_stoploss_on_range(
+        &self,
+        range_min: f64,
+        range_max: f64,
+        trailing_stoploss: BoundedPercentage,
+    ) -> Result<Option<Price>> {
+        let next_stoploss_update_trigger = self
+            .next_stoploss_update_trigger(trailing_stoploss)?
+            .into_f64();
+
+        let new_stoploss = match self.side() {
+            TradeSide::Buy => {
+                if range_max >= next_stoploss_update_trigger {
+                    let new_stoploss = Price::round(range_max)
+                        .map_err(|e| TradeError::Generic(e.to_string()))?
+                        .apply_discount(trailing_stoploss)
+                        .map_err(|e| TradeError::Generic(e.to_string()))?;
+
+                    Some(new_stoploss)
+                } else {
+                    None
+                }
+            }
+            TradeSide::Sell => {
+                if range_min <= next_stoploss_update_trigger {
+                    let new_stoploss = Price::round(range_min)
+                        .map_err(|e| TradeError::Generic(e.to_string()))?
+                        .apply_gain(trailing_stoploss.into())
+                        .map_err(|e| TradeError::Generic(e.to_string()))?;
+
+                    Some(new_stoploss)
+                } else {
+                    None
+                }
             }
         };
 
-        Ok((lower_bound, upper_bound))
+        Ok(new_stoploss)
     }
 }
 
