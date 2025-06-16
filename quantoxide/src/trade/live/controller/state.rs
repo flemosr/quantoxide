@@ -7,10 +7,14 @@ use uuid::Uuid;
 
 use lnm_sdk::api::{
     ApiContext,
-    rest::models::{LnmTrade, Trade, TradeSide},
+    rest::models::{BoundedPercentage, LnmTrade, Trade},
 };
 
-use crate::{db::DbContext, sync::SyncState, trade::core::PriceTrigger};
+use crate::{
+    db::DbContext,
+    sync::SyncState,
+    trade::core::{PriceTrigger, TradeExt},
+};
 
 use super::super::error::{LiveError, Result as LiveResult};
 
@@ -20,7 +24,7 @@ pub struct LiveTradeControllerReadyStatus {
     balance: u64,
     last_evaluation_time: DateTime<Utc>,
     trigger: PriceTrigger,
-    running: HashMap<Uuid, LnmTrade>,
+    running: HashMap<Uuid, (LnmTrade, Option<BoundedPercentage>)>,
     closed: Vec<LnmTrade>,
 }
 
@@ -50,8 +54,10 @@ impl LiveTradeControllerReadyStatus {
                 trade.creation_ts()
             };
             last_trade_time = Some(new_last_trade_time);
-            trigger.update(&trade);
-            running.insert(trade.id(), trade);
+            trigger
+                .update(&trade, None)
+                .map_err(|e| LiveError::Generic(e.to_string()))?;
+            running.insert(trade.id(), (trade, None));
         }
 
         Ok(Self {
@@ -72,7 +78,7 @@ impl LiveTradeControllerReadyStatus {
         self.balance
     }
 
-    pub fn running(&self) -> &HashMap<Uuid, LnmTrade> {
+    pub fn running(&self) -> &HashMap<Uuid, (LnmTrade, Option<BoundedPercentage>)> {
         &self.running
     }
 
@@ -96,26 +102,66 @@ impl LiveTradeControllerReadyStatus {
         }
 
         let mut to_get = Vec::new();
+        let mut to_update = Vec::new();
 
-        for trade in self.running().values() {
-            let (trade_min, trade_max) = match trade.side() {
-                TradeSide::Buy => (trade.stoploss(), trade.takeprofit()),
-                TradeSide::Sell => (trade.takeprofit(), trade.stoploss()),
-            };
-
-            let min_reached =
-                trade_min.map_or(false, |trade_min| trade_min.into_f64() >= range_min);
-            let max_reached =
-                trade_max.map_or(false, |trade_max| trade_max.into_f64() <= range_max);
-
-            if min_reached || max_reached {
+        for (trade, trailing_stoploss) in self.running().values() {
+            if trade.was_closed_on_range(range_min, range_max) {
                 to_get.push(trade.id());
+                continue;
+            }
+
+            if let Some(trailing_stoploss) = trailing_stoploss {
+                if let Some(new_stoploss) = trade
+                    .eval_new_stoploss_on_range(range_min, range_max, *trailing_stoploss)
+                    .map_err(|e| LiveError::Generic(e.to_string()))?
+                {
+                    to_update.push((trade.id(), new_stoploss));
+                }
             }
         }
 
-        let mut closed_trades = Vec::new();
+        let mut updated_trades = HashMap::new();
+        let mut close_results = Vec::new();
 
-        for chunk in to_get.chunks(5) {
+        for chunk in to_update.chunks(1) {
+            let update_futures = chunk
+                .iter()
+                .map(|&(trade_id, new_stoploss)| {
+                    api.rest
+                        .futures
+                        .update_trade_stoploss(trade_id, new_stoploss)
+                })
+                .collect::<Vec<_>>();
+
+            let update_results = future::join_all(update_futures).await;
+
+            let mut close_futures = Vec::new();
+
+            for (&(trade_id, _), update_res) in chunk.iter().zip(update_results) {
+                match update_res {
+                    Ok(updated_trade) => {
+                        updated_trades.insert(updated_trade.id(), updated_trade);
+                    }
+                    Err(_) => {
+                        close_futures.push(api.rest.futures.close_trade(trade_id));
+                    }
+                }
+            }
+
+            if close_futures.is_empty() {
+                continue;
+            }
+
+            let new_close_results = future::join_all(close_futures).await;
+            close_results.extend(new_close_results);
+        }
+
+        let mut closed_trades = close_results
+            .into_iter()
+            .collect::<result::Result<Vec<_>, _>>()
+            .map_err(LiveError::RestApi)?;
+
+        for chunk in to_get.chunks(1) {
             let get_futures = chunk
                 .iter()
                 .map(|&trade_id| api.rest.futures.get_trade(trade_id))
@@ -133,15 +179,26 @@ impl LiveTradeControllerReadyStatus {
             closed_trades.extend(new_closed_trades);
         }
 
-        if closed_trades.is_empty() {
-            Ok(false)
-        } else {
-            self.close_trades(closed_trades)?;
-            Ok(true)
+        if updated_trades.is_empty() && closed_trades.is_empty() {
+            return Ok(false);
         }
+
+        if !updated_trades.is_empty() {
+            self.update_running_trades(updated_trades)?;
+        }
+
+        if !closed_trades.is_empty() {
+            self.close_trades(closed_trades)?;
+        }
+
+        Ok(true)
     }
 
-    pub fn register_running_trade(&mut self, new_trade: LnmTrade) -> LiveResult<()> {
+    pub fn register_running_trade(
+        &mut self,
+        new_trade: LnmTrade,
+        trailing_stoploss: Option<BoundedPercentage>,
+    ) -> LiveResult<()> {
         if !new_trade.running() {
             return Err(LiveError::Generic(format!(
                 "`new_trade` {} is not running",
@@ -171,13 +228,71 @@ impl LiveTradeControllerReadyStatus {
         }
         .max(0) as u64;
 
-        self.trigger.update(&new_trade);
-        self.running.insert(new_trade.id(), new_trade);
+        self.trigger
+            .update(&new_trade, trailing_stoploss)
+            .map_err(|e| LiveError::Generic(e.to_string()))?;
+        self.running
+            .insert(new_trade.id(), (new_trade, trailing_stoploss));
+
+        Ok(())
+    }
+
+    pub fn update_running_trades(
+        &mut self,
+        mut updated_trades: HashMap<Uuid, LnmTrade>,
+    ) -> LiveResult<()> {
+        if updated_trades.is_empty() {
+            return Err(LiveError::Generic(format!("`updated_trades` is empty",)));
+        }
+
+        let mut new_running = HashMap::new();
+        let mut new_trigger = PriceTrigger::NotSet;
+        let mut new_balance = self.balance as i64;
+
+        for (id, (curr_trade, trailing_stoploss)) in &self.running {
+            let running_trade = if let Some(updated_trade) = updated_trades.remove(id) {
+                new_balance += curr_trade.margin().into_i64() + curr_trade.maintenance_margin()
+                    - updated_trade.margin().into_i64()
+                    - updated_trade.maintenance_margin();
+
+                updated_trade
+            } else {
+                curr_trade.clone()
+            };
+
+            // TODO: Improve error handling here
+            new_trigger
+                .update(&running_trade, *trailing_stoploss)
+                .map_err(|e| LiveError::Generic(e.to_string()))?;
+
+            new_running.insert(*id, (running_trade, *trailing_stoploss));
+        }
+
+        if !updated_trades.is_empty() {
+            let remaining_updated_keys: String = updated_trades
+                .into_keys()
+                .map(|id| id.to_string())
+                .collect::<Vec<_>>()
+                .join(", ");
+
+            return Err(LiveError::Generic(format!(
+                "`updated_trade`s {remaining_updated_keys} were not running",
+            )))
+            .into();
+        }
+
+        self.trigger = new_trigger;
+        self.running = new_running;
+        self.balance = new_balance.max(0) as u64;
 
         Ok(())
     }
 
     pub fn close_trades(&mut self, closed_trades: Vec<LnmTrade>) -> LiveResult<()> {
+        if closed_trades.is_empty() {
+            return Err(LiveError::Generic(format!("`closed_trades` is empty",)));
+        }
+
         let mut closed_map = HashMap::new();
         let mut new_last_trade_time: Option<DateTime<Utc>> = None;
 
@@ -193,7 +308,8 @@ impl LiveTradeControllerReadyStatus {
                 return Err(LiveError::Generic(format!(
                     "`closed_trade` {} was not running",
                     closed_trade.id(),
-                )));
+                ))
+                .into());
             }
 
             if new_last_trade_time.map_or(true, |last| closed_ts > last) {
@@ -207,7 +323,7 @@ impl LiveTradeControllerReadyStatus {
         let mut new_trigger = PriceTrigger::NotSet;
         let mut new_balance = self.balance as i64;
 
-        for (id, trade) in &self.running {
+        for (id, (trade, trailing_stoploss)) in &self.running {
             if let Some(closed_trade) = closed_map.remove(id) {
                 new_balance += trade.margin().into_i64() + trade.maintenance_margin()
                     - closed_trade.closing_fee() as i64
@@ -215,8 +331,11 @@ impl LiveTradeControllerReadyStatus {
 
                 self.closed.push(closed_trade);
             } else {
-                new_trigger.update(trade);
-                new_running.insert(*id, trade.clone());
+                // TODO: Improve error handling here
+                new_trigger
+                    .update(trade, *trailing_stoploss)
+                    .map_err(|e| LiveError::Generic(e.to_string()))?;
+                new_running.insert(*id, (trade.clone(), *trailing_stoploss));
             }
         }
 
@@ -273,7 +392,7 @@ impl<'a> LockedLiveTradeControllerReadyStatus<'a> {
         self.as_status().balance
     }
 
-    pub fn running(&self) -> &HashMap<Uuid, LnmTrade> {
+    pub fn running(&self) -> &HashMap<Uuid, (LnmTrade, Option<BoundedPercentage>)> {
         &self.as_status().running
     }
 
