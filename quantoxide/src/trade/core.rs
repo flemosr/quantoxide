@@ -19,7 +19,7 @@ use super::error::{Result, TradeError};
 
 lazy_static! {
     static ref TRAILING_STOPLOSS_PERC_TICK: BoundedPercentage =
-        BoundedPercentage::try_from(0.2).expect("is valid percentage");
+        BoundedPercentage::try_from(0.1).expect("is valid `BoundedPercentage`");
 }
 
 #[derive(Debug, Clone, PartialEq)]
