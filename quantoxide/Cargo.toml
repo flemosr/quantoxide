@@ -15,6 +15,7 @@ sqlx = { version = "0.8.3", features = [
     "migrate",
     "postgres",
     "runtime-tokio",
+    "uuid",
 ] }
 thiserror = "2.0.12"
 tokio = "1.44.2"
