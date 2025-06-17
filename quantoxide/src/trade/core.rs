@@ -251,7 +251,7 @@ impl RiskParams {
 
                 Ok((TradeSide::Buy, stoploss, takeprofit))
             }
-            RiskParams::Short {
+            Self::Short {
                 stoploss_perc,
                 takeprofit_perc,
             } => {
@@ -420,20 +420,20 @@ pub trait TradeExt: Trade {
             TradeSide::Buy => {
                 let stoploss_reached = self
                     .stoploss()
-                    .map_or(false, |stoploss| stoploss.into_f64() >= range_min);
+                    .map_or(false, |stoploss| range_min <= stoploss.into_f64());
                 let takeprofit_reached = self
                     .takeprofit()
-                    .map_or(false, |takeprofit| takeprofit.into_f64() <= range_max);
+                    .map_or(false, |takeprofit| range_max >= takeprofit.into_f64());
 
                 return stoploss_reached || takeprofit_reached;
             }
             TradeSide::Sell => {
                 let stoploss_reached = self
                     .stoploss()
-                    .map_or(false, |stoploss| stoploss.into_f64() >= range_max);
+                    .map_or(false, |stoploss| range_max >= stoploss.into_f64());
                 let takeprofit_reached = self
                     .takeprofit()
-                    .map_or(false, |takeprofit| takeprofit.into_f64() <= range_min);
+                    .map_or(false, |takeprofit| range_min <= takeprofit.into_f64());
 
                 return stoploss_reached || takeprofit_reached;
             }
