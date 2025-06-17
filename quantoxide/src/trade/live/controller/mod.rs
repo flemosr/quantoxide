@@ -409,10 +409,10 @@ impl TradeController for LiveTradeController {
 
         let market_price = self.get_estimated_market_price().await?;
 
-        let mut running_long_qtd: usize = 0;
+        let mut running_long_len: usize = 0;
         let mut running_long_margin: u64 = 0;
         let mut running_long_quantity: u64 = 0;
-        let mut running_short_qtd: usize = 0;
+        let mut running_short_len: usize = 0;
         let mut running_short_margin: u64 = 0;
         let mut running_short_quantity: u64 = 0;
         let mut running_pl: i64 = 0;
@@ -421,13 +421,13 @@ impl TradeController for LiveTradeController {
         for (trade, _) in status.running().values() {
             match trade.side() {
                 TradeSide::Buy => {
-                    running_long_qtd += 1;
+                    running_long_len += 1;
                     running_long_margin +=
                         trade.margin().into_u64() + trade.maintenance_margin().max(0) as u64;
                     running_long_quantity += trade.quantity().into_u64();
                 }
                 TradeSide::Sell => {
-                    running_short_qtd += 1;
+                    running_short_len += 1;
                     running_short_margin +=
                         trade.margin().into_u64() + trade.maintenance_margin().max(0) as u64;
                     running_short_quantity += trade.quantity().into_u64();
@@ -453,10 +453,10 @@ impl TradeController for LiveTradeController {
             status.balance(),
             market_price.into_f64(),
             status.last_trade_time(),
-            running_long_qtd,
+            running_long_len,
             running_long_margin,
             running_long_quantity,
-            running_short_qtd,
+            running_short_len,
             running_short_margin,
             running_short_quantity,
             running_pl,
