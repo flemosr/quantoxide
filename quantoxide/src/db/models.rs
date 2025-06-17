@@ -1,5 +1,6 @@
 use chrono::{DateTime, Utc};
 use sqlx::FromRow;
+use uuid::Uuid;
 
 #[derive(Debug, FromRow)]
 pub struct PriceHistoryEntry {
@@ -28,5 +29,12 @@ pub struct PartialPriceHistoryEntryLOCF {
 pub struct PriceTick {
     pub time: DateTime<Utc>,
     pub last_price: f64,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, FromRow, PartialEq)]
+pub struct RunningTrade {
+    pub trade_id: Uuid,
+    pub trailing_stoploss: Option<f64>,
     pub created_at: DateTime<Utc>,
 }
