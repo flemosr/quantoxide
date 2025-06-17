@@ -108,8 +108,7 @@ impl LiveTradeControllerReadyStatus {
         &self.closed
     }
 
-    // Returns true if the status was updated
-    pub async fn reevaluate(&mut self, db: &DbContext, api: &ApiContext) -> LiveResult<bool> {
+    pub async fn reevaluate(&mut self, db: &DbContext, api: &ApiContext) -> LiveResult<()> {
         let (new_evaluation_time, range_min, range_max) = db
             .price_ticks
             .get_price_range_from(self.last_evaluation_time)
@@ -117,10 +116,12 @@ impl LiveTradeControllerReadyStatus {
             .map_err(|e| LiveError::Generic(e.to_string()))?
             .ok_or(LiveError::Generic("db is empty".to_string()))?;
 
+        self.last_evaluation_time = new_evaluation_time;
+
         if !self.trigger.was_reached(range_min) && !self.trigger.was_reached(range_max) {
             // General trigger was not reached. No trades need to be checked
-            self.last_evaluation_time = new_evaluation_time;
-            return Ok(false);
+
+            return Ok(());
         }
 
         let mut to_get = Vec::new();
@@ -133,10 +134,11 @@ impl LiveTradeControllerReadyStatus {
             }
 
             if let Some(trailing_stoploss) = trailing_stoploss {
-                if let Some(new_stoploss) = trade
+                let new_stoploss_opt = trade
                     .eval_new_stoploss_on_range(range_min, range_max, *trailing_stoploss)
-                    .map_err(|e| LiveError::Generic(e.to_string()))?
-                {
+                    .map_err(|e| LiveError::Generic(e.to_string()))?;
+
+                if let Some(new_stoploss) = new_stoploss_opt {
                     to_update.push((trade.id(), new_stoploss));
                 }
             }
@@ -202,7 +204,7 @@ impl LiveTradeControllerReadyStatus {
         }
 
         if updated_trades.is_empty() && closed_trades.is_empty() {
-            return Ok(false);
+            return Ok(());
         }
 
         if !updated_trades.is_empty() {
@@ -213,7 +215,7 @@ impl LiveTradeControllerReadyStatus {
             self.close_trades(closed_trades)?;
         }
 
-        Ok(true)
+        Ok(())
     }
 
     pub fn register_running_trade(

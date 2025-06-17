@@ -78,13 +78,7 @@ impl LiveTradeController {
                                             .reevaluate(db.as_ref(), api.as_ref())
                                             .await
                                         {
-                                            Ok(status_changed) => {
-                                                if !status_changed {
-                                                    // No need to update `LiveTradeControllerState`
-                                                    continue;
-                                                }
-                                                LiveTradeControllerState::Ready(status)
-                                            }
+                                            Ok(()) => LiveTradeControllerState::Ready(status),
                                             Err(e) => {
                                                 // Recoverable error
                                                 LiveTradeControllerState::Failed(e)
