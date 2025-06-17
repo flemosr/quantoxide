@@ -37,6 +37,12 @@ impl LiveTradeControllerReadyStatus {
             .map_err(|e| LiveError::Generic(e.to_string()))?
             .ok_or(LiveError::Generic("db is empty".to_string()))?;
 
+        let mut registered_trades = db
+            .running_trades
+            .get_trades()
+            .await
+            .map_err(|e| LiveError::Generic(e.to_string()))?;
+
         let (running_trades, user) = futures::try_join!(
             api.rest.futures.get_trades_running(None, None, None),
             api.rest.user.get_user()
@@ -54,10 +60,26 @@ impl LiveTradeControllerReadyStatus {
                 trade.creation_ts()
             };
             last_trade_time = Some(new_last_trade_time);
+
             trigger
                 .update(&trade, None)
                 .map_err(|e| LiveError::Generic(e.to_string()))?;
-            running.insert(trade.id(), (trade, None));
+
+            // Assume that trades that are not registered don't have trailing stoplosses
+            let trailing_stoploss = registered_trades.remove(&trade.id()).and_then(|sl| sl);
+
+            running.insert(trade.id(), (trade, trailing_stoploss));
+        }
+
+        if !registered_trades.is_empty() {
+            // Assume that trades remaining at `registered_trades` are
+            // outdated and can be removed.
+
+            let trade_uuids: Vec<Uuid> = registered_trades.keys().cloned().collect();
+            db.running_trades
+                .remove_trades(&trade_uuids)
+                .await
+                .map_err(|e| LiveError::Generic(e.to_string()))?;
         }
 
         Ok(Self {
