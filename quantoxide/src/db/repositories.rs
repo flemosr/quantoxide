@@ -1,7 +1,13 @@
+use std::collections::HashMap;
+
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
+use uuid::Uuid;
 
-use lnm_sdk::api::{rest::models::PriceEntryLNM, websocket::models::PriceTickLNM};
+use lnm_sdk::api::{
+    rest::models::{BoundedPercentage, PriceEntryLNM},
+    websocket::models::PriceTickLNM,
+};
 
 use super::{
     error::Result,
@@ -195,4 +201,17 @@ pub trait PriceTicksRepository: Send + Sync {
     ) -> Result<Vec<PriceHistoryEntryLOCF>>;
 
     async fn remove_ticks(&self, before: DateTime<Utc>) -> Result<()>;
+}
+
+#[async_trait]
+pub trait RunningTradesRepository: Send + Sync {
+    async fn register_trade(
+        &self,
+        trade_uuid: Uuid,
+        trailing_stoploss: Option<BoundedPercentage>,
+    ) -> Result<()>;
+
+    async fn get_trades(&self) -> Result<HashMap<Uuid, Option<BoundedPercentage>>>;
+
+    async fn remove_trades(&self, trade_uuids: &[Uuid]) -> Result<()>;
 }
