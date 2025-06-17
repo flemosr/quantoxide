@@ -111,11 +111,11 @@ impl PriceTicksRepository for PgPriceTicksRepo {
                 WITH combined_prices AS (
                     SELECT time, last_price as price
                     FROM price_ticks
-                    WHERE time > $1
+                    WHERE time >= $1
                     UNION ALL
                     SELECT time, value as price
                     FROM price_history
-                    WHERE time > $1
+                    WHERE time >= $1
                 )
                 SELECT
                     MAX(time) as latest_time,
