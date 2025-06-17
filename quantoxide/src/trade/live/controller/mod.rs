@@ -255,6 +255,12 @@ impl LiveTradeController {
             }
         };
 
+        self.db
+            .running_trades
+            .register_trade(trade.id(), trailing_stoploss)
+            .await
+            .map_err(|e| LiveError::Generic(e.to_string()))?;
+
         let mut new_status = locked_ready_status.to_owned();
 
         new_status.register_running_trade(trade, trailing_stoploss)?;
@@ -280,8 +286,8 @@ impl LiveTradeController {
             }
         }
 
-        // Process in batches of 5
-        for chunk in to_close.chunks(5) {
+        // Process in batches of 1
+        for chunk in to_close.chunks(1) {
             let close_futures = chunk
                 .iter()
                 .map(|&trade_id| self.api.rest.futures.close_trade(trade_id))
