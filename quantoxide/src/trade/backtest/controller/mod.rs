@@ -252,6 +252,24 @@ impl SimulatedTradeController {
         risk_params: RiskParams,
         stoploss_mode: StoplossMode,
     ) -> Result<()> {
+        let stoploss_perc = match risk_params {
+            RiskParams::Long {
+                stoploss_perc,
+                takeprofit_perc: _,
+            } => stoploss_perc,
+            RiskParams::Short {
+                stoploss_perc,
+                takeprofit_perc: _,
+            } => stoploss_perc,
+        };
+
+        if stoploss_perc > self.tsl_step_size {
+            return Err(SimulatedTradeControllerError::Generic(
+                "`stoploss_perc` can't be gt than `tsl_step_size`".to_string(),
+            )
+            .into());
+        }
+
         let mut state_guard = self.state.lock().await;
 
         if state_guard.running.len() >= self.max_running_qtd {
@@ -272,17 +290,6 @@ impl SimulatedTradeController {
             QuantityValidationError::TooLow => TradeError::BalanceTooLow,
             QuantityValidationError::TooHigh => TradeError::BalanceTooHigh,
         })?;
-
-        let stoploss_perc = match risk_params {
-            RiskParams::Long {
-                stoploss_perc,
-                takeprofit_perc: _,
-            } => stoploss_perc,
-            RiskParams::Short {
-                stoploss_perc,
-                takeprofit_perc: _,
-            } => stoploss_perc,
-        };
 
         let trade_tsl = match stoploss_mode {
             StoplossMode::Fixed => None,
