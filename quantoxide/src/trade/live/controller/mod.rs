@@ -207,10 +207,6 @@ impl LiveTradeController {
         leverage: Leverage,
         stoploss_mode: StoplossMode,
     ) -> Result<()> {
-        let locked_ready_status = self.state_manager.try_lock_ready_status().await?;
-
-        let market_price = self.get_estimated_market_price().await?;
-
         let stoploss_perc = match risk_params {
             RiskParams::Long {
                 stoploss_perc,
@@ -221,6 +217,17 @@ impl LiveTradeController {
                 takeprofit_perc: _,
             } => stoploss_perc,
         };
+
+        if stoploss_perc > self.tsl_step_size {
+            return Err(LiveError::Generic(
+                "`stoploss_perc` can't be gt than `tsl_step_size`".to_string(),
+            )
+            .into());
+        }
+
+        let locked_ready_status = self.state_manager.try_lock_ready_status().await?;
+
+        let market_price = self.get_estimated_market_price().await?;
 
         let trailing_stoploss = match stoploss_mode {
             StoplossMode::Fixed => None,
