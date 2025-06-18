@@ -1,10 +1,12 @@
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 
 use async_trait::async_trait;
 use sqlx::{Pool, Postgres};
+use uuid::Uuid;
 
 use lnm_sdk::api::rest::models::BoundedPercentage;
-use uuid::Uuid;
+
+use crate::trade::core::TradeTrailingStoploss;
 
 use super::super::{
     error::{DbError, Result},
@@ -31,15 +33,16 @@ impl RunningTradesRepository for PgRunningTradesRepo {
     async fn register_trade(
         &self,
         trade_uuid: Uuid,
-        trailing_stoploss: Option<BoundedPercentage>,
+        trade_tsl: Option<TradeTrailingStoploss>,
     ) -> Result<()> {
+        let trailing_stoploss = trade_tsl.map(|tsl| BoundedPercentage::from(tsl).into_f64());
         sqlx::query!(
             r#"
                 INSERT INTO running_trades (trade_id, trailing_stoploss)
                 VALUES ($1, $2)
             "#,
             trade_uuid,
-            trailing_stoploss.map(|tsl| tsl.into_f64())
+            trailing_stoploss
         )
         .execute(self.pool())
         .await
@@ -48,7 +51,7 @@ impl RunningTradesRepository for PgRunningTradesRepo {
         Ok(())
     }
 
-    async fn get_trades(&self) -> Result<HashMap<Uuid, Option<BoundedPercentage>>> {
+    async fn get_trades(&self) -> Result<Vec<RunningTrade>> {
         let trades = sqlx::query_as!(
             RunningTrade,
             r#"
@@ -60,18 +63,7 @@ impl RunningTradesRepository for PgRunningTradesRepo {
         .await
         .map_err(DbError::Query)?;
 
-        let mut result = HashMap::new();
-        for trade in trades {
-            let trailing_stoploss = trade
-                .trailing_stoploss
-                .map(BoundedPercentage::try_from)
-                .transpose()
-                .map_err(|e| DbError::Generic(e.to_string()))?;
-
-            result.insert(trade.trade_id, trailing_stoploss);
-        }
-
-        Ok(result)
+        Ok(trades)
     }
 
     async fn remove_trades(&self, trade_uuids: &[Uuid]) -> Result<()> {
