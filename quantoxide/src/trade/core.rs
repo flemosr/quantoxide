@@ -273,9 +273,9 @@ pub struct TradeTrailingStoploss(BoundedPercentage);
 
 impl TradeTrailingStoploss {
     pub fn new(tsl_step_size: BoundedPercentage, stoploss_perc: BoundedPercentage) -> Result<Self> {
-        if stoploss_perc > tsl_step_size {
+        if tsl_step_size > stoploss_perc {
             return Err(TradeError::Generic(
-                "`stoploss_perc` can't be gt than `tsl_step_size`".to_string(),
+                "`stoploss_perc` must be gt than `tsl_step_size`".to_string(),
             ));
         }
 
