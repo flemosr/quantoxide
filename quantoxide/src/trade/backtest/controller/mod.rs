@@ -12,6 +12,7 @@ use lnm_sdk::api::rest::models::{
 use super::super::{
     core::{
         PriceTrigger, RiskParams, StoplossMode, TradeController, TradeControllerState, TradeExt,
+        TradeTrailingStoploss,
     },
     error::{Result, TradeError},
 };
@@ -39,7 +40,7 @@ struct SimulatedTradeControllerState {
     balance: i64,
     last_trade_time: Option<DateTime<Utc>>,
     trigger: PriceTrigger,
-    running: Vec<(SimulatedTradeRunning, Option<BoundedPercentage>)>,
+    running: Vec<(SimulatedTradeRunning, Option<TradeTrailingStoploss>)>,
     closed: Vec<SimulatedTradeClosed>,
     closed_pl: i64,
     closed_fees: u64,
@@ -156,7 +157,7 @@ impl SimulatedTradeController {
                 let new_stoploss = match trade.side() {
                     TradeSide::Buy if market_price >= next_stoploss_update_trigger => {
                         let new_stoploss = market_price
-                            .apply_discount(trade_tsl)
+                            .apply_discount(trade_tsl.into())
                             .map_err(|e| SimulatedTradeControllerError::Generic(e.to_string()))?;
                         Some(new_stoploss)
                     }
@@ -247,29 +248,11 @@ impl SimulatedTradeController {
 
     async fn create_running(
         &self,
+        risk_params: RiskParams,
+        trade_tsl: Option<TradeTrailingStoploss>,
         balance_perc: BoundedPercentage,
         leverage: Leverage,
-        risk_params: RiskParams,
-        stoploss_mode: StoplossMode,
     ) -> Result<()> {
-        let stoploss_perc = match risk_params {
-            RiskParams::Long {
-                stoploss_perc,
-                takeprofit_perc: _,
-            } => stoploss_perc,
-            RiskParams::Short {
-                stoploss_perc,
-                takeprofit_perc: _,
-            } => stoploss_perc,
-        };
-
-        if stoploss_perc > self.tsl_step_size {
-            return Err(SimulatedTradeControllerError::Generic(
-                "`stoploss_perc` can't be gt than `tsl_step_size`".to_string(),
-            )
-            .into());
-        }
-
         let mut state_guard = self.state.lock().await;
 
         if state_guard.running.len() >= self.max_running_qtd {
@@ -290,11 +273,6 @@ impl SimulatedTradeController {
             QuantityValidationError::TooLow => TradeError::BalanceTooLow,
             QuantityValidationError::TooHigh => TradeError::BalanceTooHigh,
         })?;
-
-        let trade_tsl = match stoploss_mode {
-            StoplossMode::Fixed => None,
-            StoplossMode::Trailing => Some(stoploss_perc),
-        };
 
         let (side, stoploss, takeprofit) = risk_params.into_trade_params(market_price)?;
 
@@ -334,12 +312,14 @@ impl TradeController for SimulatedTradeController {
         balance_perc: BoundedPercentage,
         leverage: Leverage,
     ) -> Result<()> {
+        let trade_tsl = stoploss_mode.validate_trade_tsl(self.tsl_step_size, stoploss_perc)?;
+
         let risk_params = RiskParams::Long {
             stoploss_perc,
             takeprofit_perc,
         };
 
-        self.create_running(balance_perc, leverage, risk_params, stoploss_mode)
+        self.create_running(risk_params, trade_tsl, balance_perc, leverage)
             .await?;
 
         Ok(())
@@ -353,12 +333,14 @@ impl TradeController for SimulatedTradeController {
         balance_perc: BoundedPercentage,
         leverage: Leverage,
     ) -> Result<()> {
+        let trade_tsl = stoploss_mode.validate_trade_tsl(self.tsl_step_size, stoploss_perc)?;
+
         let risk_params = RiskParams::Short {
             stoploss_perc,
             takeprofit_perc,
         };
 
-        self.create_running(balance_perc, leverage, risk_params, stoploss_mode)
+        self.create_running(risk_params, trade_tsl, balance_perc, leverage)
             .await?;
 
         Ok(())
