@@ -38,6 +38,7 @@ use state::{
 };
 
 pub struct LiveTradeController {
+    tsl_step_size: BoundedPercentage,
     db: Arc<DbContext>,
     api: Arc<ApiContext>,
     start_time: DateTime<Utc>,
@@ -48,6 +49,7 @@ pub struct LiveTradeController {
 
 impl LiveTradeController {
     fn spawn_sync_processor(
+        tsl_step_size: BoundedPercentage,
         db: Arc<DbContext>,
         api: Arc<ApiContext>,
         sync_rx: SyncReceiver,
@@ -75,7 +77,7 @@ impl LiveTradeController {
                                         let mut status = locked_ready_status.to_owned();
 
                                         let new_state = match status
-                                            .reevaluate(db.as_ref(), api.as_ref())
+                                            .reevaluate(tsl_step_size, db.as_ref(), api.as_ref())
                                             .await
                                         {
                                             Ok(()) => LiveTradeControllerState::Ready(status),
@@ -95,6 +97,7 @@ impl LiveTradeController {
                                     Err(_) => {
                                         // Try to obtain `LiveTradeControllerStatus` via API
                                         let status = match LiveTradeControllerReadyStatus::new(
+                                            tsl_step_size,
                                             db.as_ref(),
                                             api.as_ref(),
                                         )
@@ -136,6 +139,7 @@ impl LiveTradeController {
     }
 
     pub async fn new(
+        tsl_step_size: BoundedPercentage,
         db: Arc<DbContext>,
         api: Arc<ApiContext>,
         sync_rx: SyncReceiver,
@@ -152,10 +156,16 @@ impl LiveTradeController {
 
         let state_manager = LiveTradeControllerStateManager::new();
 
-        let _handle =
-            Self::spawn_sync_processor(db.clone(), api.clone(), sync_rx, state_manager.clone());
+        let _handle = Self::spawn_sync_processor(
+            tsl_step_size,
+            db.clone(),
+            api.clone(),
+            sync_rx,
+            state_manager.clone(),
+        );
 
         Ok(Arc::new(Self {
+            tsl_step_size,
             db,
             api,
             start_time,
@@ -263,7 +273,7 @@ impl LiveTradeController {
 
         let mut new_status = locked_ready_status.to_owned();
 
-        new_status.register_running_trade(trade, trailing_stoploss)?;
+        new_status.register_running_trade(self.tsl_step_size, trade, trailing_stoploss)?;
 
         let new_state = LiveTradeControllerState::Ready(new_status);
 
@@ -311,7 +321,7 @@ impl LiveTradeController {
                 }
             };
 
-            new_status.close_trades(closed)?;
+            new_status.close_trades(self.tsl_step_size, closed)?;
         }
 
         let new_state = LiveTradeControllerState::Ready(new_status);
@@ -390,7 +400,7 @@ impl TradeController for LiveTradeController {
             }
         };
 
-        new_status.close_trades(closed)?;
+        new_status.close_trades(self.tsl_step_size, closed)?;
 
         let new_state = LiveTradeControllerState::Ready(new_status);
 
