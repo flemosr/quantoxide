@@ -7,7 +7,6 @@ use std::{
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use futures::FutureExt;
-use lazy_static::lazy_static;
 
 use lnm_sdk::api::rest::models::{
     BoundedPercentage, Leverage, LnmTrade, LowerBoundedPercentage, Price, Trade, TradeSide,
@@ -269,6 +268,49 @@ pub enum StoplossMode {
     Trailing,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
+pub struct TradeTrailingStoploss(BoundedPercentage);
+
+impl TradeTrailingStoploss {
+    pub fn new(tsl_step_size: BoundedPercentage, stoploss_perc: BoundedPercentage) -> Result<Self> {
+        if stoploss_perc > tsl_step_size {
+            return Err(TradeError::Generic(
+                "`stoploss_perc` can't be gt than `tsl_step_size`".to_string(),
+            ));
+        }
+
+        Ok(Self(stoploss_perc))
+    }
+}
+
+impl From<TradeTrailingStoploss> for BoundedPercentage {
+    fn from(value: TradeTrailingStoploss) -> Self {
+        value.0
+    }
+}
+
+impl From<TradeTrailingStoploss> for LowerBoundedPercentage {
+    fn from(value: TradeTrailingStoploss) -> Self {
+        value.0.into()
+    }
+}
+
+impl StoplossMode {
+    pub(crate) fn validate_trade_tsl(
+        self,
+        tsl_step_size: BoundedPercentage,
+        trade_sl: BoundedPercentage,
+    ) -> Result<Option<TradeTrailingStoploss>> {
+        match self {
+            Self::Fixed => Ok(None),
+            Self::Trailing => {
+                let trade_tsl = TradeTrailingStoploss::new(tsl_step_size, trade_sl)?;
+                Ok(Some(trade_tsl))
+            }
+        }
+    }
+}
+
 #[async_trait]
 pub trait TradeController: Send + Sync {
     async fn open_long(
@@ -353,13 +395,14 @@ pub trait TradeExt: Trade {
     fn next_stoploss_update_trigger(
         &self,
         tsl_step_size: BoundedPercentage,
-        trade_tsl: BoundedPercentage,
+        trade_tsl: TradeTrailingStoploss,
     ) -> Result<Price> {
-        if tsl_step_size > trade_tsl {
+        if tsl_step_size > trade_tsl.into() {
             return Err(TradeError::Generic(
                 "`tsl_step_size` cannot be gt than `trade_tsl`".to_string(),
             ));
         }
+
         let curr_stoploss = self
             .stoploss()
             .ok_or_else(|| TradeError::Generic("trade stoploss is not set".to_string()))?;
@@ -389,7 +432,7 @@ pub trait TradeExt: Trade {
     fn eval_trigger_bounds(
         &self,
         tsl_step_size: BoundedPercentage,
-        trade_tsl: Option<BoundedPercentage>,
+        trade_tsl: Option<TradeTrailingStoploss>,
     ) -> Result<(Price, Price)> {
         let next_stoploss_update_trigger = trade_tsl
             .map(|tsl| self.next_stoploss_update_trigger(tsl_step_size, tsl))
@@ -446,7 +489,7 @@ pub trait TradeExt: Trade {
     fn eval_new_stoploss_on_range(
         &self,
         tsl_step_size: BoundedPercentage,
-        trade_tsl: BoundedPercentage,
+        trade_tsl: TradeTrailingStoploss,
         range_min: f64,
         range_max: f64,
     ) -> Result<Option<Price>> {
@@ -459,7 +502,7 @@ pub trait TradeExt: Trade {
                 if range_max >= next_stoploss_update_trigger {
                     let new_stoploss = Price::round(range_max)
                         .map_err(|e| TradeError::Generic(e.to_string()))?
-                        .apply_discount(trade_tsl)
+                        .apply_discount(trade_tsl.into())
                         .map_err(|e| TradeError::Generic(e.to_string()))?;
 
                     Some(new_stoploss)
@@ -502,7 +545,7 @@ impl PriceTrigger {
         &mut self,
         tsl_step_size: BoundedPercentage,
         trade: &impl TradeExt,
-        trade_tsl: Option<BoundedPercentage>,
+        trade_tsl: Option<TradeTrailingStoploss>,
     ) -> Result<()> {
         let (mut new_min, mut new_max) = trade.eval_trigger_bounds(tsl_step_size, trade_tsl)?;
 
