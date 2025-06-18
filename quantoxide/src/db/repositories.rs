@@ -1,17 +1,14 @@
-use std::collections::HashMap;
-
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
-use lnm_sdk::api::{
-    rest::models::{BoundedPercentage, PriceEntryLNM},
-    websocket::models::PriceTickLNM,
-};
+use lnm_sdk::api::{rest::models::PriceEntryLNM, websocket::models::PriceTickLNM};
+
+use crate::trade::core::TradeTrailingStoploss;
 
 use super::{
     error::Result,
-    models::{PriceHistoryEntry, PriceHistoryEntryLOCF, PriceTick},
+    models::{PriceHistoryEntry, PriceHistoryEntryLOCF, PriceTick, RunningTrade},
 };
 
 #[async_trait]
@@ -208,10 +205,10 @@ pub trait RunningTradesRepository: Send + Sync {
     async fn register_trade(
         &self,
         trade_uuid: Uuid,
-        trailing_stoploss: Option<BoundedPercentage>,
+        trailing_stoploss: Option<TradeTrailingStoploss>,
     ) -> Result<()>;
 
-    async fn get_trades(&self) -> Result<HashMap<Uuid, Option<BoundedPercentage>>>;
+    async fn get_trades(&self) -> Result<Vec<RunningTrade>>;
 
     async fn remove_trades(&self, trade_uuids: &[Uuid]) -> Result<()>;
 }
