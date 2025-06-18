@@ -11,11 +11,13 @@ async fn test_simulated_trade_controller_long_profit() -> Result<()> {
     let market_price = 99_000.0;
     let start_balance = 1_000_000;
     let fee_perc = BoundedPercentage::try_from(0.1).unwrap(); // 0.1% fee
+    let tsl_step_size = BoundedPercentage::try_from(0.1).unwrap(); // 0.1% trailing stop loss step size
     let max_running_qtd = 10;
 
     let controller = SimulatedTradeController::new(
         max_running_qtd,
         fee_perc,
+        tsl_step_size,
         start_time,
         market_price,
         start_balance,
@@ -165,11 +167,13 @@ async fn test_simulated_trade_controller_long_loss() -> Result<()> {
     let market_price = 100_000.0;
     let start_balance = 1_000_000;
     let fee_perc = BoundedPercentage::try_from(0.1).unwrap(); // 0.1% fee
+    let tsl_step_size = BoundedPercentage::try_from(0.1).unwrap(); // 0.1% trailing stop loss step size
     let max_running_qtd = 10;
 
     let controller = SimulatedTradeController::new(
         max_running_qtd,
         fee_perc,
+        tsl_step_size,
         start_time,
         market_price,
         start_balance,
@@ -279,11 +283,13 @@ async fn test_simulated_trade_controller_short_profit() -> Result<()> {
     let market_price = 100_000.0;
     let start_balance = 1_000_000;
     let fee_perc = BoundedPercentage::try_from(0.1).unwrap(); // 0.1% fee
+    let tsl_step_size = BoundedPercentage::try_from(0.1).unwrap(); // 0.1% trailing stop loss step size
     let max_running_qtd = 10;
 
     let controller = SimulatedTradeController::new(
         max_running_qtd,
         fee_perc,
+        tsl_step_size,
         start_time,
         market_price,
         start_balance,
@@ -402,11 +408,13 @@ async fn test_simulated_trade_controller_short_loss() -> Result<()> {
     let market_price = 100_000.0;
     let start_balance = 1_000_000;
     let fee_perc = BoundedPercentage::try_from(0.1).unwrap(); // 0.1% fee
+    let tsl_step_size = BoundedPercentage::try_from(0.1).unwrap(); // 0.1% trailing stop loss step size
     let max_running_qtd = 10;
 
     let controller = SimulatedTradeController::new(
         max_running_qtd,
         fee_perc,
+        tsl_step_size,
         start_time,
         market_price,
         start_balance,
@@ -515,11 +523,13 @@ async fn test_simulated_trade_controller_trailing_stoploss_long() {
     let start_balance = 100_000_000;
     let market_price = 100_000.0;
     let fee_perc = BoundedPercentage::try_from(0.1).unwrap(); // 0.1% fee
+    let tsl_step_size = BoundedPercentage::try_from(0.1).unwrap(); // 0.1% trailing stop loss step size
     let max_running_qtd = 10;
 
     let controller = SimulatedTradeController::new(
         max_running_qtd,
         fee_perc,
+        tsl_step_size,
         start_time,
         market_price,
         start_balance,
@@ -579,11 +589,13 @@ async fn test_simulated_trade_controller_trailing_stoploss_short() {
     let start_balance = 100_000_000;
     let market_price = 100_000.0;
     let fee_perc = BoundedPercentage::try_from(0.1).unwrap(); // 0.1% fee
+    let tsl_step_size = BoundedPercentage::try_from(0.1).unwrap(); // 0.1% trailing stop loss step size
     let max_running_qtd = 10;
 
     let controller = SimulatedTradeController::new(
         max_running_qtd,
         fee_perc,
+        tsl_step_size,
         start_time,
         market_price,
         start_balance,
