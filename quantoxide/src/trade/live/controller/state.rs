@@ -212,17 +212,9 @@ impl LiveTradeControllerReadyStatus {
             closed_trades.extend(new_closed_trades);
         }
 
-        if updated_trades.is_empty() && closed_trades.is_empty() {
-            return Ok(());
-        }
+        self.update_running_trades(tsl_step_size, updated_trades)?;
 
-        if !updated_trades.is_empty() {
-            self.update_running_trades(tsl_step_size, updated_trades)?;
-        }
-
-        if !closed_trades.is_empty() {
-            self.close_trades(tsl_step_size, closed_trades)?;
-        }
+        self.close_trades(tsl_step_size, closed_trades)?;
 
         Ok(())
     }
@@ -276,7 +268,7 @@ impl LiveTradeControllerReadyStatus {
         mut updated_trades: HashMap<Uuid, LnmTrade>,
     ) -> LiveResult<()> {
         if updated_trades.is_empty() {
-            return Err(LiveError::Generic(format!("`updated_trades` is empty",)));
+            return Ok(());
         }
 
         let mut new_running = HashMap::new();
@@ -328,7 +320,7 @@ impl LiveTradeControllerReadyStatus {
         closed_trades: Vec<LnmTrade>,
     ) -> LiveResult<()> {
         if closed_trades.is_empty() {
-            return Err(LiveError::Generic(format!("`closed_trades` is empty",)));
+            return Ok(());
         }
 
         let mut closed_map = HashMap::new();
