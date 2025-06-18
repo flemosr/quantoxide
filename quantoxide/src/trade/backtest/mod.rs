@@ -139,7 +139,7 @@ impl Default for BacktestConfig {
             buffer_size: 1800,
             max_running_qtd: 50,
             fee_perc: 0.1.try_into().expect("must be a valid `BoundedPercentage`"),
-            tsl_step_size: 0.1.try_into().expect("must be a valid `BoundedPercentage`"),
+            tsl_step_size: BoundedPercentage::MIN,
         }
     }
 }
