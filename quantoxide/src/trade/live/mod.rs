@@ -328,7 +328,7 @@ impl Default for LiveConfig {
             sync_history_reach: Duration::hours(24 * 7 * 4),
             re_sync_history_interval: time::Duration::from_secs(300),
             signal_eval_interval: time::Duration::from_secs(1),
-            tsl_step_size: 0.1.try_into().expect("must be a valid `BoundedPercentage`"),
+            tsl_step_size: BoundedPercentage::MIN,
             restart_interval: time::Duration::from_secs(10),
             shutdown_timeout: time::Duration::from_secs(6),
         }
