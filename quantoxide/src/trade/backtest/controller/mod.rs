@@ -48,6 +48,7 @@ struct SimulatedTradeControllerState {
 pub struct SimulatedTradeController {
     max_running_qtd: usize,
     fee_perc: BoundedPercentage,
+    tsl_step_size: BoundedPercentage,
     start_time: DateTime<Utc>,
     start_balance: u64,
     state: Arc<Mutex<SimulatedTradeControllerState>>,
@@ -57,6 +58,7 @@ impl SimulatedTradeController {
     pub fn new(
         max_running_qtd: usize,
         fee_perc: BoundedPercentage,
+        tsl_step_size: BoundedPercentage,
         start_time: DateTime<Utc>,
         market_price: f64,
         start_balance: u64,
@@ -76,6 +78,7 @@ impl SimulatedTradeController {
         Self {
             max_running_qtd,
             fee_perc,
+            tsl_step_size,
             start_time,
             start_balance,
             state: Arc::new(Mutex::new(initial_state)),
@@ -121,7 +124,7 @@ impl SimulatedTradeController {
         let mut new_trigger = PriceTrigger::new();
         let mut remaining_running_trades = Vec::new();
 
-        for (mut trade, trailing_stoploss) in state_guard.running.drain(..) {
+        for (mut trade, trade_tsl_opt) in state_guard.running.drain(..) {
             // Check if price reached stoploss or takeprofit
 
             let (trade_min_opt, trade_max_opt) = match trade.side() {
@@ -143,9 +146,9 @@ impl SimulatedTradeController {
                 }
             }
 
-            if let Some(trailing_stoploss) = trailing_stoploss {
+            if let Some(trade_tsl) = trade_tsl_opt {
                 let next_stoploss_update_trigger =
-                    trade.next_stoploss_update_trigger(trailing_stoploss)?;
+                    trade.next_stoploss_update_trigger(self.tsl_step_size, trade_tsl)?;
 
                 let market_price = Price::round(market_price)
                     .map_err(|e| SimulatedTradeControllerError::Generic(e.to_string()))?;
@@ -153,13 +156,13 @@ impl SimulatedTradeController {
                 let new_stoploss = match trade.side() {
                     TradeSide::Buy if market_price >= next_stoploss_update_trigger => {
                         let new_stoploss = market_price
-                            .apply_discount(trailing_stoploss)
+                            .apply_discount(trade_tsl)
                             .map_err(|e| SimulatedTradeControllerError::Generic(e.to_string()))?;
                         Some(new_stoploss)
                     }
                     TradeSide::Sell if market_price <= next_stoploss_update_trigger => {
                         let new_stoploss = market_price
-                            .apply_gain(trailing_stoploss.into())
+                            .apply_gain(trade_tsl.into())
                             .map_err(|e| SimulatedTradeControllerError::Generic(e.to_string()))?;
                         Some(new_stoploss)
                     }
@@ -171,8 +174,8 @@ impl SimulatedTradeController {
                 }
             }
 
-            new_trigger.update(&trade, trailing_stoploss)?;
-            remaining_running_trades.push((trade, trailing_stoploss));
+            new_trigger.update(self.tsl_step_size, &trade, trade_tsl_opt)?;
+            remaining_running_trades.push((trade, trade_tsl_opt));
         }
 
         state_guard.balance = new_balance;
@@ -214,7 +217,7 @@ impl SimulatedTradeController {
         let mut new_trigger = PriceTrigger::new();
         let mut remaining_running_trades = Vec::new();
 
-        for (trade, trailing_stoploss) in state_guard.running.drain(..) {
+        for (trade, trade_tsl) in state_guard.running.drain(..) {
             let should_be_closed = match &close {
                 Close::Side(side) if *side == trade.side() => true,
                 Close::All => true,
@@ -224,8 +227,8 @@ impl SimulatedTradeController {
             if should_be_closed {
                 close_trade(trade);
             } else {
-                new_trigger.update(&trade, trailing_stoploss)?;
-                remaining_running_trades.push((trade, trailing_stoploss));
+                new_trigger.update(self.tsl_step_size, &trade, trade_tsl)?;
+                remaining_running_trades.push((trade, trade_tsl));
             }
         }
 
@@ -281,7 +284,7 @@ impl SimulatedTradeController {
             } => stoploss_perc,
         };
 
-        let trailing_stoploss = match stoploss_mode {
+        let trade_tsl = match stoploss_mode {
             StoplossMode::Fixed => None,
             StoplossMode::Trailing => Some(stoploss_perc),
         };
@@ -305,8 +308,10 @@ impl SimulatedTradeController {
 
         state_guard.last_trade_time = Some(state_guard.time);
 
-        state_guard.trigger.update(&trade, trailing_stoploss)?;
-        state_guard.running.push((trade, trailing_stoploss));
+        state_guard
+            .trigger
+            .update(self.tsl_step_size, &trade, trade_tsl)?;
+        state_guard.running.push((trade, trade_tsl));
 
         Ok(())
     }
