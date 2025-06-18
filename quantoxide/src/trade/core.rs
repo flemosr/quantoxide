@@ -17,11 +17,6 @@ use crate::signal::core::Signal;
 
 use super::error::{Result, TradeError};
 
-lazy_static! {
-    static ref TRAILING_STOPLOSS_PERC_TICK: BoundedPercentage =
-        BoundedPercentage::try_from(0.1).expect("is valid `BoundedPercentage`");
-}
-
 #[derive(Debug, Clone, PartialEq)]
 pub struct TradeControllerState {
     start_time: DateTime<Utc>,
@@ -355,41 +350,49 @@ impl From<Box<dyn Operator>> for WrappedOperator {
 }
 
 pub trait TradeExt: Trade {
-    fn next_stoploss_update_trigger(&self, trailing_stoploss: BoundedPercentage) -> Result<Price> {
+    fn next_stoploss_update_trigger(
+        &self,
+        tsl_step_size: BoundedPercentage,
+        trade_tsl: BoundedPercentage,
+    ) -> Result<Price> {
+        if tsl_step_size > trade_tsl {
+            return Err(TradeError::Generic(
+                "`tsl_step_size` cannot be gt than `trade_tsl`".to_string(),
+            ));
+        }
         let curr_stoploss = self
             .stoploss()
             .ok_or_else(|| TradeError::Generic("trade stoploss is not set".to_string()))?;
 
-        match self.side() {
+        let price_trigger = match self.side() {
             TradeSide::Buy => {
                 let next_stoploss = curr_stoploss
-                    .apply_gain(TRAILING_STOPLOSS_PERC_TICK.clone().into())
+                    .apply_gain(tsl_step_size.into())
                     .map_err(|e| TradeError::Generic(e.to_string()))?;
-                let price_trigger = next_stoploss
-                    .apply_gain(trailing_stoploss.into())
-                    .map_err(|e| TradeError::Generic(e.to_string()))?;
-
-                Ok(price_trigger)
+                next_stoploss
+                    .apply_gain(trade_tsl.into())
+                    .map_err(|e| TradeError::Generic(e.to_string()))?
             }
             TradeSide::Sell => {
                 let next_stoploss = curr_stoploss
-                    .apply_discount(TRAILING_STOPLOSS_PERC_TICK.clone())
+                    .apply_discount(tsl_step_size)
                     .map_err(|e| TradeError::Generic(e.to_string()))?;
-                let price_trigger = next_stoploss
-                    .apply_discount(trailing_stoploss.into())
-                    .map_err(|e| TradeError::Generic(e.to_string()))?;
-
-                Ok(price_trigger)
+                next_stoploss
+                    .apply_discount(trade_tsl.into())
+                    .map_err(|e| TradeError::Generic(e.to_string()))?
             }
-        }
+        };
+
+        Ok(price_trigger)
     }
 
     fn eval_trigger_bounds(
         &self,
-        trailing_stoploss: Option<BoundedPercentage>,
+        tsl_step_size: BoundedPercentage,
+        trade_tsl: Option<BoundedPercentage>,
     ) -> Result<(Price, Price)> {
-        let next_stoploss_update_trigger = trailing_stoploss
-            .map(|tsl| self.next_stoploss_update_trigger(tsl))
+        let next_stoploss_update_trigger = trade_tsl
+            .map(|tsl| self.next_stoploss_update_trigger(tsl_step_size, tsl))
             .transpose()?;
 
         match self.side() {
@@ -442,12 +445,13 @@ pub trait TradeExt: Trade {
 
     fn eval_new_stoploss_on_range(
         &self,
+        tsl_step_size: BoundedPercentage,
+        trade_tsl: BoundedPercentage,
         range_min: f64,
         range_max: f64,
-        trailing_stoploss: BoundedPercentage,
     ) -> Result<Option<Price>> {
         let next_stoploss_update_trigger = self
-            .next_stoploss_update_trigger(trailing_stoploss)?
+            .next_stoploss_update_trigger(tsl_step_size, trade_tsl)?
             .into_f64();
 
         let new_stoploss = match self.side() {
@@ -455,7 +459,7 @@ pub trait TradeExt: Trade {
                 if range_max >= next_stoploss_update_trigger {
                     let new_stoploss = Price::round(range_max)
                         .map_err(|e| TradeError::Generic(e.to_string()))?
-                        .apply_discount(trailing_stoploss)
+                        .apply_discount(trade_tsl)
                         .map_err(|e| TradeError::Generic(e.to_string()))?;
 
                     Some(new_stoploss)
@@ -467,7 +471,7 @@ pub trait TradeExt: Trade {
                 if range_min <= next_stoploss_update_trigger {
                     let new_stoploss = Price::round(range_min)
                         .map_err(|e| TradeError::Generic(e.to_string()))?
-                        .apply_gain(trailing_stoploss.into())
+                        .apply_gain(trade_tsl.into())
                         .map_err(|e| TradeError::Generic(e.to_string()))?;
 
                     Some(new_stoploss)
@@ -496,10 +500,11 @@ impl PriceTrigger {
 
     pub fn update(
         &mut self,
+        tsl_step_size: BoundedPercentage,
         trade: &impl TradeExt,
-        trailing_stoploss: Option<BoundedPercentage>,
+        trade_tsl: Option<BoundedPercentage>,
     ) -> Result<()> {
-        let (mut new_min, mut new_max) = trade.eval_trigger_bounds(trailing_stoploss)?;
+        let (mut new_min, mut new_max) = trade.eval_trigger_bounds(tsl_step_size, trade_tsl)?;
 
         if let PriceTrigger::Set { min, max } = *self {
             new_min = new_min.max(min);
