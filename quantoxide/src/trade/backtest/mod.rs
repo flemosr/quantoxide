@@ -130,6 +130,7 @@ pub struct BacktestConfig {
     buffer_size: usize,
     max_running_qtd: usize,
     fee_perc: BoundedPercentage,
+    tsl_step_size: BoundedPercentage,
 }
 
 impl Default for BacktestConfig {
@@ -137,9 +138,8 @@ impl Default for BacktestConfig {
         Self {
             buffer_size: 1800,
             max_running_qtd: 50,
-            fee_perc: 0.1
-                .try_into()
-                .expect("0.1 must be a valid `BoundedPercentage`"),
+            fee_perc: 0.1.try_into().expect("must be a valid `BoundedPercentage`"),
+            tsl_step_size: 0.1.try_into().expect("must be a valid `BoundedPercentage`"),
         }
     }
 }
@@ -167,6 +167,11 @@ impl BacktestConfig {
 
     pub fn set_fee_perc(mut self, fee_perc: BoundedPercentage) -> Self {
         self.fee_perc = fee_perc;
+        self
+    }
+
+    pub fn set_trailing_stoploss_step_size(mut self, tsl_step_size: BoundedPercentage) -> Self {
+        self.tsl_step_size = tsl_step_size;
         self
     }
 }
@@ -264,6 +269,7 @@ impl BacktestEngine {
             Arc::new(SimulatedTradeController::new(
                 self.config.max_running_qtd,
                 self.config.fee_perc,
+                self.config.tsl_step_size,
                 self.start_time,
                 start_time_entry.value,
                 self.start_balance,
