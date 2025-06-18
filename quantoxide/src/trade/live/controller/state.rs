@@ -29,7 +29,11 @@ pub struct LiveTradeControllerReadyStatus {
 }
 
 impl LiveTradeControllerReadyStatus {
-    pub async fn new(db: &DbContext, api: &ApiContext) -> LiveResult<Self> {
+    pub async fn new(
+        tsl_step_size: BoundedPercentage,
+        db: &DbContext,
+        api: &ApiContext,
+    ) -> LiveResult<Self> {
         let (lastest_entry_time, _) = db
             .price_ticks
             .get_latest_entry()
@@ -61,14 +65,14 @@ impl LiveTradeControllerReadyStatus {
             };
             last_trade_time = Some(new_last_trade_time);
 
+            // Assume that trades that are not registered don't have trailing stoplosses
+            let trade_tsl_opt = registered_trades.remove(&trade.id()).and_then(|sl| sl);
+
             trigger
-                .update(&trade, None)
+                .update(tsl_step_size, &trade, trade_tsl_opt)
                 .map_err(|e| LiveError::Generic(e.to_string()))?;
 
-            // Assume that trades that are not registered don't have trailing stoplosses
-            let trailing_stoploss = registered_trades.remove(&trade.id()).and_then(|sl| sl);
-
-            running.insert(trade.id(), (trade, trailing_stoploss));
+            running.insert(trade.id(), (trade, trade_tsl_opt));
         }
 
         if !registered_trades.is_empty() {
@@ -108,7 +112,12 @@ impl LiveTradeControllerReadyStatus {
         &self.closed
     }
 
-    pub async fn reevaluate(&mut self, db: &DbContext, api: &ApiContext) -> LiveResult<()> {
+    pub async fn reevaluate(
+        &mut self,
+        tsl_step_size: BoundedPercentage,
+        db: &DbContext,
+        api: &ApiContext,
+    ) -> LiveResult<()> {
         let (new_evaluation_time, range_min, range_max) = db
             .price_ticks
             .get_price_range_from(self.last_evaluation_time)
@@ -127,15 +136,15 @@ impl LiveTradeControllerReadyStatus {
         let mut to_get = Vec::new();
         let mut to_update = Vec::new();
 
-        for (trade, trailing_stoploss) in self.running().values() {
+        for (trade, trade_tsl_opt) in self.running().values() {
             if trade.was_closed_on_range(range_min, range_max) {
                 to_get.push(trade.id());
                 continue;
             }
 
-            if let Some(trailing_stoploss) = trailing_stoploss {
+            if let Some(trade_tsl) = trade_tsl_opt {
                 let new_stoploss_opt = trade
-                    .eval_new_stoploss_on_range(range_min, range_max, *trailing_stoploss)
+                    .eval_new_stoploss_on_range(tsl_step_size, *trade_tsl, range_min, range_max)
                     .map_err(|e| LiveError::Generic(e.to_string()))?;
 
                 if let Some(new_stoploss) = new_stoploss_opt {
@@ -208,11 +217,11 @@ impl LiveTradeControllerReadyStatus {
         }
 
         if !updated_trades.is_empty() {
-            self.update_running_trades(updated_trades)?;
+            self.update_running_trades(tsl_step_size, updated_trades)?;
         }
 
         if !closed_trades.is_empty() {
-            self.close_trades(closed_trades)?;
+            self.close_trades(tsl_step_size, closed_trades)?;
         }
 
         Ok(())
@@ -220,8 +229,9 @@ impl LiveTradeControllerReadyStatus {
 
     pub fn register_running_trade(
         &mut self,
+        tsl_step_size: BoundedPercentage,
         new_trade: LnmTrade,
-        trailing_stoploss: Option<BoundedPercentage>,
+        trade_tsl: Option<BoundedPercentage>,
     ) -> LiveResult<()> {
         if !new_trade.running() {
             return Err(LiveError::Generic(format!(
@@ -253,16 +263,16 @@ impl LiveTradeControllerReadyStatus {
         .max(0) as u64;
 
         self.trigger
-            .update(&new_trade, trailing_stoploss)
+            .update(tsl_step_size, &new_trade, trade_tsl)
             .map_err(|e| LiveError::Generic(e.to_string()))?;
-        self.running
-            .insert(new_trade.id(), (new_trade, trailing_stoploss));
+        self.running.insert(new_trade.id(), (new_trade, trade_tsl));
 
         Ok(())
     }
 
     pub fn update_running_trades(
         &mut self,
+        tsl_step_size: BoundedPercentage,
         mut updated_trades: HashMap<Uuid, LnmTrade>,
     ) -> LiveResult<()> {
         if updated_trades.is_empty() {
@@ -273,7 +283,7 @@ impl LiveTradeControllerReadyStatus {
         let mut new_trigger = PriceTrigger::NotSet;
         let mut new_balance = self.balance as i64;
 
-        for (id, (curr_trade, trailing_stoploss)) in &self.running {
+        for (id, (curr_trade, trade_tsl)) in &self.running {
             let running_trade = if let Some(updated_trade) = updated_trades.remove(id) {
                 new_balance += curr_trade.margin().into_i64() + curr_trade.maintenance_margin()
                     - updated_trade.margin().into_i64()
@@ -286,10 +296,10 @@ impl LiveTradeControllerReadyStatus {
 
             // TODO: Improve error handling here
             new_trigger
-                .update(&running_trade, *trailing_stoploss)
+                .update(tsl_step_size, &running_trade, *trade_tsl)
                 .map_err(|e| LiveError::Generic(e.to_string()))?;
 
-            new_running.insert(*id, (running_trade, *trailing_stoploss));
+            new_running.insert(*id, (running_trade, *trade_tsl));
         }
 
         if !updated_trades.is_empty() {
@@ -312,7 +322,11 @@ impl LiveTradeControllerReadyStatus {
         Ok(())
     }
 
-    pub fn close_trades(&mut self, closed_trades: Vec<LnmTrade>) -> LiveResult<()> {
+    pub fn close_trades(
+        &mut self,
+        tsl_step_size: BoundedPercentage,
+        closed_trades: Vec<LnmTrade>,
+    ) -> LiveResult<()> {
         if closed_trades.is_empty() {
             return Err(LiveError::Generic(format!("`closed_trades` is empty",)));
         }
@@ -347,20 +361,21 @@ impl LiveTradeControllerReadyStatus {
         let mut new_trigger = PriceTrigger::NotSet;
         let mut new_balance = self.balance as i64;
 
-        for (id, (trade, trailing_stoploss)) in &self.running {
+        for (id, (trade, trade_tsl)) in &self.running {
             if let Some(closed_trade) = closed_map.remove(id) {
                 new_balance += trade.margin().into_i64() + trade.maintenance_margin()
                     - closed_trade.closing_fee() as i64
                     + closed_trade.pl();
 
                 self.closed.push(closed_trade);
-            } else {
-                // TODO: Improve error handling here
-                new_trigger
-                    .update(trade, *trailing_stoploss)
-                    .map_err(|e| LiveError::Generic(e.to_string()))?;
-                new_running.insert(*id, (trade.clone(), *trailing_stoploss));
+                continue;
             }
+
+            // TODO: Improve error handling here
+            new_trigger
+                .update(tsl_step_size, trade, *trade_tsl)
+                .map_err(|e| LiveError::Generic(e.to_string()))?;
+            new_running.insert(*id, (trade.clone(), *trade_tsl));
         }
 
         self.last_trade_time = new_last_trade_time;
