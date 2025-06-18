@@ -16,7 +16,7 @@ use crate::{
     db::DbContext,
     sync::{SyncReceiver, SyncState},
     trade::{
-        core::{RiskParams, StoplossMode},
+        core::{RiskParams, StoplossMode, TradeTrailingStoploss},
         error::TradeError,
     },
     util::{AbortOnDropHandle, Never},
@@ -203,36 +203,13 @@ impl LiveTradeController {
     async fn open_trade(
         &self,
         risk_params: RiskParams,
+        trade_tsl: Option<TradeTrailingStoploss>,
         balance_perc: BoundedPercentage,
         leverage: Leverage,
-        stoploss_mode: StoplossMode,
     ) -> Result<()> {
-        let stoploss_perc = match risk_params {
-            RiskParams::Long {
-                stoploss_perc,
-                takeprofit_perc: _,
-            } => stoploss_perc,
-            RiskParams::Short {
-                stoploss_perc,
-                takeprofit_perc: _,
-            } => stoploss_perc,
-        };
-
-        if stoploss_perc > self.tsl_step_size {
-            return Err(LiveError::Generic(
-                "`stoploss_perc` can't be gt than `tsl_step_size`".to_string(),
-            )
-            .into());
-        }
-
         let locked_ready_status = self.state_manager.try_lock_ready_status().await?;
 
         let market_price = self.get_estimated_market_price().await?;
-
-        let trailing_stoploss = match stoploss_mode {
-            StoplossMode::Fixed => None,
-            StoplossMode::Trailing => Some(stoploss_perc),
-        };
 
         let (side, stoploss, takeprofit) = risk_params.into_trade_params(market_price)?;
 
@@ -274,13 +251,13 @@ impl LiveTradeController {
 
         self.db
             .running_trades
-            .register_trade(trade.id(), trailing_stoploss)
+            .register_trade(trade.id(), trade_tsl)
             .await
             .map_err(|e| LiveError::Generic(e.to_string()))?;
 
         let mut new_status = locked_ready_status.to_owned();
 
-        new_status.register_running_trade(self.tsl_step_size, trade, trailing_stoploss)?;
+        new_status.register_running_trade(self.tsl_step_size, trade, trade_tsl)?;
 
         let new_state = LiveTradeControllerState::Ready(new_status);
 
@@ -351,12 +328,14 @@ impl TradeController for LiveTradeController {
         balance_perc: BoundedPercentage,
         leverage: Leverage,
     ) -> Result<()> {
+        let trade_tsl = stoploss_mode.validate_trade_tsl(self.tsl_step_size, stoploss_perc)?;
+
         let risk_params = RiskParams::Long {
             stoploss_perc,
             takeprofit_perc,
         };
 
-        self.open_trade(risk_params, balance_perc, leverage, stoploss_mode)
+        self.open_trade(risk_params, trade_tsl, balance_perc, leverage)
             .await
     }
 
@@ -368,12 +347,14 @@ impl TradeController for LiveTradeController {
         balance_perc: BoundedPercentage,
         leverage: Leverage,
     ) -> Result<()> {
+        let trade_tsl = stoploss_mode.validate_trade_tsl(self.tsl_step_size, stoploss_perc)?;
+
         let risk_params = RiskParams::Short {
             stoploss_perc,
             takeprofit_perc,
         };
 
-        self.open_trade(risk_params, balance_perc, leverage, stoploss_mode)
+        self.open_trade(risk_params, trade_tsl, balance_perc, leverage)
             .await
     }
 
