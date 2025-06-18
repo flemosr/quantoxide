@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
 use sqlx::{Pool, Postgres};
@@ -51,8 +51,11 @@ impl RunningTradesRepository for PgRunningTradesRepo {
         Ok(())
     }
 
-    async fn get_trades(&self) -> Result<Vec<RunningTrade>> {
-        let trades = sqlx::query_as!(
+    async fn load_and_validate_trades(
+        &self,
+        tsl_step_size: BoundedPercentage,
+    ) -> Result<HashMap<Uuid, Option<TradeTrailingStoploss>>> {
+        let registered_trades = sqlx::query_as!(
             RunningTrade,
             r#"
                 SELECT trade_id, trailing_stoploss, created_at
@@ -63,7 +66,30 @@ impl RunningTradesRepository for PgRunningTradesRepo {
         .await
         .map_err(DbError::Query)?;
 
-        Ok(trades)
+        let mut valid_trade_map = HashMap::new();
+        let mut invalid_trade_ids = Vec::new();
+
+        for trade in registered_trades {
+            if let Ok(trade_sl_opt) = trade
+                .trailing_stoploss
+                .map(BoundedPercentage::try_from)
+                .transpose()
+            {
+                if let Ok(trade_tsl_opt) = trade_sl_opt
+                    .map(|sl| TradeTrailingStoploss::new(tsl_step_size, sl))
+                    .transpose()
+                {
+                    valid_trade_map.insert(trade.trade_id, trade_tsl_opt);
+                    continue;
+                }
+            }
+
+            invalid_trade_ids.push(trade.trade_id);
+        }
+
+        self.remove_trades(&invalid_trade_ids).await?;
+
+        Ok(valid_trade_map)
     }
 
     async fn remove_trades(&self, trade_uuids: &[Uuid]) -> Result<()> {

@@ -41,41 +41,11 @@ impl LiveTradeControllerReadyStatus {
             .map_err(|e| LiveError::Generic(e.to_string()))?
             .ok_or(LiveError::Generic("db is empty".to_string()))?;
 
-        let mut registered_trades = {
-            let registered_trades = db
-                .running_trades
-                .get_trades()
-                .await
-                .map_err(|e| LiveError::Generic(e.to_string()))?;
-
-            let mut valid_trades = HashMap::new();
-            let mut trades_with_invalid_tsls = Vec::new();
-
-            for trade in registered_trades {
-                if let Ok(trade_sl_opt) = trade
-                    .trailing_stoploss
-                    .map(BoundedPercentage::try_from)
-                    .transpose()
-                {
-                    if let Ok(trade_tsl_opt) = trade_sl_opt
-                        .map(|sl| TradeTrailingStoploss::new(tsl_step_size, sl))
-                        .transpose()
-                    {
-                        valid_trades.insert(trade.trade_id, trade_tsl_opt);
-                        continue;
-                    }
-                }
-
-                trades_with_invalid_tsls.push(trade.trade_id);
-            }
-
-            db.running_trades
-                .remove_trades(&trades_with_invalid_tsls)
-                .await
-                .map_err(|e| LiveError::Generic(e.to_string()))?;
-
-            valid_trades
-        };
+        let mut registered_trades = db
+            .running_trades
+            .load_and_validate_trades(tsl_step_size)
+            .await
+            .map_err(|e| LiveError::Generic(e.to_string()))?;
 
         let (running_trades, user) = futures::try_join!(
             api.rest.futures.get_trades_running(None, None, None),
