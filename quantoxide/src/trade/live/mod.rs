@@ -3,7 +3,7 @@ use std::sync::{Arc, Mutex};
 use chrono::Duration;
 use tokio::{sync::broadcast, time};
 
-use lnm_sdk::api::ApiContext;
+use lnm_sdk::api::{ApiContext, rest::models::BoundedPercentage};
 
 use crate::{
     db::DbContext,
@@ -312,6 +312,7 @@ pub struct LiveConfig {
     sync_history_reach: Duration,
     re_sync_history_interval: time::Duration,
     signal_eval_interval: time::Duration,
+    tsl_step_size: BoundedPercentage,
     restart_interval: time::Duration,
     shutdown_timeout: time::Duration,
 }
@@ -327,6 +328,7 @@ impl Default for LiveConfig {
             sync_history_reach: Duration::hours(24 * 7 * 4),
             re_sync_history_interval: time::Duration::from_secs(300),
             signal_eval_interval: time::Duration::from_secs(1),
+            tsl_step_size: 0.1.try_into().expect("must be a valid `BoundedPercentage`"),
             restart_interval: time::Duration::from_secs(10),
             shutdown_timeout: time::Duration::from_secs(6),
         }
@@ -364,6 +366,11 @@ impl LiveConfig {
 
     pub fn signal_eval_interval(&self) -> time::Duration {
         self.signal_eval_interval
+    }
+
+    pub fn set_trailing_stoploss_step_size(mut self, tsl_step_size: BoundedPercentage) -> Self {
+        self.tsl_step_size = tsl_step_size;
+        self
     }
 
     pub fn restart_interval(&self) -> time::Duration {
@@ -488,10 +495,14 @@ impl LiveEngine {
         .map_err(|e| LiveError::Generic(e.to_string()))?
         .start();
 
-        let trade_controller =
-            LiveTradeController::new(self.db, self.api, sync_controller.receiver())
-                .await
-                .map_err(|e| LiveError::Generic(e.to_string()))?;
+        let trade_controller = LiveTradeController::new(
+            self.config.tsl_step_size,
+            self.db,
+            self.api,
+            sync_controller.receiver(),
+        )
+        .await
+        .map_err(|e| LiveError::Generic(e.to_string()))?;
 
         self.operator
             .set_trade_controller(trade_controller.clone())
