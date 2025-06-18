@@ -13,7 +13,7 @@ use lnm_sdk::api::{
 use crate::{
     db::DbContext,
     sync::SyncState,
-    trade::core::{PriceTrigger, TradeExt},
+    trade::core::{PriceTrigger, TradeExt, TradeTrailingStoploss},
 };
 
 use super::super::error::{LiveError, Result as LiveResult};
@@ -24,7 +24,7 @@ pub struct LiveTradeControllerReadyStatus {
     balance: u64,
     last_evaluation_time: DateTime<Utc>,
     trigger: PriceTrigger,
-    running: HashMap<Uuid, (LnmTrade, Option<BoundedPercentage>)>,
+    running: HashMap<Uuid, (LnmTrade, Option<TradeTrailingStoploss>)>,
     closed: Vec<LnmTrade>,
 }
 
@@ -41,11 +41,41 @@ impl LiveTradeControllerReadyStatus {
             .map_err(|e| LiveError::Generic(e.to_string()))?
             .ok_or(LiveError::Generic("db is empty".to_string()))?;
 
-        let mut registered_trades = db
-            .running_trades
-            .get_trades()
-            .await
-            .map_err(|e| LiveError::Generic(e.to_string()))?;
+        let mut registered_trades = {
+            let registered_trades = db
+                .running_trades
+                .get_trades()
+                .await
+                .map_err(|e| LiveError::Generic(e.to_string()))?;
+
+            let mut valid_trades = HashMap::new();
+            let mut trades_with_invalid_tsls = Vec::new();
+
+            for trade in registered_trades {
+                if let Ok(trade_sl_opt) = trade
+                    .trailing_stoploss
+                    .map(BoundedPercentage::try_from)
+                    .transpose()
+                {
+                    if let Ok(trade_tsl_opt) = trade_sl_opt
+                        .map(|sl| TradeTrailingStoploss::new(tsl_step_size, sl))
+                        .transpose()
+                    {
+                        valid_trades.insert(trade.trade_id, trade_tsl_opt);
+                        continue;
+                    }
+                }
+
+                trades_with_invalid_tsls.push(trade.trade_id);
+            }
+
+            db.running_trades
+                .remove_trades(&trades_with_invalid_tsls)
+                .await
+                .map_err(|e| LiveError::Generic(e.to_string()))?;
+
+            valid_trades
+        };
 
         let (running_trades, user) = futures::try_join!(
             api.rest.futures.get_trades_running(None, None, None),
@@ -104,7 +134,7 @@ impl LiveTradeControllerReadyStatus {
         self.balance
     }
 
-    pub fn running(&self) -> &HashMap<Uuid, (LnmTrade, Option<BoundedPercentage>)> {
+    pub fn running(&self) -> &HashMap<Uuid, (LnmTrade, Option<TradeTrailingStoploss>)> {
         &self.running
     }
 
@@ -231,7 +261,7 @@ impl LiveTradeControllerReadyStatus {
         &mut self,
         tsl_step_size: BoundedPercentage,
         new_trade: LnmTrade,
-        trade_tsl: Option<BoundedPercentage>,
+        trade_tsl: Option<TradeTrailingStoploss>,
     ) -> LiveResult<()> {
         if !new_trade.running() {
             return Err(LiveError::Generic(format!(
@@ -431,7 +461,7 @@ impl<'a> LockedLiveTradeControllerReadyStatus<'a> {
         self.as_status().balance
     }
 
-    pub fn running(&self) -> &HashMap<Uuid, (LnmTrade, Option<BoundedPercentage>)> {
+    pub fn running(&self) -> &HashMap<Uuid, (LnmTrade, Option<TradeTrailingStoploss>)> {
         &self.as_status().running
     }
 
