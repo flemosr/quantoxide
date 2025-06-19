@@ -7,6 +7,8 @@ use super::{Leverage, Price, Quantity, SATS_PER_BTC, error::MarginValidationErro
 pub struct Margin(u64);
 
 impl Margin {
+    pub const MIN: Self = Self(1);
+
     pub fn into_u64(self) -> u64 {
         self.into()
     }
@@ -60,7 +62,7 @@ impl TryFrom<u64> for Margin {
     type Error = MarginValidationError;
 
     fn try_from(value: u64) -> Result<Self, Self::Error> {
-        if value < 1 {
+        if value < Self::MIN.0 {
             return Err(MarginValidationError::TooLow);
         }
 
