@@ -55,7 +55,7 @@ impl DateTimeExt for DateTime<Utc> {
 ///     let handle = AbortOnDropHandle::from(tokio::spawn(async {
 ///         loop {
 ///             // Long-running work...
-///             tokio::time::sleep(Duration::from_secs(1)).await;
+///             tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
 ///         }
 ///     }));
 ///
