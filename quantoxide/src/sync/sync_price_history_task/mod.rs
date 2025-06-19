@@ -42,8 +42,8 @@ impl SyncPriceHistoryTask {
 
     async fn get_new_price_entries(
         &self,
-        from_observed_time: Option<&DateTime<Utc>>,
-        to_observed_time: Option<&DateTime<Utc>>,
+        from_observed_time: Option<DateTime<Utc>>,
+        to_observed_time: Option<DateTime<Utc>>,
     ) -> Result<(Vec<PriceEntryLNM>, bool)> {
         let mut price_entries = {
             let mut trials = 0;
@@ -80,7 +80,7 @@ impl SyncPriceHistoryTask {
 
         // Remove entries with duplicated 'time'
         let mut seen = HashSet::new();
-        price_entries.retain(|price_entry| seen.insert(*price_entry.time()));
+        price_entries.retain(|price_entry| seen.insert(price_entry.time()));
 
         let is_sorted_time_desc = price_entries.is_sorted_by(|a, b| a.time() > b.time());
         if !is_sorted_time_desc {
@@ -105,7 +105,7 @@ impl SyncPriceHistoryTask {
                 let overlap = before_limit.first().expect("not empty").time() == time;
 
                 if !overlap {
-                    return Err(SyncPriceHistoryError::FromObservedTimeNotReceived(*time));
+                    return Err(SyncPriceHistoryError::FromObservedTimeNotReceived(time));
                 }
 
                 true
@@ -121,8 +121,8 @@ impl SyncPriceHistoryTask {
 
     async fn partial_download(
         &self,
-        from_observed_time: Option<&DateTime<Utc>>,
-        to_observed_time: Option<&DateTime<Utc>>,
+        from_observed_time: Option<DateTime<Utc>>,
+        to_observed_time: Option<DateTime<Utc>>,
     ) -> Result<bool> {
         let (new_price_entries, from_observed_time_received) = self
             .get_new_price_entries(from_observed_time, to_observed_time)
@@ -144,13 +144,13 @@ impl SyncPriceHistoryTask {
             // to be fetched between `from_observed_time` and `to_observed_time` (edge case).
             let next_from_observed_time = new_price_entries
                 .last()
-                .map(|earliest_new_entry| *earliest_new_entry.time())
-                .or_else(|| to_observed_time.copied());
+                .map(|earliest_new_entry| earliest_new_entry.time())
+                .or_else(|| to_observed_time);
 
             if let Some(next) = next_from_observed_time {
                 self.db
                     .price_history
-                    .update_entry_next(from_observed_time.expect("from received"), &next)
+                    .update_entry_next(from_observed_time.expect("from received"), next)
                     .await?;
             }
         }
@@ -178,9 +178,7 @@ impl SyncPriceHistoryTask {
         loop {
             let (download_from, download_to) = history_state.next_download_range(true)?;
 
-            let new_entries_received = self
-                .partial_download(download_from.as_ref(), download_to.as_ref())
-                .await?;
+            let new_entries_received = self.partial_download(download_from, download_to).await?;
             if !new_entries_received {
                 if history_state.has_gaps()? {
                     return Err(SyncPriceHistoryError::NoGapEntriesReceived);
@@ -209,8 +207,7 @@ impl SyncPriceHistoryTask {
 
         let initial_bound_end = history_state.bound_end();
 
-        self.partial_download(initial_bound_end.as_ref(), None)
-            .await?;
+        self.partial_download(initial_bound_end, None).await?;
 
         // Now it can be assumed that the history upper bound matches the current time
 
@@ -228,8 +225,7 @@ impl SyncPriceHistoryTask {
 
             let (download_from, download_to) = history_state.next_download_range(false)?;
 
-            self.partial_download(download_from.as_ref(), download_to.as_ref())
-                .await?;
+            self.partial_download(download_from, download_to).await?;
         }
     }
 }
