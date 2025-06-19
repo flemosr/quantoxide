@@ -9,6 +9,10 @@ use super::{
 pub struct Quantity(u64);
 
 impl Quantity {
+    pub const MIN: Self = Self(1);
+
+    pub const MAX: Self = Self(500_000);
+
     pub fn into_u64(self) -> u64 {
         self.into()
     }
@@ -69,11 +73,11 @@ impl TryFrom<u64> for Quantity {
     type Error = QuantityValidationError;
 
     fn try_from(quantity: u64) -> Result<Self, Self::Error> {
-        if quantity < 1 {
+        if quantity < Self::MIN.0 {
             return Err(QuantityValidationError::TooLow);
         }
 
-        if quantity > 500_000 {
+        if quantity > Self::MAX.0 {
             return Err(QuantityValidationError::TooHigh);
         }
 
