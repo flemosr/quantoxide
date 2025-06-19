@@ -13,7 +13,7 @@ use crate::trade::core::TradeTrailingStoploss;
 
 use super::{
     error::Result,
-    models::{PriceHistoryEntry, PriceHistoryEntryLOCF, PriceTick, RunningTrade},
+    models::{PriceHistoryEntry, PriceHistoryEntryLOCF, PriceTick},
 };
 
 #[async_trait]
@@ -128,7 +128,7 @@ pub trait PriceHistoryRepository: Send + Sync {
     async fn add_entries(
         &self,
         entries: &[PriceEntryLNM],
-        next_observed_time: Option<&DateTime<Utc>>,
+        next_observed_time: Option<DateTime<Utc>>,
     ) -> Result<()>;
 
     /// Updates the "next" pointer for a price history entry.
@@ -144,8 +144,8 @@ pub trait PriceHistoryRepository: Send + Sync {
     ///   - `Err` on database errors
     async fn update_entry_next(
         &self,
-        entry_time: &DateTime<Utc>,
-        next: &DateTime<Utc>,
+        entry_time: DateTime<Utc>,
+        next: DateTime<Utc>,
     ) -> Result<bool>;
 }
 
@@ -198,7 +198,7 @@ pub trait PriceTicksRepository: Send + Sync {
     /// - Indicator calculation fails due to data inconsistencies
     async fn compute_locf_entries_for_range(
         &self,
-        time: &DateTime<Utc>,
+        time: DateTime<Utc>,
         range_secs: usize,
     ) -> Result<Vec<PriceHistoryEntryLOCF>>;
 

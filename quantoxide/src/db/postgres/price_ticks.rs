@@ -142,7 +142,7 @@ impl PriceTicksRepository for PgPriceTicksRepo {
 
     async fn compute_locf_entries_for_range(
         &self,
-        time: &DateTime<Utc>,
+        time: DateTime<Utc>,
         range_secs: usize,
     ) -> Result<Vec<PriceHistoryEntryLOCF>> {
         if range_secs < 1 {

@@ -191,7 +191,7 @@ impl PriceHistoryRepository for PgPriceHistoryRepo {
     async fn add_entries(
         &self,
         entries: &[PriceEntryLNM],
-        next_observed_time: Option<&DateTime<Utc>>,
+        next_observed_time: Option<DateTime<Utc>>,
     ) -> Result<()> {
         if entries.is_empty() {
             return Ok(());
@@ -342,8 +342,8 @@ impl PriceHistoryRepository for PgPriceHistoryRepo {
 
     async fn update_entry_next(
         &self,
-        entry_time: &DateTime<Utc>,
-        next: &DateTime<Utc>,
+        entry_time: DateTime<Utc>,
+        next: DateTime<Utc>,
     ) -> Result<bool> {
         let result = sqlx::query!(
             r#"
