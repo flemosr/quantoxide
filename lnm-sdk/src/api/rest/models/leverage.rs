@@ -7,6 +7,10 @@ use super::{Margin, Price, Quantity, SATS_PER_BTC, error::LeverageValidationErro
 pub struct Leverage(f64);
 
 impl Leverage {
+    pub const MIN: Self = Self(1.);
+
+    pub const MAX: Self = Self(100.);
+
     pub fn into_f64(self) -> f64 {
         self.into()
     }
@@ -32,11 +36,11 @@ impl TryFrom<f64> for Leverage {
     type Error = LeverageValidationError;
 
     fn try_from(leverage: f64) -> Result<Self, Self::Error> {
-        if leverage < 1.0 {
+        if leverage < Self::MIN.0 {
             return Err(LeverageValidationError::TooLow);
         }
 
-        if leverage > 100.0 {
+        if leverage > Self::MAX.0 {
             return Err(LeverageValidationError::TooHigh);
         }
 
