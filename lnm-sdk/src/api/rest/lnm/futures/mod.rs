@@ -50,8 +50,8 @@ impl FuturesRepository for LnmFuturesRepository {
     async fn get_trades(
         &self,
         status: TradeStatus,
-        from: Option<&DateTime<Utc>>,
-        to: Option<&DateTime<Utc>>,
+        from: Option<DateTime<Utc>>,
+        to: Option<DateTime<Utc>>,
         limit: Option<usize>,
     ) -> Result<Vec<LnmTrade>> {
         let mut query_params = Vec::new();
@@ -75,8 +75,8 @@ impl FuturesRepository for LnmFuturesRepository {
 
     async fn get_trades_open(
         &self,
-        from: Option<&DateTime<Utc>>,
-        to: Option<&DateTime<Utc>>,
+        from: Option<DateTime<Utc>>,
+        to: Option<DateTime<Utc>>,
         limit: Option<usize>,
     ) -> Result<Vec<LnmTrade>> {
         self.get_trades(TradeStatus::Open, from, to, limit).await
@@ -84,8 +84,8 @@ impl FuturesRepository for LnmFuturesRepository {
 
     async fn get_trades_running(
         &self,
-        from: Option<&DateTime<Utc>>,
-        to: Option<&DateTime<Utc>>,
+        from: Option<DateTime<Utc>>,
+        to: Option<DateTime<Utc>>,
         limit: Option<usize>,
     ) -> Result<Vec<LnmTrade>> {
         self.get_trades(TradeStatus::Running, from, to, limit).await
@@ -93,8 +93,8 @@ impl FuturesRepository for LnmFuturesRepository {
 
     async fn get_trades_closed(
         &self,
-        from: Option<&DateTime<Utc>>,
-        to: Option<&DateTime<Utc>>,
+        from: Option<DateTime<Utc>>,
+        to: Option<DateTime<Utc>>,
         limit: Option<usize>,
     ) -> Result<Vec<LnmTrade>> {
         self.get_trades(TradeStatus::Closed, from, to, limit).await
@@ -102,8 +102,8 @@ impl FuturesRepository for LnmFuturesRepository {
 
     async fn price_history(
         &self,
-        from: Option<&DateTime<Utc>>,
-        to: Option<&DateTime<Utc>>,
+        from: Option<DateTime<Utc>>,
+        to: Option<DateTime<Utc>>,
         limit: Option<usize>,
     ) -> Result<Vec<PriceEntryLNM>> {
         let mut query_params = Vec::new();

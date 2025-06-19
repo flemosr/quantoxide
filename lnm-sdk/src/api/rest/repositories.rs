@@ -6,7 +6,7 @@ use uuid::Uuid;
 use super::{
     error::Result,
     models::{
-        Leverage, Price, PriceEntryLNM, Ticker, LnmTrade, TradeExecution, TradeSide, TradeSize,
+        Leverage, LnmTrade, Price, PriceEntryLNM, Ticker, TradeExecution, TradeSide, TradeSize,
         TradeStatus, User,
     },
 };
@@ -16,36 +16,36 @@ pub trait FuturesRepository: Send + Sync {
     async fn get_trades(
         &self,
         status: TradeStatus,
-        from: Option<&DateTime<Utc>>,
-        to: Option<&DateTime<Utc>>,
+        from: Option<DateTime<Utc>>,
+        to: Option<DateTime<Utc>>,
         limit: Option<usize>,
     ) -> Result<Vec<LnmTrade>>;
 
     async fn get_trades_open(
         &self,
-        from: Option<&DateTime<Utc>>,
-        to: Option<&DateTime<Utc>>,
+        from: Option<DateTime<Utc>>,
+        to: Option<DateTime<Utc>>,
         limit: Option<usize>,
     ) -> Result<Vec<LnmTrade>>;
 
     async fn get_trades_running(
         &self,
-        from: Option<&DateTime<Utc>>,
-        to: Option<&DateTime<Utc>>,
+        from: Option<DateTime<Utc>>,
+        to: Option<DateTime<Utc>>,
         limit: Option<usize>,
     ) -> Result<Vec<LnmTrade>>;
 
     async fn get_trades_closed(
         &self,
-        from: Option<&DateTime<Utc>>,
-        to: Option<&DateTime<Utc>>,
+        from: Option<DateTime<Utc>>,
+        to: Option<DateTime<Utc>>,
         limit: Option<usize>,
     ) -> Result<Vec<LnmTrade>>;
 
     async fn price_history(
         &self,
-        from: Option<&DateTime<Utc>>,
-        to: Option<&DateTime<Utc>>,
+        from: Option<DateTime<Utc>>,
+        to: Option<DateTime<Utc>>,
         limit: Option<usize>,
     ) -> Result<Vec<PriceEntryLNM>>;
 

@@ -11,8 +11,8 @@ pub struct PriceEntryLNM {
 }
 
 impl PriceEntryLNM {
-    pub fn time(&self) -> &DateTime<Utc> {
-        &self.time
+    pub fn time(&self) -> DateTime<Utc> {
+        self.time
     }
 
     pub fn value(&self) -> Price {
