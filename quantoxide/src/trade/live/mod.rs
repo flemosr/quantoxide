@@ -243,62 +243,62 @@ impl LiveController {
     /// Returns an error if the process had to be aborted, or if it the handle
     /// was already consumed.
     pub async fn shutdown(&self) -> Result<()> {
-        if let Some(mut handle) = self.try_consume_handle() {
-            self.state_manager.update(LiveState::ShutdownInitiated);
+        let Some(mut handle) = self.try_consume_handle() else {
+            return Err(LiveError::Generic(
+                "Live trade process was already shutdown".to_string(),
+            ));
+        };
 
-            // Stop live trade process
+        self.state_manager.update(LiveState::ShutdownInitiated);
 
-            let shutdown_send_res = self.shutdown_tx.send(()).map_err(|e| {
-                handle.abort();
-                LiveError::Generic(format!("Failed to send shutdown request, {e}"))
-            });
+        // Stop live trade process
 
-            let shutdown_res = match shutdown_send_res {
-                Ok(_) => {
-                    tokio::select! {
-                        join_res = &mut handle => {
-                            join_res.map_err(LiveError::TaskJoin)
-                        }
-                        _ = time::sleep(self.shutdown_timeout) => {
-                            handle.abort();
-                            Err(LiveError::Generic("Shutdown timeout".to_string()))
-                        }
+        let shutdown_send_res = self.shutdown_tx.send(()).map_err(|e| {
+            handle.abort();
+            LiveError::Generic(format!("Failed to send shutdown request, {e}"))
+        });
+
+        let shutdown_res = match shutdown_send_res {
+            Ok(_) => {
+                tokio::select! {
+                    join_res = &mut handle => {
+                        join_res.map_err(LiveError::TaskJoin)
+                    }
+                    _ = time::sleep(self.shutdown_timeout) => {
+                        handle.abort();
+                        Err(LiveError::Generic("Shutdown timeout".to_string()))
                     }
                 }
-                Err(e) => Err(e),
-            };
+            }
+            Err(e) => Err(e),
+        };
 
-            // Close and cancel all trades
+        // Close and cancel all trades
 
-            let close_all_res = self
-                .trade_controller
-                .close_all()
-                .await
-                .map_err(|e| LiveError::Generic(e.to_string()));
+        let close_all_res = self
+            .trade_controller
+            .close_all()
+            .await
+            .map_err(|e| LiveError::Generic(e.to_string()));
 
-            let signal_shutdown_res = self
-                .signal_controller
-                .shutdown()
-                .await
-                .map_err(|e| LiveError::Generic(e.to_string()));
+        let signal_shutdown_res = self
+            .signal_controller
+            .shutdown()
+            .await
+            .map_err(|e| LiveError::Generic(e.to_string()));
 
-            let sync_shutdown_res = self
-                .sync_controller
-                .shutdown()
-                .await
-                .map_err(|e| LiveError::Generic(e.to_string()));
+        let sync_shutdown_res = self
+            .sync_controller
+            .shutdown()
+            .await
+            .map_err(|e| LiveError::Generic(e.to_string()));
 
-            self.state_manager.update(LiveState::Shutdown);
+        self.state_manager.update(LiveState::Shutdown);
 
-            return shutdown_res
-                .and(close_all_res)
-                .and(signal_shutdown_res)
-                .and(sync_shutdown_res);
-        }
-
-        Err(LiveError::Generic(
-            "Live trade process was already shutdown".to_string(),
-        ))
+        shutdown_res
+            .and(close_all_res)
+            .and(signal_shutdown_res)
+            .and(sync_shutdown_res)
     }
 }
 
