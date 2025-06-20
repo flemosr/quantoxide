@@ -277,54 +277,46 @@ impl WebSocketRepository for LnmWebSocketRepo {
     }
 
     async fn disconnect(&self) -> Result<()> {
-        if let Some(mut handle) = self.try_consume_event_loop_handle() {
-            if handle.is_finished() {
-                // The event loop task can only be finished due to errors or
-                // via this `disconnect` method. The `connection_state_manager`
-                // snapshot should reflect the termination condition.
+        let Some(mut handle) = self.try_consume_event_loop_handle() else {
+            return Err(WebSocketApiError::Generic(
+                "websocket was already disconnected".to_string(),
+            ));
+        };
 
-                let e = match self.connection_state_manager.snapshot().as_ref() {
-                    ConnectionState::Failed(e) => WebSocketApiError::Generic(format!(
-                        "websocket connection was already failed with error {e}"
-                    )),
-                    _ => WebSocketApiError::Generic(
-                        "event loop task terminated without proper connection state update"
-                            .to_string(),
-                    ),
-                };
+        if handle.is_finished() {
+            // The event loop task can only be finished due to errors or
+            // via this `disconnect` method. The `connection_state_manager`
+            // snapshot should reflect the termination condition.
 
-                return Err(e);
-            }
-
-            self.connection_state_manager
-                .update(ConnectionState::DisconnectInitiated);
-
-            let disconnect_send_res = self.disconnect_tx.send(()).await.map_err(|e| {
-                handle.abort();
-                WebSocketApiError::SendDisconnectRequest(e)
-            });
-
-            let disconnect_res = match disconnect_send_res {
-                Ok(_) => {
-                    tokio::select! {
-                        join_res = &mut handle => {
-                            join_res.map_err(WebSocketApiError::TaskJoin)?
-                        }
-                        _ = time::sleep(self.config.disconnect_timeout()) => {
-                            handle.abort();
-                            Err(WebSocketApiError::Generic("Disconnect timeout".to_string()))
-                        }
-                    }
-                }
-                Err(e) => Err(e),
+            let e = match self.connection_state_manager.snapshot().as_ref() {
+                ConnectionState::Failed(e) => WebSocketApiError::Generic(format!(
+                    "websocket connection was already failed with error {e}"
+                )),
+                _ => WebSocketApiError::Generic(
+                    "event loop task terminated without proper connection state update".to_string(),
+                ),
             };
 
-            return disconnect_res;
+            return Err(e);
         }
 
-        Err(WebSocketApiError::Generic(
-            "websocket was already disconnected".to_string(),
-        ))
+        self.connection_state_manager
+            .update(ConnectionState::DisconnectInitiated);
+
+        self.disconnect_tx.send(()).await.map_err(|e| {
+            handle.abort();
+            WebSocketApiError::SendDisconnectRequest(e)
+        })?;
+
+        tokio::select! {
+            join_res = &mut handle => {
+                join_res.map_err(WebSocketApiError::TaskJoin)?
+            }
+            _ = time::sleep(self.config.disconnect_timeout()) => {
+                handle.abort();
+                Err(WebSocketApiError::Generic("Disconnect timeout".to_string()))
+            }
+        }
     }
 }
 
