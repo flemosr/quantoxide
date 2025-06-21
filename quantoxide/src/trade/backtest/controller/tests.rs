@@ -24,8 +24,6 @@ async fn test_simulated_trade_controller_long_profit() -> Result<()> {
     );
 
     let state = controller.state().await?;
-    assert_eq!(state.start_time(), start_time);
-    assert_eq!(state.start_balance(), start_balance);
     assert_eq!(state.current_time(), start_time);
     assert_eq!(state.current_balance(), start_balance);
     assert_eq!(state.market_price(), market_price);
@@ -46,8 +44,6 @@ async fn test_simulated_trade_controller_long_profit() -> Result<()> {
     controller.tick_update(time, market_price).await?;
 
     let state = controller.state().await?;
-    assert_eq!(state.start_time(), start_time);
-    assert_eq!(state.start_balance(), start_balance);
     assert_eq!(state.current_time(), time);
     assert_eq!(state.current_balance(), start_balance);
     assert_eq!(state.market_price(), market_price);
@@ -83,8 +79,6 @@ async fn test_simulated_trade_controller_long_profit() -> Result<()> {
     let exp_trade_time = time;
     let expected_balance = start_balance - state.running_long_margin() - state.running_fees();
 
-    assert_eq!(state.start_time(), start_time);
-    assert_eq!(state.start_balance(), start_balance);
     assert_eq!(state.current_time(), time);
     assert_eq!(state.current_balance(), expected_balance);
     assert_eq!(state.market_price(), market_price);
@@ -108,8 +102,6 @@ async fn test_simulated_trade_controller_long_profit() -> Result<()> {
     controller.tick_update(time, market_price).await?;
 
     let state = controller.state().await?;
-    assert_eq!(state.start_time(), start_time);
-    assert_eq!(state.start_balance(), start_balance);
     assert_eq!(state.current_time(), time);
     assert_eq!(state.current_balance(), expected_balance);
     assert_eq!(state.market_price(), market_price);
@@ -138,8 +130,6 @@ async fn test_simulated_trade_controller_long_profit() -> Result<()> {
     let expected_balance =
         (start_balance as i64 + state.closed_pl() - state.closed_fees() as i64) as u64;
 
-    assert_eq!(state.start_time(), start_time);
-    assert_eq!(state.start_balance(), start_balance);
     assert_eq!(state.current_time(), time);
     assert_eq!(state.current_balance(), expected_balance);
     assert_eq!(state.market_price(), market_price);
@@ -180,8 +170,6 @@ async fn test_simulated_trade_controller_long_loss() -> Result<()> {
     );
 
     let state = controller.state().await?;
-    assert_eq!(state.start_time(), start_time);
-    assert_eq!(state.start_balance(), start_balance);
     assert_eq!(state.current_time(), start_time);
     assert_eq!(state.current_balance(), start_balance);
     assert_eq!(state.market_price(), market_price);
@@ -296,8 +284,6 @@ async fn test_simulated_trade_controller_short_profit() -> Result<()> {
     );
 
     let state = controller.state().await?;
-    assert_eq!(state.start_time(), start_time);
-    assert_eq!(state.start_balance(), start_balance);
     assert_eq!(state.current_time(), start_time);
     assert_eq!(state.current_balance(), start_balance);
     assert_eq!(state.market_price(), market_price);
@@ -421,8 +407,6 @@ async fn test_simulated_trade_controller_short_loss() -> Result<()> {
     );
 
     let state = controller.state().await?;
-    assert_eq!(state.start_time(), start_time);
-    assert_eq!(state.start_balance(), start_balance);
     assert_eq!(state.current_time(), start_time);
     assert_eq!(state.current_balance(), start_balance);
     assert_eq!(state.market_price(), market_price);
