@@ -18,8 +18,6 @@ use super::error::{Result, TradeError};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct TradeControllerState {
-    start_time: DateTime<Utc>,
-    start_balance: u64,
     current_time: DateTime<Utc>,
     current_balance: u64,
     market_price: f64,
@@ -39,8 +37,6 @@ pub struct TradeControllerState {
 
 impl TradeControllerState {
     pub fn new(
-        start_time: DateTime<Utc>,
-        start_balance: u64,
         current_time: DateTime<Utc>,
         current_balance: u64,
         market_price: f64,
@@ -58,8 +54,6 @@ impl TradeControllerState {
         closed_fees: u64,
     ) -> Self {
         Self {
-            start_time,
-            start_balance,
             current_time,
             current_balance,
             market_price,
@@ -76,14 +70,6 @@ impl TradeControllerState {
             closed_pl,
             closed_fees,
         }
-    }
-
-    pub fn start_time(&self) -> DateTime<Utc> {
-        self.start_time
-    }
-
-    pub fn start_balance(&self) -> u64 {
-        self.start_balance
     }
 
     pub fn current_time(&self) -> DateTime<Utc> {
@@ -182,7 +168,6 @@ impl fmt::Display for TradeControllerState {
         writeln!(f, "TradeControllerState:")?;
 
         writeln!(f, "  timing:")?;
-        writeln!(f, "    start_time: {}", self.start_time.to_rfc3339())?;
         writeln!(f, "    current_time: {}", self.current_time.to_rfc3339())?;
         match self.last_trade_time {
             Some(time) => writeln!(f, "    last_trade_time: {}", time.to_rfc3339())?,
@@ -190,7 +175,6 @@ impl fmt::Display for TradeControllerState {
         }
 
         writeln!(f, "  balance:")?;
-        writeln!(f, "    start_balance: {}", self.start_balance)?;
         writeln!(f, "    current_balance: {}", self.current_balance)?;
         writeln!(f, "    market_price: {:.2}", self.market_price)?;
 
