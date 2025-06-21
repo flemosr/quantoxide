@@ -50,8 +50,6 @@ pub struct SimulatedTradeController {
     max_running_qtd: usize,
     fee_perc: BoundedPercentage,
     tsl_step_size: BoundedPercentage,
-    start_time: DateTime<Utc>,
-    start_balance: u64,
     state: Arc<Mutex<SimulatedTradeControllerState>>,
 }
 
@@ -80,8 +78,6 @@ impl SimulatedTradeController {
             max_running_qtd,
             fee_perc,
             tsl_step_size,
-            start_time,
-            start_balance,
             state: Arc::new(Mutex::new(initial_state)),
         }
     }
@@ -380,7 +376,7 @@ impl TradeController for SimulatedTradeController {
         // short trades, in order to obtain more conservative prices. It is
         // expected that prices won't need to be rounded most of the time.
 
-        for (trade, _) in state_guard.running.iter() {
+        for (trade, _) in &state_guard.running {
             let market_price = match trade.side() {
                 TradeSide::Buy => {
                     running_long_qtd += 1;
@@ -407,8 +403,6 @@ impl TradeController for SimulatedTradeController {
         }
 
         let trades_state = TradeControllerState::new(
-            self.start_time,
-            self.start_balance,
             state_guard.time,
             state_guard.balance.max(0) as u64,
             state_guard.market_price,
