@@ -124,9 +124,7 @@ impl LiveStateManager {
             return;
         }
 
-        let tc_state = TradeControllerState::from(tc_ready_status.as_ref());
-        let running_update = LiveTradeControllerUpdateRunning::State(tc_state);
-        let new_state = LiveState::Running(running_update);
+        let new_state = LiveState::Running(tc_ready_status.into());
 
         self.update_state_guard(state_guard, new_state);
     }

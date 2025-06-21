@@ -12,7 +12,7 @@ use super::{
         super::core::TradeControllerState,
         error::{LiveError, Result as LiveResult},
     },
-    state::LiveTradeControllerStateNotReady,
+    state::{LiveTradeControllerReadyStatus, LiveTradeControllerStateNotReady},
 };
 
 #[derive(Debug, Clone)]
@@ -32,6 +32,18 @@ pub enum LiveTradeControllerUpdateRunning {
         id: Uuid,
     },
     State(TradeControllerState),
+}
+
+impl From<TradeControllerState> for LiveTradeControllerUpdateRunning {
+    fn from(value: TradeControllerState) -> Self {
+        Self::State(value)
+    }
+}
+
+impl From<Arc<LiveTradeControllerReadyStatus>> for LiveTradeControllerUpdateRunning {
+    fn from(value: Arc<LiveTradeControllerReadyStatus>) -> Self {
+        Self::from(TradeControllerState::from(value.as_ref()))
+    }
 }
 
 #[derive(Debug, Clone)]

@@ -14,7 +14,6 @@ use crate::{
         core::{PriceTrigger, TradeControllerState, TradeExt, TradeTrailingStoploss},
         live::controller::{
             LiveTradeControllerTransmiter, LiveTradeControllerUpdate, WrappedApiContext,
-            update::LiveTradeControllerUpdateRunning,
         },
     },
 };
@@ -464,10 +463,7 @@ impl From<LiveTradeControllerState> for LiveTradeControllerUpdate {
     fn from(value: LiveTradeControllerState) -> Self {
         match value {
             LiveTradeControllerState::NotReady(not_ready) => Self::NotReady(not_ready),
-            LiveTradeControllerState::Ready(ready_status) => {
-                let boo = TradeControllerState::from(ready_status.as_ref());
-                Self::Ready(LiveTradeControllerUpdateRunning::State(boo))
-            }
+            LiveTradeControllerState::Ready(ready_status) => Self::Ready(ready_status.into()),
         }
     }
 }
