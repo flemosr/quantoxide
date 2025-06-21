@@ -13,8 +13,8 @@ use crate::{
     trade::{
         core::{PriceTrigger, TradeControllerState, TradeExt, TradeTrailingStoploss},
         live::controller::{
-            LiveTradeControllerTransmiter, LiveTradeControllerUpdate,
-            LiveTradeControllerUpdateRunning, WrappedApiContext,
+            LiveTradeControllerTransmiter, LiveTradeControllerUpdate, WrappedApiContext,
+            update::LiveTradeControllerUpdateRunning,
         },
     },
 };
@@ -415,8 +415,6 @@ impl From<&LiveTradeControllerReadyStatus> for TradeControllerState {
         }
 
         TradeControllerState::new(
-            // self.start_time,
-            // self.start_balance,
             Utc::now(),
             value.balance(),
             value.last_price,

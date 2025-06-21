@@ -16,10 +16,6 @@ use crate::{
         live::{LiveSignalConfig, LiveSignalController, LiveSignalEngine, LiveSignalState},
     },
     sync::{SyncConfig, SyncController, SyncEngine, SyncMode, SyncState},
-    trade::live::controller::{
-        LiveTradeControllerUpdateRunning,
-        state::{LiveTradeControllerReadyStatus, LiveTradeControllerStateNotReady},
-    },
     util::{AbortOnDropHandle, Never},
 };
 
@@ -28,7 +24,13 @@ use super::core::{Operator, TradeController, TradeControllerState, WrappedOperat
 pub mod controller;
 pub mod error;
 
-use controller::{LiveTradeController, LiveTradeControllerUpdate, state::LiveTradeControllerState};
+use controller::{
+    LiveTradeController,
+    state::{
+        LiveTradeControllerReadyStatus, LiveTradeControllerState, LiveTradeControllerStateNotReady,
+    },
+    update::{LiveTradeControllerUpdate, LiveTradeControllerUpdateRunning},
+};
 use error::{LiveError, Result};
 
 #[derive(Debug)]
