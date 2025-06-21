@@ -98,46 +98,67 @@ impl PriceTicksRepository for PgPriceTicksRepo {
     async fn get_price_range_from(
         &self,
         start: DateTime<Utc>,
-    ) -> Result<Option<(DateTime<Utc>, f64, f64)>> {
-        struct PriceRange {
-            latest_time: Option<DateTime<Utc>>,
-            min_price: Option<f64>,
-            max_price: Option<f64>,
+    ) -> Result<Option<(f64, f64, DateTime<Utc>, f64)>> {
+        struct PriceEntry {
+            time: Option<DateTime<Utc>>,
+            price: Option<f64>,
         }
 
-        let range_data = sqlx::query_as!(
-            PriceRange,
+        impl PriceEntry {
+            fn time(&self) -> Result<DateTime<Utc>> {
+                self.time.ok_or(DbError::Generic(
+                    "combined prices with null data".to_string(),
+                ))
+            }
+
+            fn price(&self) -> Result<f64> {
+                self.price.ok_or(DbError::Generic(
+                    "combined prices with null data".to_string(),
+                ))
+            }
+        }
+
+        let combined_entries = sqlx::query_as!(
+            PriceEntry,
             r#"
-                WITH combined_prices AS (
-                    SELECT time, last_price as price
-                    FROM price_ticks
-                    WHERE time >= $1
-                    UNION ALL
-                    SELECT time, value as price
-                    FROM price_history
-                    WHERE time >= $1
-                )
-                SELECT
-                    MAX(time) as latest_time,
-                    MIN(price) as min_price,
-                    MAX(price) as max_price
-                FROM combined_prices
+                SELECT time, last_price as price
+                FROM price_ticks
+                WHERE time >= $1
+                UNION ALL
+                SELECT time, value as price
+                FROM price_history
+                WHERE time >= $1
+                ORDER BY time
             "#,
             start
         )
-        .fetch_optional(self.pool())
+        .fetch_all(self.pool())
         .await
         .map_err(DbError::Query)?;
 
-        match range_data {
-            Some(data) => match (data.latest_time, data.min_price, data.max_price) {
-                (Some(latest_time), Some(min_price), Some(max_price)) => {
-                    Ok(Some((latest_time, min_price, max_price)))
-                }
-                _ => Ok(None),
-            },
-            None => Ok(None),
+        if combined_entries.is_empty() {
+            return Ok(None);
         }
+
+        let mut min_price = combined_entries[0].price()?;
+        let mut max_price = combined_entries[0].price()?;
+
+        for entry in combined_entries.iter().skip(1) {
+            let entry_price = entry.price()?;
+
+            if entry_price < min_price {
+                min_price = entry_price;
+            }
+            if entry_price > max_price {
+                max_price = entry_price;
+            }
+        }
+
+        let last_entry = combined_entries.last().unwrap();
+        let latest_time = last_entry.time()?;
+        let latest_price = last_entry.price()?;
+
+        Ok(Some((min_price, max_price, latest_time, latest_price)))
     }
 
     async fn compute_locf_entries_for_range(
