@@ -1,17 +1,25 @@
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, MutexGuard};
 
 use chrono::Duration;
 use tokio::{sync::broadcast, time};
+use uuid::Uuid;
 
-use lnm_sdk::api::{ApiContext, rest::models::BoundedPercentage};
+use lnm_sdk::api::{
+    ApiContext,
+    rest::models::{BoundedPercentage, Leverage, Price, Quantity, TradeSide},
+};
 
 use crate::{
     db::DbContext,
     signal::{
-        core::{ConfiguredSignalEvaluator, Signal},
+        core::ConfiguredSignalEvaluator,
         live::{LiveSignalConfig, LiveSignalController, LiveSignalEngine, LiveSignalState},
     },
     sync::{SyncConfig, SyncController, SyncEngine, SyncMode, SyncState},
+    trade::live::controller::{
+        LiveTradeControllerUpdateRunning,
+        state::{LiveTradeControllerReadyStatus, LiveTradeControllerStateNotReady},
+    },
     util::{AbortOnDropHandle, Never},
 };
 
@@ -20,17 +28,36 @@ use super::core::{Operator, TradeController, TradeControllerState, WrappedOperat
 pub mod controller;
 pub mod error;
 
-use controller::{LiveTradeController, state::LiveTradeControllerState};
+use controller::{LiveTradeController, LiveTradeControllerUpdate, state::LiveTradeControllerState};
 use error::{LiveError, Result};
+
+#[derive(Debug)]
+pub enum LiveStateRunningUpdate {
+    CreateNewTrade {
+        side: TradeSide,
+        quantity: Quantity,
+        leverage: Leverage,
+        stoploss: Price,
+        takeprofit: Price,
+    },
+    UpdateTradeStoploss {
+        id: Uuid,
+        stoploss: Price,
+    },
+    CloseTrade {
+        id: Uuid,
+    },
+    State(TradeControllerState),
+}
 
 #[derive(Debug)]
 pub enum LiveState {
     NotInitiated,
     Starting,
-    WaitingForSync(Arc<SyncState>),
-    WaitingForSignal(Arc<LiveSignalState>),
-    WaitingTradeController(Arc<LiveTradeControllerState>),
-    Running((Signal, TradeControllerState)),
+    WaitingForSync(Arc<SyncState>), // TODO: SyncState can't be 'Synced'
+    WaitingForSignal(Arc<LiveSignalState>), // TODO: LiveSignalState can't be 'Running'
+    WaitingTradeController(Arc<LiveTradeControllerStateNotReady>),
+    Running(LiveTradeControllerUpdateRunning),
     Failed(LiveError),
     Restarting,
     ShutdownInitiated,
@@ -65,15 +92,58 @@ impl LiveStateManager {
         self.state_tx.subscribe()
     }
 
-    pub fn update(&self, new_state: LiveState) {
+    fn update_state_guard(
+        &self,
+        mut state_guard: MutexGuard<'_, Arc<LiveState>>,
+        new_state: LiveState,
+    ) {
         let new_state = Arc::new(new_state);
 
-        let mut state_guard = self.state.lock().expect("state lock can't be poisoned");
         *state_guard = new_state.clone();
         drop(state_guard);
 
         // Ignore no-receivers errors
         let _ = self.state_tx.send(new_state);
+    }
+
+    pub fn update(&self, new_state: LiveState) {
+        let state_guard = self.state.lock().expect("state lock can't be poisoned");
+
+        self.update_state_guard(state_guard, new_state);
+    }
+
+    pub fn set_to_running_if_not_running(
+        &self,
+        tc_ready_status: Arc<LiveTradeControllerReadyStatus>,
+    ) {
+        let state_guard = self.state.lock().expect("state lock can't be poisoned");
+
+        if matches!(state_guard.as_ref(), LiveState::Running(_)) {
+            return;
+        }
+
+        let tc_state = TradeControllerState::from(tc_ready_status.as_ref());
+        let running_update = LiveTradeControllerUpdateRunning::State(tc_state);
+        let new_state = LiveState::Running(running_update);
+
+        self.update_state_guard(state_guard, new_state);
+    }
+
+    pub fn update_if_running(&self, controller_update: LiveTradeControllerUpdate) {
+        let state_guard = self.state.lock().expect("state lock can't be poisoned");
+
+        if !matches!(state_guard.as_ref(), LiveState::Running(_)) {
+            return;
+        }
+
+        let new_state = match controller_update {
+            LiveTradeControllerUpdate::NotReady(not_ready) => {
+                LiveState::WaitingTradeController(not_ready)
+            }
+            LiveTradeControllerUpdate::Ready(ready) => LiveState::Running(ready),
+        };
+
+        self.update_state_guard(state_guard, new_state);
     }
 }
 
@@ -105,19 +175,32 @@ impl LiveProcess {
         }
     }
 
-    async fn run(&mut self) -> Result<Never> {
+    async fn handle_controller_updates(&self) -> Result<Never> {
+        while let Ok(controller_update) = self.trade_controller.receiver().recv().await {
+            self.state_manager.update_if_running(controller_update);
+        }
+
+        Err(LiveError::Generic(
+            "`trade_controller` job transmitter was dropped unexpectedly".to_string(),
+        ))
+    }
+
+    async fn handle_signals(&self) -> Result<Never> {
         while let Ok(res) = self.signal_controller.receiver().recv().await {
             match res.as_ref() {
+                LiveSignalState::WaitingForSync(sync_state) => {
+                    self.state_manager
+                        .update(LiveState::WaitingForSync(sync_state.clone()));
+                }
                 LiveSignalState::Running(last_signal) => {
-                    let trade_controller_state = self.trade_controller.state_snapshot().await;
+                    let tc_state = self.trade_controller.state_snapshot().await;
 
-                    if !matches!(
-                        trade_controller_state.as_ref(),
-                        LiveTradeControllerState::Ready(_)
-                    ) {
+                    if let LiveTradeControllerState::Ready(ready_status) = tc_state {
+                        // Sync is ok, signal is ok and trade controller is ok
+
                         self.state_manager
-                            .update(LiveState::WaitingTradeController(trade_controller_state));
-
+                            .set_to_running_if_not_running(ready_status);
+                    } else {
                         continue;
                     }
 
@@ -125,19 +208,6 @@ impl LiveProcess {
                         .process_signal(last_signal)
                         .await
                         .map_err(|e| LiveError::Generic(e.to_string()))?;
-
-                    let trades_state = self
-                        .trade_controller
-                        .state()
-                        .await
-                        .map_err(|e| LiveError::Generic(e.to_string()))?;
-
-                    self.state_manager
-                        .update(LiveState::Running((last_signal.clone(), trades_state)));
-                }
-                LiveSignalState::WaitingForSync(sync_state) => {
-                    self.state_manager
-                        .update(LiveState::WaitingForSync(sync_state.clone()));
                 }
                 _ => {
                     self.state_manager.update(LiveState::WaitingForSignal(res));
@@ -150,15 +220,19 @@ impl LiveProcess {
         ))
     }
 
-    pub fn spawn_recovery_loop(mut self) -> AbortOnDropHandle<()> {
+    pub fn spawn_recovery_loop(self) -> AbortOnDropHandle<()> {
         tokio::spawn(async move {
             loop {
                 self.state_manager.update(LiveState::Starting);
 
                 let mut shutdown_rx = self.shutdown_tx.subscribe();
                 tokio::select! {
-                    run_res = self.run() => {
-                        let Err(e) = run_res;
+                    handle_controller_updates_res = self.handle_controller_updates() => {
+                        let Err(e) = handle_controller_updates_res;
+                        self.state_manager.update(LiveState::Failed(e));
+                    }
+                    handle_signals_res = self.handle_signals() => {
+                        let Err(e) = handle_signals_res;
                         self.state_manager.update(LiveState::Failed(e));
                     }
                     shutdown_res = shutdown_rx.recv() => {
