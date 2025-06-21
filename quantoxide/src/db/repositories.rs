@@ -168,7 +168,7 @@ pub trait PriceTicksRepository: Send + Sync {
     async fn get_price_range_from(
         &self,
         start: DateTime<Utc>,
-    ) -> Result<Option<(DateTime<Utc>, f64, f64)>>;
+    ) -> Result<Option<(f64, f64, DateTime<Utc>, f64)>>;
 
     /// Computes Last Observation Carried Forward (LOCF) price entries with technical indicators
     /// for a specified time range ending at the given timestamp.
