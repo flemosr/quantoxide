@@ -1,31 +1,30 @@
 use std::{result, sync::Arc};
 
 use async_trait::async_trait;
-use chrono::{DateTime, Utc};
 use futures::future;
 
 use lnm_sdk::api::{
     ApiContext,
     rest::models::{
-        BoundedPercentage, Leverage, LowerBoundedPercentage, Price, Quantity, Trade,
-        TradeExecution, TradeSide, error::QuantityValidationError,
+        BoundedPercentage, Leverage, LnmTrade, LowerBoundedPercentage, Price, Quantity, Trade,
+        TradeExecution, TradeSide, User, error::QuantityValidationError,
     },
 };
+use tokio::sync::broadcast;
+use uuid::Uuid;
 
 use crate::{
     db::DbContext,
     sync::{SyncReceiver, SyncState},
-    trade::{
-        core::{RiskParams, StoplossMode, TradeTrailingStoploss},
-        error::TradeError,
-    },
     util::{AbortOnDropHandle, Never},
 };
 
 use super::{
     super::{
-        core::{TradeController, TradeControllerState},
-        error::Result,
+        core::{
+            RiskParams, StoplossMode, TradeController, TradeControllerState, TradeTrailingStoploss,
+        },
+        error::{Result, TradeError},
     },
     error::{LiveError, Result as LiveResult},
 };
@@ -33,16 +32,165 @@ use super::{
 pub mod state;
 
 use state::{
-    LiveTradeControllerReadyStatus, LiveTradeControllerReceiver, LiveTradeControllerState,
-    LiveTradeControllerStateManager,
+    LiveTradeControllerReadyStatus, LiveTradeControllerState, LiveTradeControllerStateManager,
+    LiveTradeControllerStateNotReady,
 };
+
+#[derive(Debug, Clone)]
+pub enum LiveTradeControllerUpdateRunning {
+    CreateNewTrade {
+        side: TradeSide,
+        quantity: Quantity,
+        leverage: Leverage,
+        stoploss: Price,
+        takeprofit: Price,
+    },
+    UpdateTradeStoploss {
+        id: Uuid,
+        stoploss: Price,
+    },
+    CloseTrade {
+        id: Uuid,
+    },
+    State(TradeControllerState),
+}
+
+#[derive(Debug, Clone)]
+pub enum LiveTradeControllerUpdate {
+    NotReady(Arc<LiveTradeControllerStateNotReady>),
+    Ready(LiveTradeControllerUpdateRunning),
+}
+
+impl From<LiveTradeControllerUpdateRunning> for LiveTradeControllerUpdate {
+    fn from(value: LiveTradeControllerUpdateRunning) -> Self {
+        Self::Ready(value)
+    }
+}
+
+pub type LiveTradeControllerTransmiter = broadcast::Sender<LiveTradeControllerUpdate>;
+pub type LiveTradeControllerReceiver = broadcast::Receiver<LiveTradeControllerUpdate>;
+
+#[derive(Clone)]
+pub struct WrappedApiContext {
+    api: Arc<ApiContext>,
+    controller_tx: LiveTradeControllerTransmiter,
+}
+
+impl WrappedApiContext {
+    fn new(api: Arc<ApiContext>, controller_tx: LiveTradeControllerTransmiter) -> Self {
+        Self { api, controller_tx }
+    }
+
+    async fn get_trades_running(&self) -> LiveResult<Vec<LnmTrade>> {
+        self.api
+            .rest
+            .futures
+            .get_trades_running(None, None, None)
+            .await
+            .map_err(LiveError::RestApi)
+    }
+
+    async fn get_user(&self) -> LiveResult<User> {
+        self.api
+            .rest
+            .user
+            .get_user()
+            .await
+            .map_err(LiveError::RestApi)
+    }
+
+    async fn get_trade(&self, id: Uuid) -> LiveResult<LnmTrade> {
+        self.api
+            .rest
+            .futures
+            .get_trade(id)
+            .await
+            .map_err(LiveError::RestApi)
+    }
+
+    async fn create_new_trade(
+        &self,
+        side: TradeSide,
+        quantity: Quantity,
+        leverage: Leverage,
+        stoploss: Price,
+        takeprofit: Price,
+    ) -> LiveResult<LnmTrade> {
+        let tc_update = LiveTradeControllerUpdateRunning::CreateNewTrade {
+            side,
+            quantity,
+            leverage,
+            stoploss,
+            takeprofit,
+        };
+
+        let _ = self.controller_tx.send(tc_update.into());
+
+        self.api
+            .rest
+            .futures
+            .create_new_trade(
+                side,
+                quantity.into(),
+                leverage,
+                TradeExecution::Market,
+                Some(stoploss),
+                Some(takeprofit),
+            )
+            .await
+            .map_err(LiveError::RestApi)
+    }
+
+    async fn update_trade_stoploss(&self, id: Uuid, stoploss: Price) -> LiveResult<LnmTrade> {
+        let tc_update = LiveTradeControllerUpdateRunning::UpdateTradeStoploss { id, stoploss };
+
+        let _ = self.controller_tx.send(tc_update.into());
+
+        self.api
+            .rest
+            .futures
+            .update_trade_stoploss(id, stoploss)
+            .await
+            .map_err(LiveError::RestApi)
+    }
+
+    async fn close_trade(&self, id: Uuid) -> LiveResult<LnmTrade> {
+        let tc_update = LiveTradeControllerUpdateRunning::CloseTrade { id };
+
+        let _ = self.controller_tx.send(tc_update.into());
+
+        self.api
+            .rest
+            .futures
+            .close_trade(id)
+            .await
+            .map_err(LiveError::RestApi)
+    }
+
+    async fn cancel_all_trades(&self) -> LiveResult<Vec<LnmTrade>> {
+        self.api
+            .rest
+            .futures
+            .cancel_all_trades()
+            .await
+            .map_err(LiveError::RestApi)
+    }
+
+    async fn close_all_trades(&self) -> LiveResult<Vec<LnmTrade>> {
+        self.api
+            .rest
+            .futures
+            .close_all_trades()
+            .await
+            .map_err(LiveError::RestApi)
+    }
+}
 
 pub struct LiveTradeController {
     tsl_step_size: BoundedPercentage,
     db: Arc<DbContext>,
-    api: Arc<ApiContext>,
-    start_time: DateTime<Utc>,
-    start_balance: u64,
+    api: WrappedApiContext,
+    update_tx: LiveTradeControllerTransmiter,
     state_manager: Arc<LiveTradeControllerStateManager>,
     _handle: AbortOnDropHandle<()>,
 }
@@ -51,7 +199,7 @@ impl LiveTradeController {
     fn spawn_sync_processor(
         tsl_step_size: BoundedPercentage,
         db: Arc<DbContext>,
-        api: Arc<ApiContext>,
+        api: WrappedApiContext,
         sync_rx: SyncReceiver,
         state_manager: Arc<LiveTradeControllerStateManager>,
     ) -> AbortOnDropHandle<()> {
@@ -68,22 +216,22 @@ impl LiveTradeController {
                             | SyncState::Failed(_)
                             | SyncState::Restarting => {
                                 let new_state =
-                                    LiveTradeControllerState::WaitingForSync(sync_state);
-                                state_manager.update(new_state).await;
+                                    LiveTradeControllerStateNotReady::WaitingForSync(sync_state);
+                                state_manager.update(new_state.into()).await;
                             }
                             SyncState::Synced(_) => {
                                 match state_manager.try_lock_ready_status().await {
                                     Ok(locked_ready_status) => {
-                                        let mut status = locked_ready_status.to_owned();
+                                        let mut tc_ready_status = locked_ready_status.to_owned();
 
-                                        let new_state = match status
-                                            .reevaluate(tsl_step_size, db.as_ref(), api.as_ref())
+                                        let new_state = match tc_ready_status
+                                            .reevaluate(tsl_step_size, db.as_ref(), &api)
                                             .await
                                         {
-                                            Ok(()) => LiveTradeControllerState::Ready(status),
+                                            Ok(()) => tc_ready_status.into(),
                                             Err(e) => {
                                                 // Recoverable error
-                                                LiveTradeControllerState::Failed(e)
+                                                LiveTradeControllerStateNotReady::Failed(e).into()
                                             }
                                         };
 
@@ -99,20 +247,21 @@ impl LiveTradeController {
                                         let status = match LiveTradeControllerReadyStatus::new(
                                             tsl_step_size,
                                             db.as_ref(),
-                                            api.as_ref(),
+                                            &api,
                                         )
                                         .await
                                         {
                                             Ok(status) => status,
                                             Err(e) => {
                                                 // Recoverable error
-                                                let new_state = LiveTradeControllerState::Failed(e);
-                                                state_manager.update(new_state).await;
+                                                let new_state =
+                                                    LiveTradeControllerStateNotReady::Failed(e);
+                                                state_manager.update(new_state.into()).await;
                                                 continue;
                                             }
                                         };
 
-                                        let new_state = LiveTradeControllerState::Ready(status);
+                                        let new_state = status.into();
                                         state_manager.update(new_state).await;
                                     }
                                 };
@@ -132,8 +281,8 @@ impl LiveTradeController {
 
             let Err(e) = handler().await;
 
-            let new_state = LiveTradeControllerState::NotViable(e);
-            state_manager.update(new_state).await;
+            let new_state = LiveTradeControllerStateNotReady::NotViable(e);
+            state_manager.update(new_state.into()).await;
         })
         .into()
     }
@@ -144,17 +293,17 @@ impl LiveTradeController {
         api: Arc<ApiContext>,
         sync_rx: SyncReceiver,
     ) -> Result<Arc<Self>> {
-        let start_time = Utc::now();
-
         let (_, _) = futures::try_join!(
             api.rest.futures.cancel_all_trades(),
             api.rest.futures.close_all_trades(),
         )
         .map_err(LiveError::RestApi)?;
 
-        let user = api.rest.user.get_user().await.map_err(LiveError::RestApi)?;
+        let (update_tx, _) = broadcast::channel::<LiveTradeControllerUpdate>(100);
 
-        let state_manager = LiveTradeControllerStateManager::new();
+        let state_manager = LiveTradeControllerStateManager::new(update_tx.clone());
+
+        let api = WrappedApiContext::new(api, update_tx.clone());
 
         let _handle = Self::spawn_sync_processor(
             tsl_step_size,
@@ -168,18 +317,17 @@ impl LiveTradeController {
             tsl_step_size,
             db,
             api,
-            start_time,
-            start_balance: user.balance(),
+            update_tx,
             state_manager,
             _handle,
         }))
     }
 
     pub fn receiver(&self) -> LiveTradeControllerReceiver {
-        self.state_manager.receiver()
+        self.update_tx.subscribe()
     }
 
-    pub async fn state_snapshot(&self) -> Arc<LiveTradeControllerState> {
+    pub async fn state_snapshot(&self) -> LiveTradeControllerState {
         self.state_manager.snapshot().await
     }
 
@@ -225,25 +373,16 @@ impl LiveTradeController {
 
         let trade = match self
             .api
-            .rest
-            .futures
-            .create_new_trade(
-                side,
-                quantity.into(),
-                leverage,
-                TradeExecution::Market,
-                Some(stoploss),
-                Some(takeprofit),
-            )
+            .create_new_trade(side, quantity, leverage, stoploss, takeprofit)
             .await
-            .map_err(LiveError::RestApi)
         {
             Ok(trade) => trade,
             Err(e) => {
                 // Status needs to be recreated
-                let new_state =
-                    LiveTradeControllerState::Failed(LiveError::Generic("api error".to_string()));
-                self.state_manager.update(new_state).await;
+                let new_state = LiveTradeControllerStateNotReady::Failed(LiveError::Generic(
+                    "api error".to_string(),
+                ));
+                self.state_manager.update(new_state.into()).await;
 
                 return Err(e.into());
             }
@@ -259,7 +398,7 @@ impl LiveTradeController {
 
         new_status.register_running_trade(self.tsl_step_size, trade, trade_tsl)?;
 
-        let new_state = LiveTradeControllerState::Ready(new_status);
+        let new_state = new_status.into();
 
         self.state_manager
             .update_from_locked_ready_status(locked_ready_status, new_state)
@@ -284,22 +423,21 @@ impl LiveTradeController {
         for chunk in to_close.chunks(1) {
             let close_futures = chunk
                 .iter()
-                .map(|&trade_id| self.api.rest.futures.close_trade(trade_id))
+                .map(|&trade_id| self.api.close_trade(trade_id))
                 .collect::<Vec<_>>();
 
             let closed = match future::join_all(close_futures)
                 .await
                 .into_iter()
                 .collect::<result::Result<Vec<_>, _>>()
-                .map_err(LiveError::RestApi)
             {
                 Ok(closed) => closed,
                 Err(e) => {
                     // Status needs to be recreated
-                    let new_state = LiveTradeControllerState::Failed(LiveError::Generic(
+                    let new_state = LiveTradeControllerStateNotReady::Failed(LiveError::Generic(
                         "api error".to_string(),
                     ));
-                    self.state_manager.update(new_state).await;
+                    self.state_manager.update(new_state.into()).await;
 
                     return Err(e.into());
                 }
@@ -308,7 +446,7 @@ impl LiveTradeController {
             new_status.close_trades(self.tsl_step_size, closed)?;
         }
 
-        let new_state = LiveTradeControllerState::Ready(new_status);
+        let new_state = new_status.into();
 
         self.state_manager
             .update_from_locked_ready_status(locked_ready_status, new_state)
@@ -371,26 +509,23 @@ impl TradeController for LiveTradeController {
 
         let mut new_status = locked_ready_status.to_owned();
 
-        let closed = match futures::try_join!(
-            self.api.rest.futures.cancel_all_trades(),
-            self.api.rest.futures.close_all_trades(),
-        )
-        .map_err(LiveError::RestApi)
-        {
-            Ok((_, closed)) => closed,
-            Err(e) => {
-                // Status needs to be reevaluated
-                let new_state =
-                    LiveTradeControllerState::Failed(LiveError::Generic("api error".to_string()));
-                self.state_manager.update(new_state).await;
+        let closed =
+            match futures::try_join!(self.api.cancel_all_trades(), self.api.close_all_trades()) {
+                Ok((_, closed)) => closed,
+                Err(e) => {
+                    // Status needs to be reevaluated
+                    let new_state = LiveTradeControllerStateNotReady::Failed(LiveError::Generic(
+                        "api error".to_string(),
+                    ));
+                    self.state_manager.update(new_state.into()).await;
 
-                return Err(e.into());
-            }
-        };
+                    return Err(e.into());
+                }
+            };
 
         new_status.close_trades(self.tsl_step_size, closed)?;
 
-        let new_state = LiveTradeControllerState::Ready(new_status);
+        let new_state = new_status.into();
 
         self.state_manager
             .update_from_locked_ready_status(locked_ready_status, new_state)
@@ -400,70 +535,8 @@ impl TradeController for LiveTradeController {
     }
 
     async fn state(&self) -> Result<TradeControllerState> {
-        let status = {
-            let locked = self.state_manager.try_lock_ready_status().await?;
-            locked.to_owned()
-        };
+        let ready_status = self.state_manager.try_lock_ready_status().await?.to_owned();
 
-        let market_price = self.get_estimated_market_price().await?;
-
-        let mut running_long_len: usize = 0;
-        let mut running_long_margin: u64 = 0;
-        let mut running_long_quantity: u64 = 0;
-        let mut running_short_len: usize = 0;
-        let mut running_short_margin: u64 = 0;
-        let mut running_short_quantity: u64 = 0;
-        let mut running_pl: i64 = 0;
-        let mut running_fees: u64 = 0;
-
-        for (trade, _) in status.running().values() {
-            match trade.side() {
-                TradeSide::Buy => {
-                    running_long_len += 1;
-                    running_long_margin +=
-                        trade.margin().into_u64() + trade.maintenance_margin().max(0) as u64;
-                    running_long_quantity += trade.quantity().into_u64();
-                }
-                TradeSide::Sell => {
-                    running_short_len += 1;
-                    running_short_margin +=
-                        trade.margin().into_u64() + trade.maintenance_margin().max(0) as u64;
-                    running_short_quantity += trade.quantity().into_u64();
-                }
-            };
-
-            running_pl += trade.estimate_pl(market_price);
-            running_fees += trade.opening_fee();
-        }
-
-        let mut closed_pl: i64 = 0;
-        let mut closed_fees: u64 = 0;
-
-        for trade in status.closed().iter() {
-            closed_pl += trade.pl();
-            closed_fees += trade.opening_fee() + trade.closing_fee();
-        }
-
-        let trades_state = TradeControllerState::new(
-            self.start_time,
-            self.start_balance,
-            Utc::now(),
-            status.balance(),
-            market_price.into_f64(),
-            status.last_trade_time(),
-            running_long_len,
-            running_long_margin,
-            running_long_quantity,
-            running_short_len,
-            running_short_margin,
-            running_short_quantity,
-            running_pl,
-            running_fees,
-            status.closed().len(),
-            closed_pl,
-            closed_fees,
-        );
-
-        Ok(trades_state)
+        Ok(TradeControllerState::from(&ready_status))
     }
 }
