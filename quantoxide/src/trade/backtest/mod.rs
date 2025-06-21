@@ -9,7 +9,7 @@ use crate::{
     db::DbContext,
     signal::core::{ConfiguredSignalEvaluator, Signal},
     sync::PriceHistoryState,
-    trade::core::{Operator, TradeController, TradeControllerState, WrappedOperator},
+    trade::core::{Operator, TradeController, TradingState, WrappedOperator},
     util::{AbortOnDropHandle, DateTimeExt},
 };
 
@@ -24,8 +24,8 @@ use error::{BacktestError, Result};
 pub enum BacktestState {
     NotInitiated,
     Starting,
-    Running(TradeControllerState),
-    Finished(TradeControllerState),
+    Running(TradingState),
+    Finished(TradingState),
     Failed(BacktestError),
     Aborted,
 }
@@ -252,7 +252,7 @@ impl BacktestEngine {
         })
     }
 
-    async fn run(self) -> Result<TradeControllerState> {
+    async fn run(self) -> Result<TradingState> {
         self.state_manager.update(BacktestState::Starting);
 
         let trades_manager = {
@@ -344,7 +344,7 @@ impl BacktestEngine {
 
         {
             let trades_state = trades_manager
-                .state()
+                .trading_state()
                 .await
                 .map_err(|e| BacktestError::Generic(e.to_string()))?;
 
@@ -381,7 +381,7 @@ impl BacktestEngine {
                 // Reached the end of the current buffer
 
                 let trades_state = trades_manager
-                    .state()
+                    .trading_state()
                     .await
                     .map_err(|e| BacktestError::Generic(e.to_string()))?;
 
@@ -418,7 +418,7 @@ impl BacktestEngine {
             .map_err(|e| BacktestError::Generic(e.to_string()))?;
 
         let final_state = trades_manager
-            .state()
+            .trading_state()
             .await
             .map_err(|e| BacktestError::Generic(e.to_string()))?;
 

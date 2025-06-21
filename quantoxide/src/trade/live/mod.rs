@@ -19,7 +19,7 @@ use crate::{
     util::{AbortOnDropHandle, Never},
 };
 
-use super::core::{Operator, TradeController, TradeControllerState, WrappedOperator};
+use super::core::{Operator, TradeController, TradingState, WrappedOperator};
 
 pub mod controller;
 pub mod error;
@@ -49,7 +49,7 @@ pub enum LiveStateRunningUpdate {
     CloseTrade {
         id: Uuid,
     },
-    State(TradeControllerState),
+    State(TradingState),
 }
 
 #[derive(Debug)]

@@ -9,7 +9,7 @@ use uuid::Uuid;
 
 use super::{
     super::{
-        super::core::TradeControllerState,
+        super::core::TradingState,
         error::{LiveError, Result as LiveResult},
     },
     state::{LiveTradeControllerReadyStatus, LiveTradeControllerStateNotReady},
@@ -31,18 +31,18 @@ pub enum LiveTradeControllerUpdateRunning {
     CloseTrade {
         id: Uuid,
     },
-    State(TradeControllerState),
+    State(TradingState),
 }
 
-impl From<TradeControllerState> for LiveTradeControllerUpdateRunning {
-    fn from(value: TradeControllerState) -> Self {
+impl From<TradingState> for LiveTradeControllerUpdateRunning {
+    fn from(value: TradingState) -> Self {
         Self::State(value)
     }
 }
 
 impl From<Arc<LiveTradeControllerReadyStatus>> for LiveTradeControllerUpdateRunning {
     fn from(value: Arc<LiveTradeControllerReadyStatus>) -> Self {
-        Self::from(TradeControllerState::from(value.as_ref()))
+        Self::from(TradingState::from(value.as_ref()))
     }
 }
 

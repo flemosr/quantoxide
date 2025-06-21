@@ -20,9 +20,7 @@ use crate::{
 
 use super::{
     super::{
-        core::{
-            RiskParams, StoplossMode, TradeController, TradeControllerState, TradeTrailingStoploss,
-        },
+        core::{RiskParams, StoplossMode, TradeController, TradeTrailingStoploss, TradingState},
         error::{Result, TradeError},
     },
     error::{LiveError, Result as LiveResult},
@@ -388,9 +386,9 @@ impl TradeController for LiveTradeController {
         Ok(())
     }
 
-    async fn state(&self) -> Result<TradeControllerState> {
+    async fn trading_state(&self) -> Result<TradingState> {
         let ready_status = self.state_manager.try_lock_ready_status().await?.to_owned();
 
-        Ok(TradeControllerState::from(&ready_status))
+        Ok(TradingState::from(&ready_status))
     }
 }

@@ -11,8 +11,8 @@ use lnm_sdk::api::rest::models::{
 
 use super::super::{
     core::{
-        PriceTrigger, RiskParams, StoplossMode, TradeController, TradeControllerState, TradeExt,
-        TradeTrailingStoploss,
+        PriceTrigger, RiskParams, StoplossMode, TradeController, TradeExt, TradeTrailingStoploss,
+        TradingState,
     },
     error::{Result, TradeError},
 };
@@ -360,7 +360,7 @@ impl TradeController for SimulatedTradeController {
         Ok(())
     }
 
-    async fn state(&self) -> Result<TradeControllerState> {
+    async fn trading_state(&self) -> Result<TradingState> {
         let state_guard = self.state.lock().await;
 
         let mut running_long_qtd: usize = 0;
@@ -402,7 +402,7 @@ impl TradeController for SimulatedTradeController {
             running_fees += trade.opening_fee();
         }
 
-        let trades_state = TradeControllerState::new(
+        let trades_state = TradingState::new(
             state_guard.time,
             state_guard.balance.max(0) as u64,
             state_guard.market_price,

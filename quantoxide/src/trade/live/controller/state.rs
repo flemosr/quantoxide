@@ -11,7 +11,7 @@ use crate::{
     db::DbContext,
     sync::SyncState,
     trade::{
-        core::{PriceTrigger, TradeControllerState, TradeExt, TradeTrailingStoploss},
+        core::{PriceTrigger, TradingState, TradeExt, TradeTrailingStoploss},
         live::controller::{
             LiveTradeControllerTransmiter, LiveTradeControllerUpdate, WrappedApiContext,
         },
@@ -374,7 +374,7 @@ impl LiveTradeControllerReadyStatus {
     }
 }
 
-impl From<&LiveTradeControllerReadyStatus> for TradeControllerState {
+impl From<&LiveTradeControllerReadyStatus> for TradingState {
     fn from(value: &LiveTradeControllerReadyStatus) -> Self {
         let mut running_long_len: usize = 0;
         let mut running_long_margin: u64 = 0;
@@ -413,7 +413,7 @@ impl From<&LiveTradeControllerReadyStatus> for TradeControllerState {
             closed_fees += trade.opening_fee() + trade.closing_fee();
         }
 
-        TradeControllerState::new(
+        TradingState::new(
             Utc::now(),
             value.balance(),
             value.last_price,

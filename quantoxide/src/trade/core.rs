@@ -17,7 +17,7 @@ use crate::signal::core::Signal;
 use super::error::{Result, TradeError};
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct TradeControllerState {
+pub struct TradingState {
     current_time: DateTime<Utc>,
     current_balance: u64,
     market_price: f64,
@@ -35,7 +35,7 @@ pub struct TradeControllerState {
     closed_fees: u64,
 }
 
-impl TradeControllerState {
+impl TradingState {
     pub fn new(
         current_time: DateTime<Utc>,
         current_balance: u64,
@@ -163,7 +163,7 @@ impl TradeControllerState {
     }
 }
 
-impl fmt::Display for TradeControllerState {
+impl fmt::Display for TradingState {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "TradeControllerState:")?;
 
@@ -321,7 +321,7 @@ pub trait TradeController: Send + Sync {
 
     async fn close_all(&self) -> Result<()>;
 
-    async fn state(&self) -> Result<TradeControllerState>;
+    async fn trading_state(&self) -> Result<TradingState>;
 }
 
 #[async_trait]
