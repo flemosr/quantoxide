@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{fmt, sync::Arc};
 
 use lnm_sdk::api::{
     ApiContext,
@@ -46,7 +46,34 @@ impl From<Arc<LiveTradeControllerReadyStatus>> for LiveTradeControllerUpdateRunn
     }
 }
 
-#[derive(Debug, Clone)]
+impl fmt::Display for LiveTradeControllerUpdateRunning {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            LiveTradeControllerUpdateRunning::CreateNewTrade {
+                side,
+                quantity,
+                leverage,
+                stoploss,
+                takeprofit,
+            } => write!(
+                f,
+                "CreateNewTrade(side: {}, quantity: {}, leverage: {}, stoploss: {}, takeprofit: {})",
+                side, quantity, leverage, stoploss, takeprofit
+            ),
+            LiveTradeControllerUpdateRunning::UpdateTradeStoploss { id, stoploss } => {
+                write!(f, "UpdateTradeStoploss(id: {}, stoploss: {})", id, stoploss)
+            }
+            LiveTradeControllerUpdateRunning::CloseTrade { id } => {
+                write!(f, "CloseTrade(id: {})", id)
+            }
+            LiveTradeControllerUpdateRunning::State(_) => {
+                write!(f, "State(...)")
+            }
+        }
+    }
+}
+
+#[derive(Clone)]
 pub enum LiveTradeControllerUpdate {
     NotReady(Arc<LiveTradeControllerStateNotReady>),
     Ready(LiveTradeControllerUpdateRunning),
