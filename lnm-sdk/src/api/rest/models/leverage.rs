@@ -66,7 +66,7 @@ impl Ord for Leverage {
 
 impl fmt::Display for Leverage {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:.6}", self.0)
+        self.0.fmt(f)
     }
 }
 
