@@ -11,7 +11,7 @@ use crate::{
     db::DbContext,
     sync::SyncState,
     trade::{
-        core::{PriceTrigger, TradingState, TradeExt, TradeTrailingStoploss},
+        core::{PriceTrigger, TradeExt, TradeTrailingStoploss, TradingState},
         live::controller::{
             LiveTradeControllerTransmiter, LiveTradeControllerUpdate, WrappedApiContext,
         },
@@ -376,6 +376,7 @@ impl LiveTradeControllerReadyStatus {
 
 impl From<&LiveTradeControllerReadyStatus> for TradingState {
     fn from(value: &LiveTradeControllerReadyStatus) -> Self {
+        let mut running: Vec<Arc<dyn Trade>> = Vec::new();
         let mut running_long_len: usize = 0;
         let mut running_long_margin: u64 = 0;
         let mut running_long_quantity: u64 = 0;
@@ -403,6 +404,7 @@ impl From<&LiveTradeControllerReadyStatus> for TradingState {
 
             running_pl += trade.estimate_pl(Price::clamp_from(value.last_price));
             running_fees += trade.opening_fee();
+            running.push(Arc::new(trade.clone()));
         }
 
         let mut closed_pl: i64 = 0;
@@ -418,6 +420,7 @@ impl From<&LiveTradeControllerReadyStatus> for TradingState {
             value.balance(),
             value.last_price,
             value.last_trade_time(),
+            running,
             running_long_len,
             running_long_margin,
             running_long_quantity,
