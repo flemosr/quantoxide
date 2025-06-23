@@ -80,7 +80,7 @@ impl TryFrom<i32> for Margin {
 
 impl fmt::Display for Margin {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0)
+        self.0.fmt(f)
     }
 }
 
