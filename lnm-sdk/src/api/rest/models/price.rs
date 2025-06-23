@@ -70,7 +70,7 @@ impl Ord for BoundedPercentage {
 
 impl fmt::Display for BoundedPercentage {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:.4}", self.0)
+        self.0.fmt(f)
     }
 }
 
@@ -140,7 +140,7 @@ impl From<BoundedPercentage> for LowerBoundedPercentage {
 
 impl fmt::Display for LowerBoundedPercentage {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:.4}", self.0)
+        self.0.fmt(f)
     }
 }
 
@@ -260,7 +260,7 @@ impl Ord for Price {
 
 impl fmt::Display for Price {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:.1}", self.0)
+        self.0.fmt(f)
     }
 }
 
