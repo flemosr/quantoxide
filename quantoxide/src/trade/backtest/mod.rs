@@ -20,7 +20,7 @@ mod controller;
 use controller::SimulatedTradeController;
 use error::{BacktestError, Result};
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 pub enum BacktestState {
     NotInitiated,
     Starting,
