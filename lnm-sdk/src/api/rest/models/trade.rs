@@ -1,9 +1,10 @@
+use std::fmt;
+
 use chrono::{
     DateTime, Utc,
     serde::{ts_milliseconds, ts_milliseconds_option},
 };
 use serde::{Deserialize, Serialize};
-use std::fmt;
 use uuid::Uuid;
 
 use super::{
@@ -22,8 +23,8 @@ pub enum TradeSide {
 impl fmt::Display for TradeSide {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            TradeSide::Buy => write!(f, "Buy"),
-            TradeSide::Sell => write!(f, "Sell"),
+            TradeSide::Buy => "Buy".fmt(f),
+            TradeSide::Sell => "Sell".fmt(f),
         }
     }
 }
