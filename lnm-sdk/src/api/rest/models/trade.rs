@@ -210,7 +210,7 @@ impl TradeStatus {
     }
 }
 
-pub trait Trade {
+pub trait Trade: Send + Sync + fmt::Debug + 'static {
     fn trade_type(&self) -> TradeExecutionType;
     fn side(&self) -> TradeSide;
     fn opening_fee(&self) -> u64;
