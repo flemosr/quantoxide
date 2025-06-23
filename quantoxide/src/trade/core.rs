@@ -5,23 +5,28 @@ use std::{
 };
 
 use async_trait::async_trait;
-use chrono::{DateTime, Utc};
+use chrono::{
+    DateTime, Utc,
+    format::{DelayedFormat, StrftimeItems},
+};
 use futures::FutureExt;
 
 use lnm_sdk::api::rest::models::{
     BoundedPercentage, Leverage, LnmTrade, LowerBoundedPercentage, Price, Trade, TradeSide,
+    estimate_pl,
 };
 
 use crate::signal::core::Signal;
 
 use super::error::{Result, TradeError};
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct TradingState {
     current_time: DateTime<Utc>,
     current_balance: u64,
     market_price: f64,
     last_trade_time: Option<DateTime<Utc>>,
+    running: Vec<Arc<dyn Trade>>,
     running_long_len: usize,
     running_long_margin: u64,
     running_long_quantity: u64,
@@ -41,6 +46,7 @@ impl TradingState {
         current_balance: u64,
         market_price: f64,
         last_trade_time: Option<DateTime<Utc>>,
+        running: Vec<Arc<dyn Trade>>,
         running_long_len: usize,
         running_long_margin: u64,
         running_long_quantity: u64,
@@ -58,6 +64,7 @@ impl TradingState {
             current_balance,
             market_price,
             last_trade_time,
+            running,
             running_long_len,
             running_long_margin,
             running_long_quantity,
@@ -76,6 +83,12 @@ impl TradingState {
         self.current_time
     }
 
+    pub fn current_time_local(&self) -> DelayedFormat<StrftimeItems<'_>> {
+        self.current_time
+            .with_timezone(&chrono::Local)
+            .format("%y-%m-%d %H:%M:%S%.3f %Z")
+    }
+
     pub fn current_balance(&self) -> u64 {
         self.current_balance
     }
@@ -86,6 +99,13 @@ impl TradingState {
 
     pub fn last_trade_time(&self) -> Option<DateTime<Utc>> {
         self.last_trade_time
+    }
+
+    pub fn last_trade_time_local(&self) -> Option<DelayedFormat<StrftimeItems<'_>>> {
+        self.last_trade_time.map(|ltt| {
+            ltt.with_timezone(&chrono::Local)
+                .format("%y-%m-%d %H:%M:%S%.3f %Z")
+        })
     }
 
     /// Returns the number of running long trades
@@ -161,6 +181,69 @@ impl TradingState {
     pub fn net_pl_estimated(&self) -> i64 {
         self.pl() - self.fees_estimated() as i64
     }
+
+    pub fn running_trades_table(&self) -> String {
+        if self.running.is_empty() {
+            return "No running trades".to_string();
+        }
+
+        let mut table = String::new();
+
+        // Header
+        table.push_str(&format!(
+            "{:>5} | {:>11} | {:>11} | {:>11} | {:>11} | {:>11} | {:>8} | {:>11} | {:>11} | {:>11}\n",
+            "side",
+            "quantity",
+            "price",
+            "liquidation",
+            "stoploss",
+            "takeprofit",
+            "leverage",
+            "margin",
+            "pl",
+            "fees"
+        ));
+
+        // Separator
+        table.push_str(&format!("{}\n", "-".repeat(128)));
+
+        // Rows
+        for trade in &self.running {
+            let stoploss_str = match trade.stoploss() {
+                Some(sl) => format!("{:.1}", sl),
+                None => "N/A".to_string(),
+            };
+            let takeprofit_str = match trade.takeprofit() {
+                Some(tp) => format!("{:.1}", tp),
+                None => "N/A".to_string(),
+            };
+
+            // Calculate P&L for running trade
+            let pl = estimate_pl(
+                trade.side(),
+                trade.quantity(),
+                trade.price(),
+                Price::clamp_from(self.market_price()),
+            );
+            let total_fees = trade.opening_fee() + trade.closing_fee();
+
+            table.push_str(&format!(
+                "{:>5} | {:>11} | {:>11.1} | {:>11.1} | {:>11} | {:>11} | {:>8.2} | {:>11} | {:>11} | {:>11}\n",
+                trade.side(),
+                trade.quantity(),
+                trade.price(),
+                trade.liquidation(),
+                stoploss_str,
+                takeprofit_str,
+                trade.leverage(),
+                trade.margin(),
+                pl,
+                total_fees
+            ));
+        }
+
+        table
+    }
 }
 
 impl fmt::Display for TradingState {
@@ -168,9 +251,11 @@ impl fmt::Display for TradingState {
         writeln!(f, "TradeControllerState:")?;
 
         writeln!(f, "  timing:")?;
-        writeln!(f, "    current_time: {}", self.current_time.to_rfc3339())?;
-        match self.last_trade_time {
-            Some(time) => writeln!(f, "    last_trade_time: {}", time.to_rfc3339())?,
+        writeln!(f, "    current_time: {}", self.current_time_local())?;
+        match self.last_trade_time_local() {
+            Some(last_trade_time_local) => {
+                writeln!(f, "    last_trade_time: {last_trade_time_local}")?
+            }
             None => writeln!(f, "    last_trade_time: null")?,
         }
 
