@@ -419,7 +419,7 @@ fn test_closed_long_pl_calculation() {
     .unwrap();
 
     let closed_trade = SimulatedTradeClosed::from_running(
-        running_trade.clone(),
+        running_trade.as_ref(),
         Utc::now(),
         close_price,
         get_lnm_fee(),
@@ -456,7 +456,7 @@ fn test_closed_short_pl_calculation() {
     .unwrap();
 
     let closed_trade = SimulatedTradeClosed::from_running(
-        running_trade.clone(),
+        running_trade.as_ref(),
         Utc::now(),
         close_price,
         get_lnm_fee(),
