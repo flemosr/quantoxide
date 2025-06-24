@@ -12,7 +12,7 @@ use lnm_sdk::api::{
 use crate::{
     db::DbContext,
     signal::{
-        core::ConfiguredSignalEvaluator,
+        core::{ConfiguredSignalEvaluator, Signal},
         live::{LiveSignalConfig, LiveSignalController, LiveSignalEngine, LiveSignalState},
     },
     sync::{SyncConfig, SyncController, SyncEngine, SyncMode, SyncState},
@@ -33,6 +33,7 @@ use error::{LiveError, Result};
 
 #[derive(Debug)]
 pub enum LiveStateRunningUpdate {
+    ProcessSignal(Signal),
     CreateNewTrade {
         side: TradeSide,
         quantity: Quantity,
@@ -75,6 +76,12 @@ impl From<LiveTradeControllerUpdateRunning> for LiveStateRunningUpdate {
     }
 }
 
+impl From<Signal> for LiveStateRunningUpdate {
+    fn from(value: Signal) -> Self {
+        Self::ProcessSignal(value)
+    }
+}
+
 #[derive(Debug)]
 pub enum LiveState {
     NotInitiated,
@@ -93,10 +100,16 @@ impl From<LiveTradeControllerUpdate> for LiveState {
     fn from(value: LiveTradeControllerUpdate) -> Self {
         match value {
             LiveTradeControllerUpdate::NotReady(not_ready) => {
-                LiveState::WaitingTradeController(not_ready)
+                Self::WaitingTradeController(not_ready)
             }
-            LiveTradeControllerUpdate::Ready(ready) => LiveState::Running(ready.into()),
+            LiveTradeControllerUpdate::Ready(ready) => Self::Running(ready.into()),
         }
+    }
+}
+
+impl From<LiveStateRunningUpdate> for LiveState {
+    fn from(value: LiveStateRunningUpdate) -> Self {
+        Self::Running(value)
     }
 }
 
@@ -230,8 +243,8 @@ impl LiveProcess {
                         continue;
                     }
 
-                    // TODO: Send processing signal update
-                    // self.state_manager.update_if_running(signal);
+                    let update = LiveStateRunningUpdate::from(last_signal.clone());
+                    self.state_manager.update_if_running(update.into());
 
                     self.operator
                         .process_signal(last_signal)
