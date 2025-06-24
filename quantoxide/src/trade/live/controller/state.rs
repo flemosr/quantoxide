@@ -27,7 +27,7 @@ pub struct LiveTradeControllerReadyStatus {
     last_evaluation_time: DateTime<Utc>,
     last_price: f64,
     trigger: PriceTrigger,
-    running: HashMap<Uuid, (LnmTrade, Option<TradeTrailingStoploss>)>,
+    running: HashMap<Uuid, (Arc<LnmTrade>, Option<TradeTrailingStoploss>)>,
     closed: Vec<LnmTrade>,
 }
 
@@ -71,7 +71,7 @@ impl LiveTradeControllerReadyStatus {
                 .update(tsl_step_size, &trade, trade_tsl_opt)
                 .map_err(|e| LiveError::Generic(e.to_string()))?;
 
-            running.insert(trade.id(), (trade, trade_tsl_opt));
+            running.insert(trade.id(), (Arc::new(trade), trade_tsl_opt));
         }
 
         if !registered_trades.is_empty() {
@@ -104,7 +104,7 @@ impl LiveTradeControllerReadyStatus {
         self.balance
     }
 
-    pub fn running(&self) -> &HashMap<Uuid, (LnmTrade, Option<TradeTrailingStoploss>)> {
+    pub fn running(&self) -> &HashMap<Uuid, (Arc<LnmTrade>, Option<TradeTrailingStoploss>)> {
         &self.running
     }
 
@@ -252,7 +252,8 @@ impl LiveTradeControllerReadyStatus {
         self.trigger
             .update(tsl_step_size, &new_trade, trade_tsl)
             .map_err(|e| LiveError::Generic(e.to_string()))?;
-        self.running.insert(new_trade.id(), (new_trade, trade_tsl));
+        self.running
+            .insert(new_trade.id(), (Arc::new(new_trade), trade_tsl));
 
         Ok(())
     }
@@ -276,14 +277,14 @@ impl LiveTradeControllerReadyStatus {
                     - updated_trade.margin().into_i64()
                     - updated_trade.maintenance_margin();
 
-                updated_trade
+                Arc::new(updated_trade)
             } else {
                 curr_trade.clone()
             };
 
             // TODO: Improve error handling here
             new_trigger
-                .update(tsl_step_size, &running_trade, *trade_tsl)
+                .update(tsl_step_size, running_trade.as_ref(), *trade_tsl)
                 .map_err(|e| LiveError::Generic(e.to_string()))?;
 
             new_running.insert(*id, (running_trade, *trade_tsl));
@@ -360,7 +361,7 @@ impl LiveTradeControllerReadyStatus {
 
             // TODO: Improve error handling here
             new_trigger
-                .update(tsl_step_size, trade, *trade_tsl)
+                .update(tsl_step_size, trade.as_ref(), *trade_tsl)
                 .map_err(|e| LiveError::Generic(e.to_string()))?;
             new_running.insert(*id, (trade.clone(), *trade_tsl));
         }
@@ -404,7 +405,7 @@ impl From<&LiveTradeControllerReadyStatus> for TradingState {
 
             running_pl += trade.estimate_pl(Price::clamp_from(value.last_price));
             running_fees += trade.opening_fee();
-            running.push(Arc::new(trade.clone()));
+            running.push(trade.clone());
         }
 
         let mut closed_pl: i64 = 0;
@@ -506,7 +507,7 @@ impl<'a> LockedLiveTradeControllerReadyStatus<'a> {
         self.as_status().balance
     }
 
-    pub fn running(&self) -> &HashMap<Uuid, (LnmTrade, Option<TradeTrailingStoploss>)> {
+    pub fn running(&self) -> &HashMap<Uuid, (Arc<LnmTrade>, Option<TradeTrailingStoploss>)> {
         &self.as_status().running
     }
 
