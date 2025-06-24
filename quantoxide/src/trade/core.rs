@@ -187,10 +187,10 @@ impl TradingState {
 
         result.push_str("timing:\n");
         result.push_str(&format!("  current_time: {}\n", self.current_time_local()));
-        let lttl_string = self
+        let lttl_str = self
             .last_trade_time_local()
             .map_or("null".to_string(), |lttl| lttl.to_string());
-        result.push_str(&format!("  last_trade_time: {lttl_string}\n"));
+        result.push_str(&format!("  last_trade_time: {lttl_str}\n"));
 
         result.push_str("balance:\n");
         result.push_str(&format!("  current_balance: {}\n", self.current_balance));
@@ -229,7 +229,6 @@ impl TradingState {
 
         let mut table = String::new();
 
-        // Header
         table.push_str(&format!(
             "{:>5} | {:>11} | {:>11} | {:>11} | {:>11} | {:>11} | {:>8} | {:>11} | {:>11} | {:>11}\n",
             "side",
@@ -244,21 +243,15 @@ impl TradingState {
             "fees"
         ));
 
-        // Separator
         table.push_str(&format!("{}\n", "-".repeat(128)));
 
-        // Rows
         for trade in &self.running {
-            let stoploss_str = match trade.stoploss() {
-                Some(sl) => format!("{:.1}", sl),
-                None => "N/A".to_string(),
-            };
-            let takeprofit_str = match trade.takeprofit() {
-                Some(tp) => format!("{:.1}", tp),
-                None => "N/A".to_string(),
-            };
-
-            // Calculate P&L for running trade
+            let stoploss_str = trade
+                .stoploss()
+                .map_or("N/A".to_string(), |sl| format!("{:.1}", sl));
+            let takeprofit_str = trade
+                .takeprofit()
+                .map_or("N/A".to_string(), |sl| format!("{:.1}", sl));
             let pl = estimate_pl(
                 trade.side(),
                 trade.quantity(),
