@@ -26,9 +26,7 @@ pub mod error;
 
 use controller::{
     LiveTradeController,
-    state::{
-        LiveTradeControllerReadyStatus, LiveTradeControllerState, LiveTradeControllerStateNotReady,
-    },
+    state::{LiveTradeControllerState, LiveTradeControllerStateNotReady},
     update::{LiveTradeControllerUpdate, LiveTradeControllerUpdateRunning},
 };
 use error::{LiveError, Result};
@@ -52,6 +50,31 @@ pub enum LiveStateRunningUpdate {
     State(TradingState),
 }
 
+impl From<LiveTradeControllerUpdateRunning> for LiveStateRunningUpdate {
+    fn from(value: LiveTradeControllerUpdateRunning) -> Self {
+        match value {
+            LiveTradeControllerUpdateRunning::CreateNewTrade {
+                side,
+                quantity,
+                leverage,
+                stoploss,
+                takeprofit,
+            } => Self::CreateNewTrade {
+                side,
+                quantity,
+                leverage,
+                stoploss,
+                takeprofit,
+            },
+            LiveTradeControllerUpdateRunning::UpdateTradeStoploss { id, stoploss } => {
+                Self::UpdateTradeStoploss { id, stoploss }
+            }
+            LiveTradeControllerUpdateRunning::CloseTrade { id } => Self::CloseTrade { id },
+            LiveTradeControllerUpdateRunning::State(state) => Self::State(state),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub enum LiveState {
     NotInitiated,
@@ -59,11 +82,22 @@ pub enum LiveState {
     WaitingForSync(Arc<SyncState>), // TODO: SyncState can't be 'Synced'
     WaitingForSignal(Arc<LiveSignalState>), // TODO: LiveSignalState can't be 'Running'
     WaitingTradeController(Arc<LiveTradeControllerStateNotReady>),
-    Running(LiveTradeControllerUpdateRunning),
+    Running(LiveStateRunningUpdate),
     Failed(LiveError),
     Restarting,
     ShutdownInitiated,
     Shutdown,
+}
+
+impl From<LiveTradeControllerUpdate> for LiveState {
+    fn from(value: LiveTradeControllerUpdate) -> Self {
+        match value {
+            LiveTradeControllerUpdate::NotReady(not_ready) => {
+                LiveState::WaitingTradeController(not_ready)
+            }
+            LiveTradeControllerUpdate::Ready(ready) => LiveState::Running(ready.into()),
+        }
+    }
 }
 
 pub type LiveTradeTransmiter = broadcast::Sender<Arc<LiveState>>;
@@ -114,34 +148,22 @@ impl LiveStateManager {
         self.update_state_guard(state_guard, new_state);
     }
 
-    pub fn set_to_running_if_not_running(
-        &self,
-        tc_ready_status: Arc<LiveTradeControllerReadyStatus>,
-    ) {
+    pub fn update_if_not_running(&self, new_state: LiveState) {
         let state_guard = self.state.lock().expect("state lock can't be poisoned");
 
         if matches!(state_guard.as_ref(), LiveState::Running(_)) {
             return;
         }
 
-        let new_state = LiveState::Running(tc_ready_status.into());
-
         self.update_state_guard(state_guard, new_state);
     }
 
-    pub fn update_if_running(&self, controller_update: LiveTradeControllerUpdate) {
+    pub fn update_if_running(&self, new_state: LiveState) {
         let state_guard = self.state.lock().expect("state lock can't be poisoned");
 
         if !matches!(state_guard.as_ref(), LiveState::Running(_)) {
             return;
         }
-
-        let new_state = match controller_update {
-            LiveTradeControllerUpdate::NotReady(not_ready) => {
-                LiveState::WaitingTradeController(not_ready)
-            }
-            LiveTradeControllerUpdate::Ready(ready) => LiveState::Running(ready),
-        };
 
         self.update_state_guard(state_guard, new_state);
     }
@@ -177,7 +199,8 @@ impl LiveProcess {
 
     async fn handle_controller_updates(&self) -> Result<Never> {
         while let Ok(controller_update) = self.trade_controller.receiver().recv().await {
-            self.state_manager.update_if_running(controller_update);
+            self.state_manager
+                .update_if_running(controller_update.into());
         }
 
         Err(LiveError::Generic(
@@ -198,11 +221,17 @@ impl LiveProcess {
                     if let LiveTradeControllerState::Ready(ready_status) = tc_state {
                         // Sync is ok, signal is ok and trade controller is ok
 
-                        self.state_manager
-                            .set_to_running_if_not_running(ready_status);
+                        let tc_update = LiveTradeControllerUpdate::from(
+                            LiveTradeControllerUpdateRunning::from(ready_status),
+                        );
+
+                        self.state_manager.update_if_not_running(tc_update.into());
                     } else {
                         continue;
                     }
+
+                    // TODO: Send processing signal update
+                    // self.state_manager.update_if_running(signal);
 
                     self.operator
                         .process_signal(last_signal)
