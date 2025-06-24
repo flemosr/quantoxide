@@ -245,13 +245,14 @@ impl TradingState {
 
     pub fn running_trades_table(&self) -> String {
         if self.running.is_empty() {
-            return "No running trades".to_string();
+            return "No running trades.".to_string();
         }
 
         let mut table = String::new();
 
         table.push_str(&format!(
-            "{:>5} | {:>11} | {:>11} | {:>11} | {:>11} | {:>11} | {:>8} | {:>11} | {:>11} | {:>11}\n",
+            " {:>14} | {:>5} | {:>11} | {:>11} | {:>11} | {:>11} | {:>11} | {:>8} | {:>11} | {:>11} | {:>11}",
+            "creation_time",
             "side",
             "quantity",
             "price",
@@ -264,15 +265,20 @@ impl TradingState {
             "fees"
         ));
 
-        table.push_str(&format!("{}\n", "-".repeat(128)));
+        table.push_str(&format!("\n{}", "-".repeat(146)));
 
         for trade in &self.running {
+            let creation_time = trade
+                .creation_ts()
+                .with_timezone(&chrono::Local)
+                .format("%y-%m-%d %H:%M");
             let stoploss_str = trade
                 .stoploss()
                 .map_or("N/A".to_string(), |sl| format!("{:.1}", sl));
             let takeprofit_str = trade
                 .takeprofit()
                 .map_or("N/A".to_string(), |sl| format!("{:.1}", sl));
+            let total_margin = trade.margin().into_i64() + trade.maintenance_margin().max(0);
             let pl = estimate_pl(
                 trade.side(),
                 trade.quantity(),
@@ -282,7 +288,8 @@ impl TradingState {
             let total_fees = trade.opening_fee() + trade.closing_fee();
 
             table.push_str(&format!(
-                "{:>5} | {:>11} | {:>11.1} | {:>11.1} | {:>11} | {:>11} | {:>8.2} | {:>11} | {:>11} | {:>11}\n",
+                "\n {:>14} | {:>5} | {:>11} | {:>11.1} | {:>11.1} | {:>11} | {:>11} | {:>8.2} | {:>11} | {:>11} | {:>11}",
+                creation_time,
                 trade.side(),
                 trade.quantity(),
                 trade.price(),
@@ -290,7 +297,7 @@ impl TradingState {
                 stoploss_str,
                 takeprofit_str,
                 trade.leverage(),
-                trade.margin(),
+                total_margin,
                 pl,
                 total_fees
             ));
