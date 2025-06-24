@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use chrono::{DateTime, Utc};
 
 use lnm_sdk::api::rest::models::{
@@ -34,7 +36,7 @@ impl SimulatedTradeRunning {
         quantity: Quantity,
         leverage: Leverage,
         fee_perc: BoundedPercentage,
-    ) -> Result<Self> {
+    ) -> Result<Arc<Self>> {
         let liquidation = estimate_liquidation_price(side, quantity, entry_price, leverage);
 
         match side {
@@ -93,7 +95,7 @@ impl SimulatedTradeRunning {
         let closing_fee_reserved =
             (fee_calc * quantity.into_f64() / liquidation.into_f64()).floor() as u64;
 
-        Ok(Self {
+        Ok(Arc::new(Self {
             side,
             entry_time,
             entry_price,
@@ -105,65 +107,76 @@ impl SimulatedTradeRunning {
             liquidation,
             opening_fee,
             closing_fee_reserved,
-        })
+        }))
     }
 
-    pub fn update_stoploss(&mut self, new_stoploss: Price) -> Result<()> {
-        match self.side {
+    pub fn from_trade_with_new_stoploss(
+        trade: Arc<Self>,
+        new_stoploss: Price,
+    ) -> Result<Arc<Self>> {
+        match trade.side {
             TradeSide::Buy => {
-                if new_stoploss < self.liquidation {
+                if new_stoploss < trade.liquidation {
                     return Err(
                         SimulatedTradeControllerError::StoplossBelowLiquidationLong {
                             stoploss: new_stoploss,
-                            liquidation: self.liquidation,
+                            liquidation: trade.liquidation,
                         },
                     );
                 }
-                if new_stoploss >= self.takeprofit {
+                if new_stoploss >= trade.takeprofit {
                     return Err(SimulatedTradeControllerError::Generic(format!(
                         "For long position, stoploss ({}) must be below takeprofit ({})",
-                        new_stoploss, self.takeprofit
+                        new_stoploss, trade.takeprofit
                     )));
                 }
             }
             TradeSide::Sell => {
-                if new_stoploss > self.liquidation {
+                if new_stoploss > trade.liquidation {
                     return Err(
                         SimulatedTradeControllerError::StoplossAboveLiquidationShort {
                             stoploss: new_stoploss,
-                            liquidation: self.liquidation,
+                            liquidation: trade.liquidation,
                         },
                     );
                 }
-                if new_stoploss <= self.takeprofit {
+                if new_stoploss <= trade.takeprofit {
                     return Err(SimulatedTradeControllerError::Generic(format!(
                         "For short position, stoploss ({}) must be above takeprofit ({})",
-                        new_stoploss, self.takeprofit
+                        new_stoploss, trade.takeprofit
                     )));
                 }
             }
         }
 
-        self.stoploss = new_stoploss;
-
-        Ok(())
-    }
-
-    pub fn closing_fee_reserved(&self) -> u64 {
-        self.closing_fee_reserved
+        Ok(Arc::new(Self {
+            side: trade.side,
+            entry_time: trade.entry_time,
+            entry_price: trade.entry_price,
+            stoploss: new_stoploss,
+            takeprofit: trade.takeprofit,
+            margin: trade.margin,
+            quantity: trade.quantity,
+            leverage: trade.leverage,
+            liquidation: trade.liquidation,
+            opening_fee: trade.opening_fee,
+            closing_fee_reserved: trade.closing_fee_reserved,
+        }))
     }
 
     pub fn pl(&self, current_price: Price) -> i64 {
         estimate_pl(self.side, self.quantity, self.entry_price, current_price)
     }
 
-    pub fn closing_fee_est(&self, fee_perc: BoundedPercentage, close_price: Price) -> u64 {
+    #[cfg(test)]
+    fn closing_fee_est(&self, fee_perc: BoundedPercentage, close_price: Price) -> u64 {
         let fee_calc = SATS_PER_BTC * fee_perc.into_f64() / 100.;
 
         (fee_calc * self.quantity.into_f64() / close_price.into_f64()).floor() as u64
     }
 
-    pub fn net_pl_est(&self, fee_perc: BoundedPercentage, current_price: Price) -> i64 {
+    #[cfg(test)]
+    fn net_pl_est(&self, fee_perc: BoundedPercentage, current_price: Price) -> i64 {
         let pl = self.pl(current_price);
         pl - self.opening_fee as i64 - self.closing_fee_est(fee_perc, current_price) as i64
     }
@@ -281,7 +294,7 @@ pub struct SimulatedTradeClosed {
 
 impl SimulatedTradeClosed {
     pub fn from_running(
-        running: SimulatedTradeRunning,
+        running: &SimulatedTradeRunning,
         close_time: DateTime<Utc>,
         close_price: Price,
         fee_perc: BoundedPercentage,
@@ -312,7 +325,7 @@ impl SimulatedTradeClosed {
         estimate_pl(self.side, self.quantity, self.entry_price, self.close_price)
     }
 
-    pub fn net_pl(&self) -> i64 {
+    fn net_pl(&self) -> i64 {
         let pl = self.pl();
         pl - self.opening_fee as i64 - self.closing_fee as i64
     }
