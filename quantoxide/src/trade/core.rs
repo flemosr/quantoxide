@@ -182,6 +182,46 @@ impl TradingState {
         self.pl() - self.fees_estimated() as i64
     }
 
+    pub fn summary(&self) -> String {
+        let mut result = String::new();
+
+        result.push_str("timing:\n");
+        result.push_str(&format!("  current_time: {}\n", self.current_time_local()));
+        let lttl_string = self
+            .last_trade_time_local()
+            .map_or("null".to_string(), |lttl| lttl.to_string());
+        result.push_str(&format!("  last_trade_time: {lttl_string}\n"));
+
+        result.push_str("balance:\n");
+        result.push_str(&format!("  current_balance: {}\n", self.current_balance));
+        result.push_str(&format!("  market_price: {:.2}\n", self.market_price));
+
+        result.push_str("running_positions:\n");
+        result.push_str("  long:\n");
+        result.push_str(&format!("    trades: {}\n", self.running_long_len));
+        result.push_str(&format!("    margin: {}\n", self.running_long_margin));
+        result.push_str(&format!("    quantity: {}\n", self.running_long_quantity));
+        result.push_str("  short:\n");
+        result.push_str(&format!("    trades: {}\n", self.running_short_len));
+        result.push_str(&format!("    margin: {}\n", self.running_short_margin));
+        result.push_str(&format!("    quantity: {}\n", self.running_short_quantity));
+
+        result.push_str("running_metrics:\n");
+        result.push_str(&format!("  pl: {}\n", self.running_pl));
+        result.push_str(&format!("  fees: {}\n", self.running_fees));
+        result.push_str(&format!(
+            "  total_margin: {}\n",
+            self.running_total_margin()
+        ));
+
+        result.push_str("closed_positions:\n");
+        result.push_str(&format!("  trades: {}\n", self.closed_len));
+        result.push_str(&format!("  pl: {}\n", self.closed_pl));
+        result.push_str(&format!("  fees: {}", self.closed_fees));
+
+        result
+    }
+
     pub fn running_trades_table(&self) -> String {
         if self.running.is_empty() {
             return "No running trades".to_string();
@@ -248,41 +288,10 @@ impl TradingState {
 
 impl fmt::Display for TradingState {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "TradeControllerState:")?;
-
-        writeln!(f, "  timing:")?;
-        writeln!(f, "    current_time: {}", self.current_time_local())?;
-        match self.last_trade_time_local() {
-            Some(last_trade_time_local) => {
-                writeln!(f, "    last_trade_time: {last_trade_time_local}")?
-            }
-            None => writeln!(f, "    last_trade_time: null")?,
+        write!(f, "TradingState:")?;
+        for line in self.summary().lines() {
+            write!(f, "\n  {line}")?;
         }
-
-        writeln!(f, "  balance:")?;
-        writeln!(f, "    current_balance: {}", self.current_balance)?;
-        writeln!(f, "    market_price: {:.2}", self.market_price)?;
-
-        writeln!(f, "  running_positions:")?;
-        writeln!(f, "    long:")?;
-        writeln!(f, "      trades: {}", self.running_long_len)?;
-        writeln!(f, "      margin: {}", self.running_long_margin)?;
-        writeln!(f, "      quantity: {}", self.running_long_quantity)?;
-        writeln!(f, "    short:")?;
-        writeln!(f, "      trades: {}", self.running_short_len)?;
-        writeln!(f, "      margin: {}", self.running_short_margin)?;
-        writeln!(f, "      quantity: {}", self.running_short_quantity)?;
-
-        writeln!(f, "  running_metrics:")?;
-        writeln!(f, "    pl: {}", self.running_pl)?;
-        writeln!(f, "    fees: {}", self.running_fees)?;
-        writeln!(f, "    total_margin: {}", self.running_total_margin())?;
-
-        writeln!(f, "  closed_positions:")?;
-        writeln!(f, "    trades: {}", self.closed_len)?;
-        writeln!(f, "    pl: {}", self.closed_pl)?;
-        write!(f, "    fees: {}", self.closed_fees)?;
-
         Ok(())
     }
 }
