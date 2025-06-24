@@ -26,28 +26,18 @@ pub struct DbContext {
 
 impl DbContext {
     pub async fn new(postgres_db_url: &str) -> Result<Arc<Self>> {
-        println!("Connecting to database...");
         let pool = PgPoolOptions::new()
             .max_connections(5)
             .connect(postgres_db_url)
             .await
             .map_err(DbError::Connection)?;
 
-        println!("Successfully connected to the database");
-
-        println!("Running migrations...");
         sqlx::migrate!("./migrations")
             .run(&pool)
             .await
             .map_err(DbError::Migration)?;
 
-        println!("Migrations completed successfully");
-
-        println!("Initializing `price_history_locf` table...");
-
         Self::initialize_locf_table(&pool).await?;
-
-        println!("Database ready");
 
         let pool = Arc::new(pool);
         let price_history = Box::new(PgPriceHistoryRepo::new(pool.clone()));
@@ -63,6 +53,7 @@ impl DbContext {
 
     const INIT_LOCF_BATCH_SIZE: i64 = 100_000;
 
+    // TODO: Improve progress feedback to consumers
     async fn initialize_locf_table(pool: &PgPool) -> Result<()> {
         struct PriceHistoryRange {
             min_time: Option<DateTime<Utc>>,
@@ -79,12 +70,7 @@ impl DbContext {
 
         let (min_time, max_time) = match (time_range.min_time, time_range.max_time) {
             (Some(min), Some(max)) => (min, max),
-            _ => {
-                println!(
-                    "No price history data found. Skipping 'price_history_locf' initialization"
-                );
-                return Ok(());
-            }
+            _ => return Ok(()),
         };
 
         let start_locf_sec = min_time.ceil_sec();
@@ -113,48 +99,26 @@ impl DbContext {
                 if !start_exists || cur_max_locf_time > end_locf_sec {
                     // Assume table is corrupted
 
-                    println!("`price_history_locf` table needs to be recreated");
-
-                    println!("Deleting previous `price_history_locf` entries...",);
-
                     sqlx::query!("DELETE FROM price_history_locf")
                         .execute(pool)
                         .await
                         .map_err(DbError::Query)?;
 
-                    println!(
-                        "Deleted previous `price_history_locf` entries. Recreating from {start_locf_sec}"
-                    );
-
                     start_locf_sec
                 } else if cur_max_locf_time == end_locf_sec {
-                    println!(
-                        "`price_history_locf` table appears to be up-to-date. Skipping initialization"
-                    );
                     return Ok(());
                 } else {
                     // cur_max_locf_time < end_locf_sec
 
-                    println!(
-                        "`price_history_locf` initialization is in progress. Restarting from {cur_max_locf_time}"
-                    );
-
                     cur_max_locf_time + chrono::Duration::seconds(1)
                 }
             }
-            _ => {
-                println!(
-                    "`price_history_locf` table needs to be initialized. Starting from {start_locf_sec}"
-                );
-                start_locf_sec
-            }
+            _ => start_locf_sec,
         };
 
         while batch_start <= end_locf_sec {
             let batch_end =
                 (batch_start + Duration::seconds(Self::INIT_LOCF_BATCH_SIZE - 1)).min(end_locf_sec);
-
-            println!("Processing locf entries batch: {batch_start} to {batch_end}");
 
             let mut tx = pool.begin().await.map_err(DbError::TransactionBegin)?;
 
@@ -233,8 +197,6 @@ impl DbContext {
 
             batch_start = batch_end + chrono::Duration::seconds(1);
         }
-
-        println!("`price_history_locf` table initialization completed successfully");
 
         Ok(())
     }
