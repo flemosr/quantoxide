@@ -298,12 +298,12 @@ impl SimulatedTradeClosed {
         close_time: DateTime<Utc>,
         close_price: Price,
         fee_perc: BoundedPercentage,
-    ) -> Self {
+    ) -> Arc<Self> {
         let fee_calc = SATS_PER_BTC * fee_perc.into_f64() / 100.;
         let closing_fee =
             (fee_calc * running.quantity.into_f64() / close_price.into_f64()).floor() as u64;
 
-        SimulatedTradeClosed {
+        Arc::new(SimulatedTradeClosed {
             side: running.side,
             entry_time: running.entry_time,
             entry_price: running.entry_price,
@@ -318,13 +318,14 @@ impl SimulatedTradeClosed {
             opening_fee: running.opening_fee,
             closing_fee_reserved: running.closing_fee_reserved,
             closing_fee,
-        }
+        })
     }
 
     pub fn pl(&self) -> i64 {
         estimate_pl(self.side, self.quantity, self.entry_price, self.close_price)
     }
 
+    #[cfg(test)]
     fn net_pl(&self) -> i64 {
         let pl = self.pl();
         pl - self.opening_fee as i64 - self.closing_fee as i64
