@@ -41,7 +41,7 @@ struct SimulatedTradeControllerState {
     last_trade_time: Option<DateTime<Utc>>,
     trigger: PriceTrigger,
     running: Vec<(Arc<SimulatedTradeRunning>, Option<TradeTrailingStoploss>)>,
-    closed: Vec<SimulatedTradeClosed>,
+    closed: Vec<Arc<SimulatedTradeClosed>>,
     closed_pl: i64,
     closed_fees: u64,
 }
@@ -414,6 +414,12 @@ impl TradeController for SimulatedTradeController {
             running.push(trade.clone());
         }
 
+        let closed = state_guard
+            .closed
+            .iter()
+            .map(|trade| trade.clone() as Arc<dyn Trade>)
+            .collect();
+
         let trades_state = TradingState::new(
             state_guard.time,
             state_guard.balance.max(0) as u64,
@@ -428,10 +434,12 @@ impl TradeController for SimulatedTradeController {
             running_short_quantity,
             running_pl,
             running_fees,
+            closed,
             state_guard.closed.len(),
             state_guard.closed_pl,
             state_guard.closed_fees,
-        );
+        )
+        .expect("`SimulatedTradeController` can't contain inconsistent trades");
 
         Ok(trades_state)
     }
