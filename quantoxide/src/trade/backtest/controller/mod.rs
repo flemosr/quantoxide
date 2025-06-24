@@ -40,7 +40,7 @@ struct SimulatedTradeControllerState {
     balance: i64,
     last_trade_time: Option<DateTime<Utc>>,
     trigger: PriceTrigger,
-    running: Vec<(SimulatedTradeRunning, Option<TradeTrailingStoploss>)>,
+    running: Vec<(Arc<SimulatedTradeRunning>, Option<TradeTrailingStoploss>)>,
     closed: Vec<SimulatedTradeClosed>,
     closed_pl: i64,
     closed_fees: u64,
@@ -107,8 +107,13 @@ impl SimulatedTradeController {
         let mut new_closed_fees = state_guard.closed_fees;
         let mut new_closed_trades = Vec::new();
 
-        let mut close_trade = |trade: SimulatedTradeRunning, close_price: Price| {
-            let trade = SimulatedTradeClosed::from_running(trade, time, close_price, self.fee_perc);
+        let mut close_trade = |trade: Arc<SimulatedTradeRunning>, close_price: Price| {
+            let trade = SimulatedTradeClosed::from_running(
+                trade.as_ref(),
+                time,
+                close_price,
+                self.fee_perc,
+            );
 
             new_balance += trade.margin().into_i64() + trade.maintenance_margin()
                 - trade.closing_fee() as i64
@@ -167,11 +172,12 @@ impl SimulatedTradeController {
                 };
 
                 if let Some(new_stoploss) = new_stoploss {
-                    trade.update_stoploss(new_stoploss)?;
+                    trade =
+                        SimulatedTradeRunning::from_trade_with_new_stoploss(trade, new_stoploss)?;
                 }
             }
 
-            new_trigger.update(self.tsl_step_size, &trade, trade_tsl_opt)?;
+            new_trigger.update(self.tsl_step_size, trade.as_ref(), trade_tsl_opt)?;
             remaining_running_trades.push((trade, trade_tsl_opt));
         }
 
@@ -199,9 +205,13 @@ impl SimulatedTradeController {
         let mut new_closed_fees = state_guard.closed_fees;
         let mut new_closed_trades = Vec::new();
 
-        let mut close_trade = |trade: SimulatedTradeRunning| {
-            let trade =
-                SimulatedTradeClosed::from_running(trade, time, market_price, self.fee_perc);
+        let mut close_trade = |trade: Arc<SimulatedTradeRunning>| {
+            let trade = SimulatedTradeClosed::from_running(
+                trade.as_ref(),
+                time,
+                market_price,
+                self.fee_perc,
+            );
 
             new_balance += trade.margin().into_i64() + trade.maintenance_margin()
                 - trade.closing_fee() as i64
@@ -224,7 +234,7 @@ impl SimulatedTradeController {
             if should_be_closed {
                 close_trade(trade);
             } else {
-                new_trigger.update(self.tsl_step_size, &trade, trade_tsl)?;
+                new_trigger.update(self.tsl_step_size, trade.as_ref(), trade_tsl)?;
                 remaining_running_trades.push((trade, trade_tsl));
             }
         }
@@ -291,7 +301,7 @@ impl SimulatedTradeController {
 
         state_guard
             .trigger
-            .update(self.tsl_step_size, &trade, trade_tsl)?;
+            .update(self.tsl_step_size, trade.as_ref(), trade_tsl)?;
         state_guard.running.push((trade, trade_tsl));
 
         Ok(())
@@ -401,7 +411,7 @@ impl TradeController for SimulatedTradeController {
 
             running_pl += trade.pl(market_price);
             running_fees += trade.opening_fee();
-            running.push(Arc::new(trade.clone()));
+            running.push(trade.clone());
         }
 
         let trades_state = TradingState::new(
