@@ -35,6 +35,7 @@ pub struct TradingState {
     running_short_quantity: u64,
     running_pl: i64,
     running_fees: u64,
+    closed: Vec<Arc<dyn Trade>>,
     closed_len: usize,
     closed_pl: i64,
     closed_fees: u64,
@@ -46,7 +47,7 @@ impl TradingState {
         current_balance: u64,
         market_price: f64,
         last_trade_time: Option<DateTime<Utc>>,
-        running: Vec<Arc<dyn Trade>>,
+        mut running: Vec<Arc<dyn Trade>>,
         running_long_len: usize,
         running_long_margin: u64,
         running_long_quantity: u64,
@@ -55,11 +56,30 @@ impl TradingState {
         running_short_quantity: u64,
         running_pl: i64,
         running_fees: u64,
+        mut closed: Vec<Arc<dyn Trade>>,
         closed_len: usize,
         closed_pl: i64,
         closed_fees: u64,
-    ) -> Self {
-        Self {
+    ) -> Result<Self> {
+        if running.iter().any(|trade| !trade.running()) {
+            return Err(TradeError::Generic(
+                "`running` contain a trade that is not running".to_string(),
+            ));
+        }
+
+        if closed.iter().any(|trade| {
+            !trade.closed() || trade.exit_price().is_none() || trade.closed_ts().is_none()
+        }) {
+            return Err(TradeError::Generic(
+                "`closed` contain a trade that is not closed".to_string(),
+            ));
+        }
+
+        running.sort_by(|a, b| b.creation_ts().cmp(&a.creation_ts()));
+
+        closed.sort_by(|a, b| b.creation_ts().cmp(&a.creation_ts()));
+
+        Ok(Self {
             current_time,
             current_balance,
             market_price,
@@ -73,10 +93,11 @@ impl TradingState {
             running_short_quantity,
             running_pl,
             running_fees,
+            closed,
             closed_len,
             closed_pl,
             closed_fees,
-        }
+        })
     }
 
     pub fn current_time(&self) -> DateTime<Utc> {
