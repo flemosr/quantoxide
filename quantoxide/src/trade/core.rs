@@ -251,7 +251,7 @@ impl TradingState {
         let mut table = String::new();
 
         table.push_str(&format!(
-            " {:>14} | {:>5} | {:>11} | {:>11} | {:>11} | {:>11} | {:>11} | {:>8} | {:>11} | {:>11} | {:>11}",
+            "{:>14} | {:>5} | {:>11} | {:>11} | {:>11} | {:>11} | {:>11} | {:>8} | {:>11} | {:>11} | {:>11}",
             "creation_time",
             "side",
             "quantity",
@@ -265,7 +265,7 @@ impl TradingState {
             "fees"
         ));
 
-        table.push_str(&format!("\n{}", "-".repeat(146)));
+        table.push_str(&format!("\n{}", "-".repeat(145)));
 
         for trade in &self.running {
             let creation_time = trade
@@ -288,7 +288,7 @@ impl TradingState {
             let total_fees = trade.opening_fee() + trade.closing_fee();
 
             table.push_str(&format!(
-                "\n {:>14} | {:>5} | {:>11} | {:>11.1} | {:>11.1} | {:>11} | {:>11} | {:>8.2} | {:>11} | {:>11} | {:>11}",
+                "\n{:>14} | {:>5} | {:>11} | {:>11.1} | {:>11.1} | {:>11} | {:>11} | {:>8.2} | {:>11} | {:>11} | {:>11}",
                 creation_time,
                 trade.side(),
                 trade.quantity(),
@@ -314,7 +314,7 @@ impl TradingState {
         let mut table = String::new();
 
         table.push_str(&format!(
-            " {:>14} | {:>5} | {:>11} | {:>11} | {:>11} | {:>11} | {:>14} | {:>11} | {:>11} | {:>11}",
+            "{:>14} | {:>5} | {:>11} | {:>11} | {:>11} | {:>11} | {:>14} | {:>11} | {:>11} | {:>11}",
             "creation_time",
             "side",
             "quantity",
@@ -327,7 +327,7 @@ impl TradingState {
             "net_pl"
         ));
 
-        table.push_str(&format!("\n{}", "-".repeat(138)));
+        table.push_str(&format!("\n{}", "-".repeat(137)));
 
         for trade in &self.closed {
             let creation_time = trade
@@ -350,7 +350,7 @@ impl TradingState {
             let net_pl = pl - total_fees as i64;
 
             table.push_str(&format!(
-                "\n {:>14} | {:>5} | {:>11} | {:>11} | {:>11} | {:>11} | {:>14} | {:>11} | {:>11} | {:>11}",
+                "\n{:>14} | {:>5} | {:>11} | {:>11} | {:>11} | {:>11} | {:>14} | {:>11} | {:>11} | {:>11}",
                 creation_time,
                 trade.side(),
                 trade.quantity(),
