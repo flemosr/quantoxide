@@ -28,7 +28,7 @@ pub struct LiveTradeControllerReadyStatus {
     last_price: f64,
     trigger: PriceTrigger,
     running: HashMap<Uuid, (Arc<LnmTrade>, Option<TradeTrailingStoploss>)>,
-    closed: Vec<LnmTrade>,
+    closed: Vec<Arc<LnmTrade>>,
 }
 
 impl LiveTradeControllerReadyStatus {
@@ -108,7 +108,7 @@ impl LiveTradeControllerReadyStatus {
         &self.running
     }
 
-    pub fn closed(&self) -> &Vec<LnmTrade> {
+    pub fn closed(&self) -> &Vec<Arc<LnmTrade>> {
         &self.closed
     }
 
@@ -355,7 +355,7 @@ impl LiveTradeControllerReadyStatus {
                     - closed_trade.closing_fee() as i64
                     + closed_trade.pl();
 
-                self.closed.push(closed_trade);
+                self.closed.push(Arc::new(closed_trade));
                 continue;
             }
 
@@ -416,6 +416,12 @@ impl From<&LiveTradeControllerReadyStatus> for TradingState {
             closed_fees += trade.opening_fee() + trade.closing_fee();
         }
 
+        let closed = value
+            .closed
+            .iter()
+            .map(|trade| trade.clone() as Arc<dyn Trade>)
+            .collect();
+
         TradingState::new(
             Utc::now(),
             value.balance(),
@@ -430,10 +436,12 @@ impl From<&LiveTradeControllerReadyStatus> for TradingState {
             running_short_quantity,
             running_pl,
             running_fees,
+            closed,
             value.closed().len(),
             closed_pl,
             closed_fees,
         )
+        .expect("`LiveTradeControllerReadyStatus` can't contain inconsistent trades")
     }
 }
 
@@ -511,7 +519,7 @@ impl<'a> LockedLiveTradeControllerReadyStatus<'a> {
         &self.as_status().running
     }
 
-    pub fn closed(&self) -> &Vec<LnmTrade> {
+    pub fn closed(&self) -> &Vec<Arc<LnmTrade>> {
         &self.as_status().closed
     }
 
