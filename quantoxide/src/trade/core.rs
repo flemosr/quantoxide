@@ -298,6 +298,67 @@ impl TradingState {
 
         table
     }
+
+    pub fn closed_trades_table(&self) -> String {
+        if self.closed.is_empty() {
+            return "No closed trades.".to_string();
+        }
+
+        let mut table = String::new();
+
+        table.push_str(&format!(
+            " {:>14} | {:>5} | {:>11} | {:>11} | {:>11} | {:>11} | {:>14} | {:>11} | {:>11} | {:>11}",
+            "creation_time",
+            "side",
+            "quantity",
+            "margin",
+            "price",
+            "exit_price",
+            "exit_time",
+            "pl",
+            "fees",
+            "net_pl"
+        ));
+
+        table.push_str(&format!("\n{}", "-".repeat(138)));
+
+        for trade in &self.closed {
+            let creation_time = trade
+                .creation_ts()
+                .with_timezone(&chrono::Local)
+                .format("%y-%m-%d %H:%M");
+
+            // Should never panic due to `new` validation
+            let exit_price = trade
+                .exit_price()
+                .expect("`closed` trade must have `exit_price`");
+            let exit_time = trade
+                .closed_ts()
+                .expect("`closed` trade must have `closed_ts`")
+                .with_timezone(&chrono::Local)
+                .format("%y-%m-%d %H:%M");
+
+            let pl = estimate_pl(trade.side(), trade.quantity(), trade.price(), exit_price);
+            let total_fees = trade.opening_fee() + trade.closing_fee();
+            let net_pl = pl - total_fees as i64;
+
+            table.push_str(&format!(
+                "\n {:>14} | {:>5} | {:>11} | {:>11} | {:>11} | {:>11} | {:>14} | {:>11} | {:>11} | {:>11}",
+                creation_time,
+                trade.side(),
+                trade.quantity(),
+                trade.margin(),
+                trade.price(),
+                exit_price,
+                exit_time,
+                pl,
+                total_fees,
+                net_pl
+            ));
+        }
+
+        table
+    }
 }
 
 impl fmt::Display for TradingState {
