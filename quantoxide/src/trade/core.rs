@@ -215,7 +215,7 @@ impl TradingState {
 
         result.push_str("balance:\n");
         result.push_str(&format!("  current_balance: {}\n", self.current_balance));
-        result.push_str(&format!("  market_price: {:.2}\n", self.market_price));
+        result.push_str(&format!("  market_price: {:.1}\n", self.market_price));
 
         result.push_str("running_positions:\n");
         result.push_str("  long:\n");
