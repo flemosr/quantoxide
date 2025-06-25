@@ -1,4 +1,7 @@
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::{
+    fmt,
+    sync::{Arc, Mutex, MutexGuard},
+};
 
 use chrono::Duration;
 use tokio::{sync::broadcast, time};
@@ -79,6 +82,58 @@ impl From<LiveTradeControllerUpdateRunning> for LiveStateRunningUpdate {
 impl From<Signal> for LiveStateRunningUpdate {
     fn from(value: Signal) -> Self {
         Self::ProcessSignal(value)
+    }
+}
+
+impl fmt::Display for LiveStateRunningUpdate {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            LiveStateRunningUpdate::ProcessSignal(signal) => {
+                let signal_str = signal.to_string();
+                let indented_signal = signal_str
+                    .lines()
+                    .map(|line| format!("  {}", line))
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                write!(
+                    f,
+                    "LiveStateRunningUpdate::ProcessSignal:\n{}",
+                    indented_signal
+                )
+            }
+            LiveStateRunningUpdate::CreateNewTrade {
+                side,
+                quantity,
+                leverage,
+                stoploss,
+                takeprofit,
+            } => {
+                write!(
+                    f,
+                    "LiveStateRunningUpdate::CreateNewTrade:\n  side: {}\n  quantity: {}\n  leverage: {}\n  stoploss: {:.1}\n  takeprofit: {:.1}",
+                    side, quantity, leverage, stoploss, takeprofit
+                )
+            }
+            LiveStateRunningUpdate::UpdateTradeStoploss { id, stoploss } => {
+                write!(
+                    f,
+                    "LiveStateRunningUpdate::UpdateTradeStoploss:\n  id: {}\n  stoploss: {:.1}",
+                    id, stoploss
+                )
+            }
+            LiveStateRunningUpdate::CloseTrade { id } => {
+                write!(f, "LiveStateRunningUpdate::CloseTrade:\n  id: {}", id)
+            }
+            LiveStateRunningUpdate::State(state) => {
+                let indented_state = state
+                    .to_string()
+                    .lines()
+                    .map(|line| format!("  {}", line))
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                write!(f, "LiveStateRunningUpdate::State:\n{}", indented_state)
+            }
+        }
     }
 }
 
