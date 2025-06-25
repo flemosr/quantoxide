@@ -54,6 +54,21 @@ pub enum SignalAction {
     Wait,
 }
 
+impl fmt::Display for SignalAction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SignalAction::Buy { price, strength } => {
+                write!(f, "Buy(price: {:.1}, strength: {})", price, strength)
+            }
+            SignalAction::Sell { price, strength } => {
+                write!(f, "Sell(price: {:.1}, strength: {})", price, strength)
+            }
+            SignalAction::Hold => write!(f, "Hold"),
+            SignalAction::Wait => write!(f, "Wait"),
+        }
+    }
+}
+
 #[async_trait]
 pub trait SignalActionEvaluator: Send + Sync {
     async fn evaluate(
@@ -164,5 +179,18 @@ impl Signal {
 
     pub fn action(&self) -> SignalAction {
         self.action
+    }
+}
+
+impl fmt::Display for Signal {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let local_time = self.time.with_timezone(&chrono::Local);
+        write!(
+            f,
+            "Signal:\n  time: {}\n  name: {}\n  action: {}",
+            local_time.format("%y-%m-%d %H:%M:%S %Z"),
+            self.name,
+            self.action
+        )
     }
 }
