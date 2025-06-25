@@ -234,7 +234,9 @@ impl LiveTradeController {
                 let new_state = LiveTradeControllerStateNotReady::Failed(LiveError::Generic(
                     "api error".to_string(),
                 ));
-                self.state_manager.update(new_state.into()).await;
+                self.state_manager
+                    .update_from_locked_ready_status(locked_ready_status, new_state.into())
+                    .await;
 
                 return Err(e.into());
             }
@@ -289,7 +291,9 @@ impl LiveTradeController {
                     let new_state = LiveTradeControllerStateNotReady::Failed(LiveError::Generic(
                         "api error".to_string(),
                     ));
-                    self.state_manager.update(new_state.into()).await;
+                    self.state_manager
+                        .update_from_locked_ready_status(locked_ready_status, new_state.into())
+                        .await;
 
                     return Err(e.into());
                 }
@@ -369,7 +373,9 @@ impl TradeController for LiveTradeController {
                     let new_state = LiveTradeControllerStateNotReady::Failed(LiveError::Generic(
                         "api error".to_string(),
                     ));
-                    self.state_manager.update(new_state.into()).await;
+                    self.state_manager
+                        .update_from_locked_ready_status(locked_ready_status, new_state.into())
+                        .await;
 
                     return Err(e.into());
                 }
