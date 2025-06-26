@@ -48,23 +48,17 @@ struct SyncStateManager {
     state_tx: SyncTransmiter,
 }
 
+pub trait SyncStateReader: Send + Sync + 'static {
+    fn snapshot(&self) -> Arc<SyncState>;
+    fn receiver(&self) -> SyncReceiver;
+}
+
 impl SyncStateManager {
     pub fn new() -> Arc<Self> {
         let state = Arc::new(Mutex::new(Arc::new(SyncState::NotInitiated)));
         let (state_tx, _) = broadcast::channel::<Arc<SyncState>>(100);
 
         Arc::new(Self { state, state_tx })
-    }
-
-    pub fn snapshot(&self) -> Arc<SyncState> {
-        self.state
-            .lock()
-            .expect("`SyncStateManager` mutex can't be poisoned")
-            .clone()
-    }
-
-    pub fn receiver(&self) -> SyncReceiver {
-        self.state_tx.subscribe()
     }
 
     pub fn update(&self, new_state: SyncState) {
@@ -108,6 +102,19 @@ impl SyncStateManager {
                 }
             }
         });
+    }
+}
+
+impl SyncStateReader for SyncStateManager {
+    fn snapshot(&self) -> Arc<SyncState> {
+        self.state
+            .lock()
+            .expect("`SyncStateManager` mutex can't be poisoned")
+            .clone()
+    }
+
+    fn receiver(&self) -> SyncReceiver {
+        self.state_tx.subscribe()
     }
 }
 
