@@ -30,6 +30,11 @@ pub enum LiveSignalState {
 pub type LiveSignalTransmiter = broadcast::Sender<Arc<LiveSignalState>>;
 pub type LiveSignalReceiver = broadcast::Receiver<Arc<LiveSignalState>>;
 
+pub trait LiveSignalStateReader: Send + Sync + 'static {
+    fn snapshot(&self) -> Arc<LiveSignalState>;
+    fn receiver(&self) -> LiveSignalReceiver;
+}
+
 #[derive(Debug)]
 struct LiveSignalStateManager {
     state: Mutex<Arc<LiveSignalState>>,
@@ -44,17 +49,6 @@ impl LiveSignalStateManager {
         Arc::new(Self { state, state_tx })
     }
 
-    pub fn snapshot(&self) -> Arc<LiveSignalState> {
-        self.state
-            .lock()
-            .expect("state lock can't be poisoned")
-            .clone()
-    }
-
-    pub fn receiver(&self) -> LiveSignalReceiver {
-        self.state_tx.subscribe()
-    }
-
     pub fn update(&self, new_state: LiveSignalState) {
         let new_state = Arc::new(new_state);
 
@@ -64,6 +58,19 @@ impl LiveSignalStateManager {
 
         // Ignore no-receivers errors
         let _ = self.state_tx.send(new_state);
+    }
+}
+
+impl LiveSignalStateReader for LiveSignalStateManager {
+    fn snapshot(&self) -> Arc<LiveSignalState> {
+        self.state
+            .lock()
+            .expect("state lock can't be poisoned")
+            .clone()
+    }
+
+    fn receiver(&self) -> LiveSignalReceiver {
+        self.state_tx.subscribe()
     }
 }
 
