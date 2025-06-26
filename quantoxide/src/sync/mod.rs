@@ -382,7 +382,11 @@ impl SyncController {
         })
     }
 
-    pub fn receiver(&self) -> SyncReceiver {
+    pub fn state_reader(&self) -> Arc<dyn SyncStateReader> {
+        self.state_manager.clone()
+    }
+
+    pub fn state_receiver(&self) -> SyncReceiver {
         self.state_manager.receiver()
     }
 
@@ -566,6 +570,7 @@ pub struct SyncEngine {
     db: Arc<DbContext>,
     api: Arc<ApiContext>,
     mode: SyncMode,
+    state_manager: Arc<SyncStateManager>,
 }
 
 impl SyncEngine {
@@ -575,12 +580,27 @@ impl SyncEngine {
         api: Arc<ApiContext>,
         mode: SyncMode,
     ) -> Self {
+        let state_manager = SyncStateManager::new();
+
         Self {
             config,
             db,
             api,
             mode,
+            state_manager,
         }
+    }
+
+    pub fn state_reader(&self) -> Arc<dyn SyncStateReader> {
+        self.state_manager.clone()
+    }
+
+    pub fn state_receiver(&self) -> SyncReceiver {
+        self.state_manager.receiver()
+    }
+
+    pub fn state_snapshot(&self) -> Arc<SyncState> {
+        self.state_manager.snapshot()
     }
 
     pub fn start(self) -> Arc<SyncController> {
@@ -589,18 +609,16 @@ impl SyncEngine {
         // Internal channel for shutdown signal
         let (shutdown_tx, _) = broadcast::channel::<()>(1);
 
-        let state_manager = SyncStateManager::new();
-
         let handle = SyncProcess::new(
             self.config,
             self.db,
             self.api,
             self.mode,
             shutdown_tx.clone(),
-            state_manager.clone(),
+            self.state_manager.clone(),
         )
         .spawn_recovery_loop();
 
-        SyncController::new(handle, shutdown_tx, shutdown_timeout, state_manager)
+        SyncController::new(handle, shutdown_tx, shutdown_timeout, self.state_manager)
     }
 }
