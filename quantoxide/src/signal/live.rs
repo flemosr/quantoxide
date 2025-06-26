@@ -5,7 +5,7 @@ use tokio::{sync::broadcast, time};
 
 use crate::{
     db::DbContext,
-    sync::{SyncController, SyncState},
+    sync::{SyncState, SyncStateReader},
     trade::live::LiveConfig,
     util::{AbortOnDropHandle, DateTimeExt, Never},
 };
@@ -72,7 +72,7 @@ struct LiveSignalProcess {
     db: Arc<DbContext>,
     evaluators: Arc<Vec<ConfiguredSignalEvaluator>>,
     shutdown_tx: broadcast::Sender<()>,
-    sync_controller: Arc<SyncController>,
+    sync_state_reader: Arc<dyn SyncStateReader>,
     state_manager: Arc<LiveSignalStateManager>,
 }
 
@@ -82,7 +82,7 @@ impl LiveSignalProcess {
         db: Arc<DbContext>,
         evaluators: Arc<Vec<ConfiguredSignalEvaluator>>,
         shutdown_tx: broadcast::Sender<()>,
-        sync_controller: Arc<SyncController>,
+        sync_state_reader: Arc<dyn SyncStateReader>,
         state_manager: Arc<LiveSignalStateManager>,
     ) -> Self {
         Self {
@@ -90,7 +90,7 @@ impl LiveSignalProcess {
             db,
             evaluators,
             shutdown_tx,
-            sync_controller,
+            sync_state_reader,
             state_manager,
         }
     }
@@ -117,10 +117,10 @@ impl LiveSignalProcess {
             };
 
             if !matches!(
-                self.sync_controller.state_snapshot().as_ref(),
+                self.sync_state_reader.snapshot().as_ref(),
                 SyncState::Synced(_)
             ) {
-                while let Ok(sync_state) = self.sync_controller.receiver().recv().await {
+                while let Ok(sync_state) = self.sync_state_reader.receiver().recv().await {
                     match sync_state.as_ref() {
                         SyncState::Synced(_) => break,
                         _ => {
@@ -354,7 +354,7 @@ impl From<&LiveConfig> for LiveSignalConfig {
 pub struct LiveSignalEngine {
     config: LiveSignalConfig,
     db: Arc<DbContext>,
-    sync_controller: Arc<SyncController>,
+    sync_state_reader: Arc<dyn SyncStateReader>,
     evaluators: Arc<Vec<ConfiguredSignalEvaluator>>,
 }
 
@@ -362,7 +362,7 @@ impl LiveSignalEngine {
     pub fn new(
         config: LiveSignalConfig,
         db: Arc<DbContext>,
-        sync_controller: Arc<SyncController>,
+        sync_state_reader: Arc<dyn SyncStateReader>,
         evaluators: Arc<Vec<ConfiguredSignalEvaluator>>,
     ) -> Result<Self> {
         if evaluators.is_empty() {
@@ -374,7 +374,7 @@ impl LiveSignalEngine {
         Ok(Self {
             config,
             db,
-            sync_controller,
+            sync_state_reader,
             evaluators,
         })
     }
@@ -392,7 +392,7 @@ impl LiveSignalEngine {
             self.db,
             self.evaluators,
             shutdown_tx.clone(),
-            self.sync_controller,
+            self.sync_state_reader,
             state_manager.clone(),
         )
         .spawn_recovery_loop();
