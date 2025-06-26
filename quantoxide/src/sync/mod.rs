@@ -42,15 +42,15 @@ pub enum SyncState {
 pub type SyncTransmiter = broadcast::Sender<Arc<SyncState>>;
 pub type SyncReceiver = broadcast::Receiver<Arc<SyncState>>;
 
+pub trait SyncStateReader: Send + Sync + 'static {
+    fn snapshot(&self) -> Arc<SyncState>;
+    fn receiver(&self) -> SyncReceiver;
+}
+
 #[derive(Debug)]
 struct SyncStateManager {
     state: Arc<Mutex<Arc<SyncState>>>,
     state_tx: SyncTransmiter,
-}
-
-pub trait SyncStateReader: Send + Sync + 'static {
-    fn snapshot(&self) -> Arc<SyncState>;
-    fn receiver(&self) -> SyncReceiver;
 }
 
 impl SyncStateManager {
