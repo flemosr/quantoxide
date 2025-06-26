@@ -245,7 +245,11 @@ impl LiveSignalController {
         })
     }
 
-    pub fn receiver(&self) -> LiveSignalReceiver {
+    pub fn state_reader(&self) -> Arc<dyn LiveSignalStateReader> {
+        self.state_manager.clone()
+    }
+
+    pub fn state_receiver(&self) -> LiveSignalReceiver {
         self.state_manager.receiver()
     }
 
@@ -363,6 +367,7 @@ pub struct LiveSignalEngine {
     db: Arc<DbContext>,
     sync_state_reader: Arc<dyn SyncStateReader>,
     evaluators: Arc<Vec<ConfiguredSignalEvaluator>>,
+    state_manager: Arc<LiveSignalStateManager>,
 }
 
 impl LiveSignalEngine {
@@ -378,12 +383,27 @@ impl LiveSignalEngine {
             ));
         }
 
+        let state_manager = LiveSignalStateManager::new();
+
         Ok(Self {
             config,
             db,
             sync_state_reader,
             evaluators,
+            state_manager,
         })
+    }
+
+    pub fn state_reader(&self) -> Arc<dyn LiveSignalStateReader> {
+        self.state_manager.clone()
+    }
+
+    pub fn state_receiver(&self) -> LiveSignalReceiver {
+        self.state_manager.receiver()
+    }
+
+    pub fn state_snapshot(&self) -> Arc<LiveSignalState> {
+        self.state_manager.snapshot()
     }
 
     pub fn start(self) -> Arc<LiveSignalController> {
@@ -392,18 +412,16 @@ impl LiveSignalEngine {
         // Internal channel for shutdown signal
         let (shutdown_tx, _) = broadcast::channel::<()>(1);
 
-        let state_manager = LiveSignalStateManager::new();
-
         let handle = LiveSignalProcess::new(
             self.config,
             self.db,
             self.evaluators,
             shutdown_tx.clone(),
             self.sync_state_reader,
-            state_manager.clone(),
+            self.state_manager.clone(),
         )
         .spawn_recovery_loop();
 
-        LiveSignalController::new(handle, shutdown_tx, shutdown_timeout, state_manager)
+        LiveSignalController::new(handle, shutdown_tx, shutdown_timeout, self.state_manager)
     }
 }
