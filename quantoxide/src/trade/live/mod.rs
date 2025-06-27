@@ -28,7 +28,7 @@ pub mod controller;
 pub mod error;
 
 use controller::{
-    LiveTradeController,
+    LiveTradeController, LiveTradeManager,
     state::{LiveTradeControllerState, LiveTradeControllerStateNotReady},
     update::{LiveTradeControllerUpdate, LiveTradeControllerUpdateRunning},
 };
@@ -216,6 +216,12 @@ impl LiveStateManager {
         self.update_state_guard(state_guard, new_state);
     }
 
+    // pub fn handle_trade_controller_update(
+    //     &self,
+    //     controller_update: LiveTradeControllerUpdateRunning,
+    // ) {
+    // }
+
     pub fn update_if_not_running(&self, new_state: LiveState) {
         let state_guard = self.state.lock().expect("state lock can't be poisoned");
 
@@ -278,16 +284,16 @@ impl LiveProcess {
         }
     }
 
-    async fn handle_controller_updates(&self) -> Result<Never> {
-        while let Ok(controller_update) = self.trade_controller.receiver().recv().await {
-            self.state_manager
-                .update_if_running(controller_update.into());
-        }
+    // async fn handle_controller_updates(&self) -> Result<Never> {
+    //     while let Ok(controller_update) = self.trade_controller.receiver().recv().await {
+    //         self.state_manager
+    //             .update_if_running(controller_update.into());
+    //     }
 
-        Err(LiveError::Generic(
-            "`trade_controller` job transmitter was dropped unexpectedly".to_string(),
-        ))
-    }
+    //     Err(LiveError::Generic(
+    //         "`trade_controller` job transmitter was dropped unexpectedly".to_string(),
+    //     ))
+    // }
 
     async fn handle_signals(&self) -> Result<Never> {
         while let Ok(res) = self.signal_controller.state_receiver().recv().await {
@@ -337,10 +343,10 @@ impl LiveProcess {
 
                 let mut shutdown_rx = self.shutdown_tx.subscribe();
                 tokio::select! {
-                    handle_controller_updates_res = self.handle_controller_updates() => {
-                        let Err(e) = handle_controller_updates_res;
-                        self.state_manager.update(LiveState::Failed(e));
-                    }
+                    // handle_controller_updates_res = self.handle_controller_updates() => {
+                    //     let Err(e) = handle_controller_updates_res;
+                    //     self.state_manager.update(LiveState::Failed(e));
+                    // }
                     handle_signals_res = self.handle_signals() => {
                         let Err(e) = handle_signals_res;
                         self.state_manager.update(LiveState::Failed(e));
@@ -622,15 +628,32 @@ impl LiveConfig {
 
 pub struct LiveEngine {
     config: LiveConfig,
-    db: Arc<DbContext>,
-    api: Arc<ApiContext>,
     sync_engine: SyncEngine,
     signal_engine: LiveSignalEngine,
+    trade_manager: LiveTradeManager,
     operator: WrappedOperator,
     state_manager: Arc<LiveStateManager>,
 }
 
 impl LiveEngine {
+    // pub fn spawn_trade_manager_update_handler(
+    //     state_manager: Arc<LiveStateManager>,
+    //     mut trade_manager_rx: LiveTradeControllerReceiver,
+    // ) -> AbortOnDropHandle<()> {
+    //     tokio::spawn(async move {
+    //         while let Ok(controller_update) = trade_manager_rx.recv().await {
+    //             // self.state_manager
+    //             //     .update_if_running(controller_update.into());
+    //         }
+
+    //         let new_state = LiveState::Failed(LiveError::Generic(
+    //             "`trade_controller` job transmitter was dropped unexpectedly".to_string(),
+    //         ));
+    //         state_manager.update(new_state);
+    //     })
+    //     .into()
+    // }
+
     pub fn new(
         config: LiveConfig,
         db: Arc<DbContext>,
@@ -672,14 +695,20 @@ impl LiveEngine {
         )
         .map_err(|e| LiveError::Generic(e.to_string()))?;
 
+        let trade_manager =
+            LiveTradeManager::new(config.tsl_step_size, db, api, sync_engine.state_receiver());
+
+        let trade_manager_rx = trade_manager.update_receiver();
+
+        // TODO: Handle `trade_manager_rx` updates
+
         let state_manager = LiveStateManager::new();
 
         Ok(Self {
             config,
-            db,
-            api,
             sync_engine,
             signal_engine,
+            trade_manager,
             operator,
             state_manager,
         })
@@ -701,14 +730,11 @@ impl LiveEngine {
         let sync_controller = self.sync_engine.start();
         let signal_controller = self.signal_engine.start();
 
-        let trade_controller = LiveTradeController::new(
-            self.config.tsl_step_size,
-            self.db,
-            self.api,
-            sync_controller.state_receiver(),
-        )
-        .await
-        .map_err(|e| LiveError::Generic(e.to_string()))?;
+        let trade_controller = self
+            .trade_manager
+            .start()
+            .await
+            .map_err(|e| LiveError::Generic(e.to_string()))?;
 
         self.operator
             .set_trade_controller(trade_controller.clone())
