@@ -190,6 +190,10 @@ impl WrappedApiContext {
     }
 
     pub async fn cancel_all_trades(&self) -> LiveResult<Vec<LnmTrade>> {
+        let tc_update = LiveTradeControllerUpdateRunning::CancelAllTrades;
+
+        let _ = self.controller_tx.send(tc_update.into());
+
         self.api
             .rest
             .futures
@@ -199,6 +203,10 @@ impl WrappedApiContext {
     }
 
     pub async fn close_all_trades(&self) -> LiveResult<Vec<LnmTrade>> {
+        let tc_update = LiveTradeControllerUpdateRunning::CloseAllTrades;
+
+        let _ = self.controller_tx.send(tc_update.into());
+
         self.api
             .rest
             .futures
