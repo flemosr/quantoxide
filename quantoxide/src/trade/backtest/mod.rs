@@ -16,10 +16,10 @@ use super::core::{Operator, TradeExecutor, TradingState, WrappedOperator};
 
 pub mod error;
 
-mod controller;
+mod executor;
 
-use controller::SimulatedTradeController;
 use error::{BacktestError, Result};
+use executor::SimulatedTradeController;
 
 #[derive(Debug)]
 pub enum BacktestState {
