@@ -19,7 +19,7 @@ pub mod error;
 mod executor;
 
 use error::{BacktestError, Result};
-use executor::SimulatedTradeController;
+use executor::SimulatedTradeExecutor;
 
 #[derive(Debug)]
 pub enum BacktestState {
@@ -256,7 +256,7 @@ impl BacktestEngine {
     async fn run(self) -> Result<TradingState> {
         self.state_manager.update(BacktestState::Starting);
 
-        let trades_manager = {
+        let trades_executor = {
             let start_time_entry = self
                 .db
                 .price_history
@@ -267,7 +267,7 @@ impl BacktestEngine {
                     "no entries before start_time"
                 )))?;
 
-            Arc::new(SimulatedTradeController::new(
+            Arc::new(SimulatedTradeExecutor::new(
                 self.config.max_running_qtd,
                 self.config.fee_perc,
                 self.config.tsl_step_size,
@@ -280,7 +280,7 @@ impl BacktestEngine {
         let mut operator = self.operator;
 
         operator
-            .set_trade_executor(trades_manager.clone())
+            .set_trade_executor(trades_executor.clone())
             .map_err(|e| {
                 BacktestError::Generic(format!(
                     "couldn't set the simulated trades manager {}",
@@ -344,7 +344,7 @@ impl BacktestEngine {
         ) = get_buffers(time_cursor).await?;
 
         {
-            let trades_state = trades_manager
+            let trades_state = trades_executor
                 .trading_state()
                 .await
                 .map_err(|e| BacktestError::Generic(e.to_string()))?;
@@ -381,7 +381,7 @@ impl BacktestEngine {
             } else {
                 // Reached the end of the current buffer
 
-                let trades_state = trades_manager
+                let trades_state = trades_executor
                     .trading_state()
                     .await
                     .map_err(|e| BacktestError::Generic(e.to_string()))?;
@@ -397,11 +397,11 @@ impl BacktestEngine {
                 ) = get_buffers(time_cursor).await?;
             }
 
-            // Update `SimulatedTradesManager` with all the price ticks with time lte
+            // Update `SimulatedTradeExecutor` with all the price ticks with time lte
             // the new `time_cursor`.
             while let Some(next_price_tick) = price_ticks.get(price_ticks_cursor_idx) {
                 if next_price_tick.time <= time_cursor {
-                    trades_manager
+                    trades_executor
                         .tick_update(next_price_tick.time, next_price_tick.value)
                         .await
                         .map_err(|e| BacktestError::Generic(e.to_string()))?;
@@ -413,12 +413,12 @@ impl BacktestEngine {
             }
         }
 
-        trades_manager
+        trades_executor
             .close_all()
             .await
             .map_err(|e| BacktestError::Generic(e.to_string()))?;
 
-        let final_state = trades_manager
+        let final_state = trades_executor
             .trading_state()
             .await
             .map_err(|e| BacktestError::Generic(e.to_string()))?;

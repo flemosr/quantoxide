@@ -9,7 +9,7 @@ use lnm_sdk::api::rest::models::{
 
 use super::super::super::core::TradeExt;
 
-use super::error::{Result, SimulatedTradeControllerError};
+use super::error::{Result, SimulatedTradeExecutorError};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SimulatedTradeRunning {
@@ -42,21 +42,19 @@ impl SimulatedTradeRunning {
         match side {
             TradeSide::Buy => {
                 if stoploss < liquidation {
-                    return Err(
-                        SimulatedTradeControllerError::StoplossBelowLiquidationLong {
-                            stoploss,
-                            liquidation,
-                        },
-                    );
+                    return Err(SimulatedTradeExecutorError::StoplossBelowLiquidationLong {
+                        stoploss,
+                        liquidation,
+                    });
                 }
                 if stoploss >= entry_price {
-                    return Err(SimulatedTradeControllerError::StoplossAboveEntryForLong {
+                    return Err(SimulatedTradeExecutorError::StoplossAboveEntryForLong {
                         stoploss,
                         entry_price,
                     });
                 }
                 if takeprofit <= entry_price {
-                    return Err(SimulatedTradeControllerError::TakeprofitBelowEntryForLong {
+                    return Err(SimulatedTradeExecutorError::TakeprofitBelowEntryForLong {
                         takeprofit,
                         entry_price,
                     });
@@ -64,26 +62,22 @@ impl SimulatedTradeRunning {
             }
             TradeSide::Sell => {
                 if stoploss > liquidation {
-                    return Err(
-                        SimulatedTradeControllerError::StoplossAboveLiquidationShort {
-                            stoploss,
-                            liquidation,
-                        },
-                    );
+                    return Err(SimulatedTradeExecutorError::StoplossAboveLiquidationShort {
+                        stoploss,
+                        liquidation,
+                    });
                 }
                 if stoploss <= entry_price {
-                    return Err(SimulatedTradeControllerError::StoplossBelowEntryForShort {
+                    return Err(SimulatedTradeExecutorError::StoplossBelowEntryForShort {
                         stoploss,
                         entry_price,
                     });
                 }
                 if takeprofit >= entry_price {
-                    return Err(
-                        SimulatedTradeControllerError::TakeprofitAboveEntryForShort {
-                            takeprofit,
-                            entry_price,
-                        },
-                    );
+                    return Err(SimulatedTradeExecutorError::TakeprofitAboveEntryForShort {
+                        takeprofit,
+                        entry_price,
+                    });
                 }
             }
         };
@@ -117,15 +111,13 @@ impl SimulatedTradeRunning {
         match trade.side {
             TradeSide::Buy => {
                 if new_stoploss < trade.liquidation {
-                    return Err(
-                        SimulatedTradeControllerError::StoplossBelowLiquidationLong {
-                            stoploss: new_stoploss,
-                            liquidation: trade.liquidation,
-                        },
-                    );
+                    return Err(SimulatedTradeExecutorError::StoplossBelowLiquidationLong {
+                        stoploss: new_stoploss,
+                        liquidation: trade.liquidation,
+                    });
                 }
                 if new_stoploss >= trade.takeprofit {
-                    return Err(SimulatedTradeControllerError::Generic(format!(
+                    return Err(SimulatedTradeExecutorError::Generic(format!(
                         "For long position, stoploss ({}) must be below takeprofit ({})",
                         new_stoploss, trade.takeprofit
                     )));
@@ -133,15 +125,13 @@ impl SimulatedTradeRunning {
             }
             TradeSide::Sell => {
                 if new_stoploss > trade.liquidation {
-                    return Err(
-                        SimulatedTradeControllerError::StoplossAboveLiquidationShort {
-                            stoploss: new_stoploss,
-                            liquidation: trade.liquidation,
-                        },
-                    );
+                    return Err(SimulatedTradeExecutorError::StoplossAboveLiquidationShort {
+                        stoploss: new_stoploss,
+                        liquidation: trade.liquidation,
+                    });
                 }
                 if new_stoploss <= trade.takeprofit {
-                    return Err(SimulatedTradeControllerError::Generic(format!(
+                    return Err(SimulatedTradeExecutorError::Generic(format!(
                         "For short position, stoploss ({}) must be above takeprofit ({})",
                         new_stoploss, trade.takeprofit
                     )));
