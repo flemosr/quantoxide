@@ -22,7 +22,7 @@ use crate::{
     util::{AbortOnDropHandle, Never},
 };
 
-use super::core::{Operator, TradeController, TradingState, WrappedOperator};
+use super::core::{Operator, TradeExecutor, TradingState, WrappedOperator};
 
 pub mod controller;
 pub mod error;
@@ -737,7 +737,7 @@ impl LiveEngine {
             .map_err(|e| LiveError::Generic(e.to_string()))?;
 
         self.operator
-            .set_trade_controller(trade_controller.clone())
+            .set_trade_executor(trade_controller.clone())
             .map_err(|e| {
                 LiveError::Generic(format!(
                     "couldn't set the live trades manager {}",

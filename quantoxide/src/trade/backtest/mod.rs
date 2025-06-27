@@ -9,9 +9,10 @@ use crate::{
     db::DbContext,
     signal::core::{ConfiguredSignalEvaluator, Signal},
     sync::PriceHistoryState,
-    trade::core::{Operator, TradeController, TradingState, WrappedOperator},
     util::{AbortOnDropHandle, DateTimeExt},
 };
+
+use super::core::{Operator, TradeExecutor, TradingState, WrappedOperator};
 
 pub mod error;
 
@@ -279,7 +280,7 @@ impl BacktestEngine {
         let mut operator = self.operator;
 
         operator
-            .set_trade_controller(trades_manager.clone())
+            .set_trade_executor(trades_manager.clone())
             .map_err(|e| {
                 BacktestError::Generic(format!(
                     "couldn't set the simulated trades manager {}",

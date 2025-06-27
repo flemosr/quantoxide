@@ -20,7 +20,7 @@ use crate::{
 
 use super::{
     super::{
-        core::{RiskParams, StoplossMode, TradeController, TradeTrailingStoploss, TradingState},
+        core::{RiskParams, StoplossMode, TradeExecutor, TradeTrailingStoploss, TradingState},
         error::{Result, TradeError},
     },
     error::{LiveError, Result as LiveResult},
@@ -204,7 +204,7 @@ impl LiveTradeController {
 }
 
 #[async_trait]
-impl TradeController for LiveTradeController {
+impl TradeExecutor for LiveTradeController {
     async fn open_long(
         &self,
         stoploss_perc: BoundedPercentage,

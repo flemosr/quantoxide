@@ -472,7 +472,7 @@ impl StoplossMode {
 }
 
 #[async_trait]
-pub trait TradeController: Send + Sync {
+pub trait TradeExecutor: Send + Sync {
     async fn open_long(
         &self,
         stoploss_perc: BoundedPercentage,
@@ -502,9 +502,9 @@ pub trait TradeController: Send + Sync {
 
 #[async_trait]
 pub trait Operator: Send + Sync {
-    fn set_trade_controller(
+    fn set_trade_executor(
         &mut self,
-        trade_controller: Arc<dyn TradeController>,
+        trade_executor: Arc<dyn TradeExecutor>,
     ) -> std::result::Result<(), Box<dyn std::error::Error>>;
 
     async fn process_signal(
@@ -516,17 +516,14 @@ pub trait Operator: Send + Sync {
 pub(crate) struct WrappedOperator(Box<dyn Operator>);
 
 impl WrappedOperator {
-    pub fn set_trade_controller(
-        &mut self,
-        trade_controller: Arc<dyn TradeController>,
-    ) -> Result<()> {
+    pub fn set_trade_executor(&mut self, trade_executor: Arc<dyn TradeExecutor>) -> Result<()> {
         panic::catch_unwind(AssertUnwindSafe(|| {
-            self.0.set_trade_controller(trade_controller)
+            self.0.set_trade_executor(trade_executor)
         }))
-        .map_err(|_| TradeError::Generic(format!("`Operator::set_trade_controller` panicked")))?
+        .map_err(|_| TradeError::Generic(format!("`Operator::set_trade_executor` panicked")))?
         .map_err(|e| {
             TradeError::Generic(format!(
-                "`Operator::set_trade_controller` error {}",
+                "`Operator::set_trade_executor` error {}",
                 e.to_string()
             ))
         })

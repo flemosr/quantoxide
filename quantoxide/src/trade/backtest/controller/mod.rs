@@ -11,7 +11,7 @@ use lnm_sdk::api::rest::models::{
 
 use super::super::{
     core::{
-        PriceTrigger, RiskParams, StoplossMode, TradeController, TradeExt, TradeTrailingStoploss,
+        PriceTrigger, RiskParams, StoplossMode, TradeExecutor, TradeExt, TradeTrailingStoploss,
         TradingState,
     },
     error::{Result, TradeError},
@@ -309,7 +309,7 @@ impl SimulatedTradeController {
 }
 
 #[async_trait]
-impl TradeController for SimulatedTradeController {
+impl TradeExecutor for SimulatedTradeController {
     async fn open_long(
         &self,
         stoploss_perc: BoundedPercentage,
