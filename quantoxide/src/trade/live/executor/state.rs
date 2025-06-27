@@ -12,7 +12,7 @@ use crate::{
     sync::SyncState,
     trade::{
         core::{PriceTrigger, TradeExt, TradeTrailingStoploss, TradingState},
-        live::controller::{
+        live::executor::{
             LiveTradeControllerTransmiter, LiveTradeControllerUpdate, WrappedApiContext,
         },
     },

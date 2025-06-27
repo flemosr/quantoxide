@@ -24,15 +24,15 @@ use crate::{
 
 use super::core::{Operator, TradeExecutor, TradingState, WrappedOperator};
 
-pub mod controller;
 pub mod error;
+pub mod executor;
 
-use controller::{
+use error::{LiveError, Result};
+use executor::{
     LiveTradeController, LiveTradeManager,
     state::{LiveTradeControllerState, LiveTradeControllerStateNotReady},
     update::{LiveTradeControllerUpdate, LiveTradeControllerUpdateRunning},
 };
-use error::{LiveError, Result};
 
 #[derive(Debug)]
 pub enum LiveStateRunningUpdate {
