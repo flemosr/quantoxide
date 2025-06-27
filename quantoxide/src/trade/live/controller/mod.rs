@@ -48,131 +48,22 @@ pub struct LiveTradeController {
 }
 
 impl LiveTradeController {
-    fn spawn_sync_processor(
+    pub fn new(
         tsl_step_size: BoundedPercentage,
         db: Arc<DbContext>,
         api: WrappedApiContext,
-        sync_rx: SyncReceiver,
+        update_tx: LiveTradeControllerTransmiter,
         state_manager: Arc<LiveTradeControllerStateManager>,
-    ) -> AbortOnDropHandle<()> {
-        tokio::spawn(async move {
-            let handler = async || -> LiveResult<Never> {
-                let mut sync_rx = sync_rx;
-                loop {
-                    match sync_rx.recv().await {
-                        Ok(sync_state) => match sync_state.as_ref() {
-                            SyncState::NotInitiated
-                            | SyncState::Starting
-                            | SyncState::InProgress(_)
-                            | SyncState::WaitingForResync
-                            | SyncState::Failed(_)
-                            | SyncState::Restarting => {
-                                let new_state =
-                                    LiveTradeControllerStateNotReady::WaitingForSync(sync_state);
-                                state_manager.update(new_state.into()).await;
-                            }
-                            SyncState::Synced(_) => {
-                                match state_manager.try_lock_ready_status().await {
-                                    Ok(locked_ready_status) => {
-                                        let mut tc_ready_status = locked_ready_status.to_owned();
-
-                                        let new_state = match tc_ready_status
-                                            .reevaluate(tsl_step_size, db.as_ref(), &api)
-                                            .await
-                                        {
-                                            Ok(()) => tc_ready_status.into(),
-                                            Err(e) => {
-                                                // Recoverable error
-                                                LiveTradeControllerStateNotReady::Failed(e).into()
-                                            }
-                                        };
-
-                                        state_manager
-                                            .update_from_locked_ready_status(
-                                                locked_ready_status,
-                                                new_state,
-                                            )
-                                            .await;
-                                    }
-                                    Err(_) => {
-                                        // Try to obtain `LiveTradeControllerStatus` via API
-                                        let status = match LiveTradeControllerReadyStatus::new(
-                                            tsl_step_size,
-                                            db.as_ref(),
-                                            &api,
-                                        )
-                                        .await
-                                        {
-                                            Ok(status) => status,
-                                            Err(e) => {
-                                                // Recoverable error
-                                                let new_state =
-                                                    LiveTradeControllerStateNotReady::Failed(e);
-                                                state_manager.update(new_state.into()).await;
-                                                continue;
-                                            }
-                                        };
-
-                                        let new_state = status.into();
-                                        state_manager.update(new_state).await;
-                                    }
-                                };
-                            }
-                            SyncState::ShutdownInitiated | SyncState::Shutdown => {
-                                return Err(LiveError::Generic(
-                                    "sync process was shutdown".to_string(),
-                                ));
-                            }
-                        },
-                        Err(e) => {
-                            return Err(LiveError::Generic(format!("sync_rx error {e}")));
-                        }
-                    }
-                }
-            };
-
-            let Err(e) = handler().await;
-
-            let new_state = LiveTradeControllerStateNotReady::NotViable(e);
-            state_manager.update(new_state.into()).await;
-        })
-        .into()
-    }
-
-    pub async fn new(
-        tsl_step_size: BoundedPercentage,
-        db: Arc<DbContext>,
-        api: Arc<ApiContext>,
-        sync_rx: SyncReceiver,
-    ) -> Result<Arc<Self>> {
-        let (_, _) = futures::try_join!(
-            api.rest.futures.cancel_all_trades(),
-            api.rest.futures.close_all_trades(),
-        )
-        .map_err(LiveError::RestApi)?;
-
-        let (update_tx, _) = broadcast::channel::<LiveTradeControllerUpdate>(100);
-
-        let state_manager = LiveTradeControllerStateManager::new(update_tx.clone());
-
-        let api = WrappedApiContext::new(api, update_tx.clone());
-
-        let _handle = Self::spawn_sync_processor(
-            tsl_step_size,
-            db.clone(),
-            api.clone(),
-            sync_rx,
-            state_manager.clone(),
-        );
-
-        Ok(Arc::new(Self {
+        _handle: AbortOnDropHandle<()>,
+    ) -> Arc<Self> {
+        Arc::new(Self {
             tsl_step_size,
             db,
             api,
             update_tx,
             state_manager,
             _handle,
-        }))
+        })
     }
 
     pub fn receiver(&self) -> LiveTradeControllerReceiver {
@@ -396,5 +287,154 @@ impl TradeController for LiveTradeController {
         let ready_status = self.state_manager.try_lock_ready_status().await?.to_owned();
 
         Ok(TradingState::from(&ready_status))
+    }
+}
+
+pub struct LiveTradeManager {
+    tsl_step_size: BoundedPercentage,
+    db: Arc<DbContext>,
+    api: WrappedApiContext,
+    update_tx: LiveTradeControllerTransmiter,
+    state_manager: Arc<LiveTradeControllerStateManager>,
+    sync_rx: SyncReceiver,
+}
+
+impl LiveTradeManager {
+    pub fn new(
+        tsl_step_size: BoundedPercentage,
+        db: Arc<DbContext>,
+        api: Arc<ApiContext>,
+        sync_rx: SyncReceiver,
+    ) -> Self {
+        let (update_tx, _) = broadcast::channel::<LiveTradeControllerUpdate>(100);
+
+        let api = WrappedApiContext::new(api, update_tx.clone());
+
+        let state_manager = LiveTradeControllerStateManager::new(update_tx.clone());
+
+        Self {
+            tsl_step_size,
+            db,
+            api,
+            update_tx,
+            state_manager,
+            sync_rx,
+        }
+    }
+
+    pub fn update_receiver(&self) -> LiveTradeControllerReceiver {
+        self.update_tx.subscribe()
+    }
+
+    fn spawn_sync_processor(
+        tsl_step_size: BoundedPercentage,
+        db: Arc<DbContext>,
+        api: WrappedApiContext,
+        sync_rx: SyncReceiver,
+        state_manager: Arc<LiveTradeControllerStateManager>,
+    ) -> AbortOnDropHandle<()> {
+        tokio::spawn(async move {
+            let handler = async || -> LiveResult<Never> {
+                let mut sync_rx = sync_rx;
+                loop {
+                    match sync_rx.recv().await {
+                        Ok(sync_state) => match sync_state.as_ref() {
+                            SyncState::NotInitiated
+                            | SyncState::Starting
+                            | SyncState::InProgress(_)
+                            | SyncState::WaitingForResync
+                            | SyncState::Failed(_)
+                            | SyncState::Restarting => {
+                                let new_state =
+                                    LiveTradeControllerStateNotReady::WaitingForSync(sync_state);
+                                state_manager.update(new_state.into()).await;
+                            }
+                            SyncState::Synced(_) => {
+                                match state_manager.try_lock_ready_status().await {
+                                    Ok(locked_ready_status) => {
+                                        let mut tc_ready_status = locked_ready_status.to_owned();
+
+                                        let new_state = match tc_ready_status
+                                            .reevaluate(tsl_step_size, db.as_ref(), &api)
+                                            .await
+                                        {
+                                            Ok(()) => tc_ready_status.into(),
+                                            Err(e) => {
+                                                // Recoverable error
+                                                LiveTradeControllerStateNotReady::Failed(e).into()
+                                            }
+                                        };
+
+                                        state_manager
+                                            .update_from_locked_ready_status(
+                                                locked_ready_status,
+                                                new_state,
+                                            )
+                                            .await;
+                                    }
+                                    Err(_) => {
+                                        // Try to obtain `LiveTradeControllerStatus` via API
+                                        let status = match LiveTradeControllerReadyStatus::new(
+                                            tsl_step_size,
+                                            db.as_ref(),
+                                            &api,
+                                        )
+                                        .await
+                                        {
+                                            Ok(status) => status,
+                                            Err(e) => {
+                                                // Recoverable error
+                                                let new_state =
+                                                    LiveTradeControllerStateNotReady::Failed(e);
+                                                state_manager.update(new_state.into()).await;
+                                                continue;
+                                            }
+                                        };
+
+                                        let new_state = status.into();
+                                        state_manager.update(new_state).await;
+                                    }
+                                };
+                            }
+                            SyncState::ShutdownInitiated | SyncState::Shutdown => {
+                                return Err(LiveError::Generic(
+                                    "sync process was shutdown".to_string(),
+                                ));
+                            }
+                        },
+                        Err(e) => {
+                            return Err(LiveError::Generic(format!("sync_rx error {e}")));
+                        }
+                    }
+                }
+            };
+
+            let Err(e) = handler().await;
+
+            let new_state = LiveTradeControllerStateNotReady::NotViable(e);
+            state_manager.update(new_state.into()).await;
+        })
+        .into()
+    }
+
+    pub async fn start(self) -> Result<Arc<LiveTradeController>> {
+        let (_, _) = futures::try_join!(self.api.cancel_all_trades(), self.api.close_all_trades())?;
+
+        let _handle = Self::spawn_sync_processor(
+            self.tsl_step_size,
+            self.db.clone(),
+            self.api.clone(),
+            self.sync_rx,
+            self.state_manager.clone(),
+        );
+
+        Ok(LiveTradeController::new(
+            self.tsl_step_size,
+            self.db,
+            self.api,
+            self.update_tx,
+            self.state_manager,
+            _handle,
+        ))
     }
 }
