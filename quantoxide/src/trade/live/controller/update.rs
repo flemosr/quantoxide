@@ -31,6 +31,8 @@ pub enum LiveTradeControllerUpdateRunning {
     CloseTrade {
         id: Uuid,
     },
+    CancelAllTrades,
+    CloseAllTrades,
     State(TradingState),
 }
 
@@ -49,7 +51,7 @@ impl From<Arc<LiveTradeControllerReadyStatus>> for LiveTradeControllerUpdateRunn
 impl fmt::Display for LiveTradeControllerUpdateRunning {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            LiveTradeControllerUpdateRunning::CreateNewTrade {
+            Self::CreateNewTrade {
                 side,
                 quantity,
                 leverage,
@@ -60,13 +62,15 @@ impl fmt::Display for LiveTradeControllerUpdateRunning {
                 "CreateNewTrade(side: {}, quantity: {}, leverage: {}, stoploss: {}, takeprofit: {})",
                 side, quantity, leverage, stoploss, takeprofit
             ),
-            LiveTradeControllerUpdateRunning::UpdateTradeStoploss { id, stoploss } => {
+            Self::UpdateTradeStoploss { id, stoploss } => {
                 write!(f, "UpdateTradeStoploss(id: {}, stoploss: {})", id, stoploss)
             }
-            LiveTradeControllerUpdateRunning::CloseTrade { id } => {
+            Self::CloseTrade { id } => {
                 write!(f, "CloseTrade(id: {})", id)
             }
-            LiveTradeControllerUpdateRunning::State(_) => {
+            Self::CancelAllTrades => write!(f, "CancelAllTrades"),
+            Self::CloseAllTrades => write!(f, "CloseAllTrades"),
+            Self::State(_) => {
                 write!(f, "State(...)")
             }
         }

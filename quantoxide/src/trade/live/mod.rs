@@ -51,6 +51,8 @@ pub enum LiveStateRunningUpdate {
     CloseTrade {
         id: Uuid,
     },
+    CancelAllTrades,
+    CloseAllTrades,
     State(TradingState),
 }
 
@@ -74,6 +76,8 @@ impl From<LiveTradeControllerUpdateRunning> for LiveStateRunningUpdate {
                 Self::UpdateTradeStoploss { id, stoploss }
             }
             LiveTradeControllerUpdateRunning::CloseTrade { id } => Self::CloseTrade { id },
+            LiveTradeControllerUpdateRunning::CancelAllTrades => Self::CancelAllTrades,
+            LiveTradeControllerUpdateRunning::CloseAllTrades => Self::CloseAllTrades,
             LiveTradeControllerUpdateRunning::State(state) => Self::State(state),
         }
     }
@@ -86,9 +90,9 @@ impl From<Signal> for LiveStateRunningUpdate {
 }
 
 impl fmt::Display for LiveStateRunningUpdate {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            LiveStateRunningUpdate::ProcessSignal(signal) => {
+            Self::ProcessSignal(signal) => {
                 let signal_str = signal.to_string();
                 let indented_signal = signal_str
                     .lines()
@@ -101,7 +105,7 @@ impl fmt::Display for LiveStateRunningUpdate {
                     indented_signal
                 )
             }
-            LiveStateRunningUpdate::CreateNewTrade {
+            Self::CreateNewTrade {
                 side,
                 quantity,
                 leverage,
@@ -114,17 +118,19 @@ impl fmt::Display for LiveStateRunningUpdate {
                     side, quantity, leverage, stoploss, takeprofit
                 )
             }
-            LiveStateRunningUpdate::UpdateTradeStoploss { id, stoploss } => {
+            Self::UpdateTradeStoploss { id, stoploss } => {
                 write!(
                     f,
                     "LiveStateRunningUpdate::UpdateTradeStoploss:\n  id: {}\n  stoploss: {:.1}",
                     id, stoploss
                 )
             }
-            LiveStateRunningUpdate::CloseTrade { id } => {
+            Self::CloseTrade { id } => {
                 write!(f, "LiveStateRunningUpdate::CloseTrade:\n  id: {}", id)
             }
-            LiveStateRunningUpdate::State(state) => {
+            Self::CancelAllTrades => write!(f, "LiveStateRunningUpdate::CancelAllTrades"),
+            Self::CloseAllTrades => write!(f, "LiveStateRunningUpdate::CloseAllTrades"),
+            Self::State(state) => {
                 let indented_state = state
                     .to_string()
                     .lines()
