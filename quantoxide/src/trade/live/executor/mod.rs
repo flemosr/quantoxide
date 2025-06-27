@@ -290,7 +290,7 @@ impl TradeExecutor for LiveTradeExecutor {
     }
 }
 
-pub struct LiveTradeManager {
+pub struct LiveTradeSetup {
     tsl_step_size: BoundedPercentage,
     db: Arc<DbContext>,
     api: WrappedApiContext,
@@ -299,7 +299,7 @@ pub struct LiveTradeManager {
     sync_rx: SyncReceiver,
 }
 
-impl LiveTradeManager {
+impl LiveTradeSetup {
     pub fn new(
         tsl_step_size: BoundedPercentage,
         db: Arc<DbContext>,
@@ -417,7 +417,7 @@ impl LiveTradeManager {
         .into()
     }
 
-    pub async fn start(self) -> Result<Arc<LiveTradeExecutor>> {
+    pub async fn run(self) -> Result<Arc<LiveTradeExecutor>> {
         let (_, _) = futures::try_join!(self.api.cancel_all_trades(), self.api.close_all_trades())?;
 
         let _handle = Self::spawn_sync_processor(

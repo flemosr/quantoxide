@@ -29,7 +29,7 @@ pub mod executor;
 
 use error::{LiveError, Result};
 use executor::{
-    LiveTradeExecutor, LiveTradeManager,
+    LiveTradeExecutor, LiveTradeSetup,
     state::{LiveTradeExecutorState, LiveTradeExecutorStateNotReady},
     update::{LiveTradeExecutorUpdate, LiveTradeExecutorUpdateRunning},
 };
@@ -214,7 +214,7 @@ impl LiveStateManager {
         self.update_state_guard(state_guard, new_state);
     }
 
-    // pub fn handle_trade_controller_update(
+    // pub fn handle_trade_executor_update(
     //     &self,
     //     controller_update: LiveTradeControllerUpdateRunning,
     // ) {
@@ -259,7 +259,7 @@ struct LiveProcess {
     operator: WrappedOperator,
     shutdown_tx: broadcast::Sender<()>,
     signal_controller: Arc<LiveSignalController>,
-    trade_controller: Arc<LiveTradeExecutor>,
+    trade_executor: Arc<LiveTradeExecutor>,
     state_manager: Arc<LiveStateManager>,
 }
 
@@ -269,7 +269,7 @@ impl LiveProcess {
         operator: WrappedOperator,
         shutdown_tx: broadcast::Sender<()>,
         signal_controller: Arc<LiveSignalController>,
-        trade_controller: Arc<LiveTradeExecutor>,
+        trade_executor: Arc<LiveTradeExecutor>,
         state_manager: Arc<LiveStateManager>,
     ) -> Self {
         Self {
@@ -277,19 +277,19 @@ impl LiveProcess {
             operator,
             shutdown_tx,
             signal_controller,
-            trade_controller,
+            trade_executor,
             state_manager,
         }
     }
 
     // async fn handle_controller_updates(&self) -> Result<Never> {
-    //     while let Ok(controller_update) = self.trade_controller.receiver().recv().await {
+    //     while let Ok(controller_update) = self.trade_executor.receiver().recv().await {
     //         self.state_manager
     //             .update_if_running(controller_update.into());
     //     }
 
     //     Err(LiveError::Generic(
-    //         "`trade_controller` job transmitter was dropped unexpectedly".to_string(),
+    //         "`trade_executor` job transmitter was dropped unexpectedly".to_string(),
     //     ))
     // }
 
@@ -301,16 +301,16 @@ impl LiveProcess {
                         .update(LiveState::WaitingForSync(sync_state.clone()));
                 }
                 LiveSignalState::Running(last_signal) => {
-                    let tc_state = self.trade_controller.state_snapshot().await;
+                    let tex_state = self.trade_executor.state_snapshot().await;
 
-                    if let LiveTradeExecutorState::Ready(ready_status) = tc_state {
+                    if let LiveTradeExecutorState::Ready(ready_status) = tex_state {
                         // Sync is ok, signal is ok and trade controller is ok
 
-                        let tc_update = LiveTradeExecutorUpdate::from(
+                        let tex_update = LiveTradeExecutorUpdate::from(
                             LiveTradeExecutorUpdateRunning::from(ready_status),
                         );
 
-                        self.state_manager.update_if_not_running(tc_update.into());
+                        self.state_manager.update_if_not_running(tex_update.into());
                     } else {
                         continue;
                     }
@@ -385,7 +385,7 @@ pub struct LiveController {
     shutdown_tx: broadcast::Sender<()>,
     shutdown_timeout: time::Duration,
     state_manager: Arc<LiveStateManager>,
-    trade_controller: Arc<LiveTradeExecutor>,
+    trade_executor: Arc<LiveTradeExecutor>,
 }
 
 impl LiveController {
@@ -396,7 +396,7 @@ impl LiveController {
         shutdown_tx: broadcast::Sender<()>,
         shutdown_timeout: time::Duration,
         state_manager: Arc<LiveStateManager>,
-        trade_controller: Arc<LiveTradeExecutor>,
+        trade_executor: Arc<LiveTradeExecutor>,
     ) -> Arc<Self> {
         Arc::new(Self {
             sync_controller,
@@ -405,7 +405,7 @@ impl LiveController {
             shutdown_tx,
             shutdown_timeout,
             state_manager,
-            trade_controller,
+            trade_executor,
         })
     }
 
@@ -468,7 +468,7 @@ impl LiveController {
         // Close and cancel all trades
 
         let close_all_res = self
-            .trade_controller
+            .trade_executor
             .close_all()
             .await
             .map_err(|e| LiveError::Generic(e.to_string()));
@@ -628,7 +628,7 @@ pub struct LiveEngine {
     config: LiveConfig,
     sync_engine: SyncEngine,
     signal_engine: LiveSignalEngine,
-    trade_manager: LiveTradeManager,
+    trade_setup: LiveTradeSetup,
     operator: WrappedOperator,
     state_manager: Arc<LiveStateManager>,
 }
@@ -645,7 +645,7 @@ impl LiveEngine {
     //         }
 
     //         let new_state = LiveState::Failed(LiveError::Generic(
-    //             "`trade_controller` job transmitter was dropped unexpectedly".to_string(),
+    //             "`trade_executor` job transmitter was dropped unexpectedly".to_string(),
     //         ));
     //         state_manager.update(new_state);
     //     })
@@ -693,12 +693,12 @@ impl LiveEngine {
         )
         .map_err(|e| LiveError::Generic(e.to_string()))?;
 
-        let trade_manager =
-            LiveTradeManager::new(config.tsl_step_size, db, api, sync_engine.state_receiver());
+        let trade_setup =
+            LiveTradeSetup::new(config.tsl_step_size, db, api, sync_engine.state_receiver());
 
-        let trade_manager_rx = trade_manager.update_receiver();
+        let trade_update_rx = trade_setup.update_receiver();
 
-        // TODO: Handle `trade_manager_rx` updates
+        // TODO: Handle `trade_update_rx` updates
 
         let state_manager = LiveStateManager::new();
 
@@ -706,7 +706,7 @@ impl LiveEngine {
             config,
             sync_engine,
             signal_engine,
-            trade_manager,
+            trade_setup,
             operator,
             state_manager,
         })
@@ -728,14 +728,14 @@ impl LiveEngine {
         let sync_controller = self.sync_engine.start();
         let signal_controller = self.signal_engine.start();
 
-        let trade_controller = self
-            .trade_manager
-            .start()
+        let trade_executor = self
+            .trade_setup
+            .run()
             .await
             .map_err(|e| LiveError::Generic(e.to_string()))?;
 
         self.operator
-            .set_trade_executor(trade_controller.clone())
+            .set_trade_executor(trade_executor.clone())
             .map_err(|e| {
                 LiveError::Generic(format!(
                     "couldn't set the live trades manager {}",
@@ -751,7 +751,7 @@ impl LiveEngine {
             self.operator,
             shutdown_tx.clone(),
             signal_controller.clone(),
-            trade_controller.clone(),
+            trade_executor.clone(),
             self.state_manager.clone(),
         )
         .spawn_recovery_loop();
@@ -763,7 +763,7 @@ impl LiveEngine {
             shutdown_tx,
             self.config.shutdown_timeout(),
             self.state_manager,
-            trade_controller,
+            trade_executor,
         );
 
         Ok(controller)
