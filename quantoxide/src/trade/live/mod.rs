@@ -168,18 +168,18 @@ impl From<LiveStateRunningUpdate> for LiveState {
     }
 }
 
-pub type LiveTradeTransmiter = broadcast::Sender<Arc<LiveState>>;
-pub type LiveTradeReceiver = broadcast::Receiver<Arc<LiveState>>;
+pub type LiveTransmiter = broadcast::Sender<Arc<LiveState>>;
+pub type LiveReceiver = broadcast::Receiver<Arc<LiveState>>;
 
 pub trait LiveStateReader: Send + Sync + 'static {
     fn snapshot(&self) -> Arc<LiveState>;
-    fn receiver(&self) -> LiveTradeReceiver;
+    fn receiver(&self) -> LiveReceiver;
 }
 
 #[derive(Debug)]
 struct LiveStateManager {
     state: Mutex<Arc<LiveState>>,
-    state_tx: LiveTradeTransmiter,
+    state_tx: LiveTransmiter,
 }
 
 impl LiveStateManager {
@@ -239,7 +239,7 @@ impl LiveStateReader for LiveStateManager {
             .clone()
     }
 
-    fn receiver(&self) -> LiveTradeReceiver {
+    fn receiver(&self) -> LiveReceiver {
         self.state_tx.subscribe()
     }
 }
@@ -403,7 +403,7 @@ impl LiveController {
         self.state_manager.clone()
     }
 
-    pub fn state_receiver(&self) -> LiveTradeReceiver {
+    pub fn state_receiver(&self) -> LiveReceiver {
         self.state_manager.receiver()
     }
 
@@ -683,7 +683,7 @@ impl LiveEngine {
         self.state_manager.clone()
     }
 
-    pub fn state_receiver(&self) -> LiveTradeReceiver {
+    pub fn state_receiver(&self) -> LiveReceiver {
         self.state_manager.receiver()
     }
 
