@@ -10,18 +10,16 @@ use lnm_sdk::api::rest::models::{BoundedPercentage, LnmTrade, Price, Trade, Trad
 use crate::{
     db::DbContext,
     sync::SyncState,
-    trade::{
-        core::{PriceTrigger, TradeExt, TradeTrailingStoploss, TradingState},
-        live::executor::{
-            LiveTradeControllerTransmiter, LiveTradeControllerUpdate, WrappedApiContext,
-        },
-    },
+    trade::core::{PriceTrigger, TradeExt, TradeTrailingStoploss, TradingState},
 };
 
 use super::super::error::{LiveError, Result as LiveResult};
+use super::super::executor::{
+    LiveTradeControllerUpdate, LiveTradeExecutorTransmiter, WrappedApiContext,
+};
 
 #[derive(Debug, Clone)]
-pub struct LiveTradeControllerReadyStatus {
+pub struct LiveTradeExecutorReadyStatus {
     last_trade_time: Option<DateTime<Utc>>,
     balance: u64,
     last_evaluation_time: DateTime<Utc>,
@@ -31,7 +29,7 @@ pub struct LiveTradeControllerReadyStatus {
     closed: Vec<Arc<LnmTrade>>,
 }
 
-impl LiveTradeControllerReadyStatus {
+impl LiveTradeExecutorReadyStatus {
     pub async fn new(
         tsl_step_size: BoundedPercentage,
         db: &DbContext,
@@ -375,8 +373,8 @@ impl LiveTradeControllerReadyStatus {
     }
 }
 
-impl From<&LiveTradeControllerReadyStatus> for TradingState {
-    fn from(value: &LiveTradeControllerReadyStatus) -> Self {
+impl From<&LiveTradeExecutorReadyStatus> for TradingState {
+    fn from(value: &LiveTradeExecutorReadyStatus) -> Self {
         let mut running: Vec<Arc<dyn Trade>> = Vec::new();
         let mut running_long_len: usize = 0;
         let mut running_long_margin: u64 = 0;
@@ -441,12 +439,12 @@ impl From<&LiveTradeControllerReadyStatus> for TradingState {
             closed_pl,
             closed_fees,
         )
-        .expect("`LiveTradeControllerReadyStatus` can't contain inconsistent trades")
+        .expect("`LiveTradeExecutorReadyStatus` can't contain inconsistent trades")
     }
 }
 
 #[derive(Debug)]
-pub enum LiveTradeControllerStateNotReady {
+pub enum LiveTradeExecutorStateNotReady {
     Starting,
     WaitingForSync(Arc<SyncState>),
     Failed(LiveError),
@@ -454,55 +452,55 @@ pub enum LiveTradeControllerStateNotReady {
 }
 
 #[derive(Debug, Clone)]
-pub enum LiveTradeControllerState {
-    NotReady(Arc<LiveTradeControllerStateNotReady>),
-    Ready(Arc<LiveTradeControllerReadyStatus>),
+pub enum LiveTradeExecutorState {
+    NotReady(Arc<LiveTradeExecutorStateNotReady>),
+    Ready(Arc<LiveTradeExecutorReadyStatus>),
 }
 
-impl From<LiveTradeControllerStateNotReady> for LiveTradeControllerState {
-    fn from(value: LiveTradeControllerStateNotReady) -> Self {
+impl From<LiveTradeExecutorStateNotReady> for LiveTradeExecutorState {
+    fn from(value: LiveTradeExecutorStateNotReady) -> Self {
         Self::NotReady(Arc::new(value))
     }
 }
 
-impl From<LiveTradeControllerReadyStatus> for LiveTradeControllerState {
-    fn from(value: LiveTradeControllerReadyStatus) -> Self {
+impl From<LiveTradeExecutorReadyStatus> for LiveTradeExecutorState {
+    fn from(value: LiveTradeExecutorReadyStatus) -> Self {
         Self::Ready(Arc::new(value))
     }
 }
 
-impl From<LiveTradeControllerState> for LiveTradeControllerUpdate {
-    fn from(value: LiveTradeControllerState) -> Self {
+impl From<LiveTradeExecutorState> for LiveTradeControllerUpdate {
+    fn from(value: LiveTradeExecutorState) -> Self {
         match value {
-            LiveTradeControllerState::NotReady(not_ready) => Self::NotReady(not_ready),
-            LiveTradeControllerState::Ready(ready_status) => Self::Ready(ready_status.into()),
+            LiveTradeExecutorState::NotReady(not_ready) => Self::NotReady(not_ready),
+            LiveTradeExecutorState::Ready(ready_status) => Self::Ready(ready_status.into()),
         }
     }
 }
 
-pub struct LockedLiveTradeControllerReadyStatus<'a> {
-    state_guard: MutexGuard<'a, LiveTradeControllerState>,
+pub struct LockedLiveTradeExecutorReadyStatus<'a> {
+    state_guard: MutexGuard<'a, LiveTradeExecutorState>,
 }
 
-impl<'a> TryFrom<MutexGuard<'a, LiveTradeControllerState>>
-    for LockedLiveTradeControllerReadyStatus<'a>
+impl<'a> TryFrom<MutexGuard<'a, LiveTradeExecutorState>>
+    for LockedLiveTradeExecutorReadyStatus<'a>
 {
     type Error = LiveError;
 
     fn try_from(
-        value: MutexGuard<'a, LiveTradeControllerState>,
+        value: MutexGuard<'a, LiveTradeExecutorState>,
     ) -> result::Result<Self, Self::Error> {
         match *value {
-            LiveTradeControllerState::Ready(_) => Ok(Self { state_guard: value }),
+            LiveTradeExecutorState::Ready(_) => Ok(Self { state_guard: value }),
             _ => Err(LiveError::ManagerNotReady),
         }
     }
 }
 
-impl<'a> LockedLiveTradeControllerReadyStatus<'a> {
-    fn as_status(&self) -> &LiveTradeControllerReadyStatus {
+impl<'a> LockedLiveTradeExecutorReadyStatus<'a> {
+    fn as_status(&self) -> &LiveTradeExecutorReadyStatus {
         match *self.state_guard {
-            LiveTradeControllerState::Ready(ref status) => status,
+            LiveTradeExecutorState::Ready(ref status) => status,
             _ => panic!("state must be ready"),
         }
     }
@@ -523,39 +521,38 @@ impl<'a> LockedLiveTradeControllerReadyStatus<'a> {
         &self.as_status().closed
     }
 
-    pub fn to_owned(&self) -> LiveTradeControllerReadyStatus {
+    pub fn to_owned(&self) -> LiveTradeExecutorReadyStatus {
         self.as_status().clone()
     }
 }
 
-pub struct LiveTradeControllerStateManager {
-    state: Mutex<LiveTradeControllerState>,
-    update_tx: LiveTradeControllerTransmiter,
+pub struct LiveTradeExecutorStateManager {
+    state: Mutex<LiveTradeExecutorState>,
+    update_tx: LiveTradeExecutorTransmiter,
 }
 
-impl LiveTradeControllerStateManager {
-    pub fn new(update_tx: LiveTradeControllerTransmiter) -> Arc<Self> {
-        let initial_state = LiveTradeControllerState::NotReady(Arc::new(
-            LiveTradeControllerStateNotReady::Starting,
-        ));
+impl LiveTradeExecutorStateManager {
+    pub fn new(update_tx: LiveTradeExecutorTransmiter) -> Arc<Self> {
+        let initial_state =
+            LiveTradeExecutorState::NotReady(Arc::new(LiveTradeExecutorStateNotReady::Starting));
         let state = Mutex::new(initial_state);
 
         Arc::new(Self { state, update_tx })
     }
 
-    pub async fn try_lock_ready_status(&self) -> LiveResult<LockedLiveTradeControllerReadyStatus> {
+    pub async fn try_lock_ready_status(&self) -> LiveResult<LockedLiveTradeExecutorReadyStatus> {
         let state_guard = self.state.lock().await;
-        LockedLiveTradeControllerReadyStatus::try_from(state_guard)
+        LockedLiveTradeExecutorReadyStatus::try_from(state_guard)
     }
 
-    pub async fn snapshot(&self) -> LiveTradeControllerState {
+    pub async fn snapshot(&self) -> LiveTradeExecutorState {
         self.state.lock().await.clone()
     }
 
     fn update_state_guard(
         &self,
-        mut state_guard: MutexGuard<'_, LiveTradeControllerState>,
-        new_state: LiveTradeControllerState,
+        mut state_guard: MutexGuard<'_, LiveTradeExecutorState>,
+        new_state: LiveTradeExecutorState,
     ) {
         *state_guard = new_state.clone();
         drop(state_guard);
@@ -564,7 +561,7 @@ impl LiveTradeControllerStateManager {
         let _ = self.update_tx.send(new_state.into());
     }
 
-    pub async fn update(&self, new_state: LiveTradeControllerState) {
+    pub async fn update(&self, new_state: LiveTradeExecutorState) {
         let state_guard = self.state.lock().await;
 
         self.update_state_guard(state_guard, new_state.into())
@@ -572,8 +569,8 @@ impl LiveTradeControllerStateManager {
 
     pub async fn update_from_locked_ready_status(
         &self,
-        locked_ready_status: LockedLiveTradeControllerReadyStatus<'_>,
-        new_state: LiveTradeControllerState,
+        locked_ready_status: LockedLiveTradeExecutorReadyStatus<'_>,
+        new_state: LiveTradeExecutorState,
     ) {
         self.update_state_guard(locked_ready_status.state_guard, new_state)
     }

@@ -12,7 +12,7 @@ use super::{
         super::core::TradingState,
         error::{LiveError, Result as LiveResult},
     },
-    state::{LiveTradeControllerReadyStatus, LiveTradeControllerStateNotReady},
+    state::{LiveTradeExecutorReadyStatus, LiveTradeExecutorStateNotReady},
 };
 
 #[derive(Debug, Clone)]
@@ -42,8 +42,8 @@ impl From<TradingState> for LiveTradeControllerUpdateRunning {
     }
 }
 
-impl From<Arc<LiveTradeControllerReadyStatus>> for LiveTradeControllerUpdateRunning {
-    fn from(value: Arc<LiveTradeControllerReadyStatus>) -> Self {
+impl From<Arc<LiveTradeExecutorReadyStatus>> for LiveTradeControllerUpdateRunning {
+    fn from(value: Arc<LiveTradeExecutorReadyStatus>) -> Self {
         Self::from(TradingState::from(value.as_ref()))
     }
 }
@@ -79,7 +79,7 @@ impl fmt::Display for LiveTradeControllerUpdateRunning {
 
 #[derive(Clone)]
 pub enum LiveTradeControllerUpdate {
-    NotReady(Arc<LiveTradeControllerStateNotReady>),
+    NotReady(Arc<LiveTradeExecutorStateNotReady>),
     Ready(LiveTradeControllerUpdateRunning),
 }
 
@@ -89,17 +89,17 @@ impl From<LiveTradeControllerUpdateRunning> for LiveTradeControllerUpdate {
     }
 }
 
-pub type LiveTradeControllerTransmiter = broadcast::Sender<LiveTradeControllerUpdate>;
+pub type LiveTradeExecutorTransmiter = broadcast::Sender<LiveTradeControllerUpdate>;
 pub type LiveTradeControllerReceiver = broadcast::Receiver<LiveTradeControllerUpdate>;
 
 #[derive(Clone)]
 pub struct WrappedApiContext {
     api: Arc<ApiContext>,
-    controller_tx: LiveTradeControllerTransmiter,
+    controller_tx: LiveTradeExecutorTransmiter,
 }
 
 impl WrappedApiContext {
-    pub fn new(api: Arc<ApiContext>, controller_tx: LiveTradeControllerTransmiter) -> Self {
+    pub fn new(api: Arc<ApiContext>, controller_tx: LiveTradeExecutorTransmiter) -> Self {
         Self { api, controller_tx }
     }
 

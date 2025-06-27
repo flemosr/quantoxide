@@ -29,8 +29,8 @@ pub mod executor;
 
 use error::{LiveError, Result};
 use executor::{
-    LiveTradeController, LiveTradeManager,
-    state::{LiveTradeControllerState, LiveTradeControllerStateNotReady},
+    LiveTradeExecutor, LiveTradeManager,
+    state::{LiveTradeExecutorState, LiveTradeExecutorStateNotReady},
     update::{LiveTradeControllerUpdate, LiveTradeControllerUpdateRunning},
 };
 
@@ -149,7 +149,7 @@ pub enum LiveState {
     Starting,
     WaitingForSync(Arc<SyncState>), // TODO: SyncState can't be 'Synced'
     WaitingForSignal(Arc<LiveSignalState>), // TODO: LiveSignalState can't be 'Running'
-    WaitingTradeController(Arc<LiveTradeControllerStateNotReady>),
+    WaitingTradeController(Arc<LiveTradeExecutorStateNotReady>),
     Running(LiveStateRunningUpdate),
     Failed(LiveError),
     Restarting,
@@ -261,7 +261,7 @@ struct LiveProcess {
     operator: WrappedOperator,
     shutdown_tx: broadcast::Sender<()>,
     signal_controller: Arc<LiveSignalController>,
-    trade_controller: Arc<LiveTradeController>,
+    trade_controller: Arc<LiveTradeExecutor>,
     state_manager: Arc<LiveStateManager>,
 }
 
@@ -271,7 +271,7 @@ impl LiveProcess {
         operator: WrappedOperator,
         shutdown_tx: broadcast::Sender<()>,
         signal_controller: Arc<LiveSignalController>,
-        trade_controller: Arc<LiveTradeController>,
+        trade_controller: Arc<LiveTradeExecutor>,
         state_manager: Arc<LiveStateManager>,
     ) -> Self {
         Self {
@@ -305,7 +305,7 @@ impl LiveProcess {
                 LiveSignalState::Running(last_signal) => {
                     let tc_state = self.trade_controller.state_snapshot().await;
 
-                    if let LiveTradeControllerState::Ready(ready_status) = tc_state {
+                    if let LiveTradeExecutorState::Ready(ready_status) = tc_state {
                         // Sync is ok, signal is ok and trade controller is ok
 
                         let tc_update = LiveTradeControllerUpdate::from(
@@ -387,7 +387,7 @@ pub struct LiveController {
     shutdown_tx: broadcast::Sender<()>,
     shutdown_timeout: time::Duration,
     state_manager: Arc<LiveStateManager>,
-    trade_controller: Arc<LiveTradeController>,
+    trade_controller: Arc<LiveTradeExecutor>,
 }
 
 impl LiveController {
@@ -398,7 +398,7 @@ impl LiveController {
         shutdown_tx: broadcast::Sender<()>,
         shutdown_timeout: time::Duration,
         state_manager: Arc<LiveStateManager>,
-        trade_controller: Arc<LiveTradeController>,
+        trade_controller: Arc<LiveTradeExecutor>,
     ) -> Arc<Self> {
         Arc::new(Self {
             sync_controller,

@@ -30,30 +30,30 @@ pub mod state;
 pub mod update;
 
 use state::{
-    LiveTradeControllerReadyStatus, LiveTradeControllerState, LiveTradeControllerStateManager,
-    LiveTradeControllerStateNotReady,
+    LiveTradeExecutorReadyStatus, LiveTradeExecutorState, LiveTradeExecutorStateManager,
+    LiveTradeExecutorStateNotReady,
 };
 use update::{
-    LiveTradeControllerReceiver, LiveTradeControllerTransmiter, LiveTradeControllerUpdate,
+    LiveTradeControllerReceiver, LiveTradeControllerUpdate, LiveTradeExecutorTransmiter,
     WrappedApiContext,
 };
 
-pub struct LiveTradeController {
+pub struct LiveTradeExecutor {
     tsl_step_size: BoundedPercentage,
     db: Arc<DbContext>,
     api: WrappedApiContext,
-    update_tx: LiveTradeControllerTransmiter,
-    state_manager: Arc<LiveTradeControllerStateManager>,
+    update_tx: LiveTradeExecutorTransmiter,
+    state_manager: Arc<LiveTradeExecutorStateManager>,
     _handle: AbortOnDropHandle<()>,
 }
 
-impl LiveTradeController {
+impl LiveTradeExecutor {
     pub fn new(
         tsl_step_size: BoundedPercentage,
         db: Arc<DbContext>,
         api: WrappedApiContext,
-        update_tx: LiveTradeControllerTransmiter,
-        state_manager: Arc<LiveTradeControllerStateManager>,
+        update_tx: LiveTradeExecutorTransmiter,
+        state_manager: Arc<LiveTradeExecutorStateManager>,
         _handle: AbortOnDropHandle<()>,
     ) -> Arc<Self> {
         Arc::new(Self {
@@ -70,7 +70,7 @@ impl LiveTradeController {
         self.update_tx.subscribe()
     }
 
-    pub async fn state_snapshot(&self) -> LiveTradeControllerState {
+    pub async fn state_snapshot(&self) -> LiveTradeExecutorState {
         self.state_manager.snapshot().await
     }
 
@@ -122,7 +122,7 @@ impl LiveTradeController {
             Ok(trade) => trade,
             Err(e) => {
                 // Status needs to be recreated
-                let new_state = LiveTradeControllerStateNotReady::Failed(LiveError::Generic(
+                let new_state = LiveTradeExecutorStateNotReady::Failed(LiveError::Generic(
                     "api error".to_string(),
                 ));
                 self.state_manager
@@ -179,7 +179,7 @@ impl LiveTradeController {
                 Ok(closed) => closed,
                 Err(e) => {
                     // Status needs to be recreated
-                    let new_state = LiveTradeControllerStateNotReady::Failed(LiveError::Generic(
+                    let new_state = LiveTradeExecutorStateNotReady::Failed(LiveError::Generic(
                         "api error".to_string(),
                     ));
                     self.state_manager
@@ -204,7 +204,7 @@ impl LiveTradeController {
 }
 
 #[async_trait]
-impl TradeExecutor for LiveTradeController {
+impl TradeExecutor for LiveTradeExecutor {
     async fn open_long(
         &self,
         stoploss_perc: BoundedPercentage,
@@ -261,7 +261,7 @@ impl TradeExecutor for LiveTradeController {
                 Ok((_, closed)) => closed,
                 Err(e) => {
                     // Status needs to be reevaluated
-                    let new_state = LiveTradeControllerStateNotReady::Failed(LiveError::Generic(
+                    let new_state = LiveTradeExecutorStateNotReady::Failed(LiveError::Generic(
                         "api error".to_string(),
                     ));
                     self.state_manager
@@ -294,8 +294,8 @@ pub struct LiveTradeManager {
     tsl_step_size: BoundedPercentage,
     db: Arc<DbContext>,
     api: WrappedApiContext,
-    update_tx: LiveTradeControllerTransmiter,
-    state_manager: Arc<LiveTradeControllerStateManager>,
+    update_tx: LiveTradeExecutorTransmiter,
+    state_manager: Arc<LiveTradeExecutorStateManager>,
     sync_rx: SyncReceiver,
 }
 
@@ -310,7 +310,7 @@ impl LiveTradeManager {
 
         let api = WrappedApiContext::new(api, update_tx.clone());
 
-        let state_manager = LiveTradeControllerStateManager::new(update_tx.clone());
+        let state_manager = LiveTradeExecutorStateManager::new(update_tx.clone());
 
         Self {
             tsl_step_size,
@@ -331,7 +331,7 @@ impl LiveTradeManager {
         db: Arc<DbContext>,
         api: WrappedApiContext,
         sync_rx: SyncReceiver,
-        state_manager: Arc<LiveTradeControllerStateManager>,
+        state_manager: Arc<LiveTradeExecutorStateManager>,
     ) -> AbortOnDropHandle<()> {
         tokio::spawn(async move {
             let handler = async || -> LiveResult<Never> {
@@ -346,7 +346,7 @@ impl LiveTradeManager {
                             | SyncState::Failed(_)
                             | SyncState::Restarting => {
                                 let new_state =
-                                    LiveTradeControllerStateNotReady::WaitingForSync(sync_state);
+                                    LiveTradeExecutorStateNotReady::WaitingForSync(sync_state);
                                 state_manager.update(new_state.into()).await;
                             }
                             SyncState::Synced(_) => {
@@ -361,7 +361,7 @@ impl LiveTradeManager {
                                             Ok(()) => tc_ready_status.into(),
                                             Err(e) => {
                                                 // Recoverable error
-                                                LiveTradeControllerStateNotReady::Failed(e).into()
+                                                LiveTradeExecutorStateNotReady::Failed(e).into()
                                             }
                                         };
 
@@ -374,7 +374,7 @@ impl LiveTradeManager {
                                     }
                                     Err(_) => {
                                         // Try to obtain `LiveTradeControllerStatus` via API
-                                        let status = match LiveTradeControllerReadyStatus::new(
+                                        let status = match LiveTradeExecutorReadyStatus::new(
                                             tsl_step_size,
                                             db.as_ref(),
                                             &api,
@@ -385,7 +385,7 @@ impl LiveTradeManager {
                                             Err(e) => {
                                                 // Recoverable error
                                                 let new_state =
-                                                    LiveTradeControllerStateNotReady::Failed(e);
+                                                    LiveTradeExecutorStateNotReady::Failed(e);
                                                 state_manager.update(new_state.into()).await;
                                                 continue;
                                             }
@@ -411,13 +411,13 @@ impl LiveTradeManager {
 
             let Err(e) = handler().await;
 
-            let new_state = LiveTradeControllerStateNotReady::NotViable(e);
+            let new_state = LiveTradeExecutorStateNotReady::NotViable(e);
             state_manager.update(new_state.into()).await;
         })
         .into()
     }
 
-    pub async fn start(self) -> Result<Arc<LiveTradeController>> {
+    pub async fn start(self) -> Result<Arc<LiveTradeExecutor>> {
         let (_, _) = futures::try_join!(self.api.cancel_all_trades(), self.api.close_all_trades())?;
 
         let _handle = Self::spawn_sync_processor(
@@ -428,7 +428,7 @@ impl LiveTradeManager {
             self.state_manager.clone(),
         );
 
-        Ok(LiveTradeController::new(
+        Ok(LiveTradeExecutor::new(
             self.tsl_step_size,
             self.db,
             self.api,
