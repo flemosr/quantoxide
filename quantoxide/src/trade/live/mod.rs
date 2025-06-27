@@ -171,6 +171,11 @@ impl From<LiveStateRunningUpdate> for LiveState {
 pub type LiveTradeTransmiter = broadcast::Sender<Arc<LiveState>>;
 pub type LiveTradeReceiver = broadcast::Receiver<Arc<LiveState>>;
 
+pub trait LiveStateReader: Send + Sync + 'static {
+    fn snapshot(&self) -> Arc<LiveState>;
+    fn receiver(&self) -> LiveTradeReceiver;
+}
+
 #[derive(Debug)]
 struct LiveStateManager {
     state: Mutex<Arc<LiveState>>,
@@ -183,17 +188,6 @@ impl LiveStateManager {
         let (state_tx, _) = broadcast::channel::<Arc<LiveState>>(100);
 
         Arc::new(Self { state, state_tx })
-    }
-
-    pub fn snapshot(&self) -> Arc<LiveState> {
-        self.state
-            .lock()
-            .expect("state lock can't be poisoned")
-            .clone()
-    }
-
-    pub fn receiver(&self) -> LiveTradeReceiver {
-        self.state_tx.subscribe()
     }
 
     fn update_state_guard(
@@ -234,6 +228,19 @@ impl LiveStateManager {
         }
 
         self.update_state_guard(state_guard, new_state);
+    }
+}
+
+impl LiveStateReader for LiveStateManager {
+    fn snapshot(&self) -> Arc<LiveState> {
+        self.state
+            .lock()
+            .expect("`LiveStateManager` mutex can't be poisoned")
+            .clone()
+    }
+
+    fn receiver(&self) -> LiveTradeReceiver {
+        self.state_tx.subscribe()
     }
 }
 
