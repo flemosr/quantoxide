@@ -284,7 +284,7 @@ impl LiveProcess {
     }
 
     async fn handle_signals(&self) -> Result<Never> {
-        while let Ok(res) = self.signal_controller.receiver().recv().await {
+        while let Ok(res) = self.signal_controller.state_receiver().recv().await {
             match res.as_ref() {
                 LiveSignalState::WaitingForSync(sync_state) => {
                     self.state_manager
@@ -399,7 +399,11 @@ impl LiveController {
         })
     }
 
-    pub fn receiver(&self) -> LiveTradeReceiver {
+    pub fn state_reader(&self) -> Arc<dyn LiveStateReader> {
+        self.state_manager.clone()
+    }
+
+    pub fn state_receiver(&self) -> LiveTradeReceiver {
         self.state_manager.receiver()
     }
 
@@ -614,8 +618,10 @@ pub struct LiveEngine {
     config: LiveConfig,
     db: Arc<DbContext>,
     api: Arc<ApiContext>,
-    evaluators: Arc<Vec<ConfiguredSignalEvaluator>>,
+    sync_engine: SyncEngine,
+    signal_engine: LiveSignalEngine,
     operator: WrappedOperator,
+    state_manager: Arc<LiveStateManager>,
 }
 
 impl LiveEngine {
@@ -634,21 +640,10 @@ impl LiveEngine {
 
         let operator = WrappedOperator::from(operator);
 
-        Ok(Self {
-            config,
-            db,
-            api,
-            evaluators: Arc::new(evaluators),
-            operator,
-        })
-    }
-
-    pub async fn start(mut self) -> Result<Arc<LiveController>> {
-        let sync_mode = if self.config.sync_mode_full() {
+        let sync_mode = if config.sync_mode_full() {
             SyncMode::Full
         } else {
-            let max_evaluator_window_secs = self
-                .evaluators
+            let max_evaluator_window_secs = evaluators
                 .iter()
                 .map(|evaluator| evaluator.context_window_secs())
                 .max()
@@ -659,25 +654,52 @@ impl LiveEngine {
             }
         };
 
-        let config = SyncConfig::from(&self.config);
-        let sync_controller =
-            SyncEngine::new(config, self.db.clone(), self.api.clone(), sync_mode).start();
+        let sync_config = SyncConfig::from(&config);
+        let sync_engine = SyncEngine::new(sync_config, db.clone(), api.clone(), sync_mode);
 
-        let config = LiveSignalConfig::from(&self.config);
-        let signal_controller = LiveSignalEngine::new(
-            config,
-            self.db.clone(),
-            sync_controller.clone(),
-            self.evaluators.clone(),
+        let signal_config = LiveSignalConfig::from(&config);
+        let signal_engine = LiveSignalEngine::new(
+            signal_config,
+            db.clone(),
+            sync_engine.state_reader(),
+            Arc::new(evaluators),
         )
-        .map_err(|e| LiveError::Generic(e.to_string()))?
-        .start();
+        .map_err(|e| LiveError::Generic(e.to_string()))?;
+
+        let state_manager = LiveStateManager::new();
+
+        Ok(Self {
+            config,
+            db,
+            api,
+            sync_engine,
+            signal_engine,
+            operator,
+            state_manager,
+        })
+    }
+
+    pub fn state_reader(&self) -> Arc<dyn LiveStateReader> {
+        self.state_manager.clone()
+    }
+
+    pub fn state_receiver(&self) -> LiveTradeReceiver {
+        self.state_manager.receiver()
+    }
+
+    pub fn state_snapshot(&self) -> Arc<LiveState> {
+        self.state_manager.snapshot()
+    }
+
+    pub async fn start(mut self) -> Result<Arc<LiveController>> {
+        let sync_controller = self.sync_engine.start();
+        let signal_controller = self.signal_engine.start();
 
         let trade_controller = LiveTradeController::new(
             self.config.tsl_step_size,
             self.db,
             self.api,
-            sync_controller.receiver(),
+            sync_controller.state_receiver(),
         )
         .await
         .map_err(|e| LiveError::Generic(e.to_string()))?;
@@ -694,15 +716,13 @@ impl LiveEngine {
         // Internal channel for shutdown signal
         let (shutdown_tx, _) = broadcast::channel::<()>(1);
 
-        let state_manager = LiveStateManager::new();
-
         let handle = LiveProcess::new(
             self.config.restart_interval(),
             self.operator,
             shutdown_tx.clone(),
             signal_controller.clone(),
             trade_controller.clone(),
-            state_manager.clone(),
+            self.state_manager.clone(),
         )
         .spawn_recovery_loop();
 
@@ -712,7 +732,7 @@ impl LiveEngine {
             handle,
             shutdown_tx,
             self.config.shutdown_timeout(),
-            state_manager,
+            self.state_manager,
             trade_controller,
         );
 
