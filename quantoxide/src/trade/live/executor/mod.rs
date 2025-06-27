@@ -34,7 +34,7 @@ use state::{
     LiveTradeExecutorStateNotReady,
 };
 use update::{
-    LiveTradeControllerReceiver, LiveTradeControllerUpdate, LiveTradeExecutorTransmiter,
+    LiveTradeExecutorReceiver, LiveTradeExecutorTransmiter, LiveTradeExecutorUpdate,
     WrappedApiContext,
 };
 
@@ -66,7 +66,7 @@ impl LiveTradeExecutor {
         })
     }
 
-    pub fn receiver(&self) -> LiveTradeControllerReceiver {
+    pub fn receiver(&self) -> LiveTradeExecutorReceiver {
         self.update_tx.subscribe()
     }
 
@@ -306,7 +306,7 @@ impl LiveTradeManager {
         api: Arc<ApiContext>,
         sync_rx: SyncReceiver,
     ) -> Self {
-        let (update_tx, _) = broadcast::channel::<LiveTradeControllerUpdate>(100);
+        let (update_tx, _) = broadcast::channel::<LiveTradeExecutorUpdate>(100);
 
         let api = WrappedApiContext::new(api, update_tx.clone());
 
@@ -322,7 +322,7 @@ impl LiveTradeManager {
         }
     }
 
-    pub fn update_receiver(&self) -> LiveTradeControllerReceiver {
+    pub fn update_receiver(&self) -> LiveTradeExecutorReceiver {
         self.update_tx.subscribe()
     }
 

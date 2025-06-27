@@ -31,7 +31,7 @@ use error::{LiveError, Result};
 use executor::{
     LiveTradeExecutor, LiveTradeManager,
     state::{LiveTradeExecutorState, LiveTradeExecutorStateNotReady},
-    update::{LiveTradeControllerUpdate, LiveTradeControllerUpdateRunning},
+    update::{LiveTradeExecutorUpdate, LiveTradeExecutorUpdateRunning},
 };
 
 #[derive(Debug)]
@@ -56,10 +56,10 @@ pub enum LiveStateRunningUpdate {
     State(TradingState),
 }
 
-impl From<LiveTradeControllerUpdateRunning> for LiveStateRunningUpdate {
-    fn from(value: LiveTradeControllerUpdateRunning) -> Self {
+impl From<LiveTradeExecutorUpdateRunning> for LiveStateRunningUpdate {
+    fn from(value: LiveTradeExecutorUpdateRunning) -> Self {
         match value {
-            LiveTradeControllerUpdateRunning::CreateNewTrade {
+            LiveTradeExecutorUpdateRunning::CreateNewTrade {
                 side,
                 quantity,
                 leverage,
@@ -72,13 +72,13 @@ impl From<LiveTradeControllerUpdateRunning> for LiveStateRunningUpdate {
                 stoploss,
                 takeprofit,
             },
-            LiveTradeControllerUpdateRunning::UpdateTradeStoploss { id, stoploss } => {
+            LiveTradeExecutorUpdateRunning::UpdateTradeStoploss { id, stoploss } => {
                 Self::UpdateTradeStoploss { id, stoploss }
             }
-            LiveTradeControllerUpdateRunning::CloseTrade { id } => Self::CloseTrade { id },
-            LiveTradeControllerUpdateRunning::CancelAllTrades => Self::CancelAllTrades,
-            LiveTradeControllerUpdateRunning::CloseAllTrades => Self::CloseAllTrades,
-            LiveTradeControllerUpdateRunning::State(state) => Self::State(state),
+            LiveTradeExecutorUpdateRunning::CloseTrade { id } => Self::CloseTrade { id },
+            LiveTradeExecutorUpdateRunning::CancelAllTrades => Self::CancelAllTrades,
+            LiveTradeExecutorUpdateRunning::CloseAllTrades => Self::CloseAllTrades,
+            LiveTradeExecutorUpdateRunning::State(state) => Self::State(state),
         }
     }
 }
@@ -157,13 +157,11 @@ pub enum LiveState {
     Shutdown,
 }
 
-impl From<LiveTradeControllerUpdate> for LiveState {
-    fn from(value: LiveTradeControllerUpdate) -> Self {
+impl From<LiveTradeExecutorUpdate> for LiveState {
+    fn from(value: LiveTradeExecutorUpdate) -> Self {
         match value {
-            LiveTradeControllerUpdate::NotReady(not_ready) => {
-                Self::WaitingTradeController(not_ready)
-            }
-            LiveTradeControllerUpdate::Ready(ready) => Self::Running(ready.into()),
+            LiveTradeExecutorUpdate::NotReady(not_ready) => Self::WaitingTradeController(not_ready),
+            LiveTradeExecutorUpdate::Ready(ready) => Self::Running(ready.into()),
         }
     }
 }
@@ -308,8 +306,8 @@ impl LiveProcess {
                     if let LiveTradeExecutorState::Ready(ready_status) = tc_state {
                         // Sync is ok, signal is ok and trade controller is ok
 
-                        let tc_update = LiveTradeControllerUpdate::from(
-                            LiveTradeControllerUpdateRunning::from(ready_status),
+                        let tc_update = LiveTradeExecutorUpdate::from(
+                            LiveTradeExecutorUpdateRunning::from(ready_status),
                         );
 
                         self.state_manager.update_if_not_running(tc_update.into());

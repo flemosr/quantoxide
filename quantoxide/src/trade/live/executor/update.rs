@@ -16,7 +16,7 @@ use super::{
 };
 
 #[derive(Debug, Clone)]
-pub enum LiveTradeControllerUpdateRunning {
+pub enum LiveTradeExecutorUpdateRunning {
     CreateNewTrade {
         side: TradeSide,
         quantity: Quantity,
@@ -36,19 +36,19 @@ pub enum LiveTradeControllerUpdateRunning {
     State(TradingState),
 }
 
-impl From<TradingState> for LiveTradeControllerUpdateRunning {
+impl From<TradingState> for LiveTradeExecutorUpdateRunning {
     fn from(value: TradingState) -> Self {
         Self::State(value)
     }
 }
 
-impl From<Arc<LiveTradeExecutorReadyStatus>> for LiveTradeControllerUpdateRunning {
+impl From<Arc<LiveTradeExecutorReadyStatus>> for LiveTradeExecutorUpdateRunning {
     fn from(value: Arc<LiveTradeExecutorReadyStatus>) -> Self {
         Self::from(TradingState::from(value.as_ref()))
     }
 }
 
-impl fmt::Display for LiveTradeControllerUpdateRunning {
+impl fmt::Display for LiveTradeExecutorUpdateRunning {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::CreateNewTrade {
@@ -78,29 +78,29 @@ impl fmt::Display for LiveTradeControllerUpdateRunning {
 }
 
 #[derive(Clone)]
-pub enum LiveTradeControllerUpdate {
+pub enum LiveTradeExecutorUpdate {
     NotReady(Arc<LiveTradeExecutorStateNotReady>),
-    Ready(LiveTradeControllerUpdateRunning),
+    Ready(LiveTradeExecutorUpdateRunning),
 }
 
-impl From<LiveTradeControllerUpdateRunning> for LiveTradeControllerUpdate {
-    fn from(value: LiveTradeControllerUpdateRunning) -> Self {
+impl From<LiveTradeExecutorUpdateRunning> for LiveTradeExecutorUpdate {
+    fn from(value: LiveTradeExecutorUpdateRunning) -> Self {
         Self::Ready(value)
     }
 }
 
-pub type LiveTradeExecutorTransmiter = broadcast::Sender<LiveTradeControllerUpdate>;
-pub type LiveTradeControllerReceiver = broadcast::Receiver<LiveTradeControllerUpdate>;
+pub type LiveTradeExecutorTransmiter = broadcast::Sender<LiveTradeExecutorUpdate>;
+pub type LiveTradeExecutorReceiver = broadcast::Receiver<LiveTradeExecutorUpdate>;
 
 #[derive(Clone)]
 pub struct WrappedApiContext {
     api: Arc<ApiContext>,
-    controller_tx: LiveTradeExecutorTransmiter,
+    update_tx: LiveTradeExecutorTransmiter,
 }
 
 impl WrappedApiContext {
-    pub fn new(api: Arc<ApiContext>, controller_tx: LiveTradeExecutorTransmiter) -> Self {
-        Self { api, controller_tx }
+    pub fn new(api: Arc<ApiContext>, update_tx: LiveTradeExecutorTransmiter) -> Self {
+        Self { api, update_tx }
     }
 
     pub async fn get_trades_running(&self) -> LiveResult<Vec<LnmTrade>> {
@@ -138,7 +138,7 @@ impl WrappedApiContext {
         stoploss: Price,
         takeprofit: Price,
     ) -> LiveResult<LnmTrade> {
-        let tc_update = LiveTradeControllerUpdateRunning::CreateNewTrade {
+        let update = LiveTradeExecutorUpdateRunning::CreateNewTrade {
             side,
             quantity,
             leverage,
@@ -146,7 +146,7 @@ impl WrappedApiContext {
             takeprofit,
         };
 
-        let _ = self.controller_tx.send(tc_update.into());
+        let _ = self.update_tx.send(update.into());
 
         self.api
             .rest
@@ -164,9 +164,9 @@ impl WrappedApiContext {
     }
 
     pub async fn update_trade_stoploss(&self, id: Uuid, stoploss: Price) -> LiveResult<LnmTrade> {
-        let tc_update = LiveTradeControllerUpdateRunning::UpdateTradeStoploss { id, stoploss };
+        let update = LiveTradeExecutorUpdateRunning::UpdateTradeStoploss { id, stoploss };
 
-        let _ = self.controller_tx.send(tc_update.into());
+        let _ = self.update_tx.send(update.into());
 
         self.api
             .rest
@@ -177,9 +177,9 @@ impl WrappedApiContext {
     }
 
     pub async fn close_trade(&self, id: Uuid) -> LiveResult<LnmTrade> {
-        let tc_update = LiveTradeControllerUpdateRunning::CloseTrade { id };
+        let update = LiveTradeExecutorUpdateRunning::CloseTrade { id };
 
-        let _ = self.controller_tx.send(tc_update.into());
+        let _ = self.update_tx.send(update.into());
 
         self.api
             .rest
@@ -190,9 +190,9 @@ impl WrappedApiContext {
     }
 
     pub async fn cancel_all_trades(&self) -> LiveResult<Vec<LnmTrade>> {
-        let tc_update = LiveTradeControllerUpdateRunning::CancelAllTrades;
+        let update = LiveTradeExecutorUpdateRunning::CancelAllTrades;
 
-        let _ = self.controller_tx.send(tc_update.into());
+        let _ = self.update_tx.send(update.into());
 
         self.api
             .rest
@@ -203,9 +203,9 @@ impl WrappedApiContext {
     }
 
     pub async fn close_all_trades(&self) -> LiveResult<Vec<LnmTrade>> {
-        let tc_update = LiveTradeControllerUpdateRunning::CloseAllTrades;
+        let update = LiveTradeExecutorUpdateRunning::CloseAllTrades;
 
-        let _ = self.controller_tx.send(tc_update.into());
+        let _ = self.update_tx.send(update.into());
 
         self.api
             .rest

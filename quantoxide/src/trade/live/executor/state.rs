@@ -15,7 +15,7 @@ use crate::{
 
 use super::super::error::{LiveError, Result as LiveResult};
 use super::super::executor::{
-    LiveTradeControllerUpdate, LiveTradeExecutorTransmiter, WrappedApiContext,
+    LiveTradeExecutorTransmiter, LiveTradeExecutorUpdate, WrappedApiContext,
 };
 
 #[derive(Debug, Clone)]
@@ -469,7 +469,7 @@ impl From<LiveTradeExecutorReadyStatus> for LiveTradeExecutorState {
     }
 }
 
-impl From<LiveTradeExecutorState> for LiveTradeControllerUpdate {
+impl From<LiveTradeExecutorState> for LiveTradeExecutorUpdate {
     fn from(value: LiveTradeExecutorState) -> Self {
         match value {
             LiveTradeExecutorState::NotReady(not_ready) => Self::NotReady(not_ready),
