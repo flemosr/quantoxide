@@ -29,7 +29,7 @@ pub mod executor;
 
 use error::{LiveError, Result};
 use executor::{
-    LiveTradeExecutor, LiveTradeSetup,
+    LiveTradeExecutor, LiveTradeExecutorLauncher,
     state::{LiveTradeExecutorState, LiveTradeExecutorStateNotReady},
     update::{LiveTradeExecutorUpdate, LiveTradeExecutorUpdateRunning},
 };
@@ -628,7 +628,7 @@ pub struct LiveEngine {
     config: LiveConfig,
     sync_engine: SyncEngine,
     signal_engine: LiveSignalEngine,
-    trade_setup: LiveTradeSetup,
+    trade_executor_launcher: LiveTradeExecutorLauncher,
     operator: WrappedOperator,
     state_manager: Arc<LiveStateManager>,
 }
@@ -693,10 +693,14 @@ impl LiveEngine {
         )
         .map_err(|e| LiveError::Generic(e.to_string()))?;
 
-        let trade_setup =
-            LiveTradeSetup::new(config.tsl_step_size, db, api, sync_engine.state_receiver());
+        let trade_executor_launcher = LiveTradeExecutorLauncher::new(
+            config.tsl_step_size,
+            db,
+            api,
+            sync_engine.state_receiver(),
+        );
 
-        let trade_update_rx = trade_setup.update_receiver();
+        let trade_update_rx = trade_executor_launcher.update_receiver();
 
         // TODO: Handle `trade_update_rx` updates
 
@@ -706,7 +710,7 @@ impl LiveEngine {
             config,
             sync_engine,
             signal_engine,
-            trade_setup,
+            trade_executor_launcher,
             operator,
             state_manager,
         })
@@ -729,8 +733,8 @@ impl LiveEngine {
         let signal_controller = self.signal_engine.start();
 
         let trade_executor = self
-            .trade_setup
-            .run()
+            .trade_executor_launcher
+            .launch()
             .await
             .map_err(|e| LiveError::Generic(e.to_string()))?;
 
