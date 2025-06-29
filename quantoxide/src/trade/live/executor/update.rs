@@ -7,16 +7,18 @@ use lnm_sdk::api::{
 use tokio::sync::broadcast;
 use uuid::Uuid;
 
+use crate::trade::live::executor::state::LiveTradeExecutorState;
+
 use super::{
     super::{
         super::core::TradingState,
         error::{LiveError, Result as LiveResult},
     },
-    state::{LiveTradeExecutorReadyStatus, LiveTradeExecutorStateNotReady},
+    state::LiveTradeExecutorStateNotReady,
 };
 
 #[derive(Debug, Clone)]
-pub enum LiveTradeExecutorUpdateRunning {
+pub enum LiveTradeExecutorUpdateOrder {
     CreateNewTrade {
         side: TradeSide,
         quantity: Quantity,
@@ -33,22 +35,9 @@ pub enum LiveTradeExecutorUpdateRunning {
     },
     CancelAllTrades,
     CloseAllTrades,
-    State(TradingState),
 }
 
-impl From<TradingState> for LiveTradeExecutorUpdateRunning {
-    fn from(value: TradingState) -> Self {
-        Self::State(value)
-    }
-}
-
-impl From<Arc<LiveTradeExecutorReadyStatus>> for LiveTradeExecutorUpdateRunning {
-    fn from(value: Arc<LiveTradeExecutorReadyStatus>) -> Self {
-        Self::from(TradingState::from(value.as_ref()))
-    }
-}
-
-impl fmt::Display for LiveTradeExecutorUpdateRunning {
+impl fmt::Display for LiveTradeExecutorUpdateOrder {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::CreateNewTrade {
@@ -57,35 +46,65 @@ impl fmt::Display for LiveTradeExecutorUpdateRunning {
                 leverage,
                 stoploss,
                 takeprofit,
-            } => write!(
-                f,
-                "CreateNewTrade(side: {}, quantity: {}, leverage: {}, stoploss: {}, takeprofit: {})",
-                side, quantity, leverage, stoploss, takeprofit
-            ),
+            } => {
+                write!(
+                    f,
+                    "CreateNewTrade:\n  side: {}\n  quantity: {}\n  leverage: {}\n  stoploss: {:.1}\n  takeprofit: {:.1}",
+                    side, quantity, leverage, stoploss, takeprofit
+                )
+            }
             Self::UpdateTradeStoploss { id, stoploss } => {
-                write!(f, "UpdateTradeStoploss(id: {}, stoploss: {})", id, stoploss)
+                write!(
+                    f,
+                    "UpdateTradeStoploss:\n  id: {}\n  stoploss: {:.1}",
+                    id, stoploss
+                )
             }
             Self::CloseTrade { id } => {
-                write!(f, "CloseTrade(id: {})", id)
+                write!(f, "CloseTrade:\n  id: {}", id)
             }
             Self::CancelAllTrades => write!(f, "CancelAllTrades"),
             Self::CloseAllTrades => write!(f, "CloseAllTrades"),
-            Self::State(_) => {
-                write!(f, "State(...)")
-            }
         }
     }
 }
 
-#[derive(Clone)]
-pub enum LiveTradeExecutorUpdate {
+#[derive(Debug, Clone)]
+pub enum LiveTradeExecutorUpdateState {
     NotReady(Arc<LiveTradeExecutorStateNotReady>),
-    Ready(LiveTradeExecutorUpdateRunning),
+    Ready(TradingState),
 }
 
-impl From<LiveTradeExecutorUpdateRunning> for LiveTradeExecutorUpdate {
-    fn from(value: LiveTradeExecutorUpdateRunning) -> Self {
-        Self::Ready(value)
+#[derive(Clone)]
+pub enum LiveTradeExecutorUpdate {
+    Order(LiveTradeExecutorUpdateOrder),
+    State(LiveTradeExecutorUpdateState),
+}
+
+impl From<LiveTradeExecutorUpdateOrder> for LiveTradeExecutorUpdate {
+    fn from(value: LiveTradeExecutorUpdateOrder) -> Self {
+        Self::Order(value)
+    }
+}
+
+impl From<LiveTradeExecutorUpdateState> for LiveTradeExecutorUpdate {
+    fn from(value: LiveTradeExecutorUpdateState) -> Self {
+        Self::State(value)
+    }
+}
+
+impl From<LiveTradeExecutorState> for LiveTradeExecutorUpdateState {
+    fn from(value: LiveTradeExecutorState) -> Self {
+        match value {
+            LiveTradeExecutorState::NotReady(not_ready) => Self::NotReady(not_ready),
+            LiveTradeExecutorState::Ready(ready_status) => Self::Ready(ready_status.into()),
+        }
+    }
+}
+
+impl From<LiveTradeExecutorState> for LiveTradeExecutorUpdate {
+    fn from(value: LiveTradeExecutorState) -> Self {
+        LiveTradeExecutorUpdateState::from(value).into()
     }
 }
 
@@ -130,6 +149,10 @@ impl WrappedApiContext {
             .map_err(LiveError::RestApi)
     }
 
+    fn send_order_update(&self, order_update: LiveTradeExecutorUpdateOrder) {
+        let _ = self.update_tx.send(order_update.into());
+    }
+
     pub async fn create_new_trade(
         &self,
         side: TradeSide,
@@ -138,15 +161,13 @@ impl WrappedApiContext {
         stoploss: Price,
         takeprofit: Price,
     ) -> LiveResult<LnmTrade> {
-        let update = LiveTradeExecutorUpdateRunning::CreateNewTrade {
+        self.send_order_update(LiveTradeExecutorUpdateOrder::CreateNewTrade {
             side,
             quantity,
             leverage,
             stoploss,
             takeprofit,
-        };
-
-        let _ = self.update_tx.send(update.into());
+        });
 
         self.api
             .rest
@@ -164,9 +185,7 @@ impl WrappedApiContext {
     }
 
     pub async fn update_trade_stoploss(&self, id: Uuid, stoploss: Price) -> LiveResult<LnmTrade> {
-        let update = LiveTradeExecutorUpdateRunning::UpdateTradeStoploss { id, stoploss };
-
-        let _ = self.update_tx.send(update.into());
+        self.send_order_update(LiveTradeExecutorUpdateOrder::UpdateTradeStoploss { id, stoploss });
 
         self.api
             .rest
@@ -177,9 +196,7 @@ impl WrappedApiContext {
     }
 
     pub async fn close_trade(&self, id: Uuid) -> LiveResult<LnmTrade> {
-        let update = LiveTradeExecutorUpdateRunning::CloseTrade { id };
-
-        let _ = self.update_tx.send(update.into());
+        self.send_order_update(LiveTradeExecutorUpdateOrder::CloseTrade { id });
 
         self.api
             .rest
@@ -190,9 +207,7 @@ impl WrappedApiContext {
     }
 
     pub async fn cancel_all_trades(&self) -> LiveResult<Vec<LnmTrade>> {
-        let update = LiveTradeExecutorUpdateRunning::CancelAllTrades;
-
-        let _ = self.update_tx.send(update.into());
+        self.send_order_update(LiveTradeExecutorUpdateOrder::CancelAllTrades);
 
         self.api
             .rest
@@ -203,9 +218,7 @@ impl WrappedApiContext {
     }
 
     pub async fn close_all_trades(&self) -> LiveResult<Vec<LnmTrade>> {
-        let update = LiveTradeExecutorUpdateRunning::CloseAllTrades;
-
-        let _ = self.update_tx.send(update.into());
+        self.send_order_update(LiveTradeExecutorUpdateOrder::CloseAllTrades);
 
         self.api
             .rest
