@@ -1,7 +1,4 @@
-use std::{
-    fmt,
-    sync::{Arc, Mutex, MutexGuard},
-};
+use std::sync::{Arc, Mutex, MutexGuard};
 
 use chrono::Duration;
 use tokio::{sync::broadcast, time};
@@ -39,7 +36,7 @@ pub enum LiveState {
     Starting,
     WaitingForSync(Arc<SyncState>), // TODO: SyncState can't be 'Synced'
     WaitingForSignal(Arc<LiveSignalState>), // TODO: LiveSignalState can't be 'Running'
-    WaitingTradeController(Arc<LiveTradeExecutorStateNotReady>),
+    WaitingTradeExecutor(Arc<LiveTradeExecutorStateNotReady>),
     Running,
     Failed(LiveError),
     Restarting,
@@ -84,7 +81,7 @@ pub type LiveReceiver = broadcast::Receiver<LiveUpdate>;
 
 pub trait LiveStateReader: Send + Sync + 'static {
     fn snapshot(&self) -> Arc<LiveState>;
-    fn receiver(&self) -> LiveReceiver;
+    fn update_receiver(&self) -> LiveReceiver;
 }
 
 #[derive(Debug)]
@@ -149,7 +146,7 @@ impl LiveStateReader for LiveStateManager {
             .clone()
     }
 
-    fn receiver(&self) -> LiveReceiver {
+    fn update_receiver(&self) -> LiveReceiver {
         self.update_tx.subscribe()
     }
 }
@@ -300,8 +297,8 @@ impl LiveController {
         self.state_manager.clone()
     }
 
-    pub fn state_receiver(&self) -> LiveReceiver {
-        self.state_manager.receiver()
+    pub fn update_receiver(&self) -> LiveReceiver {
+        self.state_manager.update_receiver()
     }
 
     pub fn state_snapshot(&self) -> Arc<LiveState> {
@@ -533,7 +530,7 @@ impl LiveEngine {
                     LiveTradeExecutorUpdate::State(executor_state) => match executor_state {
                         LiveTradeExecutorUpdateState::NotReady(executor_state_not_ready) => {
                             let new_state =
-                                LiveState::WaitingTradeController(executor_state_not_ready);
+                                LiveState::WaitingTradeExecutor(executor_state_not_ready);
                             state_manager.update_if_running(new_state.into());
                         }
                         LiveTradeExecutorUpdateState::Ready(trading_state) => {
@@ -621,8 +618,8 @@ impl LiveEngine {
         self.state_manager.clone()
     }
 
-    pub fn state_receiver(&self) -> LiveReceiver {
-        self.state_manager.receiver()
+    pub fn update_receiver(&self) -> LiveReceiver {
+        self.state_manager.update_receiver()
     }
 
     pub fn state_snapshot(&self) -> Arc<LiveState> {
