@@ -66,7 +66,7 @@ impl LiveTradeExecutor {
         })
     }
 
-    pub fn receiver(&self) -> LiveTradeExecutorReceiver {
+    pub fn update_receiver(&self) -> LiveTradeExecutorReceiver {
         self.update_tx.subscribe()
     }
 
