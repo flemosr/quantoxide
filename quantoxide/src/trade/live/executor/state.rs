@@ -13,9 +13,9 @@ use crate::{
     trade::core::{PriceTrigger, TradeExt, TradeTrailingStoploss, TradingState},
 };
 
-use super::super::error::{LiveError, Result as LiveResult};
-use super::super::executor::{
-    LiveTradeExecutorTransmiter, LiveTradeExecutorUpdate, WrappedApiContext,
+use super::super::{
+    error::{LiveError, Result as LiveResult},
+    executor::{LiveTradeExecutorTransmiter, WrappedApiContext},
 };
 
 #[derive(Debug, Clone)]
@@ -443,6 +443,12 @@ impl From<&LiveTradeExecutorReadyStatus> for TradingState {
     }
 }
 
+impl From<Arc<LiveTradeExecutorReadyStatus>> for TradingState {
+    fn from(value: Arc<LiveTradeExecutorReadyStatus>) -> Self {
+        value.as_ref().into()
+    }
+}
+
 #[derive(Debug)]
 pub enum LiveTradeExecutorStateNotReady {
     Starting,
@@ -466,15 +472,6 @@ impl From<LiveTradeExecutorStateNotReady> for LiveTradeExecutorState {
 impl From<LiveTradeExecutorReadyStatus> for LiveTradeExecutorState {
     fn from(value: LiveTradeExecutorReadyStatus) -> Self {
         Self::Ready(Arc::new(value))
-    }
-}
-
-impl From<LiveTradeExecutorState> for LiveTradeExecutorUpdate {
-    fn from(value: LiveTradeExecutorState) -> Self {
-        match value {
-            LiveTradeExecutorState::NotReady(not_ready) => Self::NotReady(not_ready),
-            LiveTradeExecutorState::Ready(ready_status) => Self::Ready(ready_status.into()),
-        }
     }
 }
 
@@ -533,8 +530,7 @@ pub struct LiveTradeExecutorStateManager {
 
 impl LiveTradeExecutorStateManager {
     pub fn new(update_tx: LiveTradeExecutorTransmiter) -> Arc<Self> {
-        let initial_state =
-            LiveTradeExecutorState::NotReady(Arc::new(LiveTradeExecutorStateNotReady::Starting));
+        let initial_state = LiveTradeExecutorStateNotReady::Starting.into();
         let state = Mutex::new(initial_state);
 
         Arc::new(Self { state, update_tx })
