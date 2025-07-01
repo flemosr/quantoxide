@@ -185,7 +185,7 @@ impl LiveProcess {
     }
 
     async fn handle_signals(&self) -> Result<Never> {
-        while let Ok(signal_update) = self.signal_controller.state_receiver().recv().await {
+        while let Ok(signal_update) = self.signal_controller.update_receiver().recv().await {
             match signal_update {
                 LiveSignalUpdate::StateChange(signal_state) => match signal_state {
                     LiveSignalState::NotRunning(signal_state_not_running) => {
@@ -595,7 +595,7 @@ impl LiveEngine {
         let signal_engine = LiveSignalEngine::new(
             signal_config,
             db.clone(),
-            sync_engine.state_reader(),
+            sync_engine.reader(),
             Arc::new(evaluators),
         )
         .map_err(|e| LiveError::Generic(e.to_string()))?;
@@ -604,7 +604,7 @@ impl LiveEngine {
             config.tsl_step_size,
             db,
             api,
-            sync_engine.state_receiver(),
+            sync_engine.update_receiver(),
         );
 
         let (update_tx, _) = broadcast::channel::<LiveUpdate>(100);
