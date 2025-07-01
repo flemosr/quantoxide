@@ -147,6 +147,7 @@ struct SyncProcess {
     mode: SyncMode,
     shutdown_tx: broadcast::Sender<()>,
     state_manager: Arc<SyncStateManager>,
+    update_tx: SyncTransmiter,
 }
 
 impl SyncProcess {
@@ -157,6 +158,7 @@ impl SyncProcess {
         mode: SyncMode,
         shutdown_tx: broadcast::Sender<()>,
         state_manager: Arc<SyncStateManager>,
+        update_tx: SyncTransmiter,
     ) -> Self {
         Self {
             config,
@@ -165,6 +167,7 @@ impl SyncProcess {
             mode,
             shutdown_tx,
             state_manager,
+            update_tx,
         }
     }
 
@@ -268,7 +271,7 @@ impl SyncProcess {
 
         // Sync achieved
 
-        self.state_manager.update(SyncState::Synced(None));
+        self.state_manager.update(SyncState::Synced);
 
         let mut price_tick_rx = price_tick_tx.subscribe();
 
@@ -279,10 +282,8 @@ impl SyncProcess {
                     return Err(SyncError::UnexpectedRealTimeCollectionShutdown);
                 }
                 tick_res = price_tick_rx.recv() => {
-                    match tick_res {
-                        Ok(tick) => self.state_manager.update(SyncState::Synced(Some(tick))),
-                        Err(e) => return Err(SyncError::Generic(e.to_string()))
-                    }
+                    let tick = tick_res.map_err(|e| SyncError::Generic(e.to_string()))?;
+                    let _ = self.update_tx.send(tick.into());
                 }
             }
         }
@@ -317,7 +318,7 @@ impl SyncProcess {
 
         // Sync achieved
 
-        self.state_manager.update(SyncState::Synced(None));
+        self.state_manager.update(SyncState::Synced);
 
         let mut price_tick_rx = price_tick_tx.subscribe();
 
@@ -332,7 +333,9 @@ impl SyncProcess {
                 }
                 tick_res = price_tick_rx.recv() => {
                     match tick_res {
-                        Ok(tick) => self.state_manager.update(SyncState::Synced(Some(tick))),
+                        Ok(tick) => {
+                            let _ = self.update_tx.send(tick.into());
+                        },
                         Err(e) => return Err(SyncError::Generic(e.to_string()))
                     }
                 }
