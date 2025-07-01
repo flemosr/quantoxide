@@ -339,14 +339,10 @@ impl LiveTradeExecutorLauncher {
                 loop {
                     match sync_rx.recv().await {
                         Ok(sync_state) => match sync_state.as_ref() {
-                            SyncState::NotInitiated
-                            | SyncState::Starting
-                            | SyncState::InProgress(_)
-                            | SyncState::WaitingForResync
-                            | SyncState::Failed(_)
-                            | SyncState::Restarting => {
-                                let new_state =
-                                    LiveTradeExecutorStateNotReady::WaitingForSync(sync_state);
+                            SyncState::NotSynced(sync_state_not_synced) => {
+                                let new_state = LiveTradeExecutorStateNotReady::WaitingForSync(
+                                    sync_state_not_synced.clone(),
+                                );
                                 state_manager.update(new_state.into()).await;
                             }
                             SyncState::Synced(_) => {

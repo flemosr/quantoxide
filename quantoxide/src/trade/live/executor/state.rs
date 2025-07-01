@@ -9,7 +9,7 @@ use lnm_sdk::api::rest::models::{BoundedPercentage, LnmTrade, Price, Trade, Trad
 
 use crate::{
     db::DbContext,
-    sync::SyncState,
+    sync::SyncStateNotSynced,
     trade::core::{PriceTrigger, TradeExt, TradeTrailingStoploss, TradingState},
 };
 
@@ -452,7 +452,7 @@ impl From<Arc<LiveTradeExecutorReadyStatus>> for TradingState {
 #[derive(Debug)]
 pub enum LiveTradeExecutorStateNotReady {
     Starting,
-    WaitingForSync(Arc<SyncState>),
+    WaitingForSync(Arc<SyncStateNotSynced>),
     Failed(LiveError),
     NotViable(LiveError),
 }
