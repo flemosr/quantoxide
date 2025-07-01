@@ -1,6 +1,6 @@
 use std::{
     pin::Pin,
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, MutexGuard},
 };
 
 use chrono::Duration;
@@ -60,67 +60,59 @@ pub trait SyncStateReader: Send + Sync + 'static {
 
 #[derive(Debug)]
 struct SyncStateManager {
-    state: Arc<Mutex<Arc<SyncState>>>,
+    state: Mutex<Arc<SyncState>>,
     state_tx: SyncTransmiter,
 }
 
 impl SyncStateManager {
     pub fn new() -> Arc<Self> {
-        let state = Arc::new(Mutex::new(Arc::new(
-            SyncStateNotSynced::NotInitiated.into(),
-        )));
+        let state = Mutex::new(Arc::new(SyncStateNotSynced::NotInitiated.into()));
         let (state_tx, _) = broadcast::channel::<Arc<SyncState>>(100);
 
         Arc::new(Self { state, state_tx })
     }
 
-    pub fn update(&self, new_state: SyncState) {
+    fn update_state_guard(
+        &self,
+        mut state_guard: MutexGuard<'_, Arc<SyncState>>,
+        new_state: SyncState,
+    ) {
         let new_state = Arc::new(new_state);
 
-        let mut state_guard = self
-            .state
-            .lock()
-            .expect("`SyncStateManager` mutex can't be poisoned");
         *state_guard = new_state.clone();
         drop(state_guard);
 
         // Ignore no-receivers errors
-        let _ = self.state_tx.send(new_state);
+        let _ = self.state_tx.send(new_state.into());
     }
 
-    /// Clean up is not needed since the task is terminated when
-    /// `history_state_tx` is dropped.
-    pub fn spawn_history_state_update_handler(
-        &self,
-        mut history_state_rx: mpsc::Receiver<PriceHistoryState>,
-    ) {
-        let state = self.state.clone();
-        let state_tx = self.state_tx.clone();
-        tokio::spawn(async move {
-            while let Some(new_history_state) = history_state_rx.recv().await {
-                let mut state_guard = state
-                    .lock()
-                    .expect("`SyncStateManager` mutex can't be poisoned");
+    pub fn update(&self, new_state: SyncState) {
+        let state_guard = self
+            .state
+            .lock()
+            .expect("`SyncStateManager` mutex can't be poisoned");
 
-                let SyncState::NotSynced(sync_state_not_synced) = state_guard.as_ref() else {
-                    continue;
-                };
+        self.update_state_guard(state_guard, new_state);
+    }
 
-                if let SyncStateNotSynced::Starting
-                | SyncStateNotSynced::InProgress(_)
-                | SyncStateNotSynced::WaitingForResync = sync_state_not_synced.as_ref()
-                {
-                    let new_state: Arc<SyncState> =
-                        Arc::new(SyncStateNotSynced::InProgress(new_history_state).into());
+    pub fn handle_price_history_state_update(&self, new_history_state: PriceHistoryState) {
+        let state_guard = self
+            .state
+            .lock()
+            .expect("`SyncStateManager` mutex can't be poisoned");
 
-                    *state_guard = new_state.clone();
-                    drop(state_guard);
+        let SyncState::NotSynced(sync_state_not_synced) = state_guard.as_ref() else {
+            return;
+        };
 
-                    // Ignore no-receivers errors
-                    let _ = state_tx.send(new_state);
-                }
-            }
-        });
+        if let SyncStateNotSynced::Starting
+        | SyncStateNotSynced::InProgress(_)
+        | SyncStateNotSynced::WaitingForResync = sync_state_not_synced.as_ref()
+        {
+            let new_state: SyncState = SyncStateNotSynced::InProgress(new_history_state).into();
+
+            self.update_state_guard(state_guard, new_state);
+        }
     }
 }
 
@@ -194,6 +186,20 @@ impl SyncProcess {
         .await
     }
 
+    /// Clean up is not needed since the task is terminated when
+    /// `history_state_tx` is dropped.
+    pub fn spawn_history_state_update_handler(
+        &self,
+        mut history_state_rx: mpsc::Receiver<PriceHistoryState>,
+    ) {
+        let state_manager = self.state_manager.clone();
+        tokio::spawn(async move {
+            while let Some(new_history_state) = history_state_rx.recv().await {
+                state_manager.handle_price_history_state_update(new_history_state);
+            }
+        });
+    }
+
     fn spawn_real_time_collection_task(
         &self,
         price_tick_tx: broadcast::Sender<PriceTick>,
@@ -211,8 +217,7 @@ impl SyncProcess {
         loop {
             let (history_state_tx, history_state_rx) = mpsc::channel::<PriceHistoryState>(100);
 
-            self.state_manager
-                .spawn_history_state_update_handler(history_state_rx);
+            self.spawn_history_state_update_handler(history_state_rx);
 
             self.run_price_history_task_backfill(Some(history_state_tx))
                 .await?;
@@ -237,8 +242,7 @@ impl SyncProcess {
 
         let (history_state_tx, history_state_rx) = mpsc::channel::<PriceHistoryState>(100);
 
-        self.state_manager
-            .spawn_history_state_update_handler(history_state_rx);
+        self.spawn_history_state_update_handler(history_state_rx);
 
         self.run_price_history_task_live(Some(history_state_tx), range)
             .await?;
@@ -276,8 +280,7 @@ impl SyncProcess {
     async fn run_full(&self) -> Result<Never> {
         let (history_state_tx, history_state_rx) = mpsc::channel::<PriceHistoryState>(100);
 
-        self.state_manager
-            .spawn_history_state_update_handler(history_state_rx);
+        self.spawn_history_state_update_handler(history_state_rx);
 
         self.run_price_history_task_backfill(Some(history_state_tx))
             .await?;
