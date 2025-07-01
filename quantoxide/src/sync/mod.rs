@@ -140,8 +140,33 @@ impl SyncReader for SyncStateManager {
     }
 }
 
+#[derive(Clone)]
+struct SyncProcessConfig {
+    api_cooldown: time::Duration,
+    api_error_cooldown: time::Duration,
+    api_error_max_trials: u32,
+    api_history_batch_size: usize,
+    sync_history_reach: Duration,
+    re_sync_history_interval: time::Duration,
+    restart_interval: time::Duration,
+}
+
+impl From<&SyncConfig> for SyncProcessConfig {
+    fn from(value: &SyncConfig) -> Self {
+        Self {
+            api_cooldown: value.api_cooldown,
+            api_error_cooldown: value.api_error_cooldown,
+            api_error_max_trials: value.api_error_max_trials,
+            api_history_batch_size: value.api_history_batch_size,
+            sync_history_reach: value.sync_history_reach,
+            re_sync_history_interval: value.re_sync_history_interval,
+            restart_interval: value.restart_interval,
+        }
+    }
+}
+
 struct SyncProcess {
-    config: SyncConfig,
+    config: SyncProcessConfig,
     db: Arc<DbContext>,
     api: Arc<ApiContext>,
     mode: SyncMode,
@@ -152,7 +177,7 @@ struct SyncProcess {
 
 impl SyncProcess {
     pub fn new(
-        config: SyncConfig,
+        config: &SyncConfig,
         db: Arc<DbContext>,
         api: Arc<ApiContext>,
         mode: SyncMode,
@@ -161,7 +186,7 @@ impl SyncProcess {
         update_tx: SyncTransmiter,
     ) -> Self {
         Self {
-            config,
+            config: config.into(),
             db,
             api,
             mode,
@@ -176,7 +201,7 @@ impl SyncProcess {
         history_state_tx: Option<PriceHistoryStateTransmiter>,
     ) -> sync_price_history_task::error::Result<()> {
         SyncPriceHistoryTask::new(
-            self.config.clone(),
+            &self.config,
             self.db.clone(),
             self.api.clone(),
             history_state_tx,
@@ -191,7 +216,7 @@ impl SyncProcess {
         range: Duration,
     ) -> sync_price_history_task::error::Result<()> {
         SyncPriceHistoryTask::new(
-            self.config.clone(),
+            &self.config,
             self.db.clone(),
             self.api.clone(),
             history_state_tx,
@@ -397,24 +422,37 @@ impl SyncProcess {
 }
 
 #[derive(Debug)]
+struct SyncControllerConfig {
+    shutdown_timeout: time::Duration,
+}
+
+impl From<&SyncConfig> for SyncControllerConfig {
+    fn from(value: &SyncConfig) -> Self {
+        Self {
+            shutdown_timeout: value.shutdown_timeout,
+        }
+    }
+}
+
+#[derive(Debug)]
 pub struct SyncController {
+    config: SyncControllerConfig,
     handle: Mutex<Option<AbortOnDropHandle<()>>>,
     shutdown_tx: broadcast::Sender<()>,
-    shutdown_timeout: time::Duration,
     state_manager: Arc<SyncStateManager>,
 }
 
 impl SyncController {
     fn new(
+        config: &SyncConfig,
         handle: AbortOnDropHandle<()>,
         shutdown_tx: broadcast::Sender<()>,
-        shutdown_timeout: time::Duration,
         state_manager: Arc<SyncStateManager>,
     ) -> Arc<Self> {
         Arc::new(Self {
+            config: config.into(),
             handle: Mutex::new(Some(handle)),
             shutdown_tx,
-            shutdown_timeout,
             state_manager,
         })
     }
@@ -464,7 +502,7 @@ impl SyncController {
                     join_res = &mut handle => {
                         join_res.map_err(SyncError::TaskJoin)
                     }
-                    _ = time::sleep(self.shutdown_timeout) => {
+                    _ = time::sleep(self.config.shutdown_timeout) => {
                         handle.abort();
                         Err(SyncError::Generic("Shutdown timeout".to_string()))
                     }
@@ -645,13 +683,11 @@ impl SyncEngine {
     }
 
     pub fn start(self) -> Arc<SyncController> {
-        let shutdown_timeout = self.config.shutdown_timeout();
-
         // Internal channel for shutdown signal
         let (shutdown_tx, _) = broadcast::channel::<()>(1);
 
         let handle = SyncProcess::new(
-            self.config,
+            &self.config,
             self.db,
             self.api,
             self.mode,
@@ -661,6 +697,6 @@ impl SyncEngine {
         )
         .spawn_recovery_loop();
 
-        SyncController::new(handle, shutdown_tx, shutdown_timeout, self.state_manager)
+        SyncController::new(&self.config, handle, shutdown_tx, self.state_manager)
     }
 }

@@ -5,7 +5,7 @@ use tokio::{sync::mpsc, time};
 
 use lnm_sdk::api::{ApiContext, rest::models::PriceEntryLNM};
 
-use crate::db::DbContext;
+use crate::{db::DbContext, sync::SyncProcessConfig};
 
 pub mod error;
 mod price_history_state;
@@ -13,13 +13,32 @@ mod price_history_state;
 use error::{Result, SyncPriceHistoryError};
 pub use price_history_state::PriceHistoryState;
 
-use super::SyncConfig;
-
 pub type PriceHistoryStateTransmiter = mpsc::Sender<PriceHistoryState>;
 
 #[derive(Clone)]
+pub struct SyncPriceHistoryTaskConfig {
+    api_cooldown: time::Duration,
+    api_error_cooldown: time::Duration,
+    api_error_max_trials: u32,
+    api_history_batch_size: usize,
+    sync_history_reach: Duration,
+}
+
+impl From<&SyncProcessConfig> for SyncPriceHistoryTaskConfig {
+    fn from(value: &SyncProcessConfig) -> Self {
+        Self {
+            api_cooldown: value.api_cooldown,
+            api_error_cooldown: value.api_error_cooldown,
+            api_error_max_trials: value.api_error_max_trials,
+            api_history_batch_size: value.api_history_batch_size,
+            sync_history_reach: value.sync_history_reach,
+        }
+    }
+}
+
+#[derive(Clone)]
 pub struct SyncPriceHistoryTask {
-    config: SyncConfig,
+    config: SyncPriceHistoryTaskConfig,
     db: Arc<DbContext>,
     api: Arc<ApiContext>,
     history_state_tx: Option<PriceHistoryStateTransmiter>,
@@ -27,13 +46,13 @@ pub struct SyncPriceHistoryTask {
 
 impl SyncPriceHistoryTask {
     pub fn new(
-        config: SyncConfig,
+        config: &SyncProcessConfig,
         db: Arc<DbContext>,
         api: Arc<ApiContext>,
         history_state_tx: Option<PriceHistoryStateTransmiter>,
     ) -> Self {
         Self {
-            config,
+            config: config.into(),
             db,
             api,
             history_state_tx,
