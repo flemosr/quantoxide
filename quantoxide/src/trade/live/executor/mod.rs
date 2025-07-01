@@ -335,47 +335,34 @@ impl LiveTradeExecutorLauncher {
     ) -> AbortOnDropHandle<()> {
         tokio::spawn(async move {
             let refresh_ready_status = async || {
-                match state_manager.try_lock_ready_status().await {
-                    Ok(locked_ready_status) => {
-                        let mut tc_ready_status = locked_ready_status.to_owned();
+                let Ok(locked_ready_status) = state_manager.try_lock_ready_status().await else {
+                    // Create fresh status from API
 
-                        let new_state = match tc_ready_status
-                            .reevaluate(tsl_step_size, db.as_ref(), &api)
+                    let new_state =
+                        match LiveTradeExecutorReadyStatus::new(tsl_step_size, db.as_ref(), &api)
                             .await
                         {
-                            Ok(()) => tc_ready_status.into(),
-                            Err(e) => {
-                                // Recoverable error
-                                LiveTradeExecutorStateNotReady::Failed(e).into()
-                            }
+                            Ok(status) => status.into(),
+                            Err(e) => LiveTradeExecutorStateNotReady::Failed(e).into(),
                         };
 
-                        state_manager
-                            .update_from_locked_ready_status(locked_ready_status, new_state)
-                            .await;
-                    }
-                    Err(_) => {
-                        // Try to obtain `LiveTradeControllerStatus` via API
-                        let status = match LiveTradeExecutorReadyStatus::new(
-                            tsl_step_size,
-                            db.as_ref(),
-                            &api,
-                        )
-                        .await
-                        {
-                            Ok(status) => status,
-                            Err(e) => {
-                                // Recoverable error
-                                let new_state = LiveTradeExecutorStateNotReady::Failed(e);
-                                state_manager.update(new_state.into()).await;
-                                return;
-                            }
-                        };
-
-                        let new_state = status.into();
-                        state_manager.update(new_state).await;
-                    }
+                    state_manager.update(new_state).await;
+                    return;
                 };
+
+                // Reevaluate existing status
+
+                let mut ready_status = locked_ready_status.to_owned();
+
+                let new_state = ready_status
+                    .reevaluate(tsl_step_size, db.as_ref(), &api)
+                    .await
+                    .map(|_| ready_status.into())
+                    .unwrap_or_else(|e| LiveTradeExecutorStateNotReady::Failed(e).into());
+
+                state_manager
+                    .update_from_locked_ready_status(locked_ready_status, new_state)
+                    .await;
             };
 
             let handler = async || -> LiveResult<Never> {
