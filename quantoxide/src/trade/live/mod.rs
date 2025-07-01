@@ -11,7 +11,7 @@ use crate::{
         core::{ConfiguredSignalEvaluator, Signal},
         live::{LiveSignalConfig, LiveSignalController, LiveSignalEngine, LiveSignalState},
     },
-    sync::{SyncConfig, SyncController, SyncEngine, SyncMode, SyncState},
+    sync::{SyncConfig, SyncController, SyncEngine, SyncMode, SyncStateNotSynced},
     trade::live::executor::update::{
         LiveTradeExecutorReceiver, LiveTradeExecutorUpdateOrder, LiveTradeExecutorUpdateState,
     },
@@ -34,7 +34,7 @@ use executor::{
 pub enum LiveState {
     NotInitiated,
     Starting,
-    WaitingForSync(Arc<SyncState>), // TODO: SyncState can't be 'Synced'
+    WaitingForSync(Arc<SyncStateNotSynced>),
     WaitingForSignal(Arc<LiveSignalState>), // TODO: LiveSignalState can't be 'Running'
     WaitingTradeExecutor(Arc<LiveTradeExecutorStateNotReady>),
     Running,
@@ -185,9 +185,9 @@ impl LiveProcess {
     async fn handle_signals(&self) -> Result<Never> {
         while let Ok(res) = self.signal_controller.state_receiver().recv().await {
             match res.as_ref() {
-                LiveSignalState::WaitingForSync(sync_state) => {
+                LiveSignalState::WaitingForSync(sync_state_not_synced) => {
                     self.state_manager
-                        .update(LiveState::WaitingForSync(sync_state.clone()));
+                        .update(LiveState::WaitingForSync(sync_state_not_synced.clone()));
                 }
                 LiveSignalState::Running(last_signal) => {
                     let tex_state = self.trade_executor.state_snapshot().await;
