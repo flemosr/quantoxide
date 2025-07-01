@@ -153,8 +153,20 @@ impl LiveReader for LiveStateManager {
     }
 }
 
-struct LiveProcess {
+struct LiveProcessConfig {
     restart_interval: time::Duration,
+}
+
+impl From<&LiveConfig> for LiveProcessConfig {
+    fn from(value: &LiveConfig) -> Self {
+        Self {
+            restart_interval: value.restart_interval,
+        }
+    }
+}
+
+struct LiveProcess {
+    config: LiveProcessConfig,
     operator: WrappedOperator,
     shutdown_tx: broadcast::Sender<()>,
     signal_controller: Arc<LiveSignalController>,
@@ -165,7 +177,7 @@ struct LiveProcess {
 
 impl LiveProcess {
     pub fn new(
-        restart_interval: time::Duration,
+        config: &LiveConfig,
         operator: WrappedOperator,
         shutdown_tx: broadcast::Sender<()>,
         signal_controller: Arc<LiveSignalController>,
@@ -174,7 +186,7 @@ impl LiveProcess {
         update_tx: LiveTransmiter,
     ) -> Self {
         Self {
-            restart_interval,
+            config: config.into(),
             operator,
             shutdown_tx,
             signal_controller,
@@ -252,7 +264,7 @@ impl LiveProcess {
 
                 let mut shutdown_rx = self.shutdown_tx.subscribe();
                 tokio::select! {
-                    _ = time::sleep(self.restart_interval) => {
+                    _ = time::sleep(self.config.restart_interval) => {
                         // Continue with the restart loop
                     }
                     shutdown_res = shutdown_rx.recv() => {
@@ -267,35 +279,48 @@ impl LiveProcess {
     }
 }
 
+#[derive(Debug)]
+struct LiveControllerConfig {
+    shutdown_timeout: time::Duration,
+}
+
+impl From<&LiveConfig> for LiveControllerConfig {
+    fn from(value: &LiveConfig) -> Self {
+        Self {
+            shutdown_timeout: value.shutdown_timeout,
+        }
+    }
+}
+
 pub struct LiveController {
+    config: LiveControllerConfig,
     sync_controller: Arc<SyncController>,
     signal_controller: Arc<LiveSignalController>,
     _executor_updates_handle: AbortOnDropHandle<()>,
     process_handle: Mutex<Option<AbortOnDropHandle<()>>>,
     shutdown_tx: broadcast::Sender<()>,
-    shutdown_timeout: time::Duration,
     state_manager: Arc<LiveStateManager>,
     trade_executor: Arc<LiveTradeExecutor>,
 }
 
 impl LiveController {
     fn new(
+        config: &LiveConfig,
         sync_controller: Arc<SyncController>,
         signal_controller: Arc<LiveSignalController>,
         _executor_updates_handle: AbortOnDropHandle<()>,
         process_handle: AbortOnDropHandle<()>,
         shutdown_tx: broadcast::Sender<()>,
-        shutdown_timeout: time::Duration,
         state_manager: Arc<LiveStateManager>,
         trade_executor: Arc<LiveTradeExecutor>,
     ) -> Arc<Self> {
         Arc::new(Self {
+            config: config.into(),
             sync_controller,
             signal_controller,
             _executor_updates_handle,
             process_handle: Mutex::new(Some(process_handle)),
             shutdown_tx,
-            shutdown_timeout,
             state_manager,
             trade_executor,
         })
@@ -348,7 +373,7 @@ impl LiveController {
                     join_res = &mut handle => {
                         join_res.map_err(LiveError::TaskJoin)
                     }
-                    _ = time::sleep(self.shutdown_timeout) => {
+                    _ = time::sleep(self.config.shutdown_timeout) => {
                         handle.abort();
                         Err(LiveError::Generic("Shutdown timeout".to_string()))
                     }
@@ -666,7 +691,7 @@ impl LiveEngine {
         let (shutdown_tx, _) = broadcast::channel::<()>(1);
 
         let process_handle = LiveProcess::new(
-            self.config.restart_interval(),
+            &self.config,
             self.operator,
             shutdown_tx.clone(),
             signal_controller.clone(),
@@ -677,12 +702,12 @@ impl LiveEngine {
         .spawn_recovery_loop();
 
         let controller = LiveController::new(
+            &self.config,
             sync_controller,
             signal_controller,
             _executor_updates_handle,
             process_handle,
             shutdown_tx,
-            self.config.shutdown_timeout(),
             self.state_manager,
             trade_executor,
         );
