@@ -72,36 +72,29 @@ pub type SyncTransmiter = broadcast::Sender<SyncUpdate>;
 pub type SyncReceiver = broadcast::Receiver<SyncUpdate>;
 
 pub trait SyncReader: Send + Sync + 'static {
-    fn snapshot(&self) -> SyncState;
+    fn state_snapshot(&self) -> SyncState;
     fn update_receiver(&self) -> SyncReceiver;
 }
 
 #[derive(Debug)]
 struct SyncStateManager {
-    state: Mutex<Arc<SyncState>>,
-    state_tx: SyncTransmiter,
+    state: Mutex<SyncState>,
+    update_tx: SyncTransmiter,
 }
 
 impl SyncStateManager {
-    pub fn new() -> Arc<Self> {
-        let state = Mutex::new(Arc::new(SyncStateNotSynced::NotInitiated.into()));
-        let (state_tx, _) = broadcast::channel::<Arc<SyncState>>(100);
+    pub fn new(update_tx: SyncTransmiter) -> Arc<Self> {
+        let state = Mutex::new(SyncStateNotSynced::NotInitiated.into());
 
-        Arc::new(Self { state, state_tx })
+        Arc::new(Self { state, update_tx })
     }
 
-    fn update_state_guard(
-        &self,
-        mut state_guard: MutexGuard<'_, Arc<SyncState>>,
-        new_state: SyncState,
-    ) {
-        let new_state = Arc::new(new_state);
-
+    fn update_state_guard(&self, mut state_guard: MutexGuard<'_, SyncState>, new_state: SyncState) {
         *state_guard = new_state.clone();
         drop(state_guard);
 
         // Ignore no-receivers errors
-        let _ = self.state_tx.send(new_state.into());
+        let _ = self.update_tx.send(new_state.into());
     }
 
     pub fn update(&self, new_state: SyncState) {
@@ -119,7 +112,7 @@ impl SyncStateManager {
             .lock()
             .expect("`SyncStateManager` mutex can't be poisoned");
 
-        let SyncState::NotSynced(sync_state_not_synced) = state_guard.as_ref() else {
+        let SyncState::NotSynced(sync_state_not_synced) = &*state_guard else {
             return;
         };
 
@@ -134,16 +127,16 @@ impl SyncStateManager {
     }
 }
 
-impl SyncStateReader for SyncStateManager {
-    fn snapshot(&self) -> Arc<SyncState> {
+impl SyncReader for SyncStateManager {
+    fn state_snapshot(&self) -> SyncState {
         self.state
             .lock()
             .expect("`SyncStateManager` mutex can't be poisoned")
             .clone()
     }
 
-    fn receiver(&self) -> SyncReceiver {
-        self.state_tx.subscribe()
+    fn update_receiver(&self) -> SyncReceiver {
+        self.update_tx.subscribe()
     }
 }
 
