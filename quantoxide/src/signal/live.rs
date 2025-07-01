@@ -5,7 +5,7 @@ use tokio::{sync::broadcast, time};
 
 use crate::{
     db::DbContext,
-    sync::{SyncState, SyncStateReader},
+    sync::{SyncReader, SyncState, SyncStateNotSynced, SyncUpdate},
     trade::live::LiveConfig,
     util::{AbortOnDropHandle, DateTimeExt, Never},
 };
@@ -20,7 +20,7 @@ pub enum LiveSignalState {
     NotInitiated,
     Starting,
     Running(Signal),
-    WaitingForSync(Arc<SyncState>),
+    WaitingForSync(Arc<SyncStateNotSynced>),
     Failed(SignalError),
     Restarting,
     ShutdownInitiated,
@@ -79,7 +79,7 @@ struct LiveSignalProcess {
     db: Arc<DbContext>,
     evaluators: Arc<Vec<ConfiguredSignalEvaluator>>,
     shutdown_tx: broadcast::Sender<()>,
-    sync_state_reader: Arc<dyn SyncStateReader>,
+    sync_reader: Arc<dyn SyncReader>,
     state_manager: Arc<LiveSignalStateManager>,
 }
 
@@ -89,7 +89,7 @@ impl LiveSignalProcess {
         db: Arc<DbContext>,
         evaluators: Arc<Vec<ConfiguredSignalEvaluator>>,
         shutdown_tx: broadcast::Sender<()>,
-        sync_state_reader: Arc<dyn SyncStateReader>,
+        sync_reader: Arc<dyn SyncReader>,
         state_manager: Arc<LiveSignalStateManager>,
     ) -> Self {
         Self {
@@ -97,7 +97,7 @@ impl LiveSignalProcess {
             db,
             evaluators,
             shutdown_tx,
-            sync_state_reader,
+            sync_reader,
             state_manager,
         }
     }
@@ -123,19 +123,23 @@ impl LiveSignalProcess {
                 target_exec
             };
 
-            if !matches!(
-                self.sync_state_reader.snapshot().as_ref(),
-                SyncState::Synced(_)
-            ) {
-                while let Ok(sync_state) = self.sync_state_reader.receiver().recv().await {
-                    match sync_state.as_ref() {
-                        SyncState::Synced(_) => break,
-                        _ => {
-                            self.state_manager
-                                .update(LiveSignalState::WaitingForSync(sync_state));
-
-                            continue;
-                        }
+            if !matches!(self.sync_reader.state_snapshot(), SyncState::Synced) {
+                while let Ok(sync_update) = self.sync_reader.update_receiver().recv().await {
+                    match sync_update {
+                        SyncUpdate::StateChange(sync_state) => match sync_state {
+                            SyncState::NotSynced(sync_state_not_synced) => {
+                                self.state_manager
+                                    .update(LiveSignalState::WaitingForSync(sync_state_not_synced));
+                            }
+                            SyncState::Synced => break,
+                            SyncState::ShutdownInitiated | SyncState::Shutdown => {
+                                // Non-recoverable error
+                                return Err(SignalError::Generic(
+                                    "sync process was shutdown".to_string(),
+                                ));
+                            }
+                        },
+                        SyncUpdate::PriceTick(_) => break,
                     }
                 }
 
@@ -365,7 +369,7 @@ impl From<&LiveConfig> for LiveSignalConfig {
 pub struct LiveSignalEngine {
     config: LiveSignalConfig,
     db: Arc<DbContext>,
-    sync_state_reader: Arc<dyn SyncStateReader>,
+    sync_reader: Arc<dyn SyncReader>,
     evaluators: Arc<Vec<ConfiguredSignalEvaluator>>,
     state_manager: Arc<LiveSignalStateManager>,
 }
@@ -374,7 +378,7 @@ impl LiveSignalEngine {
     pub fn new(
         config: LiveSignalConfig,
         db: Arc<DbContext>,
-        sync_state_reader: Arc<dyn SyncStateReader>,
+        sync_reader: Arc<dyn SyncReader>,
         evaluators: Arc<Vec<ConfiguredSignalEvaluator>>,
     ) -> Result<Self> {
         if evaluators.is_empty() {
@@ -388,7 +392,7 @@ impl LiveSignalEngine {
         Ok(Self {
             config,
             db,
-            sync_state_reader,
+            sync_reader,
             evaluators,
             state_manager,
         })
@@ -417,7 +421,7 @@ impl LiveSignalEngine {
             self.db,
             self.evaluators,
             shutdown_tx.clone(),
-            self.sync_state_reader,
+            self.sync_reader,
             self.state_manager.clone(),
         )
         .spawn_recovery_loop();
