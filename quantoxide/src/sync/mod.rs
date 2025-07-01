@@ -608,6 +608,7 @@ pub struct SyncEngine {
     api: Arc<ApiContext>,
     mode: SyncMode,
     state_manager: Arc<SyncStateManager>,
+    update_tx: SyncTransmiter,
 }
 
 impl SyncEngine {
@@ -617,7 +618,9 @@ impl SyncEngine {
         api: Arc<ApiContext>,
         mode: SyncMode,
     ) -> Self {
-        let state_manager = SyncStateManager::new();
+        let (update_tx, _) = broadcast::channel::<SyncUpdate>(100);
+
+        let state_manager = SyncStateManager::new(update_tx.clone());
 
         Self {
             config,
@@ -625,19 +628,20 @@ impl SyncEngine {
             api,
             mode,
             state_manager,
+            update_tx,
         }
     }
 
-    pub fn state_reader(&self) -> Arc<dyn SyncStateReader> {
+    pub fn state_reader(&self) -> Arc<dyn SyncReader> {
         self.state_manager.clone()
     }
 
     pub fn state_receiver(&self) -> SyncReceiver {
-        self.state_manager.receiver()
+        self.state_manager.update_receiver()
     }
 
-    pub fn state_snapshot(&self) -> Arc<SyncState> {
-        self.state_manager.snapshot()
+    pub fn state_snapshot(&self) -> SyncState {
+        self.state_manager.state_snapshot()
     }
 
     pub fn start(self) -> Arc<SyncController> {
@@ -653,6 +657,7 @@ impl SyncEngine {
             self.mode,
             shutdown_tx.clone(),
             self.state_manager.clone(),
+            self.update_tx,
         )
         .spawn_recovery_loop();
 
