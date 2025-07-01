@@ -59,9 +59,9 @@ impl From<Signal> for LiveSignalUpdate {
 pub type LiveSignalTransmiter = broadcast::Sender<LiveSignalUpdate>;
 pub type LiveSignalReceiver = broadcast::Receiver<LiveSignalUpdate>;
 
-pub trait LiveSignalStateReader: Send + Sync + 'static {
-    fn snapshot(&self) -> LiveSignalState;
-    fn receiver(&self) -> LiveSignalReceiver;
+pub trait LiveSignalReader: Send + Sync + 'static {
+    fn update_receiver(&self) -> LiveSignalReceiver;
+    fn state_snapshot(&self) -> LiveSignalState;
 }
 
 #[derive(Debug)]
@@ -90,16 +90,16 @@ impl LiveSignalStateManager {
     }
 }
 
-impl LiveSignalStateReader for LiveSignalStateManager {
-    fn snapshot(&self) -> LiveSignalState {
+impl LiveSignalReader for LiveSignalStateManager {
+    fn update_receiver(&self) -> LiveSignalReceiver {
+        self.update_tx.subscribe()
+    }
+
+    fn state_snapshot(&self) -> LiveSignalState {
         self.state
             .lock()
             .expect("`LiveSignalStateManager` mutex can't be poisoned")
             .clone()
-    }
-
-    fn receiver(&self) -> LiveSignalReceiver {
-        self.update_tx.subscribe()
     }
 }
 
