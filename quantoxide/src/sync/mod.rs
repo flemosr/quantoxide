@@ -27,16 +27,27 @@ pub use sync_price_history_task::PriceHistoryState;
 use sync_price_history_task::{PriceHistoryStateTransmiter, SyncPriceHistoryTask};
 
 #[derive(Debug, PartialEq)]
-pub enum SyncState {
+pub enum SyncStateNotSynced {
     NotInitiated,
     Starting,
     InProgress(PriceHistoryState),
-    Synced(Option<PriceTick>),
     WaitingForResync,
     Failed(SyncError),
     Restarting,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum SyncState {
+    NotSynced(Arc<SyncStateNotSynced>),
+    Synced(Option<PriceTick>),
     ShutdownInitiated,
     Shutdown,
+}
+
+impl From<SyncStateNotSynced> for SyncState {
+    fn from(value: SyncStateNotSynced) -> Self {
+        Self::NotSynced(Arc::new(value))
+    }
 }
 
 pub type SyncTransmiter = broadcast::Sender<Arc<SyncState>>;
@@ -55,7 +66,9 @@ struct SyncStateManager {
 
 impl SyncStateManager {
     pub fn new() -> Arc<Self> {
-        let state = Arc::new(Mutex::new(Arc::new(SyncState::NotInitiated)));
+        let state = Arc::new(Mutex::new(Arc::new(
+            SyncStateNotSynced::NotInitiated.into(),
+        )));
         let (state_tx, _) = broadcast::channel::<Arc<SyncState>>(100);
 
         Arc::new(Self { state, state_tx })
@@ -88,11 +101,17 @@ impl SyncStateManager {
                 let mut state_guard = state
                     .lock()
                     .expect("`SyncStateManager` mutex can't be poisoned");
-                if let SyncState::Starting
-                | SyncState::InProgress(_)
-                | SyncState::WaitingForResync = **state_guard
+
+                let SyncState::NotSynced(sync_state_not_synced) = state_guard.as_ref() else {
+                    continue;
+                };
+
+                if let SyncStateNotSynced::Starting
+                | SyncStateNotSynced::InProgress(_)
+                | SyncStateNotSynced::WaitingForResync = sync_state_not_synced.as_ref()
                 {
-                    let new_state = Arc::new(SyncState::InProgress(new_history_state));
+                    let new_state: Arc<SyncState> =
+                        Arc::new(SyncStateNotSynced::InProgress(new_history_state).into());
 
                     *state_guard = new_state.clone();
                     drop(state_guard);
@@ -198,7 +217,8 @@ impl SyncProcess {
             self.run_price_history_task_backfill(Some(history_state_tx))
                 .await?;
 
-            self.state_manager.update(SyncState::WaitingForResync);
+            self.state_manager
+                .update(SyncStateNotSynced::WaitingForResync.into());
 
             time::sleep(self.config.re_sync_history_interval).await;
         }
@@ -322,23 +342,23 @@ impl SyncProcess {
     pub fn spawn_recovery_loop(self) -> AbortOnDropHandle<()> {
         tokio::spawn(async move {
             loop {
-                self.state_manager.update(SyncState::Starting);
+                self.state_manager.update(SyncStateNotSynced::Starting.into());
 
                 let mut shutdown_rx = self.shutdown_tx.subscribe();
                 tokio::select! {
                     run_res = self.run_mode() => {
                         let Err(sync_error) = run_res;
-                        self.state_manager.update(SyncState::Failed(sync_error));
+                        self.state_manager.update(SyncStateNotSynced::Failed(sync_error).into());
                     }
                     shutdown_res = shutdown_rx.recv() => {
                         if let Err(e) = shutdown_res {
-                            self.state_manager.update(SyncState::Failed(SyncError::ShutdownRecv(e)));
+                            self.state_manager.update(SyncStateNotSynced::Failed(SyncError::ShutdownRecv(e)).into());
                         }
                         return;
                     }
                 };
 
-                self.state_manager.update(SyncState::Restarting);
+                self.state_manager.update(SyncStateNotSynced::Restarting.into());
 
                 // Handle shutdown signals while waiting for `restart_interval`
 
@@ -349,7 +369,7 @@ impl SyncProcess {
                     }
                     shutdown_res = shutdown_rx.recv() => {
                         if let Err(e) = shutdown_res {
-                            self.state_manager.update(SyncState::Failed(SyncError::ShutdownRecv(e)));
+                            self.state_manager.update(SyncStateNotSynced::Failed(SyncError::ShutdownRecv(e)).into());
                         }
                         return;
                     }
