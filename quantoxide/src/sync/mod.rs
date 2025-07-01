@@ -419,16 +419,16 @@ impl SyncController {
         })
     }
 
-    pub fn state_reader(&self) -> Arc<dyn SyncStateReader> {
+    pub fn reader(&self) -> Arc<dyn SyncReader> {
         self.state_manager.clone()
     }
 
-    pub fn state_receiver(&self) -> SyncReceiver {
-        self.state_manager.receiver()
+    pub fn update_receiver(&self) -> SyncReceiver {
+        self.state_manager.update_receiver()
     }
 
-    pub fn state_snapshot(&self) -> Arc<SyncState> {
-        self.state_manager.snapshot()
+    pub fn state_snapshot(&self) -> SyncState {
+        self.state_manager.state_snapshot()
     }
 
     fn try_consume_handle(&self) -> Option<AbortOnDropHandle<()>> {
