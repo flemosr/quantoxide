@@ -14,7 +14,7 @@ use tokio::sync::broadcast;
 
 use crate::{
     db::DbContext,
-    sync::{SyncReceiver, SyncState},
+    sync::{SyncReceiver, SyncState, SyncUpdate},
     util::{AbortOnDropHandle, Never},
 };
 
@@ -334,69 +334,71 @@ impl LiveTradeExecutorLauncher {
         state_manager: Arc<LiveTradeExecutorStateManager>,
     ) -> AbortOnDropHandle<()> {
         tokio::spawn(async move {
+            let refresh_ready_status = async || {
+                match state_manager.try_lock_ready_status().await {
+                    Ok(locked_ready_status) => {
+                        let mut tc_ready_status = locked_ready_status.to_owned();
+
+                        let new_state = match tc_ready_status
+                            .reevaluate(tsl_step_size, db.as_ref(), &api)
+                            .await
+                        {
+                            Ok(()) => tc_ready_status.into(),
+                            Err(e) => {
+                                // Recoverable error
+                                LiveTradeExecutorStateNotReady::Failed(e).into()
+                            }
+                        };
+
+                        state_manager
+                            .update_from_locked_ready_status(locked_ready_status, new_state)
+                            .await;
+                    }
+                    Err(_) => {
+                        // Try to obtain `LiveTradeControllerStatus` via API
+                        let status = match LiveTradeExecutorReadyStatus::new(
+                            tsl_step_size,
+                            db.as_ref(),
+                            &api,
+                        )
+                        .await
+                        {
+                            Ok(status) => status,
+                            Err(e) => {
+                                // Recoverable error
+                                let new_state = LiveTradeExecutorStateNotReady::Failed(e);
+                                state_manager.update(new_state.into()).await;
+                                return;
+                            }
+                        };
+
+                        let new_state = status.into();
+                        state_manager.update(new_state).await;
+                    }
+                };
+            };
+
             let handler = async || -> LiveResult<Never> {
                 let mut sync_rx = sync_rx;
                 loop {
                     match sync_rx.recv().await {
-                        Ok(sync_state) => match sync_state.as_ref() {
-                            SyncState::NotSynced(sync_state_not_synced) => {
-                                let new_state = LiveTradeExecutorStateNotReady::WaitingForSync(
-                                    sync_state_not_synced.clone(),
-                                );
-                                state_manager.update(new_state.into()).await;
-                            }
-                            SyncState::Synced(_) => {
-                                match state_manager.try_lock_ready_status().await {
-                                    Ok(locked_ready_status) => {
-                                        let mut tc_ready_status = locked_ready_status.to_owned();
-
-                                        let new_state = match tc_ready_status
-                                            .reevaluate(tsl_step_size, db.as_ref(), &api)
-                                            .await
-                                        {
-                                            Ok(()) => tc_ready_status.into(),
-                                            Err(e) => {
-                                                // Recoverable error
-                                                LiveTradeExecutorStateNotReady::Failed(e).into()
-                                            }
-                                        };
-
-                                        state_manager
-                                            .update_from_locked_ready_status(
-                                                locked_ready_status,
-                                                new_state,
-                                            )
-                                            .await;
-                                    }
-                                    Err(_) => {
-                                        // Try to obtain `LiveTradeControllerStatus` via API
-                                        let status = match LiveTradeExecutorReadyStatus::new(
-                                            tsl_step_size,
-                                            db.as_ref(),
-                                            &api,
-                                        )
-                                        .await
-                                        {
-                                            Ok(status) => status,
-                                            Err(e) => {
-                                                // Recoverable error
-                                                let new_state =
-                                                    LiveTradeExecutorStateNotReady::Failed(e);
-                                                state_manager.update(new_state.into()).await;
-                                                continue;
-                                            }
-                                        };
-
-                                        let new_state = status.into();
-                                        state_manager.update(new_state).await;
-                                    }
-                                };
-                            }
-                            SyncState::ShutdownInitiated | SyncState::Shutdown => {
-                                return Err(LiveError::Generic(
-                                    "sync process was shutdown".to_string(),
-                                ));
-                            }
+                        Ok(sync_update) => match sync_update {
+                            SyncUpdate::StateChange(sync_state) => match sync_state {
+                                SyncState::NotSynced(sync_state_not_synced) => {
+                                    let new_state = LiveTradeExecutorStateNotReady::WaitingForSync(
+                                        sync_state_not_synced.clone(),
+                                    );
+                                    state_manager.update(new_state.into()).await;
+                                }
+                                SyncState::ShutdownInitiated | SyncState::Shutdown => {
+                                    // Non-recoverable error
+                                    return Err(LiveError::Generic(
+                                        "sync process was shutdown".to_string(),
+                                    ));
+                                }
+                                SyncState::Synced => refresh_ready_status().await,
+                            },
+                            SyncUpdate::PriceTick(_) => refresh_ready_status().await,
                         },
                         Err(e) => {
                             return Err(LiveError::Generic(format!("sync_rx error {e}")));
