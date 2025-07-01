@@ -36,10 +36,10 @@ pub enum SyncStateNotSynced {
     Restarting,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum SyncState {
     NotSynced(Arc<SyncStateNotSynced>),
-    Synced(Option<PriceTick>),
+    Synced,
     ShutdownInitiated,
     Shutdown,
 }
@@ -50,12 +50,30 @@ impl From<SyncStateNotSynced> for SyncState {
     }
 }
 
-pub type SyncTransmiter = broadcast::Sender<Arc<SyncState>>;
-pub type SyncReceiver = broadcast::Receiver<Arc<SyncState>>;
+#[derive(Debug, Clone)]
+pub enum SyncUpdate {
+    StateChange(SyncState),
+    PriceTick(PriceTick),
+}
 
-pub trait SyncStateReader: Send + Sync + 'static {
-    fn snapshot(&self) -> Arc<SyncState>;
-    fn receiver(&self) -> SyncReceiver;
+impl From<SyncState> for SyncUpdate {
+    fn from(value: SyncState) -> Self {
+        Self::StateChange(value)
+    }
+}
+
+impl From<PriceTick> for SyncUpdate {
+    fn from(value: PriceTick) -> Self {
+        Self::PriceTick(value)
+    }
+}
+
+pub type SyncTransmiter = broadcast::Sender<SyncUpdate>;
+pub type SyncReceiver = broadcast::Receiver<SyncUpdate>;
+
+pub trait SyncReader: Send + Sync + 'static {
+    fn snapshot(&self) -> SyncState;
+    fn update_receiver(&self) -> SyncReceiver;
 }
 
 #[derive(Debug)]
