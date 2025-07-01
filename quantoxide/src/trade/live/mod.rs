@@ -627,22 +627,19 @@ impl LiveEngine {
     }
 
     pub async fn start(mut self) -> Result<Arc<LiveController>> {
-        let sync_controller = self.sync_engine.start();
-        let signal_controller = self.signal_engine.start();
-
         let executor_rx = self.trade_executor_launcher.update_receiver();
-
-        let _executor_updates_handle = Self::spawn_executor_update_handler(
-            self.state_manager.clone(),
-            self.update_tx.clone(),
-            executor_rx,
-        );
 
         let trade_executor = self
             .trade_executor_launcher
             .launch()
             .await
             .map_err(|e| LiveError::Generic(e.to_string()))?;
+
+        let _executor_updates_handle = Self::spawn_executor_update_handler(
+            self.state_manager.clone(),
+            self.update_tx.clone(),
+            executor_rx,
+        );
 
         self.operator
             .set_trade_executor(trade_executor.clone())
@@ -652,6 +649,10 @@ impl LiveEngine {
                     e.to_string()
                 ))
             })?;
+
+        let sync_controller = self.sync_engine.start();
+
+        let signal_controller = self.signal_engine.start();
 
         // Internal channel for shutdown signal
         let (shutdown_tx, _) = broadcast::channel::<()>(1);
