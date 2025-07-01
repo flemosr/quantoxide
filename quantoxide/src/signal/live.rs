@@ -24,10 +24,10 @@ pub enum LiveSignalStateNotRunning {
     Restarting,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum LiveSignalState {
     NotRunning(Arc<LiveSignalStateNotRunning>),
-    Running(Signal),
+    Running,
     ShutdownInitiated,
     Shutdown,
 }
@@ -38,11 +38,29 @@ impl From<LiveSignalStateNotRunning> for LiveSignalState {
     }
 }
 
-pub type LiveSignalTransmiter = broadcast::Sender<Arc<LiveSignalState>>;
-pub type LiveSignalReceiver = broadcast::Receiver<Arc<LiveSignalState>>;
+#[derive(Debug, Clone)]
+pub enum LiveSignalUpdate {
+    StateChange(LiveSignalState),
+    Signal(Signal),
+}
+
+impl From<LiveSignalState> for LiveSignalUpdate {
+    fn from(value: LiveSignalState) -> Self {
+        Self::StateChange(value)
+    }
+}
+
+impl From<Signal> for LiveSignalUpdate {
+    fn from(value: Signal) -> Self {
+        Self::Signal(value)
+    }
+}
+
+pub type LiveSignalTransmiter = broadcast::Sender<LiveSignalUpdate>;
+pub type LiveSignalReceiver = broadcast::Receiver<LiveSignalUpdate>;
 
 pub trait LiveSignalStateReader: Send + Sync + 'static {
-    fn snapshot(&self) -> Arc<LiveSignalState>;
+    fn snapshot(&self) -> LiveSignalState;
     fn receiver(&self) -> LiveSignalReceiver;
 }
 
