@@ -270,7 +270,7 @@ pub struct LnmTrade {
     running: bool,
     canceled: bool,
     closed: bool,
-    sum_carry_fees: u64,
+    sum_carry_fees: i64,
 }
 
 impl LnmTrade {
@@ -290,7 +290,7 @@ impl LnmTrade {
         estimate_pl(self.side(), self.quantity(), self.price(), market_price)
     }
 
-    pub fn sum_carry_fees(&self) -> u64 {
+    pub fn sum_carry_fees(&self) -> i64 {
         self.sum_carry_fees
     }
 }
