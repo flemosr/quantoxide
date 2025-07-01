@@ -79,8 +79,8 @@ impl From<TradingState> for LiveUpdate {
 pub type LiveTransmiter = broadcast::Sender<LiveUpdate>;
 pub type LiveReceiver = broadcast::Receiver<LiveUpdate>;
 
-pub trait LiveStateReader: Send + Sync + 'static {
-    fn snapshot(&self) -> Arc<LiveState>;
+pub trait LiveReader: Send + Sync + 'static {
+    fn state_snapshot(&self) -> Arc<LiveState>;
     fn update_receiver(&self) -> LiveReceiver;
 }
 
@@ -138,8 +138,8 @@ impl LiveStateManager {
     }
 }
 
-impl LiveStateReader for LiveStateManager {
-    fn snapshot(&self) -> Arc<LiveState> {
+impl LiveReader for LiveStateManager {
+    fn state_snapshot(&self) -> Arc<LiveState> {
         self.state
             .lock()
             .expect("`LiveStateManager` mutex can't be poisoned")
@@ -293,7 +293,7 @@ impl LiveController {
         })
     }
 
-    pub fn state_reader(&self) -> Arc<dyn LiveStateReader> {
+    pub fn reader(&self) -> Arc<dyn LiveReader> {
         self.state_manager.clone()
     }
 
@@ -302,7 +302,7 @@ impl LiveController {
     }
 
     pub fn state_snapshot(&self) -> Arc<LiveState> {
-        self.state_manager.snapshot()
+        self.state_manager.state_snapshot()
     }
 
     fn try_consume_handle(&self) -> Option<AbortOnDropHandle<()>> {
@@ -614,7 +614,7 @@ impl LiveEngine {
         })
     }
 
-    pub fn state_reader(&self) -> Arc<dyn LiveStateReader> {
+    pub fn reader(&self) -> Arc<dyn LiveReader> {
         self.state_manager.clone()
     }
 
@@ -623,7 +623,7 @@ impl LiveEngine {
     }
 
     pub fn state_snapshot(&self) -> Arc<LiveState> {
-        self.state_manager.snapshot()
+        self.state_manager.state_snapshot()
     }
 
     pub async fn start(mut self) -> Result<Arc<LiveController>> {
