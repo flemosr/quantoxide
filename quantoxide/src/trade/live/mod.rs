@@ -9,7 +9,10 @@ use crate::{
     db::DbContext,
     signal::{
         core::{ConfiguredSignalEvaluator, Signal},
-        live::{LiveSignalConfig, LiveSignalController, LiveSignalEngine, LiveSignalState},
+        live::{
+            LiveSignalConfig, LiveSignalController, LiveSignalEngine, LiveSignalState,
+            LiveSignalStateNotRunning,
+        },
     },
     sync::{SyncConfig, SyncController, SyncEngine, SyncMode, SyncStateNotSynced},
     trade::live::executor::update::{
@@ -183,11 +186,19 @@ impl LiveProcess {
     }
 
     async fn handle_signals(&self) -> Result<Never> {
-        while let Ok(res) = self.signal_controller.state_receiver().recv().await {
-            match res.as_ref() {
-                LiveSignalState::WaitingForSync(sync_state_not_synced) => {
-                    self.state_manager
-                        .update(LiveState::WaitingForSync(sync_state_not_synced.clone()));
+        while let Ok(signal_state) = self.signal_controller.state_receiver().recv().await {
+            match signal_state.as_ref() {
+                LiveSignalState::NotRunning(signal_state_not_running) => {
+                    match signal_state_not_running.as_ref() {
+                        LiveSignalStateNotRunning::WaitingForSync(sync_state_not_synced) => {
+                            self.state_manager
+                                .update(LiveState::WaitingForSync(sync_state_not_synced.clone()));
+                        }
+                        _ => {
+                            self.state_manager
+                                .update(LiveState::WaitingForSignal(signal_state));
+                        }
+                    }
                 }
                 LiveSignalState::Running(last_signal) => {
                     let tex_state = self.trade_executor.state_snapshot().await;
@@ -208,8 +219,11 @@ impl LiveProcess {
                         .await
                         .map_err(|e| LiveError::Generic(e.to_string()))?;
                 }
-                _ => {
-                    self.state_manager.update(LiveState::WaitingForSignal(res));
+                LiveSignalState::ShutdownInitiated | LiveSignalState::Shutdown => {
+                    // Non-recoverable error
+                    return Err(LiveError::Generic(
+                        "signal process was shutdown".to_string(),
+                    ));
                 }
             }
         }
