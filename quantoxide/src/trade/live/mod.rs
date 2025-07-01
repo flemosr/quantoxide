@@ -82,8 +82,8 @@ pub type LiveTransmiter = broadcast::Sender<LiveUpdate>;
 pub type LiveReceiver = broadcast::Receiver<LiveUpdate>;
 
 pub trait LiveReader: Send + Sync + 'static {
-    fn state_snapshot(&self) -> Arc<LiveState>;
     fn update_receiver(&self) -> LiveReceiver;
+    fn state_snapshot(&self) -> Arc<LiveState>;
 }
 
 #[derive(Debug)]
@@ -141,15 +141,15 @@ impl LiveStateManager {
 }
 
 impl LiveReader for LiveStateManager {
+    fn update_receiver(&self) -> LiveReceiver {
+        self.update_tx.subscribe()
+    }
+
     fn state_snapshot(&self) -> Arc<LiveState> {
         self.state
             .lock()
             .expect("`LiveStateManager` mutex can't be poisoned")
             .clone()
-    }
-
-    fn update_receiver(&self) -> LiveReceiver {
-        self.update_tx.subscribe()
     }
 }
 
