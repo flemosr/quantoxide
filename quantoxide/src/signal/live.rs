@@ -66,40 +66,40 @@ pub trait LiveSignalStateReader: Send + Sync + 'static {
 
 #[derive(Debug)]
 struct LiveSignalStateManager {
-    state: Mutex<Arc<LiveSignalState>>,
-    state_tx: LiveSignalTransmiter,
+    state: Mutex<LiveSignalState>,
+    update_tx: LiveSignalTransmiter,
 }
 
 impl LiveSignalStateManager {
-    pub fn new() -> Arc<Self> {
-        let state = Mutex::new(Arc::new(LiveSignalStateNotRunning::NotInitiated.into()));
-        let (state_tx, _) = broadcast::channel::<Arc<LiveSignalState>>(100);
+    pub fn new(update_tx: LiveSignalTransmiter) -> Arc<Self> {
+        let state = Mutex::new(LiveSignalStateNotRunning::NotInitiated.into());
 
-        Arc::new(Self { state, state_tx })
+        Arc::new(Self { state, update_tx })
     }
 
     pub fn update(&self, new_state: LiveSignalState) {
-        let new_state = Arc::new(new_state);
-
-        let mut state_guard = self.state.lock().expect("state lock can't be poisoned");
+        let mut state_guard = self
+            .state
+            .lock()
+            .expect("`LiveSignalStateManager` mutex can't be poisoned");
         *state_guard = new_state.clone();
         drop(state_guard);
 
         // Ignore no-receivers errors
-        let _ = self.state_tx.send(new_state);
+        let _ = self.update_tx.send(new_state.into());
     }
 }
 
 impl LiveSignalStateReader for LiveSignalStateManager {
-    fn snapshot(&self) -> Arc<LiveSignalState> {
+    fn snapshot(&self) -> LiveSignalState {
         self.state
             .lock()
-            .expect("state lock can't be poisoned")
+            .expect("`LiveSignalStateManager` mutex can't be poisoned")
             .clone()
     }
 
     fn receiver(&self) -> LiveSignalReceiver {
-        self.state_tx.subscribe()
+        self.update_tx.subscribe()
     }
 }
 
