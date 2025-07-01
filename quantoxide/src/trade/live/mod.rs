@@ -10,11 +10,11 @@ use crate::{
     signal::{
         core::{ConfiguredSignalEvaluator, Signal},
         live::{
-            LiveSignalConfig, LiveSignalController, LiveSignalEngine, LiveSignalState,
-            LiveSignalStateNotRunning, LiveSignalUpdate,
+            LiveSignalController, LiveSignalEngine, LiveSignalState, LiveSignalStateNotRunning,
+            LiveSignalUpdate,
         },
     },
-    sync::{SyncConfig, SyncController, SyncEngine, SyncMode},
+    sync::{SyncController, SyncEngine, SyncMode},
     trade::live::executor::update::{
         LiveTradeExecutorReceiver, LiveTradeExecutorUpdateOrder, LiveTradeExecutorUpdateState,
     },
@@ -613,12 +613,10 @@ impl LiveEngine {
             }
         };
 
-        let sync_config = SyncConfig::from(&config);
-        let sync_engine = SyncEngine::new(sync_config, db.clone(), api.clone(), sync_mode);
+        let sync_engine = SyncEngine::new(&config, db.clone(), api.clone(), sync_mode);
 
-        let signal_config = LiveSignalConfig::from(&config);
         let signal_engine = LiveSignalEngine::new(
-            signal_config,
+            &config,
             db.clone(),
             sync_engine.reader(),
             Arc::new(evaluators),

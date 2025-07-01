@@ -651,7 +651,7 @@ pub struct SyncEngine {
 
 impl SyncEngine {
     pub fn new(
-        config: SyncConfig,
+        config: impl Into<SyncConfig>,
         db: Arc<DbContext>,
         api: Arc<ApiContext>,
         mode: SyncMode,
@@ -661,7 +661,7 @@ impl SyncEngine {
         let state_manager = SyncStateManager::new(update_tx.clone());
 
         Self {
-            config,
+            config: config.into(),
             db,
             api,
             mode,

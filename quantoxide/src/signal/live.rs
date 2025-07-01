@@ -441,7 +441,7 @@ pub struct LiveSignalEngine {
 
 impl LiveSignalEngine {
     pub fn new(
-        config: LiveSignalConfig,
+        config: impl Into<LiveSignalConfig>,
         db: Arc<DbContext>,
         sync_reader: Arc<dyn SyncReader>,
         evaluators: Arc<Vec<ConfiguredSignalEvaluator>>,
@@ -457,7 +457,7 @@ impl LiveSignalEngine {
         let state_manager = LiveSignalStateManager::new(update_tx.clone());
 
         Ok(Self {
-            config,
+            config: config.into(),
             db,
             sync_reader,
             evaluators,
