@@ -72,8 +72,8 @@ pub type SyncTransmiter = broadcast::Sender<SyncUpdate>;
 pub type SyncReceiver = broadcast::Receiver<SyncUpdate>;
 
 pub trait SyncReader: Send + Sync + 'static {
-    fn state_snapshot(&self) -> SyncState;
     fn update_receiver(&self) -> SyncReceiver;
+    fn state_snapshot(&self) -> SyncState;
 }
 
 #[derive(Debug)]
@@ -128,15 +128,15 @@ impl SyncStateManager {
 }
 
 impl SyncReader for SyncStateManager {
+    fn update_receiver(&self) -> SyncReceiver {
+        self.update_tx.subscribe()
+    }
+
     fn state_snapshot(&self) -> SyncState {
         self.state
             .lock()
             .expect("`SyncStateManager` mutex can't be poisoned")
             .clone()
-    }
-
-    fn update_receiver(&self) -> SyncReceiver {
-        self.update_tx.subscribe()
     }
 }
 
@@ -632,11 +632,11 @@ impl SyncEngine {
         }
     }
 
-    pub fn state_reader(&self) -> Arc<dyn SyncReader> {
+    pub fn reader(&self) -> Arc<dyn SyncReader> {
         self.state_manager.clone()
     }
 
-    pub fn state_receiver(&self) -> SyncReceiver {
+    pub fn update_receiver(&self) -> SyncReceiver {
         self.state_manager.update_receiver()
     }
 
