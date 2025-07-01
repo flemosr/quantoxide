@@ -110,6 +110,7 @@ struct LiveSignalProcess {
     shutdown_tx: broadcast::Sender<()>,
     sync_reader: Arc<dyn SyncReader>,
     state_manager: Arc<LiveSignalStateManager>,
+    update_tx: LiveSignalTransmiter,
 }
 
 impl LiveSignalProcess {
@@ -120,6 +121,7 @@ impl LiveSignalProcess {
         shutdown_tx: broadcast::Sender<()>,
         sync_reader: Arc<dyn SyncReader>,
         state_manager: Arc<LiveSignalStateManager>,
+        update_tx: LiveSignalTransmiter,
     ) -> Self {
         Self {
             config,
@@ -128,6 +130,7 @@ impl LiveSignalProcess {
             shutdown_tx,
             sync_reader,
             state_manager,
+            update_tx,
         }
     }
 
@@ -214,7 +217,7 @@ impl LiveSignalProcess {
 
                 let signal = Signal::try_evaluate(evaluator, signal_ctx_entries).await?;
 
-                self.state_manager.update(LiveSignalState::Running(signal));
+                let _ = self.update_tx.send(signal.into());
             }
         }
     }
@@ -290,7 +293,7 @@ impl LiveSignalController {
         self.state_manager.receiver()
     }
 
-    pub fn state_snapshot(&self) -> Arc<LiveSignalState> {
+    pub fn state_snapshot(&self) -> LiveSignalState {
         self.state_manager.snapshot()
     }
 
@@ -405,6 +408,7 @@ pub struct LiveSignalEngine {
     sync_reader: Arc<dyn SyncReader>,
     evaluators: Arc<Vec<ConfiguredSignalEvaluator>>,
     state_manager: Arc<LiveSignalStateManager>,
+    update_tx: LiveSignalTransmiter,
 }
 
 impl LiveSignalEngine {
@@ -420,7 +424,9 @@ impl LiveSignalEngine {
             ));
         }
 
-        let state_manager = LiveSignalStateManager::new();
+        let (update_tx, _) = broadcast::channel::<LiveSignalUpdate>(100);
+
+        let state_manager = LiveSignalStateManager::new(update_tx.clone());
 
         Ok(Self {
             config,
@@ -428,6 +434,7 @@ impl LiveSignalEngine {
             sync_reader,
             evaluators,
             state_manager,
+            update_tx,
         })
     }
 
@@ -439,7 +446,7 @@ impl LiveSignalEngine {
         self.state_manager.receiver()
     }
 
-    pub fn state_snapshot(&self) -> Arc<LiveSignalState> {
+    pub fn state_snapshot(&self) -> LiveSignalState {
         self.state_manager.snapshot()
     }
 
@@ -456,6 +463,7 @@ impl LiveSignalEngine {
             shutdown_tx.clone(),
             self.sync_reader,
             self.state_manager.clone(),
+            self.update_tx,
         )
         .spawn_recovery_loop();
 
