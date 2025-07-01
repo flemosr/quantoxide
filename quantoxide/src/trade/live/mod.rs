@@ -11,10 +11,10 @@ use crate::{
         core::{ConfiguredSignalEvaluator, Signal},
         live::{
             LiveSignalConfig, LiveSignalController, LiveSignalEngine, LiveSignalState,
-            LiveSignalStateNotRunning,
+            LiveSignalStateNotRunning, LiveSignalUpdate,
         },
     },
-    sync::{SyncConfig, SyncController, SyncEngine, SyncMode, SyncStateNotSynced},
+    sync::{SyncConfig, SyncController, SyncEngine, SyncMode},
     trade::live::executor::update::{
         LiveTradeExecutorReceiver, LiveTradeExecutorUpdateOrder, LiveTradeExecutorUpdateState,
     },
@@ -37,8 +37,7 @@ use executor::{
 pub enum LiveState {
     NotInitiated,
     Starting,
-    WaitingForSync(Arc<SyncStateNotSynced>),
-    WaitingForSignal(Arc<LiveSignalState>), // TODO: LiveSignalState can't be 'Running'
+    WaitingForSignal(Arc<LiveSignalStateNotRunning>),
     WaitingTradeExecutor(Arc<LiveTradeExecutorStateNotReady>),
     Running,
     Failed(LiveError),
@@ -186,21 +185,22 @@ impl LiveProcess {
     }
 
     async fn handle_signals(&self) -> Result<Never> {
-        while let Ok(signal_state) = self.signal_controller.state_receiver().recv().await {
-            match signal_state.as_ref() {
-                LiveSignalState::NotRunning(signal_state_not_running) => {
-                    match signal_state_not_running.as_ref() {
-                        LiveSignalStateNotRunning::WaitingForSync(sync_state_not_synced) => {
-                            self.state_manager
-                                .update(LiveState::WaitingForSync(sync_state_not_synced.clone()));
-                        }
-                        _ => {
-                            self.state_manager
-                                .update(LiveState::WaitingForSignal(signal_state));
-                        }
+        while let Ok(signal_update) = self.signal_controller.state_receiver().recv().await {
+            match signal_update {
+                LiveSignalUpdate::StateChange(signal_state) => match signal_state {
+                    LiveSignalState::NotRunning(signal_state_not_running) => {
+                        self.state_manager
+                            .update(LiveState::WaitingForSignal(signal_state_not_running));
                     }
-                }
-                LiveSignalState::Running(last_signal) => {
+                    LiveSignalState::Running => {}
+                    LiveSignalState::ShutdownInitiated | LiveSignalState::Shutdown => {
+                        // Non-recoverable error
+                        return Err(LiveError::Generic(
+                            "signal process was shutdown".to_string(),
+                        ));
+                    }
+                },
+                LiveSignalUpdate::Signal(new_signal) => {
                     let tex_state = self.trade_executor.state_snapshot().await;
 
                     if let LiveTradeExecutorState::Ready(_) = tex_state {
@@ -212,18 +212,12 @@ impl LiveProcess {
                     }
 
                     // Send Signal update
-                    let _ = self.update_tx.send(last_signal.clone().into());
+                    let _ = self.update_tx.send(new_signal.clone().into());
 
                     self.operator
-                        .process_signal(last_signal)
+                        .process_signal(&new_signal)
                         .await
                         .map_err(|e| LiveError::Generic(e.to_string()))?;
-                }
-                LiveSignalState::ShutdownInitiated | LiveSignalState::Shutdown => {
-                    // Non-recoverable error
-                    return Err(LiveError::Generic(
-                        "signal process was shutdown".to_string(),
-                    ));
                 }
             }
         }
