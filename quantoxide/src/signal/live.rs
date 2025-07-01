@@ -16,15 +16,26 @@ use super::{
 };
 
 #[derive(Debug, PartialEq)]
-pub enum LiveSignalState {
+pub enum LiveSignalStateNotRunning {
     NotInitiated,
     Starting,
-    Running(Signal),
     WaitingForSync(Arc<SyncStateNotSynced>),
     Failed(SignalError),
     Restarting,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum LiveSignalState {
+    NotRunning(Arc<LiveSignalStateNotRunning>),
+    Running(Signal),
     ShutdownInitiated,
     Shutdown,
+}
+
+impl From<LiveSignalStateNotRunning> for LiveSignalState {
+    fn from(value: LiveSignalStateNotRunning) -> Self {
+        Self::NotRunning(Arc::new(value))
+    }
 }
 
 pub type LiveSignalTransmiter = broadcast::Sender<Arc<LiveSignalState>>;
@@ -43,7 +54,7 @@ struct LiveSignalStateManager {
 
 impl LiveSignalStateManager {
     pub fn new() -> Arc<Self> {
-        let state = Mutex::new(Arc::new(LiveSignalState::NotInitiated));
+        let state = Mutex::new(Arc::new(LiveSignalStateNotRunning::NotInitiated.into()));
         let (state_tx, _) = broadcast::channel::<Arc<LiveSignalState>>(100);
 
         Arc::new(Self { state, state_tx })
@@ -128,8 +139,12 @@ impl LiveSignalProcess {
                     match sync_update {
                         SyncUpdate::StateChange(sync_state) => match sync_state {
                             SyncState::NotSynced(sync_state_not_synced) => {
-                                self.state_manager
-                                    .update(LiveSignalState::WaitingForSync(sync_state_not_synced));
+                                self.state_manager.update(
+                                    LiveSignalStateNotRunning::WaitingForSync(
+                                        sync_state_not_synced,
+                                    )
+                                    .into(),
+                                );
                             }
                             SyncState::Synced => break,
                             SyncState::ShutdownInitiated | SyncState::Shutdown => {
@@ -189,23 +204,23 @@ impl LiveSignalProcess {
     fn spawn_recovery_loop(self) -> AbortOnDropHandle<()> {
         tokio::spawn(async move {
             loop {
-                self.state_manager.update(LiveSignalState::Starting);
+                self.state_manager.update(LiveSignalStateNotRunning::Starting.into());
 
                 let mut shutdown_rx = self.shutdown_tx.subscribe();
                 tokio::select! {
                     run_res = self.run() => {
                         let Err(signal_error) = run_res;
-                        self.state_manager.update(LiveSignalState::Failed(signal_error));
+                        self.state_manager.update(LiveSignalStateNotRunning::Failed(signal_error).into());
                     }
                     shutdown_res = shutdown_rx.recv() => {
                         if let Err(e) = shutdown_res {
-                            self.state_manager.update(LiveSignalState::Failed(SignalError::Generic(e.to_string())));
+                            self.state_manager.update(LiveSignalStateNotRunning::Failed(SignalError::Generic(e.to_string())).into());
                         }
                         return;
                     }
                 };
 
-                self.state_manager.update(LiveSignalState::Restarting);
+                self.state_manager.update(LiveSignalStateNotRunning::Restarting.into());
 
                 // Handle shutdown signals while waiting for `restart_interval`
 
@@ -216,7 +231,7 @@ impl LiveSignalProcess {
                     }
                     shutdown_res = shutdown_rx.recv() => {
                         if let Err(e) = shutdown_res {
-                            self.state_manager.update(LiveSignalState::Failed(SignalError::Generic(e.to_string())));
+                            self.state_manager.update(LiveSignalStateNotRunning::Failed(SignalError::Generic(e.to_string())).into());
                         }
                         return;
                     }
