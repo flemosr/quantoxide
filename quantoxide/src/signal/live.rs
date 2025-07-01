@@ -285,16 +285,16 @@ impl LiveSignalController {
         })
     }
 
-    pub fn state_reader(&self) -> Arc<dyn LiveSignalStateReader> {
+    pub fn reader(&self) -> Arc<dyn LiveSignalReader> {
         self.state_manager.clone()
     }
 
-    pub fn state_receiver(&self) -> LiveSignalReceiver {
-        self.state_manager.receiver()
+    pub fn update_receiver(&self) -> LiveSignalReceiver {
+        self.state_manager.update_receiver()
     }
 
     pub fn state_snapshot(&self) -> LiveSignalState {
-        self.state_manager.snapshot()
+        self.state_manager.state_snapshot()
     }
 
     fn try_consume_handle(&self) -> Option<AbortOnDropHandle<()>> {
@@ -438,16 +438,16 @@ impl LiveSignalEngine {
         })
     }
 
-    pub fn state_reader(&self) -> Arc<dyn LiveSignalStateReader> {
+    pub fn reader(&self) -> Arc<dyn LiveSignalReader> {
         self.state_manager.clone()
     }
 
-    pub fn state_receiver(&self) -> LiveSignalReceiver {
-        self.state_manager.receiver()
+    pub fn update_receiver(&self) -> LiveSignalReceiver {
+        self.state_manager.update_receiver()
     }
 
     pub fn state_snapshot(&self) -> LiveSignalState {
-        self.state_manager.snapshot()
+        self.state_manager.state_snapshot()
     }
 
     pub fn start(self) -> Arc<LiveSignalController> {
