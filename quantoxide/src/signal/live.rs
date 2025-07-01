@@ -103,8 +103,23 @@ impl LiveSignalReader for LiveSignalStateManager {
     }
 }
 
+#[derive(Clone, Debug)]
+struct LiveSignalProcessConfig {
+    eval_interval: time::Duration,
+    restart_interval: time::Duration,
+}
+
+impl From<&LiveSignalConfig> for LiveSignalProcessConfig {
+    fn from(value: &LiveSignalConfig) -> Self {
+        Self {
+            eval_interval: value.eval_interval,
+            restart_interval: value.restart_interval,
+        }
+    }
+}
+
 struct LiveSignalProcess {
-    config: LiveSignalConfig,
+    config: LiveSignalProcessConfig,
     db: Arc<DbContext>,
     evaluators: Arc<Vec<ConfiguredSignalEvaluator>>,
     shutdown_tx: broadcast::Sender<()>,
@@ -115,7 +130,7 @@ struct LiveSignalProcess {
 
 impl LiveSignalProcess {
     fn new(
-        config: LiveSignalConfig,
+        config: &LiveSignalConfig,
         db: Arc<DbContext>,
         evaluators: Arc<Vec<ConfiguredSignalEvaluator>>,
         shutdown_tx: broadcast::Sender<()>,
@@ -124,7 +139,7 @@ impl LiveSignalProcess {
         update_tx: LiveSignalTransmiter,
     ) -> Self {
         Self {
-            config,
+            config: config.into(),
             db,
             evaluators,
             shutdown_tx,
@@ -263,24 +278,37 @@ impl LiveSignalProcess {
 }
 
 #[derive(Debug)]
+struct LiveSignalControllerConfig {
+    shutdown_timeout: time::Duration,
+}
+
+impl From<&LiveSignalConfig> for LiveSignalControllerConfig {
+    fn from(value: &LiveSignalConfig) -> Self {
+        Self {
+            shutdown_timeout: value.shutdown_timeout,
+        }
+    }
+}
+
+#[derive(Debug)]
 pub struct LiveSignalController {
+    config: LiveSignalControllerConfig,
     handle: Mutex<Option<AbortOnDropHandle<()>>>,
     shutdown_tx: broadcast::Sender<()>,
-    shutdown_timeout: time::Duration,
     state_manager: Arc<LiveSignalStateManager>,
 }
 
 impl LiveSignalController {
     fn new(
+        config: &LiveSignalConfig,
         handle: AbortOnDropHandle<()>,
         shutdown_tx: broadcast::Sender<()>,
-        shutdown_timeout: time::Duration,
         state_manager: Arc<LiveSignalStateManager>,
     ) -> Arc<Self> {
         Arc::new(Self {
+            config: config.into(),
             handle: Mutex::new(Some(handle)),
             shutdown_tx,
-            shutdown_timeout,
             state_manager,
         })
     }
@@ -331,7 +359,7 @@ impl LiveSignalController {
                     join_res = &mut handle => {
                         join_res.map_err(SignalError::TaskJoin)
                     }
-                    _ = time::sleep(self.shutdown_timeout) => {
+                    _ = time::sleep(self.config.shutdown_timeout) => {
                         handle.abort();
                         Err(SignalError::Generic("Shutdown timeout".to_string()))
                     }
@@ -451,13 +479,11 @@ impl LiveSignalEngine {
     }
 
     pub fn start(self) -> Arc<LiveSignalController> {
-        let shutdown_timeout = self.config.shutdown_timeout;
-
         // Internal channel for shutdown signal
         let (shutdown_tx, _) = broadcast::channel::<()>(1);
 
         let handle = LiveSignalProcess::new(
-            self.config,
+            &self.config,
             self.db,
             self.evaluators,
             shutdown_tx.clone(),
@@ -467,6 +493,6 @@ impl LiveSignalEngine {
         )
         .spawn_recovery_loop();
 
-        LiveSignalController::new(handle, shutdown_tx, shutdown_timeout, self.state_manager)
+        LiveSignalController::new(&self.config, handle, shutdown_tx, self.state_manager)
     }
 }
