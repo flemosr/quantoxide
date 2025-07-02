@@ -1,6 +1,7 @@
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use hyper::Method;
-use std::sync::Arc;
 
 use super::{
     super::{error::Result, models::User, repositories::UserRepository},
@@ -28,12 +29,12 @@ impl UserRepository for LnmUserRepository {
 
 #[cfg(test)]
 mod tests {
-    use dotenv::dotenv;
     use std::env;
 
-    use crate::api::rest::lnm::base::LnmApiBase;
+    use dotenv::dotenv;
 
     use super::*;
+    use super::{super::super::RestApiContextConfig, LnmApiBase};
 
     fn init_repository_from_env() -> LnmUserRepository {
         dotenv().ok();
@@ -46,8 +47,14 @@ mod tests {
         let passphrase = env::var("LNM_API_PASSPHRASE")
             .expect("LNM_API_PASSPHRASE environment variable must be set");
 
-        let base = LnmApiBase::with_credentials(domain, key, secret, passphrase)
-            .expect("must create `LnmApiBase`");
+        let base = LnmApiBase::with_credentials(
+            RestApiContextConfig::default(),
+            domain,
+            key,
+            secret,
+            passphrase,
+        )
+        .expect("must create `LnmApiBase`");
 
         LnmUserRepository::new(base)
     }
