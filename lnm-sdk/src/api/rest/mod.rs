@@ -13,8 +13,22 @@ pub struct RestApiContext {
 }
 
 impl RestApiContext {
-    pub fn new(domain: String, key: String, secret: String, passphrase: String) -> Result<Self> {
-        let base = LnmApiBase::new(domain, key, secret, passphrase)?;
+    pub fn new(domain: String) -> Result<Self> {
+        let base = LnmApiBase::new(domain)?;
+
+        let futures = Box::new(LnmFuturesRepository::new(base.clone()));
+        let user = Box::new(LnmUserRepository::new(base));
+
+        Ok(Self { futures, user })
+    }
+
+    pub fn with_credentials(
+        domain: String,
+        key: String,
+        secret: String,
+        passphrase: String,
+    ) -> Result<Self> {
+        let base = LnmApiBase::with_credentials(domain, key, secret, passphrase)?;
 
         let futures = Box::new(LnmFuturesRepository::new(base.clone()));
         let user = Box::new(LnmUserRepository::new(base));
