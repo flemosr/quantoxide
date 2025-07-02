@@ -11,21 +11,34 @@ use websocket::{WebSocketApiConfig, WebSocketApiContext, error::Result};
 
 pub struct ApiContext {
     domain: String,
+    pub has_credentials: bool,
     pub rest: RestApiContext,
     ws: Mutex<Option<WebSocketApiContext>>,
 }
 
 impl ApiContext {
-    pub fn new(
+    pub fn new(domain: String) -> rest::error::Result<Arc<Self>> {
+        let rest = RestApiContext::new(domain.clone())?;
+
+        Ok(Arc::new(Self {
+            domain,
+            has_credentials: false,
+            rest,
+            ws: Mutex::new(None),
+        }))
+    }
+
+    pub fn with_credentials(
         domain: String,
         key: String,
         secret: String,
         passphrase: String,
     ) -> rest::error::Result<Arc<Self>> {
-        let rest = RestApiContext::new(domain.clone(), key, secret, passphrase)?;
+        let rest = RestApiContext::with_credentials(domain.clone(), key, secret, passphrase)?;
 
         Ok(Arc::new(Self {
             domain,
+            has_credentials: true,
             rest,
             ws: Mutex::new(None),
         }))
