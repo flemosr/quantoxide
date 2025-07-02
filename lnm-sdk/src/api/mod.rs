@@ -6,7 +6,7 @@ pub mod rest;
 pub mod websocket;
 
 use rest::RestApiContext;
-use websocket::{WebSocketApiConfig, WebSocketApiContext, error::Result};
+use websocket::{WebSocketApiContext, error::Result};
 
 #[derive(Clone, Debug)]
 pub struct ApiContextConfig {
@@ -24,38 +24,39 @@ impl Default for ApiContextConfig {
 }
 
 pub struct ApiContext {
+    config: ApiContextConfig,
     domain: String,
-    pub has_credentials: bool,
     pub rest: RestApiContext,
     ws: Mutex<Option<WebSocketApiContext>>,
 }
 
 impl ApiContext {
-    pub fn new(domain: String) -> rest::error::Result<Arc<Self>> {
-        let rest = RestApiContext::new(domain.clone())?;
-
-        Ok(Arc::new(Self {
+    fn new_inner(config: ApiContextConfig, domain: String, rest: RestApiContext) -> Arc<Self> {
+        Arc::new(Self {
+            config,
             domain,
-            has_credentials: false,
             rest,
             ws: Mutex::new(None),
-        }))
+        })
+    }
+
+    pub fn new(config: ApiContextConfig, domain: String) -> rest::error::Result<Arc<Self>> {
+        let rest = RestApiContext::new(&config, domain.clone())?;
+
+        Ok(Self::new_inner(config, domain, rest))
     }
 
     pub fn with_credentials(
+        config: ApiContextConfig,
         domain: String,
         key: String,
         secret: String,
         passphrase: String,
     ) -> rest::error::Result<Arc<Self>> {
-        let rest = RestApiContext::with_credentials(domain.clone(), key, secret, passphrase)?;
+        let rest =
+            RestApiContext::with_credentials(&config, domain.clone(), key, secret, passphrase)?;
 
-        Ok(Arc::new(Self {
-            domain,
-            has_credentials: true,
-            rest,
-            ws: Mutex::new(None),
-        }))
+        Ok(Self::new_inner(config, domain, rest))
     }
 
     pub async fn connect_ws(&self) -> Result<WebSocketApiContext> {
@@ -68,8 +69,7 @@ impl ApiContext {
         }
 
         let domain = self.domain.clone();
-        let ws_config = WebSocketApiConfig::default();
-        let new_ws = websocket::new(ws_config, domain).await?;
+        let new_ws = websocket::new(&self.config, domain).await?;
 
         *ws_guard = Some(new_ws.clone());
 
