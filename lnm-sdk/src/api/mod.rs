@@ -1,4 +1,5 @@
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
+
 use tokio::sync::Mutex;
 
 pub mod rest;
@@ -7,7 +8,20 @@ pub mod websocket;
 use rest::RestApiContext;
 use websocket::{WebSocketApiConfig, WebSocketApiContext, error::Result};
 
-// TODO: Handle config properly
+#[derive(Clone, Debug)]
+pub struct ApiContextConfig {
+    timeout: Duration,
+    ws_disconnect_timeout: Duration,
+}
+
+impl Default for ApiContextConfig {
+    fn default() -> Self {
+        Self {
+            timeout: Duration::from_secs(15),
+            ws_disconnect_timeout: Duration::from_secs(6),
+        }
+    }
+}
 
 pub struct ApiContext {
     domain: String,
