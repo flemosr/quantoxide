@@ -44,44 +44,19 @@ impl From<ApiPath> for String {
     }
 }
 
-pub struct LnmApiBase {
-    domain: String,
+struct LnmApiCreds {
     key: String,
     secret: String,
     passphrase: String,
-    client: Client,
 }
 
-impl LnmApiBase {
-    pub fn new(
-        domain: String,
-        key: String,
-        secret: String,
-        passphrase: String,
-    ) -> Result<Arc<Self>> {
-        let client = Client::builder()
-            .timeout(Duration::from_secs(30))
-            .build()
-            .map_err(|e| RestApiError::Generic(e.to_string()))?;
-
-        Ok(Arc::new(Self {
-            domain,
+impl LnmApiCreds {
+    fn new(key: String, secret: String, passphrase: String) -> Self {
+        Self {
             key,
             secret,
             passphrase,
-            client,
-        }))
-    }
-
-    fn get_url(&self, path: ApiPath, query_params: Option<String>) -> Result<Url> {
-        let query_str = query_params
-            .map(|v| format!("?{v}"))
-            .unwrap_or("".to_string());
-
-        let url_str = format!("https://{}{}{}", self.domain, String::from(path), query_str);
-        let url = Url::parse(&url_str).map_err(|e| RestApiError::UrlParse(e.to_string()))?;
-
-        Ok(url)
+        }
     }
 
     fn generate_signature(
@@ -89,9 +64,9 @@ impl LnmApiBase {
         timestamp_str: &str,
         method: &Method,
         path: ApiPath,
-        params_str: Option<impl AsRef<str>>,
+        params_str: Option<&String>,
     ) -> Result<String> {
-        let params_str = params_str.as_ref().map(|v| v.as_ref()).unwrap_or("");
+        let params_str = params_str.map(|v| v.as_ref()).unwrap_or("");
 
         let prehash = format!(
             "{}{}{}{}",
@@ -111,6 +86,78 @@ impl LnmApiBase {
         Ok(signature)
     }
 
+    fn get_authentication_headers(
+        &self,
+        method: &Method,
+        path: ApiPath,
+        params_str: Option<&String>,
+    ) -> Result<HeaderMap> {
+        let timestamp = Utc::now().timestamp_millis().to_string();
+
+        let signature = self.generate_signature(&timestamp, &method, path, params_str)?;
+
+        let mut headers = HeaderMap::new();
+
+        headers.insert(
+            HeaderName::from_static("lnm-access-key"),
+            HeaderValue::from_str(&self.key).map_err(|e| RestApiError::Generic(e.to_string()))?,
+        );
+        headers.insert(
+            HeaderName::from_static("lnm-access-signature"),
+            HeaderValue::from_str(&signature).map_err(|e| RestApiError::Generic(e.to_string()))?,
+        );
+        headers.insert(
+            HeaderName::from_static("lnm-access-passphrase"),
+            HeaderValue::from_str(&self.passphrase)
+                .map_err(|e| RestApiError::Generic(e.to_string()))?,
+        );
+        headers.insert(
+            HeaderName::from_static("lnm-access-timestamp"),
+            HeaderValue::from_str(&timestamp).map_err(|e| RestApiError::Generic(e.to_string()))?,
+        );
+
+        Ok(headers)
+    }
+}
+
+pub struct LnmApiBase {
+    domain: String,
+    creds: Option<LnmApiCreds>,
+    client: Client,
+}
+
+impl LnmApiBase {
+    pub fn new(
+        domain: String,
+        key: String,
+        secret: String,
+        passphrase: String,
+    ) -> Result<Arc<Self>> {
+        let client = Client::builder()
+            .timeout(Duration::from_secs(30))
+            .build()
+            .map_err(|e| RestApiError::Generic(e.to_string()))?;
+
+        let creds = LnmApiCreds::new(key, secret, passphrase);
+
+        Ok(Arc::new(Self {
+            domain,
+            creds: Some(creds),
+            client,
+        }))
+    }
+
+    fn get_url(&self, path: ApiPath, query_params: Option<String>) -> Result<Url> {
+        let query_str = query_params
+            .map(|v| format!("?{v}"))
+            .unwrap_or("".to_string());
+
+        let url_str = format!("https://{}{}{}", self.domain, String::from(path), query_str);
+        let url = Url::parse(&url_str).map_err(|e| RestApiError::UrlParse(e.to_string()))?;
+
+        Ok(url)
+    }
+
     async fn make_request<T>(
         &self,
         method: Method,
@@ -121,35 +168,15 @@ impl LnmApiBase {
     where
         T: DeserializeOwned,
     {
-        let mut headers = HeaderMap::new();
+        let mut headers = if authenticated {
+            let creds = self.creds.as_ref().ok_or(RestApiError::Generic(
+                "tried to make authenticated request without creds".to_string(),
+            ))?;
 
-        if authenticated {
-            let timestamp = Utc::now().timestamp_millis().to_string();
-
-            let signature =
-                self.generate_signature(&timestamp, &method, path.clone(), params_str.as_ref())?;
-
-            headers.insert(
-                HeaderName::from_static("lnm-access-key"),
-                HeaderValue::from_str(&self.key)
-                    .map_err(|e| RestApiError::Generic(e.to_string()))?,
-            );
-            headers.insert(
-                HeaderName::from_static("lnm-access-signature"),
-                HeaderValue::from_str(&signature)
-                    .map_err(|e| RestApiError::Generic(e.to_string()))?,
-            );
-            headers.insert(
-                HeaderName::from_static("lnm-access-passphrase"),
-                HeaderValue::from_str(&self.passphrase)
-                    .map_err(|e| RestApiError::Generic(e.to_string()))?,
-            );
-            headers.insert(
-                HeaderName::from_static("lnm-access-timestamp"),
-                HeaderValue::from_str(&timestamp)
-                    .map_err(|e| RestApiError::Generic(e.to_string()))?,
-            );
-        }
+            creds.get_authentication_headers(&method, path.clone(), params_str.as_ref())?
+        } else {
+            HeaderMap::new()
+        };
 
         let req = match method {
             Method::POST | Method::PUT => {
