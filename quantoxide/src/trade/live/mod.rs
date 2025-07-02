@@ -628,7 +628,7 @@ impl LiveEngine {
             db,
             api,
             sync_engine.update_receiver(),
-        );
+        )?;
 
         let (update_tx, _) = broadcast::channel::<LiveUpdate>(100);
 

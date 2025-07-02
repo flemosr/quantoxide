@@ -305,21 +305,27 @@ impl LiveTradeExecutorLauncher {
         db: Arc<DbContext>,
         api: Arc<ApiContext>,
         sync_rx: SyncReceiver,
-    ) -> Self {
+    ) -> LiveResult<Self> {
+        if !api.has_credentials {
+            return Err(LiveError::Generic(
+                "`LiveTradeExecutorLauncher`'s `api` must have credentials".to_string(),
+            ));
+        }
+
         let (update_tx, _) = broadcast::channel::<LiveTradeExecutorUpdate>(100);
 
         let api = WrappedApiContext::new(api, update_tx.clone());
 
         let state_manager = LiveTradeExecutorStateManager::new(update_tx.clone());
 
-        Self {
+        Ok(Self {
             tsl_step_size,
             db,
             api,
             update_tx,
             state_manager,
             sync_rx,
-        }
+        })
     }
 
     pub fn update_receiver(&self) -> LiveTradeExecutorReceiver {
