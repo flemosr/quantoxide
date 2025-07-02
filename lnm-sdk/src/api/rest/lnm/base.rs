@@ -127,7 +127,20 @@ pub struct LnmApiBase {
 }
 
 impl LnmApiBase {
-    pub fn new(
+    pub fn new(domain: String) -> Result<Arc<Self>> {
+        let client = Client::builder()
+            .timeout(Duration::from_secs(30))
+            .build()
+            .map_err(|e| RestApiError::Generic(e.to_string()))?;
+
+        Ok(Arc::new(Self {
+            domain,
+            creds: None,
+            client,
+        }))
+    }
+
+    pub fn with_credentials(
         domain: String,
         key: String,
         secret: String,
