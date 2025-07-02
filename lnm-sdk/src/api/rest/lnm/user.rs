@@ -46,8 +46,8 @@ mod tests {
         let passphrase = env::var("LNM_API_PASSPHRASE")
             .expect("LNM_API_PASSPHRASE environment variable must be set");
 
-        let base =
-            LnmApiBase::new(domain, key, secret, passphrase).expect("Can create `LnmApiBase`");
+        let base = LnmApiBase::with_credentials(domain, key, secret, passphrase)
+            .expect("must create `LnmApiBase`");
 
         LnmUserRepository::new(base)
     }
