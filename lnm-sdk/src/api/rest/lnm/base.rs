@@ -1,4 +1,4 @@
-use std::{sync::Arc, time::Duration};
+use std::sync::Arc;
 
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
 use chrono::Utc;
@@ -11,7 +11,10 @@ use serde::{Serialize, de::DeserializeOwned};
 use sha2::Sha256;
 use uuid::Uuid;
 
-use super::super::error::{RestApiError, Result};
+use super::super::{
+    RestApiContextConfig,
+    error::{RestApiError, Result},
+};
 
 #[derive(Clone)]
 pub enum ApiPath {
@@ -44,13 +47,13 @@ impl From<ApiPath> for String {
     }
 }
 
-struct LnmApiCreds {
+struct LnmApiCredentials {
     key: String,
     secret: String,
     passphrase: String,
 }
 
-impl LnmApiCreds {
+impl LnmApiCredentials {
     fn new(key: String, secret: String, passphrase: String) -> Self {
         Self {
             key,
@@ -122,42 +125,46 @@ impl LnmApiCreds {
 
 pub struct LnmApiBase {
     domain: String,
-    creds: Option<LnmApiCreds>,
+    credentials: Option<LnmApiCredentials>,
     client: Client,
 }
 
 impl LnmApiBase {
-    pub fn new(domain: String) -> Result<Arc<Self>> {
+    fn new_inner(
+        config: RestApiContextConfig,
+        domain: String,
+        credentials: Option<LnmApiCredentials>,
+    ) -> Result<Arc<Self>> {
         let client = Client::builder()
-            .timeout(Duration::from_secs(30))
+            .timeout(config.timeout)
             .build()
             .map_err(|e| RestApiError::Generic(e.to_string()))?;
 
         Ok(Arc::new(Self {
             domain,
-            creds: None,
+            credentials,
             client,
         }))
     }
 
+    pub fn new(config: RestApiContextConfig, domain: String) -> Result<Arc<Self>> {
+        Self::new_inner(config, domain, None)
+    }
+
     pub fn with_credentials(
+        config: RestApiContextConfig,
         domain: String,
         key: String,
         secret: String,
         passphrase: String,
     ) -> Result<Arc<Self>> {
-        let client = Client::builder()
-            .timeout(Duration::from_secs(30))
-            .build()
-            .map_err(|e| RestApiError::Generic(e.to_string()))?;
+        let creds = LnmApiCredentials::new(key, secret, passphrase);
 
-        let creds = LnmApiCreds::new(key, secret, passphrase);
+        Self::new_inner(config, domain, Some(creds))
+    }
 
-        Ok(Arc::new(Self {
-            domain,
-            creds: Some(creds),
-            client,
-        }))
+    pub fn has_credentials(&self) -> bool {
+        self.credentials.is_some()
     }
 
     fn get_url(&self, path: ApiPath, query_params: Option<String>) -> Result<Url> {
@@ -182,7 +189,7 @@ impl LnmApiBase {
         T: DeserializeOwned,
     {
         let mut headers = if authenticated {
-            let creds = self.creds.as_ref().ok_or(RestApiError::Generic(
+            let creds = self.credentials.as_ref().ok_or(RestApiError::Generic(
                 "tried to make authenticated request without creds".to_string(),
             ))?;
 
