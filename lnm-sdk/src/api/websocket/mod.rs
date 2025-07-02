@@ -11,16 +11,24 @@ use lnm::LnmWebSocketRepo;
 use repositories::WebSocketRepository;
 use tokio::time;
 
+use super::ApiContextConfig;
+
 #[derive(Clone, Debug)]
 pub struct WebSocketApiConfig {
     disconnect_timeout: time::Duration,
 }
 
+impl From<&ApiContextConfig> for WebSocketApiConfig {
+    fn from(value: &ApiContextConfig) -> Self {
+        Self {
+            disconnect_timeout: value.ws_disconnect_timeout,
+        }
+    }
+}
+
 impl Default for WebSocketApiConfig {
     fn default() -> Self {
-        Self {
-            disconnect_timeout: time::Duration::from_secs(6),
-        }
+        (&ApiContextConfig::default()).into()
     }
 }
 
@@ -37,8 +45,11 @@ impl WebSocketApiConfig {
 
 pub type WebSocketApiContext = Arc<dyn WebSocketRepository>;
 
-pub async fn new(config: WebSocketApiConfig, api_domain: String) -> Result<WebSocketApiContext> {
-    let lnm_websocket_repo = LnmWebSocketRepo::new(config, api_domain).await?;
+pub async fn new(
+    config: impl Into<WebSocketApiConfig>,
+    api_domain: String,
+) -> Result<WebSocketApiContext> {
+    let lnm_websocket_repo = LnmWebSocketRepo::new(config.into(), api_domain).await?;
 
     Ok(lnm_websocket_repo)
 }
