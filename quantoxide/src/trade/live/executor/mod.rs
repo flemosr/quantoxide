@@ -306,7 +306,7 @@ impl LiveTradeExecutorLauncher {
         api: Arc<ApiContext>,
         sync_rx: SyncReceiver,
     ) -> LiveResult<Self> {
-        if !api.has_credentials {
+        if !api.rest.has_credentials {
             return Err(LiveError::Generic(
                 "`LiveTradeExecutorLauncher`'s `api` must have credentials".to_string(),
             ));
