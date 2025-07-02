@@ -19,7 +19,7 @@ pub struct RestApiContextConfig {
 impl From<&ApiContextConfig> for RestApiContextConfig {
     fn from(value: &ApiContextConfig) -> Self {
         Self {
-            timeout: value.timeout,
+            timeout: value.rest_timeout,
         }
     }
 }

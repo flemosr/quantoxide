@@ -10,14 +10,14 @@ use websocket::{WebSocketApiContext, error::Result};
 
 #[derive(Clone, Debug)]
 pub struct ApiContextConfig {
-    timeout: Duration,
+    rest_timeout: Duration,
     ws_disconnect_timeout: Duration,
 }
 
 impl Default for ApiContextConfig {
     fn default() -> Self {
         Self {
-            timeout: Duration::from_secs(15),
+            rest_timeout: Duration::from_secs(20),
             ws_disconnect_timeout: Duration::from_secs(6),
         }
     }
