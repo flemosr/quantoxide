@@ -13,7 +13,7 @@ mod live_trading_session;
 
 pub use live_trading_session::LiveTradingSession;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum LiveTradeExecutorStatusNotReady {
     Starting,
     WaitingForSync(Arc<SyncStateNotSynced>),
@@ -21,7 +21,7 @@ pub enum LiveTradeExecutorStatusNotReady {
     NotViable(LiveError),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum LiveTradeExecutorStatus {
     NotReady(Arc<LiveTradeExecutorStatusNotReady>),
     Ready,
@@ -90,11 +90,20 @@ impl<'a> LockedLiveTradeExecutorState<'a> {
     }
 }
 
+/// Represents a locked live trade executor in the Ready state with an active
+/// trading session.
 pub struct LockedLiveTradeExecutorStateReady<'a>(LockedLiveTradeExecutorState<'a>);
 
 impl<'a> TryFrom<LockedLiveTradeExecutorState<'a>> for LockedLiveTradeExecutorStateReady<'a> {
     type Error = LiveError;
 
+    /// Attempts to convert a generic locked state into a ready state.
+    ///
+    /// # Errors
+    ///
+    /// Returns `LiveError::ManagerNotReady` if:
+    /// - The executor status is not `Ready`
+    /// - The trading session is `None`
     fn try_from(value: LockedLiveTradeExecutorState<'a>) -> Result<Self, Self::Error> {
         match value.state_guard.status {
             LiveTradeExecutorStatus::Ready if value.state_guard.trading_session.is_some() => {
@@ -106,21 +115,17 @@ impl<'a> TryFrom<LockedLiveTradeExecutorState<'a>> for LockedLiveTradeExecutorSt
 }
 
 impl<'a> LockedLiveTradeExecutorStateReady<'a> {
+    /// Returns a reference to the active trading session.
+    ///
+    /// # Panics
+    ///
+    /// This should never panic due to the guarantees provided by the `TryFrom`
+    /// implementation, but includes an assertion for defensive programming.
     pub fn trading_session(&self) -> &LiveTradingSession {
-        match self.0.state_guard.status {
-            LiveTradeExecutorStatus::Ready => {
-                if let Some(trading_session) = self.0.state_guard.trading_session.as_ref() {
-                    return trading_session;
-                }
-                panic!("`trading_session` must be `Some`");
-            }
-            _ => panic!("`LiveTradeExecutorStatus` must be ready"),
-        }
+        assert_eq!(self.0.state_guard.status, LiveTradeExecutorStatus::Ready);
+        self.0.state_guard.trading_session.as_ref().unwrap()
     }
 
-    // `LockeLiveTradeExecutorStateReady` is only obtained if status is
-    // `LiveTradeExecutorStatus::Ready`, so the status doesn't need to be updated
-    // in this case.
     pub async fn update_trading_session(self, new_trading_session: LiveTradingSession) {
         self.0.update_status_ready(new_trading_session)
     }
