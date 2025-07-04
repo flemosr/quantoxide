@@ -163,7 +163,10 @@ pub enum LastTickDirection {
 pub struct PriceTickLNM {
     time: DateTime<Utc>,
     last_price: f64,
-    last_tick_direction: LastTickDirection,
+    // As of Jul 4 2025, some ticks may be received without the
+    // `last_tick_direction` property when subscribing to
+    // LNM's 'futures:btc_usd:last-price' channel.
+    last_tick_direction: Option<LastTickDirection>,
 }
 
 impl PriceTickLNM {
@@ -175,7 +178,7 @@ impl PriceTickLNM {
         self.last_price
     }
 
-    pub fn last_tick_direction(&self) -> LastTickDirection {
+    pub fn last_tick_direction(&self) -> Option<LastTickDirection> {
         self.last_tick_direction
     }
 }
