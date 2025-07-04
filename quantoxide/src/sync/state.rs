@@ -1,26 +1,10 @@
-use std::{
-    pin::Pin,
-    sync::{Arc, Mutex, MutexGuard},
-};
+use std::sync::{Arc, Mutex, MutexGuard};
 
-use chrono::Duration;
-use tokio::{
-    sync::{broadcast, mpsc},
-    time,
-};
+use tokio::sync::broadcast;
 
-use lnm_sdk::api::ApiContext;
+use crate::{db::models::PriceTick, sync::process::PriceHistoryState};
 
-use crate::{
-    db::{DbContext, models::PriceTick},
-    trade::live::LiveConfig,
-    util::{AbortOnDropHandle, Never},
-};
-
-use super::error::{Result, SyncError};
-use super::real_time_collection_task::RealTimeCollectionTask;
-pub use super::sync_price_history_task::PriceHistoryState;
-use super::sync_price_history_task::{PriceHistoryStateTransmiter, SyncPriceHistoryTask};
+use super::error::SyncError;
 
 #[derive(Debug, PartialEq)]
 pub enum SyncStateNotSynced {

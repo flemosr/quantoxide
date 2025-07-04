@@ -6,10 +6,9 @@ use tokio::{
     task::JoinError,
 };
 
-use super::{
-    SyncState, real_time_collection_task::error::RealTimeCollectionError,
-    sync_price_history_task::error::SyncPriceHistoryError,
-};
+use super::process::{RealTimeCollectionError, SyncPriceHistoryError};
+
+use super::SyncState;
 
 #[derive(Error, Debug)]
 pub enum SyncError {

@@ -15,9 +15,9 @@ use crate::{
     util::AbortOnDropHandle,
 };
 
-pub mod error;
+mod error;
 
-use error::{RealTimeCollectionError, Result};
+pub use error::{RealTimeCollectionError, Result};
 
 pub struct RealTimeCollectionTask {
     db: Arc<DbContext>,

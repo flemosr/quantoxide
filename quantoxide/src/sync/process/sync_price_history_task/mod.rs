@@ -5,12 +5,15 @@ use tokio::{sync::mpsc, time};
 
 use lnm_sdk::api::{ApiContext, rest::models::PriceEntryLNM};
 
-use crate::{db::DbContext, sync::SyncProcessConfig};
+use crate::db::DbContext;
 
-pub mod error;
+use super::SyncProcessConfig;
+
+mod error;
 mod price_history_state;
 
-use error::{Result, SyncPriceHistoryError};
+pub use error::{Result, SyncPriceHistoryError};
+
 pub use price_history_state::PriceHistoryState;
 
 pub type PriceHistoryStateTransmiter = mpsc::Sender<PriceHistoryState>;
