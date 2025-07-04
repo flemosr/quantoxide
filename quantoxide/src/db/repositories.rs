@@ -204,19 +204,3 @@ pub trait PriceTicksRepository: Send + Sync {
 
     async fn remove_ticks(&self, before: DateTime<Utc>) -> Result<()>;
 }
-
-#[async_trait]
-pub trait RunningTradesRepository: Send + Sync {
-    async fn register_trade(
-        &self,
-        trade_uuid: Uuid,
-        trailing_stoploss: Option<TradeTrailingStoploss>,
-    ) -> Result<()>;
-
-    async fn load_and_validate_trades(
-        &self,
-        tsl_step_size: BoundedPercentage,
-    ) -> Result<HashMap<Uuid, Option<TradeTrailingStoploss>>>;
-
-    async fn remove_trades(&self, trade_uuids: &[Uuid]) -> Result<()>;
-}
