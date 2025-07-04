@@ -128,12 +128,6 @@ impl LiveTradeExecutor {
             }
         };
 
-        self.db
-            .running_trades
-            .register_trade(trade.id(), trade_tsl)
-            .await
-            .map_err(|e| LiveError::Generic(e.to_string()))?;
-
         let mut new_trading_session = locked_ready_state.trading_session().to_owned();
 
         new_trading_session.register_running_trade(self.tsl_step_size, trade, trade_tsl)?;
@@ -336,6 +330,7 @@ impl LiveTradeExecutorLauncher {
                 let current_trading_session =
                     if let Some(old_trading_session) = locked_state.trading_session() {
                         let mut restored_trading_session = old_trading_session.clone();
+
                         if let Err(e) = restored_trading_session
                             .reevaluate(tsl_step_size, db.as_ref(), &api)
                             .await
@@ -344,9 +339,10 @@ impl LiveTradeExecutorLauncher {
                             locked_state.update_status_not_ready(new_status_not_ready);
                             return;
                         }
+
                         restored_trading_session
                     } else {
-                        match LiveTradingSession::new(tsl_step_size, db.as_ref(), &api).await {
+                        match LiveTradingSession::new(db.as_ref(), &api).await {
                             Ok(new_trading_session) => new_trading_session,
                             Err(e) => {
                                 locked_state.update_status_not_ready(
