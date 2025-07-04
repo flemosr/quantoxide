@@ -7,14 +7,12 @@ use lnm_sdk::api::{
 use tokio::sync::broadcast;
 use uuid::Uuid;
 
-use crate::trade::live::executor::state::LiveTradeExecutorState;
-
-use super::{
+use super::super::{
     super::{
-        super::core::TradingState,
-        error::{LiveError, Result as LiveResult},
+        core::TradingState,
+        live::executor::state::{LiveTradeExecutorStatus, LiveTradingSession},
     },
-    state::LiveTradeExecutorStateNotReady,
+    error::{LiveError, Result as LiveResult},
 };
 
 #[derive(Debug, Clone)]
@@ -69,16 +67,11 @@ impl fmt::Display for LiveTradeExecutorUpdateOrder {
     }
 }
 
-#[derive(Debug, Clone)]
-pub enum LiveTradeExecutorUpdateState {
-    NotReady(Arc<LiveTradeExecutorStateNotReady>),
-    Ready(TradingState),
-}
-
 #[derive(Clone)]
 pub enum LiveTradeExecutorUpdate {
     Order(LiveTradeExecutorUpdateOrder),
-    State(LiveTradeExecutorUpdateState),
+    Status(LiveTradeExecutorStatus),
+    TradingState(TradingState),
 }
 
 impl From<LiveTradeExecutorUpdateOrder> for LiveTradeExecutorUpdate {
@@ -87,24 +80,15 @@ impl From<LiveTradeExecutorUpdateOrder> for LiveTradeExecutorUpdate {
     }
 }
 
-impl From<LiveTradeExecutorUpdateState> for LiveTradeExecutorUpdate {
-    fn from(value: LiveTradeExecutorUpdateState) -> Self {
-        Self::State(value)
+impl From<LiveTradeExecutorStatus> for LiveTradeExecutorUpdate {
+    fn from(value: LiveTradeExecutorStatus) -> Self {
+        LiveTradeExecutorUpdate::Status(value)
     }
 }
 
-impl From<LiveTradeExecutorState> for LiveTradeExecutorUpdateState {
-    fn from(value: LiveTradeExecutorState) -> Self {
-        match value {
-            LiveTradeExecutorState::NotReady(not_ready) => Self::NotReady(not_ready),
-            LiveTradeExecutorState::Ready(ready_status) => Self::Ready(ready_status.into()),
-        }
-    }
-}
-
-impl From<LiveTradeExecutorState> for LiveTradeExecutorUpdate {
-    fn from(value: LiveTradeExecutorState) -> Self {
-        LiveTradeExecutorUpdateState::from(value).into()
+impl From<LiveTradingSession> for LiveTradeExecutorUpdate {
+    fn from(value: LiveTradingSession) -> Self {
+        LiveTradeExecutorUpdate::TradingState(value.into())
     }
 }
 
