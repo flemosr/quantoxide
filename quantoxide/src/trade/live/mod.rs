@@ -15,9 +15,7 @@ use crate::{
         },
     },
     sync::{SyncController, SyncEngine, SyncMode},
-    trade::live::executor::update::{
-        LiveTradeExecutorReceiver, LiveTradeExecutorUpdateOrder, LiveTradeExecutorUpdateState,
-    },
+    trade::live::executor::update::{LiveTradeExecutorReceiver, LiveTradeExecutorUpdateOrder},
     util::{AbortOnDropHandle, Never},
 };
 
@@ -29,7 +27,7 @@ pub mod executor;
 use error::{LiveError, Result};
 use executor::{
     LiveTradeExecutor, LiveTradeExecutorLauncher,
-    state::{LiveTradeExecutorState, LiveTradeExecutorStateNotReady},
+    state::{LiveTradeExecutorStatus, LiveTradeExecutorStatusNotReady},
     update::LiveTradeExecutorUpdate,
 };
 
@@ -38,7 +36,7 @@ pub enum LiveState {
     NotInitiated,
     Starting,
     WaitingForSignal(Arc<LiveSignalStateNotRunning>),
-    WaitingTradeExecutor(Arc<LiveTradeExecutorStateNotReady>),
+    WaitingTradeExecutor(Arc<LiveTradeExecutorStatusNotReady>),
     Running,
     Failed(LiveError),
     Restarting,
@@ -215,7 +213,7 @@ impl LiveProcess {
                 LiveSignalUpdate::Signal(new_signal) => {
                     let tex_state = self.trade_executor.state_snapshot().await;
 
-                    if let LiveTradeExecutorState::Ready(_) = tex_state {
+                    if let LiveTradeExecutorStatus::Ready = tex_state.status() {
                         // Sync is ok, signal is ok and trade controller is ok
 
                         self.state_manager.update_if_not_running(LiveState::Running);
