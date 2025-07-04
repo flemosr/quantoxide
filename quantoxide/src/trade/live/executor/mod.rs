@@ -331,39 +331,33 @@ impl LiveTradeExecutorLauncher {
     ) -> AbortOnDropHandle<()> {
         tokio::spawn(async move {
             let refresh_trading_session = async || {
-                let Ok(locked_ready_state) = state_manager.try_lock_ready_state().await else {
-                    // Create fresh trading session from API
+                let locked_state = state_manager.lock_state().await;
 
-                    match LiveTradingSession::new(tsl_step_size, db.as_ref(), &api).await {
-                        Ok(new_trading_session) => {
-                            state_manager.update_status_ready(new_trading_session).await;
+                let current_trading_session =
+                    if let Some(old_trading_session) = locked_state.trading_session() {
+                        let mut restored_trading_session = old_trading_session.clone();
+                        if let Err(e) = restored_trading_session
+                            .reevaluate(tsl_step_size, db.as_ref(), &api)
+                            .await
+                        {
+                            let new_status_not_ready = LiveTradeExecutorStatusNotReady::Failed(e);
+                            locked_state.update_status_not_ready(new_status_not_ready);
+                            return;
                         }
-                        Err(e) => {
-                            state_manager
-                                .update_status_not_ready(LiveTradeExecutorStatusNotReady::Failed(e))
-                                .await;
+                        restored_trading_session
+                    } else {
+                        match LiveTradingSession::new(tsl_step_size, db.as_ref(), &api).await {
+                            Ok(new_trading_session) => new_trading_session,
+                            Err(e) => {
+                                locked_state.update_status_not_ready(
+                                    LiveTradeExecutorStatusNotReady::Failed(e),
+                                );
+                                return;
+                            }
                         }
                     };
 
-                    return;
-                };
-
-                // Reevaluate existing status
-
-                let mut new_trading_session = locked_ready_state.trading_session().to_owned();
-
-                if let Err(e) = new_trading_session
-                    .reevaluate(tsl_step_size, db.as_ref(), &api)
-                    .await
-                {
-                    let new_status_not_ready = LiveTradeExecutorStatusNotReady::Failed(e);
-                    locked_ready_state.update_status_not_ready(new_status_not_ready);
-                    return;
-                }
-
-                locked_ready_state
-                    .update_trading_session(new_trading_session)
-                    .await;
+                locked_state.update_status_ready(current_trading_session);
             };
 
             let handler = async || -> LiveResult<Never> {
