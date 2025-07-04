@@ -1,12 +1,8 @@
-use std::{collections::HashMap, result, sync::Arc};
+use std::sync::Arc;
 
-use chrono::{DateTime, Utc};
 use tokio::sync::{Mutex, MutexGuard};
-use uuid::Uuid;
 
-use lnm_sdk::api::rest::models::LnmTrade;
-
-use crate::{sync::SyncStateNotSynced, trade::core::TradeTrailingStoploss};
+use crate::sync::SyncStateNotSynced;
 
 use super::super::{
     error::{LiveError, Result as LiveResult},
@@ -57,27 +53,13 @@ impl From<LiveTradeExecutorStatusNotReady> for LiveTradeExecutorStatus {
     }
 }
 
-pub struct LockedLiveTradingSession<'a> {
+pub struct LockedLiveTradeExecutorStateReady<'a> {
     state_guard: MutexGuard<'a, LiveTradeExecutorState>,
+    update_tx: LiveTradeExecutorTransmiter,
 }
 
-impl<'a> TryFrom<MutexGuard<'a, LiveTradeExecutorState>> for LockedLiveTradingSession<'a> {
-    type Error = LiveError;
-
-    fn try_from(
-        value: MutexGuard<'a, LiveTradeExecutorState>,
-    ) -> result::Result<Self, Self::Error> {
-        match value.status {
-            LiveTradeExecutorStatus::Ready if value.trading_session.is_some() => {
-                Ok(Self { state_guard: value })
-            }
-            _ => Err(LiveError::ManagerNotReady),
-        }
-    }
-}
-
-impl<'a> LockedLiveTradingSession<'a> {
-    fn as_session(&self) -> &LiveTradingSession {
+impl<'a> LockedLiveTradeExecutorStateReady<'a> {
+    pub fn trading_session(&self) -> &LiveTradingSession {
         match self.state_guard.status {
             LiveTradeExecutorStatus::Ready => {
                 if let Some(trading_session) = self.state_guard.trading_session.as_ref() {
@@ -89,24 +71,26 @@ impl<'a> LockedLiveTradingSession<'a> {
         }
     }
 
-    pub fn last_trade_time(&self) -> Option<DateTime<Utc>> {
-        self.as_session().last_trade_time()
+    // `LockeLiveTradeExecutorStateReady` is only obtained if status is
+    // `LiveTradeExecutorStatus::Ready`, so the status doesn't need to be updated
+    // in this case.
+    pub async fn update_trading_session(mut self, new_trading_session: LiveTradingSession) {
+        self.state_guard.trading_session = Some(new_trading_session.clone());
+
+        // Ignore no-receivers errors
+        let _ = self.update_tx.send(new_trading_session.into());
     }
 
-    pub fn balance(&self) -> u64 {
-        self.as_session().balance()
-    }
+    pub fn update_status_not_ready(
+        mut self,
+        new_status_not_ready: LiveTradeExecutorStatusNotReady,
+    ) {
+        let new_status: LiveTradeExecutorStatus = new_status_not_ready.into();
 
-    pub fn running(&self) -> &HashMap<Uuid, (Arc<LnmTrade>, Option<TradeTrailingStoploss>)> {
-        self.as_session().running()
-    }
+        self.state_guard.status = new_status.clone();
 
-    pub fn closed(&self) -> &Vec<Arc<LnmTrade>> {
-        self.as_session().closed()
-    }
-
-    pub fn to_owned(&self) -> LiveTradingSession {
-        self.as_session().clone()
+        // Ignore no-receivers errors
+        let _ = self.update_tx.send(new_status.into());
     }
 }
 
@@ -126,9 +110,18 @@ impl LiveTradeExecutorStateManager {
         Arc::new(Self { state, update_tx })
     }
 
-    pub async fn try_lock_trading_session(&self) -> LiveResult<LockedLiveTradingSession> {
+    pub async fn try_lock_ready_state(&self) -> LiveResult<LockedLiveTradeExecutorStateReady> {
         let state_guard = self.state.lock().await;
-        LockedLiveTradingSession::try_from(state_guard)
+
+        match state_guard.status {
+            LiveTradeExecutorStatus::Ready if state_guard.trading_session.is_some() => {
+                Ok(LockedLiveTradeExecutorStateReady {
+                    state_guard,
+                    update_tx: self.update_tx.clone(),
+                })
+            }
+            _ => Err(LiveError::ManagerNotReady),
+        }
     }
 
     pub async fn snapshot(&self) -> LiveTradeExecutorState {
@@ -161,33 +154,5 @@ impl LiveTradeExecutorStateManager {
         // Ignore no-receivers errors
         let _ = self.update_tx.send(new_status.into());
         let _ = self.update_tx.send(new_trading_session.into());
-    }
-
-    // `LockedLiveTradingSession` is only obtained if status is `LiveTradeExecutorStatus::Ready`,
-    // so the status doesn't need to be updated in this case.
-    pub async fn update_locked_trading_session(
-        &self,
-        mut locked_trading_session: LockedLiveTradingSession<'_>,
-        new_trading_session: LiveTradingSession,
-    ) {
-        locked_trading_session.state_guard.trading_session = Some(new_trading_session.clone());
-        drop(locked_trading_session);
-
-        // Ignore no-receivers errors
-        let _ = self.update_tx.send(new_trading_session.into());
-    }
-
-    pub fn update_locked_status_not_ready(
-        &self,
-        mut locked_trading_session: LockedLiveTradingSession<'_>,
-        new_status_not_ready: LiveTradeExecutorStatusNotReady,
-    ) {
-        let new_status: LiveTradeExecutorStatus = new_status_not_ready.into();
-
-        locked_trading_session.state_guard.status = new_status.clone();
-        drop(locked_trading_session);
-
-        // Ignore no-receivers errors
-        let _ = self.update_tx.send(new_status.into());
     }
 }
