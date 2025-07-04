@@ -19,7 +19,7 @@ use super::super::{
 };
 
 #[derive(Debug, Clone)]
-pub struct LiveTradeExecutorReadyStatus {
+pub struct LiveTradingSession {
     last_trade_time: Option<DateTime<Utc>>,
     balance: u64,
     last_evaluation_time: DateTime<Utc>,
@@ -29,7 +29,7 @@ pub struct LiveTradeExecutorReadyStatus {
     closed: Vec<Arc<LnmTrade>>,
 }
 
-impl LiveTradeExecutorReadyStatus {
+impl LiveTradingSession {
     pub async fn new(
         tsl_step_size: BoundedPercentage,
         db: &DbContext,
@@ -373,9 +373,9 @@ impl LiveTradeExecutorReadyStatus {
     }
 }
 
-impl From<&LiveTradeExecutorReadyStatus> for TradingState {
-    fn from(value: &LiveTradeExecutorReadyStatus) -> Self {
-        let mut running: Vec<Arc<dyn Trade>> = Vec::new();
+impl From<LiveTradingSession> for TradingState {
+    fn from(value: LiveTradingSession) -> Self {
+        let mut running: Vec<Arc<dyn Trade>> = Vec::with_capacity(value.running.len());
         let mut running_long_len: usize = 0;
         let mut running_long_margin: u64 = 0;
         let mut running_long_quantity: u64 = 0;
@@ -385,7 +385,7 @@ impl From<&LiveTradeExecutorReadyStatus> for TradingState {
         let mut running_pl: i64 = 0;
         let mut running_fees: u64 = 0;
 
-        for (trade, _) in value.running().values() {
+        for (trade, _) in value.running.into_values() {
             match trade.side() {
                 TradeSide::Buy => {
                     running_long_len += 1;
@@ -406,25 +406,23 @@ impl From<&LiveTradeExecutorReadyStatus> for TradingState {
             running.push(trade.clone());
         }
 
+        let mut closed: Vec<Arc<dyn Trade>> = Vec::with_capacity(value.closed.len());
         let mut closed_pl: i64 = 0;
         let mut closed_fees: u64 = 0;
 
-        for trade in value.closed() {
+        for trade in value.closed.into_iter() {
             closed_pl += trade.pl();
             closed_fees += trade.opening_fee() + trade.closing_fee();
+            closed.push(trade as Arc<dyn Trade>)
         }
 
-        let closed = value
-            .closed
-            .iter()
-            .map(|trade| trade.clone() as Arc<dyn Trade>)
-            .collect();
+        let closed_len = closed.len();
 
         TradingState::new(
             Utc::now(),
-            value.balance(),
+            value.balance,
             value.last_price,
-            value.last_trade_time(),
+            value.last_trade_time,
             running,
             running_long_len,
             running_long_margin,
@@ -435,22 +433,16 @@ impl From<&LiveTradeExecutorReadyStatus> for TradingState {
             running_pl,
             running_fees,
             closed,
-            value.closed().len(),
+            closed_len,
             closed_pl,
             closed_fees,
         )
-        .expect("`LiveTradeExecutorReadyStatus` can't contain inconsistent trades")
-    }
-}
-
-impl From<Arc<LiveTradeExecutorReadyStatus>> for TradingState {
-    fn from(value: Arc<LiveTradeExecutorReadyStatus>) -> Self {
-        value.as_ref().into()
+        .expect("`LiveTradingSession` can't contain inconsistent trades")
     }
 }
 
 #[derive(Debug)]
-pub enum LiveTradeExecutorStateNotReady {
+pub enum LiveTradeExecutorStatusNotReady {
     Starting,
     WaitingForSync(Arc<SyncStateNotSynced>),
     Failed(LiveError),
@@ -458,68 +450,87 @@ pub enum LiveTradeExecutorStateNotReady {
 }
 
 #[derive(Debug, Clone)]
-pub enum LiveTradeExecutorState {
-    NotReady(Arc<LiveTradeExecutorStateNotReady>),
-    Ready(Arc<LiveTradeExecutorReadyStatus>),
+pub enum LiveTradeExecutorStatus {
+    NotReady(Arc<LiveTradeExecutorStatusNotReady>),
+    Ready,
 }
 
-impl From<LiveTradeExecutorStateNotReady> for LiveTradeExecutorState {
-    fn from(value: LiveTradeExecutorStateNotReady) -> Self {
+#[derive(Debug, Clone)]
+pub struct LiveTradeExecutorState {
+    status: LiveTradeExecutorStatus,
+    trading_session: Option<LiveTradingSession>,
+}
+
+impl LiveTradeExecutorState {
+    pub fn status(&self) -> &LiveTradeExecutorStatus {
+        &self.status
+    }
+
+    pub fn trading_session(&self) -> Option<&LiveTradingSession> {
+        self.trading_session.as_ref()
+    }
+
+    pub fn has_active_session(&self) -> bool {
+        self.trading_session.is_some()
+    }
+}
+
+impl From<LiveTradeExecutorStatusNotReady> for LiveTradeExecutorStatus {
+    fn from(value: LiveTradeExecutorStatusNotReady) -> Self {
         Self::NotReady(Arc::new(value))
     }
 }
 
-impl From<LiveTradeExecutorReadyStatus> for LiveTradeExecutorState {
-    fn from(value: LiveTradeExecutorReadyStatus) -> Self {
-        Self::Ready(Arc::new(value))
-    }
-}
-
-pub struct LockedLiveTradeExecutorReadyStatus<'a> {
+pub struct LockedLiveTradingSession<'a> {
     state_guard: MutexGuard<'a, LiveTradeExecutorState>,
 }
 
-impl<'a> TryFrom<MutexGuard<'a, LiveTradeExecutorState>>
-    for LockedLiveTradeExecutorReadyStatus<'a>
-{
+impl<'a> TryFrom<MutexGuard<'a, LiveTradeExecutorState>> for LockedLiveTradingSession<'a> {
     type Error = LiveError;
 
     fn try_from(
         value: MutexGuard<'a, LiveTradeExecutorState>,
     ) -> result::Result<Self, Self::Error> {
-        match *value {
-            LiveTradeExecutorState::Ready(_) => Ok(Self { state_guard: value }),
+        match value.status {
+            LiveTradeExecutorStatus::Ready if value.trading_session.is_some() => {
+                Ok(Self { state_guard: value })
+            }
             _ => Err(LiveError::ManagerNotReady),
         }
     }
 }
 
-impl<'a> LockedLiveTradeExecutorReadyStatus<'a> {
-    fn as_status(&self) -> &LiveTradeExecutorReadyStatus {
-        match *self.state_guard {
-            LiveTradeExecutorState::Ready(ref status) => status,
-            _ => panic!("state must be ready"),
+impl<'a> LockedLiveTradingSession<'a> {
+    fn as_session(&self) -> &LiveTradingSession {
+        match self.state_guard.status {
+            LiveTradeExecutorStatus::Ready => {
+                if let Some(trading_session) = self.state_guard.trading_session.as_ref() {
+                    return trading_session;
+                }
+                panic!("`trading_session` must be `Some`");
+            }
+            _ => panic!("`LiveTradeExecutorStatus` must be ready"),
         }
     }
 
     pub fn last_trade_time(&self) -> Option<DateTime<Utc>> {
-        self.as_status().last_trade_time
+        self.as_session().last_trade_time
     }
 
     pub fn balance(&self) -> u64 {
-        self.as_status().balance
+        self.as_session().balance
     }
 
     pub fn running(&self) -> &HashMap<Uuid, (Arc<LnmTrade>, Option<TradeTrailingStoploss>)> {
-        &self.as_status().running
+        &self.as_session().running
     }
 
     pub fn closed(&self) -> &Vec<Arc<LnmTrade>> {
-        &self.as_status().closed
+        &self.as_session().closed
     }
 
-    pub fn to_owned(&self) -> LiveTradeExecutorReadyStatus {
-        self.as_status().clone()
+    pub fn to_owned(&self) -> LiveTradingSession {
+        self.as_session().clone()
     }
 }
 
@@ -530,44 +541,77 @@ pub struct LiveTradeExecutorStateManager {
 
 impl LiveTradeExecutorStateManager {
     pub fn new(update_tx: LiveTradeExecutorTransmiter) -> Arc<Self> {
-        let initial_state = LiveTradeExecutorStateNotReady::Starting.into();
+        let initial_state = LiveTradeExecutorState {
+            status: LiveTradeExecutorStatusNotReady::Starting.into(),
+            trading_session: None,
+        };
         let state = Mutex::new(initial_state);
 
         Arc::new(Self { state, update_tx })
     }
 
-    pub async fn try_lock_ready_status(&self) -> LiveResult<LockedLiveTradeExecutorReadyStatus> {
+    pub async fn try_lock_trading_session(&self) -> LiveResult<LockedLiveTradingSession> {
         let state_guard = self.state.lock().await;
-        LockedLiveTradeExecutorReadyStatus::try_from(state_guard)
+        LockedLiveTradingSession::try_from(state_guard)
     }
 
     pub async fn snapshot(&self) -> LiveTradeExecutorState {
         self.state.lock().await.clone()
     }
 
-    fn update_state_guard(
+    pub async fn update_status_not_ready(
         &self,
-        mut state_guard: MutexGuard<'_, LiveTradeExecutorState>,
-        new_state: LiveTradeExecutorState,
+        new_status_not_ready: LiveTradeExecutorStatusNotReady,
     ) {
-        *state_guard = new_state.clone();
+        let new_status: LiveTradeExecutorStatus = new_status_not_ready.into();
+
+        let mut state_guard = self.state.lock().await;
+        state_guard.status = new_status.clone();
         drop(state_guard);
 
         // Ignore no-receivers errors
-        let _ = self.update_tx.send(new_state.into());
+        let _ = self.update_tx.send(new_status.into());
     }
 
-    pub async fn update(&self, new_state: LiveTradeExecutorState) {
-        let state_guard = self.state.lock().await;
+    pub async fn update_status_ready(&self, new_trading_session: LiveTradingSession) {
+        let mut state_guard = self.state.lock().await;
 
-        self.update_state_guard(state_guard, new_state.into())
+        let new_status = LiveTradeExecutorStatus::Ready;
+
+        state_guard.status = new_status.clone();
+        state_guard.trading_session = Some(new_trading_session.clone());
+        drop(state_guard);
+
+        // Ignore no-receivers errors
+        let _ = self.update_tx.send(new_status.into());
+        let _ = self.update_tx.send(new_trading_session.into());
     }
 
-    pub async fn update_from_locked_ready_status(
+    // `LockedLiveTradingSession` is only obtained if status is `LiveTradeExecutorStatus::Ready`,
+    // so the status doesn't need to be updated in this case.
+    pub async fn update_locked_trading_session(
         &self,
-        locked_ready_status: LockedLiveTradeExecutorReadyStatus<'_>,
-        new_state: LiveTradeExecutorState,
+        mut locked_trading_session: LockedLiveTradingSession<'_>,
+        new_trading_session: LiveTradingSession,
     ) {
-        self.update_state_guard(locked_ready_status.state_guard, new_state)
+        locked_trading_session.state_guard.trading_session = Some(new_trading_session.clone());
+        drop(locked_trading_session);
+
+        // Ignore no-receivers errors
+        let _ = self.update_tx.send(new_trading_session.into());
+    }
+
+    pub fn update_locked_status_not_ready(
+        &self,
+        mut locked_trading_session: LockedLiveTradingSession<'_>,
+        new_status_not_ready: LiveTradeExecutorStatusNotReady,
+    ) {
+        let new_status: LiveTradeExecutorStatus = new_status_not_ready.into();
+
+        locked_trading_session.state_guard.status = new_status.clone();
+        drop(locked_trading_session);
+
+        // Ignore no-receivers errors
+        let _ = self.update_tx.send(new_status.into());
     }
 }
