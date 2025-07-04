@@ -1,15 +1,7 @@
-use std::collections::HashMap;
-
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use uuid::Uuid;
 
-use lnm_sdk::api::{
-    rest::models::{BoundedPercentage, PriceEntryLNM},
-    websocket::models::PriceTickLNM,
-};
-
-use crate::trade::core::TradeTrailingStoploss;
+use lnm_sdk::api::{rest::models::PriceEntryLNM, websocket::models::PriceTickLNM};
 
 use super::{
     error::Result,
