@@ -558,18 +558,19 @@ impl LiveEngine {
         tokio::spawn(async move {
             while let Ok(executor_update) = executor_rx.recv().await {
                 match executor_update {
-                    LiveTradeExecutorUpdate::State(executor_state) => match executor_state {
-                        LiveTradeExecutorUpdateState::NotReady(executor_state_not_ready) => {
+                    LiveTradeExecutorUpdate::Status(executor_status) => match executor_status {
+                        LiveTradeExecutorStatus::NotReady(executor_state_not_ready) => {
                             let new_state =
                                 LiveState::WaitingTradeExecutor(executor_state_not_ready);
                             state_manager.update_if_running(new_state.into());
                         }
-                        LiveTradeExecutorUpdateState::Ready(trading_state) => {
-                            let _ = update_tx.send(trading_state.into());
-                        }
+                        LiveTradeExecutorStatus::Ready => {}
                     },
                     LiveTradeExecutorUpdate::Order(executor_update_order) => {
                         let _ = update_tx.send(executor_update_order.into());
+                    }
+                    LiveTradeExecutorUpdate::TradingState(trading_state) => {
+                        let _ = update_tx.send(trading_state.into());
                     }
                 }
             }
