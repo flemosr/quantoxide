@@ -53,6 +53,44 @@ impl From<LiveTradeExecutorStatusNotReady> for LiveTradeExecutorStatus {
     }
 }
 
+pub struct LockedLiveTradeExecutorState<'a> {
+    state_guard: MutexGuard<'a, LiveTradeExecutorState>,
+    update_tx: LiveTradeExecutorTransmiter,
+}
+
+impl<'a> LockedLiveTradeExecutorState<'a> {
+    pub fn status(&self) -> &LiveTradeExecutorStatus {
+        self.state_guard.status()
+    }
+
+    pub fn trading_session(&self) -> Option<&LiveTradingSession> {
+        self.state_guard.trading_session()
+    }
+
+    pub fn update_status_not_ready(
+        mut self,
+        new_status_not_ready: LiveTradeExecutorStatusNotReady,
+    ) {
+        let new_status: LiveTradeExecutorStatus = new_status_not_ready.into();
+
+        self.state_guard.status = new_status.clone();
+
+        // Ignore no-receivers errors
+        let _ = self.update_tx.send(new_status.into());
+    }
+
+    pub fn update_status_ready(mut self, new_trading_session: LiveTradingSession) {
+        let new_status = LiveTradeExecutorStatus::Ready;
+
+        self.state_guard.status = new_status.clone();
+        self.state_guard.trading_session = Some(new_trading_session.clone());
+
+        // Ignore no-receivers errors
+        let _ = self.update_tx.send(new_status.into());
+        let _ = self.update_tx.send(new_trading_session.into());
+    }
+}
+
 pub struct LockedLiveTradeExecutorStateReady<'a> {
     state_guard: MutexGuard<'a, LiveTradeExecutorState>,
     update_tx: LiveTradeExecutorTransmiter,
@@ -108,6 +146,15 @@ impl LiveTradeExecutorStateManager {
         let state = Mutex::new(initial_state);
 
         Arc::new(Self { state, update_tx })
+    }
+
+    pub async fn lock_state(&self) -> LockedLiveTradeExecutorState {
+        let state_guard = self.state.lock().await;
+
+        LockedLiveTradeExecutorState {
+            state_guard,
+            update_tx: self.update_tx.clone(),
+        }
     }
 
     pub async fn try_lock_ready_state(&self) -> LiveResult<LockedLiveTradeExecutorStateReady> {
