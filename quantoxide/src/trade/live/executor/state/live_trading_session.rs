@@ -28,11 +28,7 @@ pub struct LiveTradingSession {
 }
 
 impl LiveTradingSession {
-    pub async fn new(
-        tsl_step_size: BoundedPercentage,
-        db: &DbContext,
-        api: &WrappedApiContext,
-    ) -> LiveResult<Self> {
+    pub async fn new(db: &DbContext, api: &WrappedApiContext) -> LiveResult<Self> {
         let (lastest_entry_time, lastest_entry_price) = db
             .price_ticks
             .get_latest_entry()
@@ -40,54 +36,15 @@ impl LiveTradingSession {
             .map_err(|e| LiveError::Generic(e.to_string()))?
             .ok_or(LiveError::Generic("db is empty".to_string()))?;
 
-        let mut registered_trades = db
-            .running_trades
-            .load_and_validate_trades(tsl_step_size)
-            .await
-            .map_err(|e| LiveError::Generic(e.to_string()))?;
-
-        let (running_trades, user) = futures::try_join!(api.get_trades_running(), api.get_user())?;
-
-        let mut last_trade_time: Option<DateTime<Utc>> = None;
-        let mut trigger = PriceTrigger::NotSet;
-        let mut running = HashMap::new();
-
-        for trade in running_trades.into_iter() {
-            let new_last_trade_time = if let Some(last_trade_time) = last_trade_time {
-                last_trade_time.max(trade.creation_ts())
-            } else {
-                trade.creation_ts()
-            };
-            last_trade_time = Some(new_last_trade_time);
-
-            // Assume that trades that are not registered don't have trailing stoplosses
-            let trade_tsl_opt = registered_trades.remove(&trade.id()).and_then(|sl| sl);
-
-            trigger
-                .update(tsl_step_size, &trade, trade_tsl_opt)
-                .map_err(|e| LiveError::Generic(e.to_string()))?;
-
-            running.insert(trade.id(), (Arc::new(trade), trade_tsl_opt));
-        }
-
-        if !registered_trades.is_empty() {
-            // Assume that trades remaining at `registered_trades` are
-            // outdated and can be removed.
-
-            let trade_uuids: Vec<Uuid> = registered_trades.keys().cloned().collect();
-            db.running_trades
-                .remove_trades(&trade_uuids)
-                .await
-                .map_err(|e| LiveError::Generic(e.to_string()))?;
-        }
+        let user = api.get_user().await?;
 
         Ok(Self {
-            last_trade_time,
+            last_trade_time: None,
             balance: user.balance(),
             last_evaluation_time: lastest_entry_time,
             last_price: lastest_entry_price,
-            trigger,
-            running,
+            trigger: PriceTrigger::NotSet,
+            running: HashMap::new(),
             closed: Vec::new(),
         })
     }
