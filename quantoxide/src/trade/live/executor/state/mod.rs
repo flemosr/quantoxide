@@ -80,27 +80,36 @@ impl<'a> LockedLiveTradeExecutorState<'a> {
     }
 
     pub fn update_status_ready(mut self, new_trading_session: LiveTradingSession) {
-        let new_status = LiveTradeExecutorStatus::Ready;
+        if !matches!(self.state_guard.status, LiveTradeExecutorStatus::Ready) {
+            self.state_guard.status = LiveTradeExecutorStatus::Ready;
+            let _ = self.update_tx.send(LiveTradeExecutorStatus::Ready.into());
+        }
 
-        self.state_guard.status = new_status.clone();
         self.state_guard.trading_session = Some(new_trading_session.clone());
-
-        // Ignore no-receivers errors
-        let _ = self.update_tx.send(new_status.into());
         let _ = self.update_tx.send(new_trading_session.into());
     }
 }
 
-pub struct LockedLiveTradeExecutorStateReady<'a> {
-    state_guard: MutexGuard<'a, LiveTradeExecutorState>,
-    update_tx: LiveTradeExecutorTransmiter,
+pub struct LockedLiveTradeExecutorStateReady<'a>(LockedLiveTradeExecutorState<'a>);
+
+impl<'a> TryFrom<LockedLiveTradeExecutorState<'a>> for LockedLiveTradeExecutorStateReady<'a> {
+    type Error = LiveError;
+
+    fn try_from(value: LockedLiveTradeExecutorState<'a>) -> Result<Self, Self::Error> {
+        match value.state_guard.status {
+            LiveTradeExecutorStatus::Ready if value.state_guard.trading_session.is_some() => {
+                Ok(Self(value))
+            }
+            _ => Err(LiveError::ManagerNotReady),
+        }
+    }
 }
 
 impl<'a> LockedLiveTradeExecutorStateReady<'a> {
     pub fn trading_session(&self) -> &LiveTradingSession {
-        match self.state_guard.status {
+        match self.0.state_guard.status {
             LiveTradeExecutorStatus::Ready => {
-                if let Some(trading_session) = self.state_guard.trading_session.as_ref() {
+                if let Some(trading_session) = self.0.state_guard.trading_session.as_ref() {
                     return trading_session;
                 }
                 panic!("`trading_session` must be `Some`");
@@ -112,23 +121,12 @@ impl<'a> LockedLiveTradeExecutorStateReady<'a> {
     // `LockeLiveTradeExecutorStateReady` is only obtained if status is
     // `LiveTradeExecutorStatus::Ready`, so the status doesn't need to be updated
     // in this case.
-    pub async fn update_trading_session(mut self, new_trading_session: LiveTradingSession) {
-        self.state_guard.trading_session = Some(new_trading_session.clone());
-
-        // Ignore no-receivers errors
-        let _ = self.update_tx.send(new_trading_session.into());
+    pub async fn update_trading_session(self, new_trading_session: LiveTradingSession) {
+        self.0.update_status_ready(new_trading_session)
     }
 
-    pub fn update_status_not_ready(
-        mut self,
-        new_status_not_ready: LiveTradeExecutorStatusNotReady,
-    ) {
-        let new_status: LiveTradeExecutorStatus = new_status_not_ready.into();
-
-        self.state_guard.status = new_status.clone();
-
-        // Ignore no-receivers errors
-        let _ = self.update_tx.send(new_status.into());
+    pub fn update_status_not_ready(self, new_status_not_ready: LiveTradeExecutorStatusNotReady) {
+        self.0.update_status_not_ready(new_status_not_ready)
     }
 }
 
@@ -158,17 +156,8 @@ impl LiveTradeExecutorStateManager {
     }
 
     pub async fn try_lock_ready_state(&self) -> LiveResult<LockedLiveTradeExecutorStateReady> {
-        let state_guard = self.state.lock().await;
-
-        match state_guard.status {
-            LiveTradeExecutorStatus::Ready if state_guard.trading_session.is_some() => {
-                Ok(LockedLiveTradeExecutorStateReady {
-                    state_guard,
-                    update_tx: self.update_tx.clone(),
-                })
-            }
-            _ => Err(LiveError::ManagerNotReady),
-        }
+        let locked_state = self.lock_state().await;
+        LockedLiveTradeExecutorStateReady::try_from(locked_state)
     }
 
     pub async fn snapshot(&self) -> LiveTradeExecutorState {
@@ -179,27 +168,14 @@ impl LiveTradeExecutorStateManager {
         &self,
         new_status_not_ready: LiveTradeExecutorStatusNotReady,
     ) {
-        let new_status: LiveTradeExecutorStatus = new_status_not_ready.into();
-
-        let mut state_guard = self.state.lock().await;
-        state_guard.status = new_status.clone();
-        drop(state_guard);
-
-        // Ignore no-receivers errors
-        let _ = self.update_tx.send(new_status.into());
+        self.lock_state()
+            .await
+            .update_status_not_ready(new_status_not_ready)
     }
 
     pub async fn update_status_ready(&self, new_trading_session: LiveTradingSession) {
-        let mut state_guard = self.state.lock().await;
-
-        let new_status = LiveTradeExecutorStatus::Ready;
-
-        state_guard.status = new_status.clone();
-        state_guard.trading_session = Some(new_trading_session.clone());
-        drop(state_guard);
-
-        // Ignore no-receivers errors
-        let _ = self.update_tx.send(new_status.into());
-        let _ = self.update_tx.send(new_trading_session.into());
+        self.lock_state()
+            .await
+            .update_status_ready(new_trading_session)
     }
 }
