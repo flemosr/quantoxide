@@ -1,6 +1,7 @@
 use std::{pin::Pin, sync::Arc};
 
 use chrono::Duration;
+use futures::TryFutureExt;
 use tokio::{
     sync::{broadcast, mpsc},
     time,
@@ -14,9 +15,9 @@ use crate::{
 };
 
 use super::{
-    SyncConfig, SyncMode, SyncState, SyncStateNotSynced,
+    engine::{SyncConfig, SyncMode},
     error::{Result, SyncError},
-    state::{SyncStateManager, SyncTransmiter},
+    state::{SyncState, SyncStateManager, SyncStateNotSynced, SyncTransmiter},
 };
 
 mod real_time_collection_task;
@@ -42,13 +43,13 @@ struct SyncProcessConfig {
 impl From<&SyncConfig> for SyncProcessConfig {
     fn from(value: &SyncConfig) -> Self {
         Self {
-            api_cooldown: value.api_cooldown,
-            api_error_cooldown: value.api_error_cooldown,
-            api_error_max_trials: value.api_error_max_trials,
-            api_history_batch_size: value.api_history_batch_size,
-            sync_history_reach: value.sync_history_reach,
-            re_sync_history_interval: value.re_sync_history_interval,
-            restart_interval: value.restart_interval,
+            api_cooldown: value.api_cooldown(),
+            api_error_cooldown: value.api_error_cooldown(),
+            api_error_max_trials: value.api_error_max_trials(),
+            api_history_batch_size: value.api_history_batch_size(),
+            sync_history_reach: value.sync_history_reach(),
+            re_sync_history_interval: value.re_sync_history_interval(),
+            restart_interval: value.restart_interval(),
         }
     }
 }
@@ -87,7 +88,7 @@ impl SyncProcess {
     async fn run_price_history_task_backfill(
         &self,
         history_state_tx: Option<PriceHistoryStateTransmiter>,
-    ) -> sync_price_history_task::Result<()> {
+    ) -> Result<()> {
         SyncPriceHistoryTask::new(
             &self.config,
             self.db.clone(),
@@ -96,13 +97,14 @@ impl SyncProcess {
         )
         .backfill()
         .await
+        .map_err(SyncError::SyncPriceHistory)
     }
 
     async fn run_price_history_task_live(
         &self,
         history_state_tx: Option<PriceHistoryStateTransmiter>,
         range: Duration,
-    ) -> sync_price_history_task::Result<()> {
+    ) -> Result<()> {
         SyncPriceHistoryTask::new(
             &self.config,
             self.db.clone(),
@@ -111,6 +113,7 @@ impl SyncProcess {
         )
         .live(range)
         .await
+        .map_err(SyncError::SyncPriceHistory)
     }
 
     /// Clean up is not needed since the task is terminated when
@@ -130,14 +133,15 @@ impl SyncProcess {
     fn spawn_real_time_collection_task(
         &self,
         price_tick_tx: broadcast::Sender<PriceTick>,
-    ) -> AbortOnDropHandle<real_time_collection_task::Result<()>> {
+    ) -> AbortOnDropHandle<Result<()>> {
         let task = RealTimeCollectionTask::new(
             self.db.clone(),
             self.api.clone(),
             self.shutdown_tx.clone(),
             price_tick_tx,
         );
-        task.spawn()
+
+        tokio::spawn(task.run().map_err(SyncError::RealTimeCollection)).into()
     }
 
     async fn run_backfill(&self) -> Result<Never> {

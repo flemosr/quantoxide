@@ -12,8 +12,9 @@ use super::SyncProcessConfig;
 mod error;
 mod price_history_state;
 
-pub use error::{Result, SyncPriceHistoryError};
+use error::Result;
 
+pub use error::SyncPriceHistoryError;
 pub use price_history_state::PriceHistoryState;
 
 pub type PriceHistoryStateTransmiter = mpsc::Sender<PriceHistoryState>;
