@@ -418,7 +418,7 @@ pub struct SyncTui {
     ui_tx: mpsc::Sender<UiMessage>,
     // Explicitly aborted on drop, to ensure the terminal is restored before
     // `SyncTui`'s drop is completed.
-    ui_task_handle: Arc<Mutex<Option<AbortOnDropHandle<Result<()>>>>>,
+    ui_task_handle: Arc<Mutex<Option<AbortOnDropHandle<()>>>>,
     _shutdown_listener_handle: AbortOnDropHandle<()>,
 }
 
@@ -504,18 +504,24 @@ impl SyncTui {
     }
 
     fn spawn_ui_task(
-        sync_tui_terminal: SyncTuiTerminal,
+        status_manager: Arc<SyncTuiStatusManager>,
+        terminal: SyncTuiTerminal,
         ui_rx: mpsc::Receiver<UiMessage>,
         shutdown_tx: mpsc::Sender<()>,
-    ) -> Arc<Mutex<Option<AbortOnDropHandle<Result<()>>>>> {
+    ) -> Arc<Mutex<Option<AbortOnDropHandle<()>>>> {
         Arc::new(Mutex::new(Some(
-            tokio::spawn(Self::run_ui(sync_tui_terminal, ui_rx, shutdown_tx)).into(),
+            tokio::spawn(async move {
+                if let Err(e) = Self::run_ui(terminal, ui_rx, shutdown_tx).await {
+                    status_manager.set_crashed(e);
+                }
+            })
+            .into(),
         )))
     }
 
-    // TODO: review error handling
     async fn shutdown_inner(
-        ui_task_handle: Arc<Mutex<Option<AbortOnDropHandle<Result<()>>>>>,
+        status_manager: Arc<SyncTuiStatusManager>,
+        ui_task_handle: Arc<Mutex<Option<AbortOnDropHandle<()>>>>,
         ui_tx: mpsc::Sender<UiMessage>,
     ) -> Result<()> {
         let Some(mut handle) = ui_task_handle
@@ -524,50 +530,90 @@ impl SyncTui {
             .take()
         else {
             return Err(SyncError::Generic(
-                "Sync TUI was already shutdown".to_string(),
+                "Sync TUI shutdown can only be run once".to_string(),
             ));
         };
 
-        let log_res_a = ui_tx
-            .send(UiMessage::LogEntry("Shutdown initiated...".to_string()))
-            .await
-            .map_err(|e| SyncError::Generic(e.to_string()));
+        if handle.is_finished() {
+            // Edge case. UI task crashed just after the shutdown signal
+            // was sent, or just after the `SyncTui::shutdown` guard. It can be
+            // assumed that the error state is available in `SyncTuiStatus`.
 
-        // TODO: Additional shutdown logic
+            return match status_manager.status() {
+                SyncTuiStatus::Running => {
+                    // TODO: Improve this "should never happen" case handling
 
-        time::sleep(Duration::from_secs(5)).await;
+                    let err = SyncError::Generic(
+                        "UI task crashed without corresponding status update".to_string(),
+                    );
+                    status_manager.set_crashed(err);
 
-        let log_res_b = ui_tx
-            .send(UiMessage::ShutdownConfirmation)
-            .await
-            .map_err(|e| {
-                handle.abort();
-                SyncError::Generic(format!("Failed to send shutdown confirmation, {e}"))
-            });
+                    return Err(SyncError::Generic(
+                        "UI task crashed without corresponding status update".to_string(),
+                    ));
+                }
+                SyncTuiStatus::NotRunning(status_not_running) => Err(SyncError::Generic(format!(
+                    "Tried to shutdown TUI that is not running: {:?}",
+                    status_not_running
+                ))),
+            };
+        }
 
-        log_res_a.and(log_res_b)?;
+        status_manager.set_shutdown_initiated();
 
-        tokio::select! {
-            join_res = &mut handle => {
-                join_res.map_err(SyncError::TaskJoin)?
+        let mut shutdown_procedure = async move || -> Result<()> {
+            let log_a_res = ui_tx
+                .send(UiMessage::LogEntry("Shutdown initiated...".to_string()))
+                .await
+                .map_err(|e| SyncError::Generic(e.to_string()));
+
+            // TODO: Additional shutdown logic
+
+            time::sleep(Duration::from_secs(5)).await;
+
+            let log_b_res = ui_tx
+                .send(UiMessage::ShutdownConfirmation)
+                .await
+                .map_err(|e| {
+                    handle.abort();
+                    SyncError::Generic(format!("Failed to send shutdown confirmation, {e}"))
+                });
+
+            log_a_res.and(log_b_res)?;
+
+            tokio::select! {
+                join_res = &mut handle => {
+                    join_res.map_err(SyncError::TaskJoin)?;
+                    Ok(())
+                }
+                _ = time::sleep(Duration::from_secs(5)) => {
+                    handle.abort();
+                    Err(SyncError::Generic("Shutdown timeout".to_string()))
+                }
             }
-            _ = time::sleep(Duration::from_secs(5)) => {
-                handle.abort();
-                Err(SyncError::Generic("Shutdown timeout".to_string()))
-            }
+        };
+
+        if let Err(e) = shutdown_procedure().await {
+            status_manager.set_crashed(e);
+            Err(SyncError::Generic("Shutdown failed".to_string()))
+        } else {
+            status_manager.set_shutdown();
+            Ok(())
         }
     }
 
     fn spawn_shutdown_signal_listener(
+        status_manager: Arc<SyncTuiStatusManager>,
         mut shutdown_rx: mpsc::Receiver<()>,
-        ui_task_handle: Arc<Mutex<Option<AbortOnDropHandle<Result<()>>>>>,
+        ui_task_handle: Arc<Mutex<Option<AbortOnDropHandle<()>>>>,
         ui_tx: mpsc::Sender<UiMessage>,
     ) -> AbortOnDropHandle<()> {
         tokio::spawn(async move {
+            // If `shutdown_tx` is dropped, UI task is finished
+
             if let Some(_) = shutdown_rx.recv().await {
-                if let Err(e) = Self::shutdown_inner(ui_task_handle, ui_tx.clone()).await {
-                    eprintln!("shutdown_inner failed {:?}", e);
-                }
+                // Error handling via `SyncTuiStatus`
+                let _ = Self::shutdown_inner(status_manager, ui_task_handle, ui_tx.clone()).await;
             }
         })
         .into()
@@ -579,15 +625,24 @@ impl SyncTui {
 
         let sync_tui_terminal = SyncTuiTerminal::new()?;
 
-        let ui_task_handle = Self::spawn_ui_task(sync_tui_terminal.clone(), ui_rx, shutdown_tx);
+        let status_manager = SyncTuiStatusManager::new_running();
+
+        let ui_task_handle = Self::spawn_ui_task(
+            status_manager.clone(),
+            sync_tui_terminal.clone(),
+            ui_rx,
+            shutdown_tx,
+        );
 
         let _shutdown_listener_handle = Self::spawn_shutdown_signal_listener(
+            status_manager.clone(),
             shutdown_rx,
             ui_task_handle.clone(),
             ui_tx.clone(),
         );
 
         Ok(Self {
+            status_manager,
             _sync_tui_terminal: sync_tui_terminal,
             ui_tx,
             ui_task_handle,
@@ -595,11 +650,24 @@ impl SyncTui {
         })
     }
 
+    pub fn status(&self) -> SyncTuiStatus {
+        self.status_manager.status()
+    }
+
     pub async fn log(&self, log_entry: impl Into<String>) -> Result<()> {
+        if let SyncTuiStatus::NotRunning(sync_tui_status_not_running) = self.status() {
+            return Err(SyncError::Generic(format!(
+                "TUI is not running {:?}",
+                sync_tui_status_not_running
+            )));
+        }
+
+        // An error here would be an edge case
+
         self.ui_tx
             .send(UiMessage::LogEntry(log_entry.into()))
             .await
-            .map_err(|_| SyncError::Generic("TUI was already shutdown".to_string()))
+            .map_err(|_| SyncError::Generic("TUI is not running".to_string()))
     }
 
     pub fn couple(engine: SyncEngine) {
@@ -607,7 +675,19 @@ impl SyncTui {
     }
 
     pub async fn shutdown(&self) -> Result<()> {
-        Self::shutdown_inner(self.ui_task_handle.clone(), self.ui_tx.clone()).await
+        if let SyncTuiStatus::NotRunning(sync_tui_status_not_running) = self.status() {
+            return Err(SyncError::Generic(format!(
+                "TUI is not running {:?}",
+                sync_tui_status_not_running
+            )));
+        }
+
+        Self::shutdown_inner(
+            self.status_manager.clone(),
+            self.ui_task_handle.clone(),
+            self.ui_tx.clone(),
+        )
+        .await
     }
 }
 
