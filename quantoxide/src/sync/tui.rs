@@ -471,7 +471,6 @@ impl SyncTui {
                 }
             };
 
-            terminal.draw(content)?;
             Ok(is_shutdown)
         };
 
@@ -479,10 +478,12 @@ impl SyncTui {
 
         loop {
             task::yield_now().await;
+            terminal.draw(&mut content)?;
 
             if let Ok(message) = ui_rx.try_recv() {
                 let is_shutdown = handle_ui_message(message, &mut content)?;
                 if is_shutdown {
+                    terminal.draw(&mut content)?;
                     time::sleep(Duration::from_secs(2)).await;
                     return Ok(());
                 }
@@ -497,7 +498,6 @@ impl SyncTui {
                     match key.code {
                         KeyCode::Char('q') | KeyCode::Char('Q') => {
                             content.add_log_entry("'q' pressed".to_string());
-                            terminal.draw(&mut content)?;
 
                             shutdown_tx.send(()).await.map_err(|e| {
                                 SyncError::Generic(format!(
@@ -515,21 +515,23 @@ impl SyncTui {
                         KeyCode::Tab => content.switch_pane(),
                         _ => {}
                     }
-
-                    terminal.draw(&mut content)?;
                 }
             }
         }
 
-        while let Some(message) = ui_rx.recv().await {
-            let is_shutdown = handle_ui_message(message, &mut content)?;
-            if is_shutdown {
-                time::sleep(Duration::from_secs(2)).await;
-                break;
+        loop {
+            terminal.draw(&mut content)?;
+            time::sleep(Duration::from_millis(50)).await;
+
+            if let Ok(message) = ui_rx.try_recv() {
+                let is_shutdown = handle_ui_message(message, &mut content)?;
+                if is_shutdown {
+                    terminal.draw(&mut content)?;
+                    time::sleep(Duration::from_secs(2)).await;
+                    return Ok(());
+                }
             }
         }
-
-        Ok(())
     }
 
     fn spawn_ui_task(
