@@ -381,6 +381,12 @@ impl From<SyncTuiStatusNotRunning> for SyncTuiStatus {
     }
 }
 
+impl From<Arc<SyncTuiStatusNotRunning>> for SyncTuiStatus {
+    fn from(value: Arc<SyncTuiStatusNotRunning>) -> Self {
+        Self::NotRunning(value)
+    }
+}
+
 struct SyncTuiStatusManager(Mutex<SyncTuiStatus>);
 
 impl SyncTuiStatusManager {
@@ -397,8 +403,11 @@ impl SyncTuiStatusManager {
         *curr = new_status
     }
 
-    fn set_crashed(&self, error: SyncError) {
-        self.set(SyncTuiStatusNotRunning::Crashed(error).into());
+    fn set_crashed(&self, error: SyncError) -> Arc<SyncTuiStatusNotRunning> {
+        let status_not_running = Arc::new(SyncTuiStatusNotRunning::Crashed(error));
+        self.set(status_not_running.clone().into());
+
+        status_not_running
     }
 
     fn set_shutdown_initiated(&self) {
@@ -539,24 +548,18 @@ impl SyncTui {
             // was sent, or just after the `SyncTui::shutdown` guard. It can be
             // assumed that the error state is available in `SyncTuiStatus`.
 
-            return match status_manager.status() {
-                SyncTuiStatus::Running => {
-                    // TODO: Improve this "should never happen" case handling
-
-                    let err = SyncError::Generic(
-                        "UI task crashed without corresponding status update".to_string(),
-                    );
-                    status_manager.set_crashed(err);
-
-                    return Err(SyncError::Generic(
-                        "UI task crashed without corresponding status update".to_string(),
-                    ));
-                }
-                SyncTuiStatus::NotRunning(status_not_running) => Err(SyncError::Generic(format!(
-                    "Tried to shutdown TUI that is not running: {:?}",
-                    status_not_running
-                ))),
+            let status_not_running = match status_manager.status() {
+                // "Should Never Happen" case
+                SyncTuiStatus::Running => status_manager.set_crashed(SyncError::Generic(
+                    "UI task crashed without corresponding status update".to_string(),
+                )),
+                SyncTuiStatus::NotRunning(status_not_running) => status_not_running,
             };
+
+            return Err(SyncError::Generic(format!(
+                "Tried to shutdown TUI that is not running: {:?}",
+                status_not_running
+            )));
         }
 
         status_manager.set_shutdown_initiated();
@@ -594,8 +597,11 @@ impl SyncTui {
         };
 
         if let Err(e) = shutdown_procedure().await {
-            status_manager.set_crashed(e);
-            Err(SyncError::Generic("Shutdown failed".to_string()))
+            let status_not_running = status_manager.set_crashed(e);
+            Err(SyncError::Generic(format!(
+                "Shutdown failed: {:?}",
+                status_not_running
+            )))
         } else {
             status_manager.set_shutdown();
             Ok(())
