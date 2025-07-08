@@ -362,7 +362,56 @@ impl SyncTuiContent {
     }
 }
 
+#[derive(Debug, PartialEq)]
+pub enum SyncTuiStatusNotRunning {
+    Crashed(SyncError),
+    ShutdownInitiated,
+    Shutdown,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum SyncTuiStatus {
+    NotRunning(Arc<SyncTuiStatusNotRunning>),
+    Running,
+}
+
+impl From<SyncTuiStatusNotRunning> for SyncTuiStatus {
+    fn from(value: SyncTuiStatusNotRunning) -> Self {
+        Self::NotRunning(Arc::new(value))
+    }
+}
+
+struct SyncTuiStatusManager(Mutex<SyncTuiStatus>);
+
+impl SyncTuiStatusManager {
+    fn new_running() -> Arc<Self> {
+        Arc::new(Self(Mutex::new(SyncTuiStatus::Running)))
+    }
+
+    fn status(&self) -> SyncTuiStatus {
+        self.0.lock().expect("not poisoned").clone()
+    }
+
+    fn set(&self, new_status: SyncTuiStatus) {
+        let mut curr = self.0.lock().expect("not poisoned");
+        *curr = new_status
+    }
+
+    fn set_crashed(&self, error: SyncError) {
+        self.set(SyncTuiStatusNotRunning::Crashed(error).into());
+    }
+
+    fn set_shutdown_initiated(&self) {
+        self.set(SyncTuiStatusNotRunning::ShutdownInitiated.into());
+    }
+
+    fn set_shutdown(&self) {
+        self.set(SyncTuiStatusNotRunning::Shutdown.into());
+    }
+}
+
 pub struct SyncTui {
+    status_manager: Arc<SyncTuiStatusManager>,
     // Retain ownership to ensure `SyncTuiTerminal` destructor is executed when
     // `SyncTui` is dropped.
     _sync_tui_terminal: SyncTuiTerminal,
