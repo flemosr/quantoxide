@@ -17,10 +17,16 @@ use ratatui::{
     text::{Line, Span},
     widgets::{Block, Borders, List, ListItem, Paragraph},
 };
-use tokio::{sync::mpsc, task, time};
+use tokio::{
+    sync::{OnceCell, mpsc},
+    task, time,
+};
 
 use crate::{
-    sync::{SyncEngine, SyncError, error::Result},
+    sync::{
+        SyncController, SyncEngine, SyncError, SyncReceiver, SyncState, SyncStateNotSynced,
+        SyncUpdate, error::Result,
+    },
     util::AbortOnDropHandle,
 };
 
@@ -439,6 +445,8 @@ pub struct SyncTui {
     // `SyncTui`'s drop is completed.
     ui_task_handle: Arc<Mutex<Option<AbortOnDropHandle<()>>>>,
     _shutdown_listener_handle: AbortOnDropHandle<()>,
+    sync_controller: Arc<OnceCell<Arc<SyncController>>>,
+    sync_update_listener_handle: OnceCell<AbortOnDropHandle<()>>,
 }
 
 impl SyncTui {
@@ -544,6 +552,7 @@ impl SyncTui {
         status_manager: Arc<SyncTuiStatusManager>,
         ui_task_handle: Arc<Mutex<Option<AbortOnDropHandle<()>>>>,
         ui_tx: mpsc::Sender<UiMessage>,
+        sync_controller: Option<Arc<SyncController>>,
     ) -> Result<()> {
         let Some(mut handle) = ui_task_handle
             .lock()
@@ -576,15 +585,16 @@ impl SyncTui {
 
         status_manager.set_shutdown_initiated();
 
-        let mut shutdown_procedure = async move || -> Result<()> {
+        let shutdown_procedure = async move || -> Result<()> {
             let log_a_res = ui_tx
                 .send(UiMessage::LogEntry("Shutdown initiated...".to_string()))
                 .await
                 .map_err(|e| SyncError::Generic(e.to_string()));
 
-            // TODO: Additional shutdown logic
-
-            time::sleep(Duration::from_secs(5)).await;
+            let shutdown_res = match sync_controller {
+                Some(controller) => controller.shutdown().await,
+                None => Ok(()),
+            };
 
             let log_b_res = ui_tx
                 .send(UiMessage::ShutdownConfirmation)
@@ -594,7 +604,7 @@ impl SyncTui {
                     SyncError::Generic(format!("Failed to send shutdown confirmation, {e}"))
                 });
 
-            log_a_res.and(log_b_res)?;
+            log_a_res.and(shutdown_res).and(log_b_res)?;
 
             tokio::select! {
                 join_res = &mut handle => {
@@ -625,13 +635,22 @@ impl SyncTui {
         mut shutdown_rx: mpsc::Receiver<()>,
         ui_task_handle: Arc<Mutex<Option<AbortOnDropHandle<()>>>>,
         ui_tx: mpsc::Sender<UiMessage>,
+        sync_controller: Arc<OnceCell<Arc<SyncController>>>,
     ) -> AbortOnDropHandle<()> {
         tokio::spawn(async move {
             // If `shutdown_tx` is dropped, UI task is finished
 
             if let Some(_) = shutdown_rx.recv().await {
+                let sync_controller = sync_controller.get().map(|inner_ref| inner_ref.clone());
+
                 // Error handling via `SyncTuiStatus`
-                let _ = Self::shutdown_inner(status_manager, ui_task_handle, ui_tx.clone()).await;
+                let _ = Self::shutdown_inner(
+                    status_manager,
+                    ui_task_handle,
+                    ui_tx.clone(),
+                    sync_controller,
+                )
+                .await;
             }
         })
         .into()
@@ -652,11 +671,14 @@ impl SyncTui {
             shutdown_tx,
         );
 
+        let sync_controller = Arc::new(OnceCell::new());
+
         let _shutdown_listener_handle = Self::spawn_shutdown_signal_listener(
             status_manager.clone(),
             shutdown_rx,
             ui_task_handle.clone(),
             ui_tx.clone(),
+            sync_controller.clone(),
         );
 
         Ok(Self {
@@ -665,6 +687,8 @@ impl SyncTui {
             ui_tx,
             ui_task_handle,
             _shutdown_listener_handle,
+            sync_controller,
+            sync_update_listener_handle: OnceCell::new(),
         })
     }
 
@@ -683,19 +707,133 @@ impl SyncTui {
             .map_err(|_| SyncError::Generic("TUI is not running".to_string()))
     }
 
-    pub fn couple(engine: SyncEngine) {
-        todo!()
+    fn spawn_sync_update_listener(
+        mut sync_rx: SyncReceiver,
+        ui_tx: mpsc::Sender<UiMessage>,
+    ) -> AbortOnDropHandle<()> {
+        tokio::spawn(async move {
+            while let Ok(sync_update) = sync_rx.recv().await {
+                match sync_update {
+                    SyncUpdate::StateChange(sync_state) => {
+                        let (state_str, log_str) = match sync_state {
+                            SyncState::NotSynced(sync_state_not_synced) => {
+                                match sync_state_not_synced.as_ref() {
+                                    SyncStateNotSynced::NotInitiated => (
+                                        "State: Not Initiated".to_string(),
+                                        "Sync state: NotInitiated".to_string(),
+                                    ),
+                                    SyncStateNotSynced::Starting => (
+                                        "State: Starting".to_string(),
+                                        "Sync state: Starting".to_string(),
+                                    ),
+                                    SyncStateNotSynced::InProgress(price_history_state) => (
+                                        format!("State: In Progress\n\n{}", price_history_state),
+                                        format!("Sync state: InProgress"),
+                                    ),
+                                    SyncStateNotSynced::WaitingForResync => (
+                                        "State: Waiting for Resync".to_string(),
+                                        "Sync state: WaitingForResync".to_string(),
+                                    ),
+                                    SyncStateNotSynced::Failed(e) => (
+                                        format!("State: Failed\n\nError: {:?}", e),
+                                        format!("Sync state: Failed - {:?}", e),
+                                    ),
+                                    SyncStateNotSynced::Restarting => (
+                                        "State: Restarting".to_string(),
+                                        "Sync state: Restarting".to_string(),
+                                    ),
+                                }
+                            }
+                            SyncState::Synced => (
+                                "State: Synced".to_string(),
+                                "Sync state: Synced".to_string(),
+                            ),
+                            SyncState::ShutdownInitiated => (
+                                "State: Shutdown Initiated".to_string(),
+                                "Sync state: ShutdownInitiated".to_string(),
+                            ),
+                            SyncState::Shutdown => (
+                                "State: Shutdown".to_string(),
+                                "Sync state: Shutdown".to_string(),
+                            ),
+                        };
+
+                        let _ = ui_tx.send(UiMessage::StateUpdate(state_str)).await;
+                        let _ = ui_tx.send(UiMessage::LogEntry(log_str)).await;
+                    }
+                    SyncUpdate::PriceTick(tick) => {
+                        let _ = ui_tx
+                            .send(UiMessage::LogEntry(format!("Price tick: {:?}", tick)))
+                            .await;
+                    }
+                }
+            }
+
+            let _ = ui_tx
+                .send(UiMessage::LogEntry(format!("Sync stopped")))
+                .await;
+        })
+        .into()
+    }
+
+    pub fn couple(&self, engine: SyncEngine) -> Result<()> {
+        if self.sync_controller.initialized() {
+            return Err(SyncError::Generic(
+                "`sync_engine` was already coupled".to_string(),
+            ));
+        }
+
+        let sync_rx = engine.update_receiver();
+
+        let sync_update_listener_handle =
+            Self::spawn_sync_update_listener(sync_rx, self.ui_tx.clone());
+
+        let sync_controller = engine.start();
+
+        self.sync_controller
+            .set(sync_controller)
+            .map_err(|_| SyncError::Generic("Failed to set `sync_controller`".to_string()))?;
+
+        self.sync_update_listener_handle
+            .set(sync_update_listener_handle)
+            .map_err(|_| {
+                SyncError::Generic("Failed to set `sync_update_listener_handle`".to_string())
+            })?;
+
+        Ok(())
     }
 
     pub async fn shutdown(&self) -> Result<()> {
         self.status_manager.require_running()?;
 
+        let sync_controller = self
+            .sync_controller
+            .get()
+            .map(|inner_ref| inner_ref.clone());
+
         Self::shutdown_inner(
             self.status_manager.clone(),
             self.ui_task_handle.clone(),
             self.ui_tx.clone(),
+            sync_controller,
         )
         .await
+    }
+
+    pub async fn until_stopped(&self) {
+        loop {
+            match self.status() {
+                SyncTuiStatus::Running => {}
+                SyncTuiStatus::NotRunning(status_not_running) => {
+                    match status_not_running.as_ref() {
+                        SyncTuiStatusNotRunning::ShutdownInitiated => {}
+                        _ => break,
+                    }
+                }
+            }
+
+            time::sleep(Duration::from_millis(200)).await;
+        }
     }
 }
 
