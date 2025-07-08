@@ -437,11 +437,14 @@ async fn run_ui(
 }
 
 pub struct SyncTui {
-    sync_tui_terminal: SyncTuiTerminal,
+    // Retain ownership to ensure `SyncTuiTerminal` destructor is executed when
+    // `SyncTui` is dropped.
+    _sync_tui_terminal: SyncTuiTerminal,
     ui_tx: mpsc::Sender<UiMessage>,
-    // TODO: eval explicitly aborting on drop
+    // Explicitly aborted on drop, to ensure the terminal is restored before
+    // `SyncTui`'s drop is completed.
     ui_task_handle: Arc<Mutex<Option<AbortOnDropHandle<Result<()>>>>>,
-    shutdown_task_handle: AbortOnDropHandle<()>,
+    _shutdown_task_handle: AbortOnDropHandle<()>,
 }
 
 impl SyncTui {
@@ -514,7 +517,7 @@ impl SyncTui {
 
         tokio::time::sleep(Duration::from_secs(1)).await;
 
-        let shutdown_task_handle = tokio::spawn(Self::handle_tui_shutdown_signal(
+        let _shutdown_task_handle = tokio::spawn(Self::handle_tui_shutdown_signal(
             shutdown_rx,
             ui_task_handle.clone(),
             ui_tx.clone(),
@@ -522,10 +525,10 @@ impl SyncTui {
         .into();
 
         Ok(Self {
-            sync_tui_terminal,
+            _sync_tui_terminal: sync_tui_terminal,
             ui_tx,
             ui_task_handle,
-            shutdown_task_handle,
+            _shutdown_task_handle,
         })
     }
 
@@ -545,15 +548,15 @@ impl SyncTui {
     }
 }
 
-// impl Drop for SyncTui {
-//     fn drop(&mut self) {
-//         if let Some(ui_handle) = self
-//             .ui_task_handle
-//             .lock()
-//             .expect("`ui_task_handle` mutex can't be poisoned")
-//             .take()
-//         {
-//             ui_handle.abort();
-//         };
-//     }
-// }
+impl Drop for SyncTui {
+    fn drop(&mut self) {
+        if let Some(ui_handle) = self
+            .ui_task_handle
+            .lock()
+            .expect("`ui_task_handle` mutex can't be poisoned")
+            .take()
+        {
+            ui_handle.abort();
+        };
+    }
+}
