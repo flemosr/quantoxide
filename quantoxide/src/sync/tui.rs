@@ -133,11 +133,13 @@ impl SyncTuiContent {
     fn new() -> Self {
         Self {
             active_pane: ActivePane::StatePane,
+
             log_entries: Vec::new(),
             log_max_line_width: 0,
             log_rect: Rect::default(),
             log_v_scroll: 0,
             log_h_scroll: 0,
+
             state_lines: vec!["Initializing...".to_string()],
             state_max_line_width: 0,
             state_rect: Rect::default(),
@@ -360,82 +362,6 @@ impl SyncTuiContent {
     }
 }
 
-async fn run_ui(
-    terminal: SyncTuiTerminal,
-    mut ui_rx: mpsc::Receiver<UiMessage>,
-    shutdown_tx: mpsc::Sender<()>,
-) -> Result<()> {
-    let mut tui_content = SyncTuiContent::new();
-
-    loop {
-        tokio::task::yield_now().await;
-        terminal.draw(&mut tui_content)?;
-
-        if let Ok(message) = ui_rx.try_recv() {
-            match message {
-                UiMessage::LogEntry(entry) => {
-                    tui_content.add_log_entry(entry);
-                }
-                UiMessage::StateUpdate(state) => {
-                    tui_content.update_state(state);
-                }
-                UiMessage::ShutdownConfirmation => {
-                    tui_content.add_log_entry("Shutdown completed".to_string());
-                    terminal.draw(&mut tui_content)?;
-                    tokio::time::sleep(Duration::from_secs(2)).await;
-                    return Ok(());
-                }
-            }
-        }
-
-        if event::poll(Duration::from_millis(50)).map_err(|e| SyncError::Generic(e.to_string()))? {
-            if let Event::Key(key) = event::read().map_err(|e| SyncError::Generic(e.to_string()))? {
-                match key.code {
-                    KeyCode::Char('q') | KeyCode::Char('Q') => {
-                        tui_content.add_log_entry("'q' pressed".to_string());
-                        if let Err(e) = shutdown_tx.send(()).await {
-                            tui_content.add_log_entry(format!(
-                                "Error: Failed to send shutdown signal, {:?}",
-                                e
-                            ));
-                        }
-                        break;
-                    }
-                    KeyCode::Up => tui_content.scroll_up(),
-                    KeyCode::Down => tui_content.scroll_down(),
-                    KeyCode::Left => tui_content.scroll_left(),
-                    KeyCode::Right => tui_content.scroll_right(),
-                    KeyCode::Tab => tui_content.switch_pane(),
-                    _ => {}
-                }
-            }
-        }
-    }
-
-    terminal.draw(&mut tui_content)?;
-
-    while let Some(message) = ui_rx.recv().await {
-        match message {
-            UiMessage::LogEntry(entry) => {
-                tui_content.add_log_entry(entry);
-                terminal.draw(&mut tui_content)?;
-            }
-            UiMessage::StateUpdate(state) => {
-                tui_content.update_state(state);
-                terminal.draw(&mut tui_content)?;
-            }
-            UiMessage::ShutdownConfirmation => {
-                tui_content.add_log_entry("Shutdown completed.".to_string());
-                terminal.draw(&mut tui_content)?;
-                tokio::time::sleep(Duration::from_secs(2)).await;
-                return Ok(());
-            }
-        }
-    }
-
-    Ok(())
-}
-
 pub struct SyncTui {
     // Retain ownership to ensure `SyncTuiTerminal` destructor is executed when
     // `SyncTui` is dropped.
@@ -444,10 +370,100 @@ pub struct SyncTui {
     // Explicitly aborted on drop, to ensure the terminal is restored before
     // `SyncTui`'s drop is completed.
     ui_task_handle: Arc<Mutex<Option<AbortOnDropHandle<Result<()>>>>>,
-    _shutdown_task_handle: AbortOnDropHandle<()>,
+    _shutdown_listener_handle: AbortOnDropHandle<()>,
 }
 
 impl SyncTui {
+    async fn run_ui(
+        terminal: SyncTuiTerminal,
+        mut ui_rx: mpsc::Receiver<UiMessage>,
+        shutdown_tx: mpsc::Sender<()>,
+    ) -> Result<()> {
+        let mut tui_content = SyncTuiContent::new();
+
+        loop {
+            tokio::task::yield_now().await;
+            terminal.draw(&mut tui_content)?;
+
+            if let Ok(message) = ui_rx.try_recv() {
+                match message {
+                    UiMessage::LogEntry(entry) => {
+                        tui_content.add_log_entry(entry);
+                    }
+                    UiMessage::StateUpdate(state) => {
+                        tui_content.update_state(state);
+                    }
+                    UiMessage::ShutdownConfirmation => {
+                        tui_content.add_log_entry("Shutdown completed".to_string());
+                        terminal.draw(&mut tui_content)?;
+                        tokio::time::sleep(Duration::from_secs(2)).await;
+                        return Ok(());
+                    }
+                }
+            }
+
+            if event::poll(Duration::from_millis(50))
+                .map_err(|e| SyncError::Generic(e.to_string()))?
+            {
+                if let Event::Key(key) =
+                    event::read().map_err(|e| SyncError::Generic(e.to_string()))?
+                {
+                    match key.code {
+                        KeyCode::Char('q') | KeyCode::Char('Q') => {
+                            tui_content.add_log_entry("'q' pressed".to_string());
+                            if let Err(e) = shutdown_tx.send(()).await {
+                                tui_content.add_log_entry(format!(
+                                    "Error: Failed to send shutdown signal, {:?}",
+                                    e
+                                ));
+                            }
+                            break;
+                        }
+                        KeyCode::Up => tui_content.scroll_up(),
+                        KeyCode::Down => tui_content.scroll_down(),
+                        KeyCode::Left => tui_content.scroll_left(),
+                        KeyCode::Right => tui_content.scroll_right(),
+                        KeyCode::Tab => tui_content.switch_pane(),
+                        _ => {}
+                    }
+                }
+            }
+        }
+
+        terminal.draw(&mut tui_content)?;
+
+        while let Some(message) = ui_rx.recv().await {
+            match message {
+                UiMessage::LogEntry(entry) => {
+                    tui_content.add_log_entry(entry);
+                    terminal.draw(&mut tui_content)?;
+                }
+                UiMessage::StateUpdate(state) => {
+                    tui_content.update_state(state);
+                    terminal.draw(&mut tui_content)?;
+                }
+                UiMessage::ShutdownConfirmation => {
+                    tui_content.add_log_entry("Shutdown completed.".to_string());
+                    terminal.draw(&mut tui_content)?;
+                    tokio::time::sleep(Duration::from_secs(2)).await;
+                    return Ok(());
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    fn spawn_ui_task(
+        sync_tui_terminal: SyncTuiTerminal,
+        ui_rx: mpsc::Receiver<UiMessage>,
+        shutdown_tx: mpsc::Sender<()>,
+    ) -> Arc<Mutex<Option<AbortOnDropHandle<Result<()>>>>> {
+        Arc::new(Mutex::new(Some(
+            tokio::spawn(Self::run_ui(sync_tui_terminal, ui_rx, shutdown_tx)).into(),
+        )))
+    }
+
     // TODO: review error handling
     async fn shutdown_inner(
         ui_task_handle: Arc<Mutex<Option<AbortOnDropHandle<Result<()>>>>>,
@@ -493,16 +509,19 @@ impl SyncTui {
         }
     }
 
-    async fn handle_tui_shutdown_signal(
+    fn spawn_shutdown_signal_listener(
         mut shutdown_rx: mpsc::Receiver<()>,
         ui_task_handle: Arc<Mutex<Option<AbortOnDropHandle<Result<()>>>>>,
         ui_tx: mpsc::Sender<UiMessage>,
-    ) {
-        if let Some(_) = shutdown_rx.recv().await {
-            if let Err(e) = Self::shutdown_inner(ui_task_handle, ui_tx.clone()).await {
-                eprintln!("shutdown_inner failed {:?}", e);
+    ) -> AbortOnDropHandle<()> {
+        tokio::spawn(async move {
+            if let Some(_) = shutdown_rx.recv().await {
+                if let Err(e) = Self::shutdown_inner(ui_task_handle, ui_tx.clone()).await {
+                    eprintln!("shutdown_inner failed {:?}", e);
+                }
             }
-        }
+        })
+        .into()
     }
 
     pub async fn launch() -> Result<Self> {
@@ -511,24 +530,19 @@ impl SyncTui {
 
         let sync_tui_terminal = SyncTuiTerminal::new()?;
 
-        let ui_task_handle = Arc::new(Mutex::new(Some(
-            tokio::spawn(run_ui(sync_tui_terminal.clone(), ui_rx, shutdown_tx)).into(),
-        )));
+        let ui_task_handle = Self::spawn_ui_task(sync_tui_terminal.clone(), ui_rx, shutdown_tx);
 
-        tokio::time::sleep(Duration::from_secs(1)).await;
-
-        let _shutdown_task_handle = tokio::spawn(Self::handle_tui_shutdown_signal(
+        let _shutdown_listener_handle = Self::spawn_shutdown_signal_listener(
             shutdown_rx,
             ui_task_handle.clone(),
             ui_tx.clone(),
-        ))
-        .into();
+        );
 
         Ok(Self {
             _sync_tui_terminal: sync_tui_terminal,
             ui_tx,
             ui_task_handle,
-            _shutdown_task_handle,
+            _shutdown_listener_handle,
         })
     }
 
