@@ -417,6 +417,16 @@ impl SyncTuiStatusManager {
     fn set_shutdown(&self) {
         self.set(SyncTuiStatusNotRunning::Shutdown.into());
     }
+
+    fn require_running(&self) -> Result<()> {
+        match self.status() {
+            SyncTuiStatus::NotRunning(status_not_running) => Err(SyncError::Generic(format!(
+                "TUI is not running {:?}",
+                status_not_running
+            ))),
+            SyncTuiStatus::Running => Ok(()),
+        }
+    }
 }
 
 pub struct SyncTui {
@@ -661,12 +671,7 @@ impl SyncTui {
     }
 
     pub async fn log(&self, log_entry: impl Into<String>) -> Result<()> {
-        if let SyncTuiStatus::NotRunning(sync_tui_status_not_running) = self.status() {
-            return Err(SyncError::Generic(format!(
-                "TUI is not running {:?}",
-                sync_tui_status_not_running
-            )));
-        }
+        self.status_manager.require_running()?;
 
         // An error here would be an edge case
 
@@ -681,12 +686,7 @@ impl SyncTui {
     }
 
     pub async fn shutdown(&self) -> Result<()> {
-        if let SyncTuiStatus::NotRunning(sync_tui_status_not_running) = self.status() {
-            return Err(SyncError::Generic(format!(
-                "TUI is not running {:?}",
-                sync_tui_status_not_running
-            )));
-        }
+        self.status_manager.require_running()?;
 
         Self::shutdown_inner(
             self.status_manager.clone(),
