@@ -332,7 +332,7 @@ impl SyncTuiContent {
 
         let main_chunks = Layout::default()
             .direction(Direction::Horizontal)
-            .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+            .constraints([Constraint::Length(65), Constraint::Min(0)])
             .split(main_area);
 
         self.state_rect = main_chunks[0];
