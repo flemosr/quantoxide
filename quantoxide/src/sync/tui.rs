@@ -17,7 +17,7 @@ use ratatui::{
     text::{Line, Span},
     widgets::{Block, Borders, List, ListItem, Paragraph},
 };
-use tokio::{sync::mpsc, time};
+use tokio::{sync::mpsc, task, time};
 
 use crate::{
     sync::{SyncEngine, SyncError, error::Result},
@@ -447,26 +447,36 @@ impl SyncTui {
         mut ui_rx: mpsc::Receiver<UiMessage>,
         shutdown_tx: mpsc::Sender<()>,
     ) -> Result<()> {
-        let mut tui_content = SyncTuiContent::new();
+        let handle_ui_message = |msg: UiMessage, content: &mut SyncTuiContent| -> Result<bool> {
+            let is_shutdown = match msg {
+                UiMessage::LogEntry(entry) => {
+                    content.add_log_entry(entry);
+                    false
+                }
+                UiMessage::StateUpdate(state) => {
+                    content.update_state(state);
+                    false
+                }
+                UiMessage::ShutdownConfirmation => {
+                    content.add_log_entry("Shutdown completed.".to_string());
+                    true
+                }
+            };
+
+            terminal.draw(content)?;
+            Ok(is_shutdown)
+        };
+
+        let mut content = SyncTuiContent::new();
 
         loop {
-            tokio::task::yield_now().await;
-            terminal.draw(&mut tui_content)?;
+            task::yield_now().await;
 
             if let Ok(message) = ui_rx.try_recv() {
-                match message {
-                    UiMessage::LogEntry(entry) => {
-                        tui_content.add_log_entry(entry);
-                    }
-                    UiMessage::StateUpdate(state) => {
-                        tui_content.update_state(state);
-                    }
-                    UiMessage::ShutdownConfirmation => {
-                        tui_content.add_log_entry("Shutdown completed".to_string());
-                        terminal.draw(&mut tui_content)?;
-                        tokio::time::sleep(Duration::from_secs(2)).await;
-                        return Ok(());
-                    }
+                let is_shutdown = handle_ui_message(message, &mut content)?;
+                if is_shutdown {
+                    time::sleep(Duration::from_secs(2)).await;
+                    return Ok(());
                 }
             }
 
@@ -478,44 +488,36 @@ impl SyncTui {
                 {
                     match key.code {
                         KeyCode::Char('q') | KeyCode::Char('Q') => {
-                            tui_content.add_log_entry("'q' pressed".to_string());
-                            if let Err(e) = shutdown_tx.send(()).await {
-                                tui_content.add_log_entry(format!(
-                                    "Error: Failed to send shutdown signal, {:?}",
+                            content.add_log_entry("'q' pressed".to_string());
+                            terminal.draw(&mut content)?;
+
+                            shutdown_tx.send(()).await.map_err(|e| {
+                                SyncError::Generic(format!(
+                                    "Failed to send TUI shutdown signal {:?}",
                                     e
-                                ));
-                            }
+                                ))
+                            })?;
+
                             break;
                         }
-                        KeyCode::Up => tui_content.scroll_up(),
-                        KeyCode::Down => tui_content.scroll_down(),
-                        KeyCode::Left => tui_content.scroll_left(),
-                        KeyCode::Right => tui_content.scroll_right(),
-                        KeyCode::Tab => tui_content.switch_pane(),
+                        KeyCode::Up => content.scroll_up(),
+                        KeyCode::Down => content.scroll_down(),
+                        KeyCode::Left => content.scroll_left(),
+                        KeyCode::Right => content.scroll_right(),
+                        KeyCode::Tab => content.switch_pane(),
                         _ => {}
                     }
+
+                    terminal.draw(&mut content)?;
                 }
             }
         }
 
-        terminal.draw(&mut tui_content)?;
-
         while let Some(message) = ui_rx.recv().await {
-            match message {
-                UiMessage::LogEntry(entry) => {
-                    tui_content.add_log_entry(entry);
-                    terminal.draw(&mut tui_content)?;
-                }
-                UiMessage::StateUpdate(state) => {
-                    tui_content.update_state(state);
-                    terminal.draw(&mut tui_content)?;
-                }
-                UiMessage::ShutdownConfirmation => {
-                    tui_content.add_log_entry("Shutdown completed.".to_string());
-                    terminal.draw(&mut tui_content)?;
-                    tokio::time::sleep(Duration::from_secs(2)).await;
-                    return Ok(());
-                }
+            let is_shutdown = handle_ui_message(message, &mut content)?;
+            if is_shutdown {
+                time::sleep(Duration::from_secs(2)).await;
+                break;
             }
         }
 
