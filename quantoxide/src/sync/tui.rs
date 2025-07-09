@@ -381,6 +381,24 @@ pub enum SyncTuiStatus {
     Running,
 }
 
+impl SyncTuiStatus {
+    pub fn is_crashed(&self) -> bool {
+        if let SyncTuiStatus::NotRunning(ref status_not_running) = *self {
+            if let SyncTuiStatusNotRunning::Crashed(_) = status_not_running.as_ref() {
+                return true;
+            }
+        }
+        false
+    }
+
+    pub fn is_shutdown_initiated(&self) -> bool {
+        if let SyncTuiStatus::NotRunning(ref status_not_running) = *self {
+            return SyncTuiStatusNotRunning::ShutdownInitiated == *status_not_running.as_ref();
+        }
+        false
+    }
+}
+
 impl From<SyncTuiStatusNotRunning> for SyncTuiStatus {
     fn from(value: SyncTuiStatusNotRunning) -> Self {
         Self::NotRunning(Arc::new(value))
@@ -406,6 +424,12 @@ impl SyncTuiStatusManager {
 
     fn set(&self, new_status: SyncTuiStatus) {
         let mut curr = self.0.lock().expect("not poisoned");
+
+        if curr.is_crashed() {
+            // Don't overwrite 'crashed' status
+            return;
+        }
+
         *curr = new_status
     }
 
