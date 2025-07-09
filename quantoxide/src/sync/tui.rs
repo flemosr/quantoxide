@@ -863,14 +863,10 @@ impl SyncTui {
         .await
     }
 
-    pub async fn until_stopped(self) {
+    pub async fn until_stopped(self) -> Arc<SyncTuiStatusStopped> {
         loop {
-            match self.status() {
-                SyncTuiStatus::Running | SyncTuiStatus::ShutdownInitiated => {}
-                SyncTuiStatus::Stopped(status_stopped) => match status_stopped.as_ref() {
-                    SyncTuiStatusStopped::Shutdown => return,
-                    SyncTuiStatusStopped::Crashed(e) => return,
-                },
+            if let SyncTuiStatus::Stopped(status_stopped) = self.status() {
+                return status_stopped;
             }
 
             time::sleep(Duration::from_millis(200)).await;
