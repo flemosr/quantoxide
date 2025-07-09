@@ -727,11 +727,12 @@ impl SyncTui {
     }
 
     fn spawn_sync_update_listener(
+        status_manager: Arc<SyncTuiStatusManager>,
         mut sync_rx: SyncReceiver,
         ui_tx: mpsc::Sender<UiMessage>,
     ) -> AbortOnDropHandle<()> {
         tokio::spawn(async move {
-            while let Ok(sync_update) = sync_rx.recv().await {
+            let handle_sync_update = async |sync_update: SyncUpdate| -> Result<()> {
                 match sync_update {
                     SyncUpdate::StateChange(sync_state) => {
                         let (state_str, log_str) = match sync_state {
@@ -777,20 +778,41 @@ impl SyncTui {
                             ),
                         };
 
-                        let _ = ui_tx.send(UiMessage::StateUpdate(state_str)).await;
-                        let _ = ui_tx.send(UiMessage::LogEntry(log_str)).await;
+                        ui_tx
+                            .send(UiMessage::StateUpdate(state_str))
+                            .await
+                            .map_err(|e| SyncError::Generic(e.to_string()))?;
+                        ui_tx
+                            .send(UiMessage::LogEntry(log_str))
+                            .await
+                            .map_err(|e| SyncError::Generic(e.to_string()))?;
                     }
                     SyncUpdate::PriceTick(tick) => {
-                        let _ = ui_tx
+                        ui_tx
                             .send(UiMessage::LogEntry(format!("Price tick: {:?}", tick)))
-                            .await;
+                            .await
+                            .map_err(|e| SyncError::Generic(e.to_string()))?;
                     }
+                }
+                Ok(())
+            };
+
+            while let Ok(sync_update) = sync_rx.recv().await {
+                if let Err(e) = handle_sync_update(sync_update).await {
+                    status_manager.set_crashed(e);
+                    return;
                 }
             }
 
-            let _ = ui_tx
-                .send(UiMessage::LogEntry(format!("Sync stopped")))
-                .await;
+            // `sync_tx` was dropped, which is expected during shutdown
+
+            if status_manager.status().is_shutdown_initiated() {
+                return;
+            }
+
+            status_manager.set_crashed(SyncError::Generic(
+                "`sync_tx` was unexpectedly dropped".to_string(),
+            ));
         })
         .into()
     }
@@ -804,8 +826,11 @@ impl SyncTui {
 
         let sync_rx = engine.update_receiver();
 
-        let sync_update_listener_handle =
-            Self::spawn_sync_update_listener(sync_rx, self.ui_tx.clone());
+        let sync_update_listener_handle = Self::spawn_sync_update_listener(
+            self.status_manager.clone(),
+            sync_rx,
+            self.ui_tx.clone(),
+        );
 
         let sync_controller = engine.start();
 
