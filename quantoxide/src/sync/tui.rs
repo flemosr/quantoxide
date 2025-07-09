@@ -36,7 +36,7 @@ const MAX_LOG_ENTRIES: usize = 10_000;
 enum UiMessage {
     LogEntry(String),
     StateUpdate(String),
-    ShutdownConfirmation,
+    ShutdownCompleted,
 }
 
 #[derive(Debug, PartialEq)]
@@ -455,23 +455,19 @@ impl SyncTui {
         mut ui_rx: mpsc::Receiver<UiMessage>,
         shutdown_tx: mpsc::Sender<()>,
     ) -> Result<()> {
-        let handle_ui_message = |msg: UiMessage, content: &mut SyncTuiContent| -> Result<bool> {
-            let is_shutdown = match msg {
-                UiMessage::LogEntry(entry) => {
-                    content.add_log_entry(entry);
-                    false
-                }
-                UiMessage::StateUpdate(state) => {
-                    content.update_state(state);
-                    false
-                }
-                UiMessage::ShutdownConfirmation => {
-                    content.add_log_entry("Shutdown completed.".to_string());
-                    true
-                }
-            };
-
-            Ok(is_shutdown)
+        let handle_ui_message_content = |msg: UiMessage, content: &mut SyncTuiContent| match msg {
+            UiMessage::LogEntry(entry) => {
+                content.add_log_entry(entry);
+                false
+            }
+            UiMessage::StateUpdate(state) => {
+                content.update_state(state);
+                false
+            }
+            UiMessage::ShutdownCompleted => {
+                content.add_log_entry("Shutdown completed.".to_string());
+                true
+            }
         };
 
         let mut content = SyncTuiContent::new();
@@ -481,8 +477,8 @@ impl SyncTui {
             terminal.draw(&mut content)?;
 
             if let Ok(message) = ui_rx.try_recv() {
-                let is_shutdown = handle_ui_message(message, &mut content)?;
-                if is_shutdown {
+                let is_shutdown_completed = handle_ui_message_content(message, &mut content);
+                if is_shutdown_completed {
                     terminal.draw(&mut content)?;
                     time::sleep(Duration::from_secs(2)).await;
                     return Ok(());
@@ -524,8 +520,8 @@ impl SyncTui {
             time::sleep(Duration::from_millis(50)).await;
 
             if let Ok(message) = ui_rx.try_recv() {
-                let is_shutdown = handle_ui_message(message, &mut content)?;
-                if is_shutdown {
+                let is_shutdown_completed = handle_ui_message_content(message, &mut content);
+                if is_shutdown_completed {
                     terminal.draw(&mut content)?;
                     time::sleep(Duration::from_secs(2)).await;
                     return Ok(());
@@ -598,13 +594,10 @@ impl SyncTui {
                 None => Ok(()),
             };
 
-            let log_b_res = ui_tx
-                .send(UiMessage::ShutdownConfirmation)
-                .await
-                .map_err(|e| {
-                    handle.abort();
-                    SyncError::Generic(format!("Failed to send shutdown confirmation, {e}"))
-                });
+            let log_b_res = ui_tx.send(UiMessage::ShutdownCompleted).await.map_err(|e| {
+                handle.abort();
+                SyncError::Generic(format!("Failed to send shutdown confirmation, {e}"))
+            });
 
             log_a_res.and(shutdown_res).and(log_b_res)?;
 
