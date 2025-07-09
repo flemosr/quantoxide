@@ -369,22 +369,22 @@ impl SyncTuiContent {
 }
 
 #[derive(Debug, PartialEq)]
-pub enum SyncTuiStatusNotRunning {
+pub enum SyncTuiStatusStopped {
     Crashed(SyncError),
-    ShutdownInitiated,
     Shutdown,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum SyncTuiStatus {
-    NotRunning(Arc<SyncTuiStatusNotRunning>),
     Running,
+    ShutdownInitiated,
+    Stopped(Arc<SyncTuiStatusStopped>),
 }
 
 impl SyncTuiStatus {
     pub fn is_crashed(&self) -> bool {
-        if let SyncTuiStatus::NotRunning(ref status_not_running) = *self {
-            if let SyncTuiStatusNotRunning::Crashed(_) = status_not_running.as_ref() {
+        if let SyncTuiStatus::Stopped(ref status_stopped) = *self {
+            if let SyncTuiStatusStopped::Crashed(_) = status_stopped.as_ref() {
                 return true;
             }
         }
@@ -392,22 +392,19 @@ impl SyncTuiStatus {
     }
 
     pub fn is_shutdown_initiated(&self) -> bool {
-        if let SyncTuiStatus::NotRunning(ref status_not_running) = *self {
-            return SyncTuiStatusNotRunning::ShutdownInitiated == *status_not_running.as_ref();
-        }
-        false
+        SyncTuiStatus::ShutdownInitiated == *self
     }
 }
 
-impl From<SyncTuiStatusNotRunning> for SyncTuiStatus {
-    fn from(value: SyncTuiStatusNotRunning) -> Self {
-        Self::NotRunning(Arc::new(value))
+impl From<SyncTuiStatusStopped> for SyncTuiStatus {
+    fn from(value: SyncTuiStatusStopped) -> Self {
+        Self::Stopped(Arc::new(value))
     }
 }
 
-impl From<Arc<SyncTuiStatusNotRunning>> for SyncTuiStatus {
-    fn from(value: Arc<SyncTuiStatusNotRunning>) -> Self {
-        Self::NotRunning(value)
+impl From<Arc<SyncTuiStatusStopped>> for SyncTuiStatus {
+    fn from(value: Arc<SyncTuiStatusStopped>) -> Self {
+        Self::Stopped(value)
     }
 }
 
@@ -433,28 +430,28 @@ impl SyncTuiStatusManager {
         *curr = new_status
     }
 
-    fn set_crashed(&self, error: SyncError) -> Arc<SyncTuiStatusNotRunning> {
-        let status_not_running = Arc::new(SyncTuiStatusNotRunning::Crashed(error));
-        self.set(status_not_running.clone().into());
+    fn set_crashed(&self, error: SyncError) -> Arc<SyncTuiStatusStopped> {
+        let status_stopped = Arc::new(SyncTuiStatusStopped::Crashed(error));
+        self.set(status_stopped.clone().into());
 
-        status_not_running
+        status_stopped
     }
 
     fn set_shutdown_initiated(&self) {
-        self.set(SyncTuiStatusNotRunning::ShutdownInitiated.into());
+        self.set(SyncTuiStatus::ShutdownInitiated.into());
     }
 
     fn set_shutdown(&self) {
-        self.set(SyncTuiStatusNotRunning::Shutdown.into());
+        self.set(SyncTuiStatusStopped::Shutdown.into());
     }
 
     fn require_running(&self) -> Result<()> {
         match self.status() {
-            SyncTuiStatus::NotRunning(status_not_running) => Err(SyncError::Generic(format!(
+            SyncTuiStatus::Running => Ok(()),
+            status_not_running => Err(SyncError::Generic(format!(
                 "TUI is not running {:?}",
                 status_not_running
             ))),
-            SyncTuiStatus::Running => Ok(()),
         }
     }
 }
@@ -593,10 +590,12 @@ impl SyncTui {
 
             let status_not_running = match status_manager.status() {
                 // "Should Never Happen" case
-                SyncTuiStatus::Running => status_manager.set_crashed(SyncError::Generic(
-                    "UI task crashed without corresponding status update".to_string(),
-                )),
-                SyncTuiStatus::NotRunning(status_not_running) => status_not_running,
+                SyncTuiStatus::Running => status_manager
+                    .set_crashed(SyncError::Generic(
+                        "UI task crashed without corresponding status update".to_string(),
+                    ))
+                    .into(),
+                status_not_running => status_not_running,
             };
 
             return Err(SyncError::Generic(format!(
@@ -638,10 +637,10 @@ impl SyncTui {
         };
 
         if let Err(e) = shutdown_procedure().await {
-            let status_not_running = status_manager.set_crashed(e);
+            let status_stopped = status_manager.set_crashed(e);
             Err(SyncError::Generic(format!(
                 "Shutdown failed: {:?}",
-                status_not_running
+                status_stopped
             )))
         } else {
             status_manager.set_shutdown();
@@ -864,16 +863,14 @@ impl SyncTui {
         .await
     }
 
-    pub async fn until_stopped(&self) {
+    pub async fn until_stopped(self) {
         loop {
             match self.status() {
-                SyncTuiStatus::Running => {}
-                SyncTuiStatus::NotRunning(status_not_running) => {
-                    match status_not_running.as_ref() {
-                        SyncTuiStatusNotRunning::ShutdownInitiated => {}
-                        _ => break,
-                    }
-                }
+                SyncTuiStatus::Running | SyncTuiStatus::ShutdownInitiated => {}
+                SyncTuiStatus::Stopped(status_stopped) => match status_stopped.as_ref() {
+                    SyncTuiStatusStopped::Shutdown => return,
+                    SyncTuiStatusStopped::Crashed(e) => return,
+                },
             }
 
             time::sleep(Duration::from_millis(200)).await;
