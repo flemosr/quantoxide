@@ -45,8 +45,7 @@ enum ActivePane {
     LogPane,
 }
 
-#[derive(Clone)]
-struct SyncTuiTerminal(Arc<Mutex<TerminalState>>);
+struct SyncTuiTerminal(Mutex<TerminalState>);
 
 struct TerminalState {
     terminal: Terminal<CrosstermBackend<Stdout>>,
@@ -54,7 +53,7 @@ struct TerminalState {
 }
 
 impl SyncTuiTerminal {
-    pub fn new() -> Result<Self> {
+    pub fn new() -> Result<Arc<Self>> {
         enable_raw_mode().map_err(|e| SyncError::Generic(e.to_string()))?;
         let mut stdout = io::stdout();
         execute!(stdout, EnterAlternateScreen, EnableMouseCapture)
@@ -62,7 +61,7 @@ impl SyncTuiTerminal {
         let backend = CrosstermBackend::new(stdout);
         let terminal = Terminal::new(backend).map_err(|e| SyncError::Generic(e.to_string()))?;
 
-        Ok(Self(Arc::new(Mutex::new(TerminalState {
+        Ok(Arc::new(Self(Mutex::new(TerminalState {
             terminal,
             restored: false,
         }))))
@@ -460,7 +459,7 @@ pub struct SyncTui {
     status_manager: Arc<SyncTuiStatusManager>,
     // Retain ownership to ensure `SyncTuiTerminal` destructor is executed when
     // `SyncTui` is dropped.
-    _sync_tui_terminal: SyncTuiTerminal,
+    _sync_tui_terminal: Arc<SyncTuiTerminal>,
     ui_tx: mpsc::Sender<UiMessage>,
     // Explicitly aborted on drop, to ensure the terminal is restored before
     // `SyncTui`'s drop is completed.
@@ -472,7 +471,7 @@ pub struct SyncTui {
 
 impl SyncTui {
     async fn run_ui(
-        terminal: SyncTuiTerminal,
+        terminal: Arc<SyncTuiTerminal>,
         mut ui_rx: mpsc::Receiver<UiMessage>,
         shutdown_tx: mpsc::Sender<()>,
     ) -> Result<()> {
@@ -553,7 +552,7 @@ impl SyncTui {
 
     fn spawn_ui_task(
         status_manager: Arc<SyncTuiStatusManager>,
-        terminal: SyncTuiTerminal,
+        terminal: Arc<SyncTuiTerminal>,
         ui_rx: mpsc::Receiver<UiMessage>,
         shutdown_tx: mpsc::Sender<()>,
     ) -> Arc<Mutex<Option<AbortOnDropHandle<()>>>> {
