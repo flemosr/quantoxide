@@ -12,7 +12,7 @@ use ratatui::{
     widgets::{Block, Borders, List, ListItem, Paragraph},
 };
 
-use super::super::{SyncError, error::Result};
+use super::error::{Result, SyncTuiError};
 
 pub trait SyncTuiLogger: Sync + Send + 'static {
     fn add_log_entry(&self, entry: String) -> Result<()>;
@@ -328,10 +328,10 @@ impl SyncTuiLogger for SyncTuiView {
 
             if let Some(log_file) = state_guard.log_file.as_mut() {
                 writeln!(log_file, "{}", log_entry_line).map_err(|e| {
-                    SyncError::Generic(format!("couldn't write to log file {}", e.to_string()))
+                    SyncTuiError::Generic(format!("couldn't write to log file {}", e.to_string()))
                 })?;
                 log_file.flush().map_err(|e| {
-                    SyncError::Generic(format!("couldn't flush log file {}", e.to_string()))
+                    SyncTuiError::Generic(format!("couldn't flush log file {}", e.to_string()))
                 })?;
             }
 

@@ -11,7 +11,7 @@ use crossterm::{
 use ratatui::{Terminal, backend::CrosstermBackend};
 
 use super::{
-    super::{SyncError, error::Result},
+    error::{Result, SyncTuiError},
     view::SyncTuiView,
 };
 
@@ -24,12 +24,12 @@ pub struct SyncTuiTerminal(Mutex<TerminalState>);
 
 impl SyncTuiTerminal {
     pub fn new() -> Result<Arc<Self>> {
-        enable_raw_mode().map_err(|e| SyncError::Generic(e.to_string()))?;
+        enable_raw_mode().map_err(|e| SyncTuiError::Generic(e.to_string()))?;
         let mut stdout = io::stdout();
         execute!(stdout, EnterAlternateScreen, EnableMouseCapture)
-            .map_err(|e| SyncError::Generic(e.to_string()))?;
+            .map_err(|e| SyncTuiError::Generic(e.to_string()))?;
         let backend = CrosstermBackend::new(stdout);
-        let terminal = Terminal::new(backend).map_err(|e| SyncError::Generic(e.to_string()))?;
+        let terminal = Terminal::new(backend).map_err(|e| SyncTuiError::Generic(e.to_string()))?;
 
         Ok(Arc::new(Self(Mutex::new(TerminalState {
             terminal,
@@ -44,13 +44,15 @@ impl SyncTuiTerminal {
     pub fn draw(&self, tui_content: &SyncTuiView) -> Result<()> {
         let mut state = self.get_state();
         if state.restored {
-            return Err(SyncError::Generic("Terminal already restored".to_string()));
+            return Err(SyncTuiError::Generic(
+                "Terminal already restored".to_string(),
+            ));
         }
 
         state
             .terminal
             .draw(|f| tui_content.render(f))
-            .map_err(|e| SyncError::Generic(e.to_string()))?;
+            .map_err(|e| SyncTuiError::Generic(e.to_string()))?;
 
         Ok(())
     }
@@ -61,18 +63,18 @@ impl SyncTuiTerminal {
             return Ok(());
         }
 
-        disable_raw_mode().map_err(|e| SyncError::Generic(e.to_string()))?;
+        disable_raw_mode().map_err(|e| SyncTuiError::Generic(e.to_string()))?;
         execute!(
             state.terminal.backend_mut(),
             LeaveAlternateScreen,
             DisableMouseCapture
         )
-        .map_err(|e| SyncError::Generic(e.to_string()))?;
+        .map_err(|e| SyncTuiError::Generic(e.to_string()))?;
 
         state
             .terminal
             .show_cursor()
-            .map_err(|e| SyncError::Generic(e.to_string()))?;
+            .map_err(|e| SyncTuiError::Generic(e.to_string()))?;
 
         state.restored = true;
 

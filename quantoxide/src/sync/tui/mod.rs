@@ -13,15 +13,14 @@ use tokio::{
 
 use crate::util::AbortOnDropHandle;
 
-use super::{
-    SyncController, SyncEngine, SyncError, SyncReceiver, SyncState, SyncStateNotSynced, SyncUpdate,
-    error::Result,
-};
+use super::{SyncController, SyncEngine, SyncReceiver, SyncState, SyncStateNotSynced, SyncUpdate};
 
+mod error;
 mod status;
 mod terminal;
 mod view;
 
+use error::{Result, SyncTuiError};
 use status::SyncTuiStatusManager;
 use terminal::SyncTuiTerminal;
 use view::{SyncTuiLogger, SyncTuiView};
@@ -130,16 +129,18 @@ impl SyncTui {
                 }
             }
 
-            if event::poll(event_check_interval).map_err(|e| SyncError::Generic(e.to_string()))? {
+            if event::poll(event_check_interval)
+                .map_err(|e| SyncTuiError::Generic(e.to_string()))?
+            {
                 if let Event::Key(key) =
-                    event::read().map_err(|e| SyncError::Generic(e.to_string()))?
+                    event::read().map_err(|e| SyncTuiError::Generic(e.to_string()))?
                 {
                     match key.code {
                         KeyCode::Char('q') | KeyCode::Char('Q') => {
                             tui_view.add_log_entry("'q' pressed".to_string())?;
 
                             shutdown_tx.send(()).await.map_err(|e| {
-                                SyncError::Generic(format!(
+                                SyncTuiError::Generic(format!(
                                     "Failed to send TUI shutdown signal {:?}",
                                     e
                                 ))
@@ -205,7 +206,7 @@ impl SyncTui {
             .expect("`ui_task_handle` mutex can't be poisoned")
             .take()
         else {
-            return Err(SyncError::Generic(
+            return Err(SyncTuiError::Generic(
                 "Sync TUI shutdown can only be run once".to_string(),
             ));
         };
@@ -218,14 +219,14 @@ impl SyncTui {
             let status_not_running = match status_manager.status() {
                 // "Should Never Happen" case
                 SyncTuiStatus::Running => status_manager
-                    .set_crashed(SyncError::Generic(
+                    .set_crashed(SyncTuiError::Generic(
                         "UI task crashed without corresponding status update".to_string(),
                     ))
                     .into(),
                 status_not_running => status_not_running,
             };
 
-            return Err(SyncError::Generic(format!(
+            return Err(SyncTuiError::Generic(format!(
                 "Tried to shutdown TUI that is not running: {:?}",
                 status_not_running
             )));
@@ -235,32 +236,35 @@ impl SyncTui {
 
         let shutdown_procedure = async move || -> Result<()> {
             let shutdown_res = match sync_controller {
-                Some(controller) => controller.shutdown().await,
+                Some(controller) => controller
+                    .shutdown()
+                    .await
+                    .map_err(|e| SyncTuiError::Generic(e.to_string())),
                 None => Ok(()),
             };
 
             let ui_message_res = ui_tx.send(UiMessage::ShutdownCompleted).await.map_err(|e| {
                 handle.abort();
-                SyncError::Generic(format!("Failed to send shutdown confirmation, {e}"))
+                SyncTuiError::Generic(format!("Failed to send shutdown confirmation, {e}"))
             });
 
             shutdown_res.and(ui_message_res)?;
 
             tokio::select! {
                 join_res = &mut handle => {
-                    join_res.map_err(SyncError::TaskJoin)?;
+                    join_res.map_err(|e| SyncTuiError::Generic(e.to_string()))?;
                     Ok(())
                 }
                 _ = time::sleep(shutdown_timeout) => {
                     handle.abort();
-                    Err(SyncError::Generic("Shutdown timeout".to_string()))
+                    Err(SyncTuiError::Generic("Shutdown timeout".to_string()))
                 }
             }
         };
 
         if let Err(e) = shutdown_procedure().await {
             let status_stopped = status_manager.set_crashed(e);
-            Err(SyncError::Generic(format!(
+            Err(SyncTuiError::Generic(format!(
                 "Shutdown failed: {:?}",
                 status_stopped
             )))
@@ -303,7 +307,7 @@ impl SyncTui {
             .map(|log_file_path| {
                 if let Some(parent) = Path::new(log_file_path).parent() {
                     fs::create_dir_all(parent).map_err(|e| {
-                        SyncError::Generic(format!(
+                        SyncTuiError::Generic(format!(
                             "couldn't create log_file parent {}",
                             e.to_string()
                         ))
@@ -316,7 +320,10 @@ impl SyncTui {
                     .create(true)
                     .open(log_file_path)
                     .map_err(|e| {
-                        SyncError::Generic(format!("couldn't open the log file. {}", e.to_string()))
+                        SyncTuiError::Generic(format!(
+                            "couldn't open the log file. {}",
+                            e.to_string()
+                        ))
                     })
             })
             .transpose()?;
@@ -375,7 +382,7 @@ impl SyncTui {
         self.ui_tx
             .send(UiMessage::LogEntry(log_entry.into()))
             .await
-            .map_err(|_| SyncError::Generic("TUI is not running".to_string()))
+            .map_err(|_| SyncTuiError::Generic("TUI is not running".to_string()))
     }
 
     fn spawn_sync_update_listener(
@@ -402,7 +409,7 @@ impl SyncTui {
                                                 price_history_state.to_string(),
                                             ))
                                             .await
-                                            .map_err(|e| SyncError::Generic(e.to_string()))?;
+                                            .map_err(|e| SyncTuiError::Generic(e.to_string()))?;
 
                                         "Sync state: InProgress".to_string()
                                     }
@@ -427,13 +434,13 @@ impl SyncTui {
                         ui_tx
                             .send(UiMessage::LogEntry(log_str))
                             .await
-                            .map_err(|e| SyncError::Generic(e.to_string()))?;
+                            .map_err(|e| SyncTuiError::Generic(e.to_string()))?;
                     }
                     SyncUpdate::PriceTick(tick) => {
                         ui_tx
                             .send(UiMessage::LogEntry(format!("Price tick: {:?}", tick)))
                             .await
-                            .map_err(|e| SyncError::Generic(e.to_string()))?;
+                            .map_err(|e| SyncTuiError::Generic(e.to_string()))?;
                     }
                 }
                 Ok(())
@@ -452,7 +459,7 @@ impl SyncTui {
                 return;
             }
 
-            status_manager.set_crashed(SyncError::Generic(
+            status_manager.set_crashed(SyncTuiError::Generic(
                 "`sync_tx` was unexpectedly dropped".to_string(),
             ));
         })
@@ -461,7 +468,7 @@ impl SyncTui {
 
     pub fn couple(&self, engine: SyncEngine) -> Result<()> {
         if self.sync_controller.initialized() {
-            return Err(SyncError::Generic(
+            return Err(SyncTuiError::Generic(
                 "`sync_engine` was already coupled".to_string(),
             ));
         }
@@ -478,12 +485,12 @@ impl SyncTui {
 
         self.sync_controller
             .set(sync_controller)
-            .map_err(|_| SyncError::Generic("Failed to set `sync_controller`".to_string()))?;
+            .map_err(|_| SyncTuiError::Generic("Failed to set `sync_controller`".to_string()))?;
 
         self.sync_update_listener_handle
             .set(sync_update_listener_handle)
             .map_err(|_| {
-                SyncError::Generic("Failed to set `sync_update_listener_handle`".to_string())
+                SyncTuiError::Generic("Failed to set `sync_update_listener_handle`".to_string())
             })?;
 
         Ok(())

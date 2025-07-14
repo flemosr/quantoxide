@@ -1,13 +1,13 @@
 use std::sync::{Arc, Mutex};
 
 use super::{
-    super::{SyncError, error::Result},
+    error::{Result, SyncTuiError},
     view::SyncTuiLogger,
 };
 
 #[derive(Debug, PartialEq)]
 pub enum SyncTuiStatusStopped {
-    Crashed(SyncError),
+    Crashed(SyncTuiError),
     Shutdown,
 }
 
@@ -78,7 +78,7 @@ impl SyncTuiStatusManager {
         *status = new_status
     }
 
-    pub fn set_crashed(&self, error: SyncError) -> Arc<SyncTuiStatusStopped> {
+    pub fn set_crashed(&self, error: SyncTuiError) -> Arc<SyncTuiStatusStopped> {
         let status_stopped = Arc::new(SyncTuiStatusStopped::Crashed(error));
         self.set(status_stopped.clone().into());
 
@@ -96,7 +96,7 @@ impl SyncTuiStatusManager {
     pub fn require_running(&self) -> Result<()> {
         match self.status() {
             SyncTuiStatus::Running => Ok(()),
-            status_not_running => Err(SyncError::Generic(format!(
+            status_not_running => Err(SyncTuiError::Generic(format!(
                 "TUI is not running {:?}",
                 status_not_running
             ))),
