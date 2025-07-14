@@ -12,15 +12,15 @@ use ratatui::{Terminal, backend::CrosstermBackend};
 
 use super::{
     super::{SyncError, error::Result},
-    SyncTuiContent,
+    content::SyncTuiContent,
 };
-
-pub struct SyncTuiTerminal(Mutex<TerminalState>);
 
 struct TerminalState {
     terminal: Terminal<CrosstermBackend<Stdout>>,
     restored: bool,
 }
+
+pub struct SyncTuiTerminal(Mutex<TerminalState>);
 
 impl SyncTuiTerminal {
     pub fn new() -> Result<Arc<Self>> {
