@@ -1,6 +1,9 @@
 use std::sync::{Arc, Mutex};
 
-use super::super::{SyncError, error::Result};
+use super::{
+    super::{SyncError, error::Result},
+    content::SyncTuiLogger,
+};
 
 #[derive(Debug, PartialEq)]
 pub enum SyncTuiStatusStopped {
@@ -42,26 +45,37 @@ impl From<Arc<SyncTuiStatusStopped>> for SyncTuiStatus {
     }
 }
 
-pub struct SyncTuiStatusManager(Mutex<SyncTuiStatus>);
+pub struct SyncTuiStatusManager {
+    logger: Arc<dyn SyncTuiLogger>,
+    status: Mutex<SyncTuiStatus>,
+}
 
 impl SyncTuiStatusManager {
-    pub fn new_running() -> Arc<Self> {
-        Arc::new(Self(Mutex::new(SyncTuiStatus::Running)))
+    pub fn new_running(logger: Arc<dyn SyncTuiLogger>) -> Arc<Self> {
+        Arc::new(Self {
+            logger,
+            status: Mutex::new(SyncTuiStatus::Running),
+        })
     }
 
     pub fn status(&self) -> SyncTuiStatus {
-        self.0.lock().expect("not poisoned").clone()
+        self.status.lock().expect("not poisoned").clone()
     }
 
     fn set(&self, new_status: SyncTuiStatus) {
-        let mut curr = self.0.lock().expect("not poisoned");
+        let mut status = self.status.lock().expect("not poisoned");
 
-        if curr.is_crashed() {
+        if status.is_crashed() {
             // Don't overwrite 'crashed' status
             return;
         }
 
-        *curr = new_status
+        // TODO: Improve this log entry
+        let _ = self
+            .logger
+            .add_log_entry(format!("TUI Status: {:?}", new_status));
+
+        *status = new_status
     }
 
     pub fn set_crashed(&self, error: SyncError) -> Arc<SyncTuiStatusStopped> {
