@@ -4,7 +4,7 @@ use tokio::sync::broadcast;
 
 use crate::{db::models::PriceTick, sync::PriceHistoryState};
 
-use super::error::SyncError;
+use super::super::error::SyncError;
 
 #[derive(Debug, PartialEq)]
 pub enum SyncStateNotSynced {

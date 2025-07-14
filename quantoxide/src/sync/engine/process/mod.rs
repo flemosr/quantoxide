@@ -16,8 +16,7 @@ use crate::{
 
 use super::{
     super::error::{Result, SyncError},
-    super::state::{SyncState, SyncStateManager, SyncStateNotSynced, SyncTransmiter},
-    {SyncConfig, SyncMode},
+    SyncConfig, SyncMode, SyncState, SyncStateManager, SyncStateNotSynced, SyncTransmiter,
 };
 
 mod real_time_collection_task;

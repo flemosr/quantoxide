@@ -7,17 +7,16 @@ use lnm_sdk::api::ApiContext;
 
 use crate::{db::DbContext, trade::live::LiveConfig, util::AbortOnDropHandle};
 
-use super::{
-    error::{Result, SyncError},
-    state::{SyncReader, SyncReceiver, SyncState, SyncStateManager, SyncTransmiter, SyncUpdate},
-};
+use super::error::{Result, SyncError};
 
 mod process;
+mod state;
 
 use process::SyncProcess;
+use state::{SyncStateManager, SyncTransmiter};
 
-pub use process::RealTimeCollectionError;
-pub use process::{PriceHistoryState, SyncPriceHistoryError};
+pub use process::{PriceHistoryState, RealTimeCollectionError, SyncPriceHistoryError};
+pub use state::{SyncReader, SyncReceiver, SyncState, SyncStateNotSynced, SyncUpdate};
 
 #[derive(Debug)]
 struct SyncControllerConfig {
