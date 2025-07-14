@@ -66,10 +66,7 @@ impl SyncTui {
                     content.update_sync_state(state);
                     Ok(false)
                 }
-                UiMessage::ShutdownCompleted => {
-                    content.add_log_entry("Shutdown completed.".to_string())?;
-                    Ok(true)
-                }
+                UiMessage::ShutdownCompleted => Ok(true),
             }
         };
 
@@ -80,8 +77,6 @@ impl SyncTui {
             if let Ok(message) = ui_rx.try_recv() {
                 let is_shutdown_completed = handle_ui_message(message, &tui_view)?;
                 if is_shutdown_completed {
-                    terminal.draw(&tui_view)?;
-                    time::sleep(Duration::from_secs(2)).await;
                     return Ok(());
                 }
             }
@@ -123,8 +118,6 @@ impl SyncTui {
             if let Ok(message) = ui_rx.try_recv() {
                 let is_shutdown_completed = handle_ui_message(message, &tui_view)?;
                 if is_shutdown_completed {
-                    terminal.draw(&tui_view)?;
-                    time::sleep(Duration::from_secs(2)).await;
                     return Ok(());
                 }
             }
@@ -188,22 +181,17 @@ impl SyncTui {
         status_manager.set_shutdown_initiated();
 
         let shutdown_procedure = async move || -> Result<()> {
-            let log_a_res = ui_tx
-                .send(UiMessage::LogEntry("Shutdown initiated...".to_string()))
-                .await
-                .map_err(|e| SyncError::Generic(e.to_string()));
-
             let shutdown_res = match sync_controller {
                 Some(controller) => controller.shutdown().await,
                 None => Ok(()),
             };
 
-            let log_b_res = ui_tx.send(UiMessage::ShutdownCompleted).await.map_err(|e| {
+            let ui_message_res = ui_tx.send(UiMessage::ShutdownCompleted).await.map_err(|e| {
                 handle.abort();
                 SyncError::Generic(format!("Failed to send shutdown confirmation, {e}"))
             });
 
-            log_a_res.and(shutdown_res).and(log_b_res)?;
+            shutdown_res.and(ui_message_res)?;
 
             tokio::select! {
                 join_res = &mut handle => {
