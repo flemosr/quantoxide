@@ -12,7 +12,7 @@ use ratatui::{Terminal, backend::CrosstermBackend};
 
 use super::{
     super::{SyncError, error::Result},
-    content::SyncTuiContent,
+    content::SyncTuiView,
 };
 
 struct TerminalState {
@@ -41,7 +41,7 @@ impl SyncTuiTerminal {
         self.0.lock().expect("not poisoned")
     }
 
-    pub fn draw(&self, tui_content: &SyncTuiContent) -> Result<()> {
+    pub fn draw(&self, tui_content: &SyncTuiView) -> Result<()> {
         let mut state = self.get_state();
         if state.restored {
             return Err(SyncError::Generic("Terminal already restored".to_string()));

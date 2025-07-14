@@ -26,7 +26,7 @@ enum ActivePane {
     LogPane,
 }
 
-struct SyncTuiContentState {
+struct SyncTuiViewState {
     log_file: Option<File>,
     active_pane: ActivePane,
 
@@ -43,11 +43,11 @@ struct SyncTuiContentState {
     state_h_scroll: usize,
 }
 
-pub struct SyncTuiContent(Mutex<SyncTuiContentState>);
+pub struct SyncTuiView(Mutex<SyncTuiViewState>);
 
-impl SyncTuiContent {
+impl SyncTuiView {
     pub fn new(log_file: Option<File>) -> Arc<Self> {
-        Arc::new(Self(Mutex::new(SyncTuiContentState {
+        Arc::new(Self(Mutex::new(SyncTuiViewState {
             log_file,
             active_pane: ActivePane::StatePane,
 
@@ -65,7 +65,7 @@ impl SyncTuiContent {
         })))
     }
 
-    fn get_state(&self) -> MutexGuard<'_, SyncTuiContentState> {
+    fn get_state(&self) -> MutexGuard<'_, SyncTuiViewState> {
         self.0
             .lock()
             .expect("`SyncTuiContent` mutex can't be poisoned")
@@ -269,7 +269,7 @@ impl SyncTuiContent {
     }
 }
 
-impl SyncTuiLogger for SyncTuiContent {
+impl SyncTuiLogger for SyncTuiView {
     fn add_log_entry(&self, entry: String) -> Result<()> {
         let mut state_guard = self.get_state();
 

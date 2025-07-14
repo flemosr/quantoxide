@@ -22,7 +22,7 @@ mod content;
 mod status;
 mod terminal;
 
-use content::{SyncTuiContent, SyncTuiLogger};
+use content::{SyncTuiLogger, SyncTuiView};
 use status::SyncTuiStatusManager;
 use terminal::SyncTuiTerminal;
 
@@ -51,37 +51,36 @@ pub struct SyncTui {
 
 impl SyncTui {
     async fn run_ui(
-        content: Arc<SyncTuiContent>,
+        tui_view: Arc<SyncTuiView>,
         terminal: Arc<SyncTuiTerminal>,
         mut ui_rx: mpsc::Receiver<UiMessage>,
         shutdown_tx: mpsc::Sender<()>,
     ) -> Result<()> {
-        let handle_ui_message_content =
-            |msg: UiMessage, content: &SyncTuiContent| -> Result<bool> {
-                match msg {
-                    UiMessage::LogEntry(entry) => {
-                        content.add_log_entry(entry)?;
-                        Ok(false)
-                    }
-                    UiMessage::StateUpdate(state) => {
-                        content.update_sync_state(state);
-                        Ok(false)
-                    }
-                    UiMessage::ShutdownCompleted => {
-                        content.add_log_entry("Shutdown completed.".to_string())?;
-                        Ok(true)
-                    }
+        let handle_ui_message = |msg: UiMessage, content: &SyncTuiView| -> Result<bool> {
+            match msg {
+                UiMessage::LogEntry(entry) => {
+                    content.add_log_entry(entry)?;
+                    Ok(false)
                 }
-            };
+                UiMessage::StateUpdate(state) => {
+                    content.update_sync_state(state);
+                    Ok(false)
+                }
+                UiMessage::ShutdownCompleted => {
+                    content.add_log_entry("Shutdown completed.".to_string())?;
+                    Ok(true)
+                }
+            }
+        };
 
         loop {
             task::yield_now().await;
-            terminal.draw(&content)?;
+            terminal.draw(&tui_view)?;
 
             if let Ok(message) = ui_rx.try_recv() {
-                let is_shutdown_completed = handle_ui_message_content(message, &content)?;
+                let is_shutdown_completed = handle_ui_message(message, &tui_view)?;
                 if is_shutdown_completed {
-                    terminal.draw(&content)?;
+                    terminal.draw(&tui_view)?;
                     time::sleep(Duration::from_secs(2)).await;
                     return Ok(());
                 }
@@ -95,7 +94,7 @@ impl SyncTui {
                 {
                     match key.code {
                         KeyCode::Char('q') | KeyCode::Char('Q') => {
-                            content.add_log_entry("'q' pressed".to_string())?;
+                            tui_view.add_log_entry("'q' pressed".to_string())?;
 
                             shutdown_tx.send(()).await.map_err(|e| {
                                 SyncError::Generic(format!(
@@ -106,11 +105,11 @@ impl SyncTui {
 
                             break;
                         }
-                        KeyCode::Up => content.scroll_up(),
-                        KeyCode::Down => content.scroll_down(),
-                        KeyCode::Left => content.scroll_left(),
-                        KeyCode::Right => content.scroll_right(),
-                        KeyCode::Tab => content.switch_pane(),
+                        KeyCode::Up => tui_view.scroll_up(),
+                        KeyCode::Down => tui_view.scroll_down(),
+                        KeyCode::Left => tui_view.scroll_left(),
+                        KeyCode::Right => tui_view.scroll_right(),
+                        KeyCode::Tab => tui_view.switch_pane(),
                         _ => {}
                     }
                 }
@@ -118,13 +117,13 @@ impl SyncTui {
         }
 
         loop {
-            terminal.draw(&content)?;
+            terminal.draw(&tui_view)?;
             time::sleep(Duration::from_millis(50)).await;
 
             if let Ok(message) = ui_rx.try_recv() {
-                let is_shutdown_completed = handle_ui_message_content(message, &content)?;
+                let is_shutdown_completed = handle_ui_message(message, &tui_view)?;
                 if is_shutdown_completed {
-                    terminal.draw(&content)?;
+                    terminal.draw(&tui_view)?;
                     time::sleep(Duration::from_secs(2)).await;
                     return Ok(());
                 }
@@ -133,7 +132,7 @@ impl SyncTui {
     }
 
     fn spawn_ui_task(
-        content: Arc<SyncTuiContent>,
+        tui_view: Arc<SyncTuiView>,
         status_manager: Arc<SyncTuiStatusManager>,
         terminal: Arc<SyncTuiTerminal>,
         ui_rx: mpsc::Receiver<UiMessage>,
@@ -141,7 +140,7 @@ impl SyncTui {
     ) -> Arc<Mutex<Option<AbortOnDropHandle<()>>>> {
         Arc::new(Mutex::new(Some(
             tokio::spawn(async move {
-                if let Err(e) = Self::run_ui(content, terminal, ui_rx, shutdown_tx).await {
+                if let Err(e) = Self::run_ui(tui_view, terminal, ui_rx, shutdown_tx).await {
                     status_manager.set_crashed(e);
                 }
             })
@@ -284,12 +283,12 @@ impl SyncTui {
 
         let sync_tui_terminal = SyncTuiTerminal::new()?;
 
-        let content = SyncTuiContent::new(log_file);
+        let tui_view = SyncTuiView::new(log_file);
 
-        let status_manager = SyncTuiStatusManager::new_running(content.clone());
+        let status_manager = SyncTuiStatusManager::new_running(tui_view.clone());
 
         let ui_task_handle = Self::spawn_ui_task(
-            content,
+            tui_view,
             status_manager.clone(),
             sync_tui_terminal.clone(),
             ui_rx,
