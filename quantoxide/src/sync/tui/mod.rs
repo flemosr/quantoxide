@@ -1,19 +1,14 @@
 use std::{
     fs::{self, File, OpenOptions},
-    io::{self, Stdout, Write},
+    io::Write,
     path::Path,
-    sync::{Arc, Mutex, MutexGuard},
+    sync::{Arc, Mutex},
     time::Duration,
 };
 
-use crossterm::{
-    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
-    execute,
-    terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
-};
+use crossterm::event::{self, Event, KeyCode};
 use ratatui::{
-    Frame, Terminal,
-    backend::CrosstermBackend,
+    Frame,
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Style},
     text::{Line, Span},
@@ -32,6 +27,10 @@ use crate::{
     util::AbortOnDropHandle,
 };
 
+mod terminal;
+
+use terminal::SyncTuiTerminal;
+
 const MAX_LOG_ENTRIES: usize = 10_000;
 
 #[derive(Debug)]
@@ -45,79 +44,6 @@ enum UiMessage {
 enum ActivePane {
     StatePane,
     LogPane,
-}
-
-struct SyncTuiTerminal(Mutex<TerminalState>);
-
-struct TerminalState {
-    terminal: Terminal<CrosstermBackend<Stdout>>,
-    restored: bool,
-}
-
-impl SyncTuiTerminal {
-    pub fn new() -> Result<Arc<Self>> {
-        enable_raw_mode().map_err(|e| SyncError::Generic(e.to_string()))?;
-        let mut stdout = io::stdout();
-        execute!(stdout, EnterAlternateScreen, EnableMouseCapture)
-            .map_err(|e| SyncError::Generic(e.to_string()))?;
-        let backend = CrosstermBackend::new(stdout);
-        let terminal = Terminal::new(backend).map_err(|e| SyncError::Generic(e.to_string()))?;
-
-        Ok(Arc::new(Self(Mutex::new(TerminalState {
-            terminal,
-            restored: false,
-        }))))
-    }
-
-    fn get_state(&self) -> MutexGuard<'_, TerminalState> {
-        self.0.lock().expect("not poisoned")
-    }
-
-    pub fn draw(&self, tui_content: &mut SyncTuiContent) -> Result<()> {
-        let mut state = self.get_state();
-        if state.restored {
-            return Err(SyncError::Generic("Terminal already restored".to_string()));
-        }
-
-        state
-            .terminal
-            .draw(|f| tui_content.render(f))
-            .map_err(|e| SyncError::Generic(e.to_string()))?;
-
-        Ok(())
-    }
-
-    pub fn restore(&self) -> Result<()> {
-        let mut state = self.get_state();
-        if state.restored {
-            return Ok(());
-        }
-
-        disable_raw_mode().map_err(|e| SyncError::Generic(e.to_string()))?;
-        execute!(
-            state.terminal.backend_mut(),
-            LeaveAlternateScreen,
-            DisableMouseCapture
-        )
-        .map_err(|e| SyncError::Generic(e.to_string()))?;
-
-        state
-            .terminal
-            .show_cursor()
-            .map_err(|e| SyncError::Generic(e.to_string()))?;
-
-        state.restored = true;
-
-        Ok(())
-    }
-}
-
-impl Drop for SyncTuiTerminal {
-    fn drop(&mut self) {
-        if let Err(e) = self.restore() {
-            eprintln!("Failed to restore terminal on Drop: {:?}", e);
-        }
-    }
 }
 
 struct SyncTuiContent {
