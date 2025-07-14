@@ -16,6 +16,10 @@ use super::super::{SyncError, error::Result};
 
 const MAX_LOG_ENTRIES: usize = 10_000;
 
+pub trait SyncTuiLogger: Sync + Send + 'static {
+    fn add_log_entry(&self, entry: String) -> Result<()>;
+}
+
 #[derive(Debug, PartialEq)]
 enum ActivePane {
     StatePane,
@@ -95,61 +99,6 @@ impl SyncTuiContent {
         }
 
         state_guard.state_lines = new_lines;
-    }
-
-    pub fn add_log_entry(&self, entry: String) -> Result<()> {
-        let mut state_guard = self.get_state();
-
-        let timestamp = chrono::Local::now().format("%H:%M:%S").to_string();
-
-        let lines: Vec<&str> = entry.lines().collect();
-
-        if lines.is_empty() {
-            return Ok(());
-        }
-
-        let mut log_entry = Vec::new();
-
-        for (i, line) in lines.iter().enumerate() {
-            let log_entry_line = if i == 0 {
-                format!("[{}] {}", timestamp, line)
-            } else {
-                format!("           {}", line)
-            };
-
-            if let Some(log_file) = state_guard.log_file.as_mut() {
-                writeln!(log_file, "{}", log_entry_line).map_err(|e| {
-                    SyncError::Generic(format!("couldn't write to log file {}", e.to_string()))
-                })?;
-                log_file.flush().map_err(|e| {
-                    SyncError::Generic(format!("couldn't flush log file {}", e.to_string()))
-                })?;
-            }
-
-            log_entry.push(log_entry_line)
-        }
-
-        // Add entry at the beginning of the TUI log
-
-        for entry_line in log_entry.into_iter().rev() {
-            state_guard.log_max_line_width = state_guard.log_max_line_width.max(entry_line.len());
-            state_guard.log_entries.insert(0, entry_line);
-        }
-
-        // Adjust scroll position to maintain the user's view
-        if state_guard.log_v_scroll != 0 {
-            state_guard.log_v_scroll = state_guard.log_v_scroll.saturating_add(lines.len());
-        }
-
-        if state_guard.log_entries.len() > MAX_LOG_ENTRIES {
-            state_guard.log_entries.truncate(MAX_LOG_ENTRIES);
-
-            let max_scroll =
-                Self::max_scroll_down(&state_guard.log_rect, state_guard.log_entries.len());
-            state_guard.log_v_scroll = state_guard.log_v_scroll.min(max_scroll);
-        }
-
-        Ok(())
     }
 
     pub fn scroll_up(&self) {
@@ -317,5 +266,62 @@ impl SyncTuiContent {
             height: 1,
         };
         f.render_widget(help_paragraph, help_area);
+    }
+}
+
+impl SyncTuiLogger for SyncTuiContent {
+    fn add_log_entry(&self, entry: String) -> Result<()> {
+        let mut state_guard = self.get_state();
+
+        let timestamp = chrono::Local::now().format("%H:%M:%S").to_string();
+
+        let lines: Vec<&str> = entry.lines().collect();
+
+        if lines.is_empty() {
+            return Ok(());
+        }
+
+        let mut log_entry = Vec::new();
+
+        for (i, line) in lines.iter().enumerate() {
+            let log_entry_line = if i == 0 {
+                format!("[{}] {}", timestamp, line)
+            } else {
+                format!("           {}", line)
+            };
+
+            if let Some(log_file) = state_guard.log_file.as_mut() {
+                writeln!(log_file, "{}", log_entry_line).map_err(|e| {
+                    SyncError::Generic(format!("couldn't write to log file {}", e.to_string()))
+                })?;
+                log_file.flush().map_err(|e| {
+                    SyncError::Generic(format!("couldn't flush log file {}", e.to_string()))
+                })?;
+            }
+
+            log_entry.push(log_entry_line)
+        }
+
+        // Add entry at the beginning of the TUI log
+
+        for entry_line in log_entry.into_iter().rev() {
+            state_guard.log_max_line_width = state_guard.log_max_line_width.max(entry_line.len());
+            state_guard.log_entries.insert(0, entry_line);
+        }
+
+        // Adjust scroll position to maintain the user's view
+        if state_guard.log_v_scroll != 0 {
+            state_guard.log_v_scroll = state_guard.log_v_scroll.saturating_add(lines.len());
+        }
+
+        if state_guard.log_entries.len() > MAX_LOG_ENTRIES {
+            state_guard.log_entries.truncate(MAX_LOG_ENTRIES);
+
+            let max_scroll =
+                Self::max_scroll_down(&state_guard.log_rect, state_guard.log_entries.len());
+            state_guard.log_v_scroll = state_guard.log_v_scroll.min(max_scroll);
+        }
+
+        Ok(())
     }
 }
