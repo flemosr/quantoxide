@@ -2,7 +2,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 
 use tokio::sync::broadcast;
 
-use crate::{db::models::PriceTick, sync::process::PriceHistoryState};
+use crate::{db::models::PriceTick, sync::PriceHistoryState};
 
 use super::error::SyncError;
 

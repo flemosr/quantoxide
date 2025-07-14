@@ -9,9 +9,15 @@ use crate::{db::DbContext, trade::live::LiveConfig, util::AbortOnDropHandle};
 
 use super::{
     error::{Result, SyncError},
-    process::SyncProcess,
     state::{SyncReader, SyncReceiver, SyncState, SyncStateManager, SyncTransmiter, SyncUpdate},
 };
+
+mod process;
+
+use process::SyncProcess;
+
+pub use process::RealTimeCollectionError;
+pub use process::{PriceHistoryState, SyncPriceHistoryError};
 
 #[derive(Debug)]
 struct SyncControllerConfig {

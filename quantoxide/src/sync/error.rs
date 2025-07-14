@@ -7,7 +7,7 @@ use tokio::{
 };
 
 use super::{
-    process::{RealTimeCollectionError, SyncPriceHistoryError},
+    engine::{RealTimeCollectionError, SyncPriceHistoryError},
     state::SyncState,
 };
 
