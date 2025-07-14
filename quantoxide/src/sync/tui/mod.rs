@@ -1,5 +1,5 @@
 use std::{
-    fs::{self, File, OpenOptions},
+    fs::{self, OpenOptions},
     path::Path,
     sync::{Arc, Mutex},
     time::Duration,
@@ -22,7 +22,7 @@ mod content;
 mod status;
 mod terminal;
 
-use content::SyncTuiContent;
+use content::{SyncTuiContent, SyncTuiLogger};
 use status::SyncTuiStatusManager;
 use terminal::SyncTuiTerminal;
 
@@ -51,7 +51,7 @@ pub struct SyncTui {
 
 impl SyncTui {
     async fn run_ui(
-        log_file: Option<File>,
+        content: Arc<SyncTuiContent>,
         terminal: Arc<SyncTuiTerminal>,
         mut ui_rx: mpsc::Receiver<UiMessage>,
         shutdown_tx: mpsc::Sender<()>,
@@ -73,8 +73,6 @@ impl SyncTui {
                     }
                 }
             };
-
-        let content = SyncTuiContent::new(log_file);
 
         loop {
             task::yield_now().await;
@@ -135,7 +133,7 @@ impl SyncTui {
     }
 
     fn spawn_ui_task(
-        log_file: Option<File>,
+        content: Arc<SyncTuiContent>,
         status_manager: Arc<SyncTuiStatusManager>,
         terminal: Arc<SyncTuiTerminal>,
         ui_rx: mpsc::Receiver<UiMessage>,
@@ -143,7 +141,7 @@ impl SyncTui {
     ) -> Arc<Mutex<Option<AbortOnDropHandle<()>>>> {
         Arc::new(Mutex::new(Some(
             tokio::spawn(async move {
-                if let Err(e) = Self::run_ui(log_file, terminal, ui_rx, shutdown_tx).await {
+                if let Err(e) = Self::run_ui(content, terminal, ui_rx, shutdown_tx).await {
                     status_manager.set_crashed(e);
                 }
             })
@@ -272,7 +270,7 @@ impl SyncTui {
 
                 OpenOptions::new()
                     .read(true)
-                    .write(true)
+                    .append(true)
                     .create(true)
                     .open(log_file_path)
                     .map_err(|e| {
@@ -286,10 +284,12 @@ impl SyncTui {
 
         let sync_tui_terminal = SyncTuiTerminal::new()?;
 
-        let status_manager = SyncTuiStatusManager::new_running();
+        let content = SyncTuiContent::new(log_file);
+
+        let status_manager = SyncTuiStatusManager::new_running(content.clone());
 
         let ui_task_handle = Self::spawn_ui_task(
-            log_file,
+            content,
             status_manager.clone(),
             sync_tui_terminal.clone(),
             ui_rx,
