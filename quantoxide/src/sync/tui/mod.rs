@@ -194,7 +194,7 @@ impl SyncTui {
     }
 
     async fn shutdown_inner(
-        shutdown_timeout: time::Duration,
+        shutdown_timeout: Duration,
         status_manager: Arc<SyncTuiStatusManager>,
         ui_task_handle: Arc<Mutex<Option<AbortOnDropHandle<()>>>>,
         ui_tx: mpsc::Sender<UiMessage>,
@@ -271,7 +271,7 @@ impl SyncTui {
     }
 
     fn spawn_shutdown_signal_listener(
-        shutdown_timeout: time::Duration,
+        shutdown_timeout: Duration,
         status_manager: Arc<SyncTuiStatusManager>,
         mut shutdown_rx: mpsc::Receiver<()>,
         ui_task_handle: Arc<Mutex<Option<AbortOnDropHandle<()>>>>,
@@ -387,53 +387,43 @@ impl SyncTui {
             let handle_sync_update = async |sync_update: SyncUpdate| -> Result<()> {
                 match sync_update {
                     SyncUpdate::StateChange(sync_state) => {
-                        let (state_str, log_str) = match sync_state {
+                        let log_str = match sync_state {
                             SyncState::NotSynced(sync_state_not_synced) => {
                                 match sync_state_not_synced.as_ref() {
-                                    SyncStateNotSynced::NotInitiated => (
-                                        "State: Not Initiated".to_string(),
-                                        "Sync state: NotInitiated".to_string(),
-                                    ),
-                                    SyncStateNotSynced::Starting => (
-                                        "State: Starting".to_string(),
-                                        "Sync state: Starting".to_string(),
-                                    ),
-                                    SyncStateNotSynced::InProgress(price_history_state) => (
-                                        format!("State: In Progress\n\n{}", price_history_state),
-                                        format!("Sync state: InProgress"),
-                                    ),
-                                    SyncStateNotSynced::WaitingForResync => (
-                                        "State: Waiting for Resync".to_string(),
-                                        "Sync state: WaitingForResync".to_string(),
-                                    ),
-                                    SyncStateNotSynced::Failed(e) => (
-                                        format!("State: Failed\n\nError: {:?}", e),
-                                        format!("Sync state: Failed - {:?}", e),
-                                    ),
-                                    SyncStateNotSynced::Restarting => (
-                                        "State: Restarting".to_string(),
-                                        "Sync state: Restarting".to_string(),
-                                    ),
+                                    SyncStateNotSynced::NotInitiated => {
+                                        "Sync state: NotInitiated".to_string()
+                                    }
+                                    SyncStateNotSynced::Starting => {
+                                        "Sync state: Starting".to_string()
+                                    }
+                                    SyncStateNotSynced::InProgress(price_history_state) => {
+                                        ui_tx
+                                            .send(UiMessage::StateUpdate(
+                                                price_history_state.to_string(),
+                                            ))
+                                            .await
+                                            .map_err(|e| SyncError::Generic(e.to_string()))?;
+
+                                        "Sync state: InProgress".to_string()
+                                    }
+                                    SyncStateNotSynced::WaitingForResync => {
+                                        "Sync state: WaitingForResync".to_string()
+                                    }
+                                    SyncStateNotSynced::Failed(e) => {
+                                        format!("Sync state: Failed - {:?}", e)
+                                    }
+                                    SyncStateNotSynced::Restarting => {
+                                        "Sync state: Restarting".to_string()
+                                    }
                                 }
                             }
-                            SyncState::Synced => (
-                                "State: Synced".to_string(),
-                                "Sync state: Synced".to_string(),
-                            ),
-                            SyncState::ShutdownInitiated => (
-                                "State: Shutdown Initiated".to_string(),
-                                "Sync state: ShutdownInitiated".to_string(),
-                            ),
-                            SyncState::Shutdown => (
-                                "State: Shutdown".to_string(),
-                                "Sync state: Shutdown".to_string(),
-                            ),
+                            SyncState::Synced => "Sync state: Synced".to_string(),
+                            SyncState::ShutdownInitiated => {
+                                "Sync state: ShutdownInitiated".to_string()
+                            }
+                            SyncState::Shutdown => "Sync state: Shutdown".to_string(),
                         };
 
-                        ui_tx
-                            .send(UiMessage::StateUpdate(state_str))
-                            .await
-                            .map_err(|e| SyncError::Generic(e.to_string()))?;
                         ui_tx
                             .send(UiMessage::LogEntry(log_str))
                             .await
