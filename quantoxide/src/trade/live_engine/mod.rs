@@ -15,7 +15,6 @@ use crate::{
         },
     },
     sync::{SyncController, SyncEngine, SyncMode},
-    trade::live::executor::update::{LiveTradeExecutorReceiver, LiveTradeExecutorUpdateOrder},
     util::{AbortOnDropHandle, Never},
 };
 
@@ -28,7 +27,7 @@ use error::{LiveError, Result};
 use executor::{
     LiveTradeExecutor, LiveTradeExecutorLauncher,
     state::{LiveTradeExecutorStatus, LiveTradeExecutorStatusNotReady},
-    update::LiveTradeExecutorUpdate,
+    update::{LiveTradeExecutorReceiver, LiveTradeExecutorUpdate, LiveTradeExecutorUpdateOrder},
 };
 
 #[derive(Debug)]

@@ -15,7 +15,6 @@ use tokio::sync::broadcast;
 use crate::{
     db::DbContext,
     sync::{SyncReceiver, SyncState, SyncUpdate},
-    trade::live::executor::state::LiveTradeExecutorState,
     util::{AbortOnDropHandle, Never},
 };
 
@@ -30,7 +29,10 @@ use super::{
 pub mod state;
 pub mod update;
 
-use state::{LiveTradeExecutorStateManager, LiveTradeExecutorStatusNotReady, LiveTradingSession};
+use state::{
+    LiveTradeExecutorState, LiveTradeExecutorStateManager, LiveTradeExecutorStatusNotReady,
+    LiveTradingSession,
+};
 use update::{
     LiveTradeExecutorReceiver, LiveTradeExecutorTransmiter, LiveTradeExecutorUpdate,
     WrappedApiContext,

@@ -7,12 +7,12 @@ use lnm_sdk::api::{
 use tokio::sync::broadcast;
 use uuid::Uuid;
 
-use super::super::{
+use super::{
     super::{
-        core::TradingState,
-        live::executor::state::{LiveTradeExecutorStatus, LiveTradingSession},
+        super::core::TradingState,
+        error::{LiveError, Result as LiveResult},
     },
-    error::{LiveError, Result as LiveResult},
+    state::{LiveTradeExecutorStatus, LiveTradingSession},
 };
 
 #[derive(Debug, Clone)]
