@@ -2,9 +2,9 @@ use std::sync::{Arc, Mutex, MutexGuard};
 
 use tokio::sync::broadcast;
 
-use crate::{db::models::PriceTick, sync::PriceHistoryState};
+use crate::db::models::PriceTick;
 
-use super::super::error::SyncError;
+use super::{PriceHistoryState, SyncError};
 
 #[derive(Debug, PartialEq)]
 pub enum SyncStateNotSynced {
