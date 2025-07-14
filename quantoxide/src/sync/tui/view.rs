@@ -176,6 +176,38 @@ impl SyncTuiView {
         }
     }
 
+    pub fn reset_scroll(&self) {
+        let mut state_guard = self.get_state();
+
+        match state_guard.active_pane {
+            ActivePane::StatePane => {
+                state_guard.state_v_scroll = 0;
+                state_guard.state_h_scroll = 0;
+            }
+            ActivePane::LogPane => {
+                state_guard.log_v_scroll = 0;
+                state_guard.log_h_scroll = 0;
+            }
+        }
+    }
+
+    pub fn scroll_to_bottom(&self) {
+        let mut state_guard = self.get_state();
+
+        match state_guard.active_pane {
+            ActivePane::StatePane => {
+                state_guard.state_v_scroll =
+                    Self::max_scroll_down(&state_guard.state_rect, state_guard.state_lines.len());
+                state_guard.state_h_scroll = 0;
+            }
+            ActivePane::LogPane => {
+                state_guard.log_v_scroll =
+                    Self::max_scroll_down(&state_guard.log_rect, state_guard.log_entries.len());
+                state_guard.log_h_scroll = 0;
+            }
+        }
+    }
+
     pub fn switch_pane(&self) {
         let mut state_guard = self.get_state();
 
@@ -257,7 +289,7 @@ impl SyncTuiView {
         );
         f.render_widget(log_list, state_guard.log_rect);
 
-        let help_text = "Press 'q' to quit, Tab to switch panes, ↑/↓ ←/→ to scroll active pane";
+        let help_text = " Press 'q' to quit, Tab to switch panes, scroll with ↑/↓, ←/→, 'b' to bottom and 't' to top";
         let help_paragraph = Paragraph::new(help_text).style(Style::default().fg(Color::Gray));
         let help_area = Rect {
             x: frame_rect.x,

@@ -104,6 +104,8 @@ impl SyncTui {
                         KeyCode::Down => tui_view.scroll_down(),
                         KeyCode::Left => tui_view.scroll_left(),
                         KeyCode::Right => tui_view.scroll_right(),
+                        KeyCode::Char('t') | KeyCode::Char('T') => tui_view.reset_scroll(),
+                        KeyCode::Char('b') | KeyCode::Char('B') => tui_view.scroll_to_bottom(),
                         KeyCode::Tab => tui_view.switch_pane(),
                         _ => {}
                     }
