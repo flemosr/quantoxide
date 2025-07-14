@@ -14,8 +14,6 @@ use ratatui::{
 
 use super::super::{SyncError, error::Result};
 
-const MAX_LOG_ENTRIES: usize = 10_000;
-
 pub trait SyncTuiLogger: Sync + Send + 'static {
     fn add_log_entry(&self, entry: String) -> Result<()>;
 }
@@ -43,30 +41,36 @@ struct SyncTuiViewState {
     state_h_scroll: usize,
 }
 
-pub struct SyncTuiView(Mutex<SyncTuiViewState>);
+pub struct SyncTuiView {
+    max_tui_log_len: usize,
+    state: Mutex<SyncTuiViewState>,
+}
 
 impl SyncTuiView {
-    pub fn new(log_file: Option<File>) -> Arc<Self> {
-        Arc::new(Self(Mutex::new(SyncTuiViewState {
-            log_file,
-            active_pane: ActivePane::StatePane,
+    pub fn new(max_tui_log_len: usize, log_file: Option<File>) -> Arc<Self> {
+        Arc::new(Self {
+            max_tui_log_len,
+            state: Mutex::new(SyncTuiViewState {
+                log_file,
+                active_pane: ActivePane::StatePane,
 
-            log_entries: Vec::new(),
-            log_max_line_width: 0,
-            log_rect: Rect::default(),
-            log_v_scroll: 0,
-            log_h_scroll: 0,
+                log_entries: Vec::new(),
+                log_max_line_width: 0,
+                log_rect: Rect::default(),
+                log_v_scroll: 0,
+                log_h_scroll: 0,
 
-            state_lines: vec!["Initializing...".to_string()],
-            state_max_line_width: 0,
-            state_rect: Rect::default(),
-            state_v_scroll: 0,
-            state_h_scroll: 0,
-        })))
+                state_lines: vec!["Initializing...".to_string()],
+                state_max_line_width: 0,
+                state_rect: Rect::default(),
+                state_v_scroll: 0,
+                state_h_scroll: 0,
+            }),
+        })
     }
 
     fn get_state(&self) -> MutexGuard<'_, SyncTuiViewState> {
-        self.0
+        self.state
             .lock()
             .expect("`SyncTuiContent` mutex can't be poisoned")
     }
@@ -78,7 +82,7 @@ impl SyncTuiView {
 
     pub fn update_sync_state(&self, state: String) {
         let mut state_guard = self
-            .0
+            .state
             .lock()
             .expect("`SyncTuiContent` mutex can't be poisoned");
 
@@ -346,8 +350,8 @@ impl SyncTuiLogger for SyncTuiView {
             state_guard.log_v_scroll = state_guard.log_v_scroll.saturating_add(lines.len());
         }
 
-        if state_guard.log_entries.len() > MAX_LOG_ENTRIES {
-            state_guard.log_entries.truncate(MAX_LOG_ENTRIES);
+        if state_guard.log_entries.len() > self.max_tui_log_len {
+            state_guard.log_entries.truncate(self.max_tui_log_len);
 
             let max_scroll =
                 Self::max_scroll_down(&state_guard.log_rect, state_guard.log_entries.len());
