@@ -57,14 +57,14 @@ impl SyncTui {
         shutdown_tx: mpsc::Sender<()>,
     ) -> Result<()> {
         let handle_ui_message_content =
-            |msg: UiMessage, content: &mut SyncTuiContent| -> Result<bool> {
+            |msg: UiMessage, content: &SyncTuiContent| -> Result<bool> {
                 match msg {
                     UiMessage::LogEntry(entry) => {
                         content.add_log_entry(entry)?;
                         Ok(false)
                     }
                     UiMessage::StateUpdate(state) => {
-                        content.update_state(state);
+                        content.update_sync_state(state);
                         Ok(false)
                     }
                     UiMessage::ShutdownCompleted => {
@@ -74,16 +74,16 @@ impl SyncTui {
                 }
             };
 
-        let mut content = SyncTuiContent::new(log_file);
+        let content = SyncTuiContent::new(log_file);
 
         loop {
             task::yield_now().await;
-            terminal.draw(&mut content)?;
+            terminal.draw(&content)?;
 
             if let Ok(message) = ui_rx.try_recv() {
-                let is_shutdown_completed = handle_ui_message_content(message, &mut content)?;
+                let is_shutdown_completed = handle_ui_message_content(message, &content)?;
                 if is_shutdown_completed {
-                    terminal.draw(&mut content)?;
+                    terminal.draw(&content)?;
                     time::sleep(Duration::from_secs(2)).await;
                     return Ok(());
                 }
@@ -120,13 +120,13 @@ impl SyncTui {
         }
 
         loop {
-            terminal.draw(&mut content)?;
+            terminal.draw(&content)?;
             time::sleep(Duration::from_millis(50)).await;
 
             if let Ok(message) = ui_rx.try_recv() {
-                let is_shutdown_completed = handle_ui_message_content(message, &mut content)?;
+                let is_shutdown_completed = handle_ui_message_content(message, &content)?;
                 if is_shutdown_completed {
-                    terminal.draw(&mut content)?;
+                    terminal.draw(&content)?;
                     time::sleep(Duration::from_secs(2)).await;
                     return Ok(());
                 }

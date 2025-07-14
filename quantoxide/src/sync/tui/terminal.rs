@@ -41,7 +41,7 @@ impl SyncTuiTerminal {
         self.0.lock().expect("not poisoned")
     }
 
-    pub fn draw(&self, tui_content: &mut SyncTuiContent) -> Result<()> {
+    pub fn draw(&self, tui_content: &SyncTuiContent) -> Result<()> {
         let mut state = self.get_state();
         if state.restored {
             return Err(SyncError::Generic("Terminal already restored".to_string()));

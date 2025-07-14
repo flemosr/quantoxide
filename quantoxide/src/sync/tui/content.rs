@@ -1,4 +1,8 @@
-use std::{fs::File, io::Write};
+use std::{
+    fs::File,
+    io::Write,
+    sync::{Arc, Mutex, MutexGuard},
+};
 
 use ratatui::{
     Frame,
@@ -18,7 +22,7 @@ enum ActivePane {
     LogPane,
 }
 
-pub struct SyncTuiContent {
+struct SyncTuiContentState {
     log_file: Option<File>,
     active_pane: ActivePane,
 
@@ -35,9 +39,11 @@ pub struct SyncTuiContent {
     state_h_scroll: usize,
 }
 
+pub struct SyncTuiContent(Mutex<SyncTuiContentState>);
+
 impl SyncTuiContent {
-    pub fn new(log_file: Option<File>) -> Self {
-        Self {
+    pub fn new(log_file: Option<File>) -> Arc<Self> {
+        Arc::new(Self(Mutex::new(SyncTuiContentState {
             log_file,
             active_pane: ActivePane::StatePane,
 
@@ -52,7 +58,13 @@ impl SyncTuiContent {
             state_rect: Rect::default(),
             state_v_scroll: 0,
             state_h_scroll: 0,
-        }
+        })))
+    }
+
+    fn get_state(&self) -> MutexGuard<'_, SyncTuiContentState> {
+        self.0
+            .lock()
+            .expect("`SyncTuiContent` mutex can't be poisoned")
     }
 
     fn max_scroll_down(rect: &Rect, entries_len: usize) -> usize {
@@ -60,27 +72,34 @@ impl SyncTuiContent {
         entries_len.saturating_sub(visible_height)
     }
 
-    pub fn update_state(&mut self, state: String) {
+    pub fn update_sync_state(&self, state: String) {
+        let mut state_guard = self
+            .0
+            .lock()
+            .expect("`SyncTuiContent` mutex can't be poisoned");
+
         let mut new_lines = Vec::new();
 
         // Split the state into lines for display
         for line in state.lines() {
-            self.state_max_line_width = self.state_max_line_width.max(line.len());
+            state_guard.state_max_line_width = state_guard.state_max_line_width.max(line.len());
             new_lines.push(line.to_string());
         }
 
         new_lines.push("".to_string());
 
-        if new_lines.len() != self.state_lines.len() {
-            if self.state_v_scroll >= new_lines.len() && new_lines.len() > 0 {
-                self.state_v_scroll = new_lines.len().saturating_sub(1);
+        if new_lines.len() != state_guard.state_lines.len() {
+            if state_guard.state_v_scroll >= new_lines.len() && new_lines.len() > 0 {
+                state_guard.state_v_scroll = new_lines.len().saturating_sub(1);
             }
         }
 
-        self.state_lines = new_lines;
+        state_guard.state_lines = new_lines;
     }
 
-    pub fn add_log_entry(&mut self, entry: String) -> Result<()> {
+    pub fn add_log_entry(&self, entry: String) -> Result<()> {
+        let mut state_guard = self.get_state();
+
         let timestamp = chrono::Local::now().format("%H:%M:%S").to_string();
 
         let lines: Vec<&str> = entry.lines().collect();
@@ -98,7 +117,7 @@ impl SyncTuiContent {
                 format!("           {}", line)
             };
 
-            if let Some(log_file) = self.log_file.as_mut() {
+            if let Some(log_file) = state_guard.log_file.as_mut() {
                 writeln!(log_file, "{}", log_entry_line).map_err(|e| {
                     SyncError::Generic(format!("couldn't write to log file {}", e.to_string()))
                 })?;
@@ -113,56 +132,69 @@ impl SyncTuiContent {
         // Add entry at the beginning of the TUI log
 
         for entry_line in log_entry.into_iter().rev() {
-            self.log_max_line_width = self.log_max_line_width.max(entry_line.len());
-            self.log_entries.insert(0, entry_line);
+            state_guard.log_max_line_width = state_guard.log_max_line_width.max(entry_line.len());
+            state_guard.log_entries.insert(0, entry_line);
         }
 
         // Adjust scroll position to maintain the user's view
-        if self.log_v_scroll != 0 {
-            self.log_v_scroll = self.log_v_scroll.saturating_add(lines.len());
+        if state_guard.log_v_scroll != 0 {
+            state_guard.log_v_scroll = state_guard.log_v_scroll.saturating_add(lines.len());
         }
 
-        if self.log_entries.len() > MAX_LOG_ENTRIES {
-            self.log_entries.truncate(MAX_LOG_ENTRIES);
+        if state_guard.log_entries.len() > MAX_LOG_ENTRIES {
+            state_guard.log_entries.truncate(MAX_LOG_ENTRIES);
 
-            let max_scroll = Self::max_scroll_down(&self.log_rect, self.log_entries.len());
-            self.log_v_scroll = self.log_v_scroll.min(max_scroll);
+            let max_scroll =
+                Self::max_scroll_down(&state_guard.log_rect, state_guard.log_entries.len());
+            state_guard.log_v_scroll = state_guard.log_v_scroll.min(max_scroll);
         }
 
         Ok(())
     }
 
-    pub fn scroll_up(&mut self) {
-        match self.active_pane {
-            ActivePane::StatePane => self.state_v_scroll = self.state_v_scroll.saturating_sub(1),
-            ActivePane::LogPane => self.log_v_scroll = self.log_v_scroll.saturating_sub(1),
-        }
-    }
+    pub fn scroll_up(&self) {
+        let mut state_guard = self.get_state();
 
-    pub fn scroll_down(&mut self) {
-        match self.active_pane {
+        match state_guard.active_pane {
             ActivePane::StatePane => {
-                let max = Self::max_scroll_down(&self.state_rect, self.state_lines.len());
-                if self.state_v_scroll < max {
-                    self.state_v_scroll += 1;
-                }
+                state_guard.state_v_scroll = state_guard.state_v_scroll.saturating_sub(1)
             }
             ActivePane::LogPane => {
-                let max = Self::max_scroll_down(&self.log_rect, self.log_entries.len());
-                if self.log_v_scroll < max {
-                    self.log_v_scroll += 1;
-                }
+                state_guard.log_v_scroll = state_guard.log_v_scroll.saturating_sub(1)
             }
         }
     }
 
-    pub fn scroll_left(&mut self) {
-        match self.active_pane {
+    pub fn scroll_down(&self) {
+        let mut state_guard = self.get_state();
+
+        match state_guard.active_pane {
             ActivePane::StatePane => {
-                self.state_h_scroll = self.state_h_scroll.saturating_sub(1);
+                let max =
+                    Self::max_scroll_down(&state_guard.state_rect, state_guard.state_lines.len());
+                if state_guard.state_v_scroll < max {
+                    state_guard.state_v_scroll += 1;
+                }
             }
             ActivePane::LogPane => {
-                self.log_h_scroll = self.log_h_scroll.saturating_sub(1);
+                let max =
+                    Self::max_scroll_down(&state_guard.log_rect, state_guard.log_entries.len());
+                if state_guard.log_v_scroll < max {
+                    state_guard.log_v_scroll += 1;
+                }
+            }
+        }
+    }
+
+    pub fn scroll_left(&self) {
+        let mut state_guard = self.get_state();
+
+        match state_guard.active_pane {
+            ActivePane::StatePane => {
+                state_guard.state_h_scroll = state_guard.state_h_scroll.saturating_sub(1);
+            }
+            ActivePane::LogPane => {
+                state_guard.log_h_scroll = state_guard.log_h_scroll.saturating_sub(1);
             }
         }
     }
@@ -172,25 +204,33 @@ impl SyncTuiContent {
         max_line_width.saturating_sub(visible_width)
     }
 
-    pub fn scroll_right(&mut self) {
-        match self.active_pane {
+    pub fn scroll_right(&self) {
+        let mut state_guard = self.get_state();
+
+        match state_guard.active_pane {
             ActivePane::StatePane => {
-                let max = Self::max_scroll_right(&self.state_rect, self.state_max_line_width);
-                if self.state_h_scroll < max {
-                    self.state_h_scroll += 1;
+                let max = Self::max_scroll_right(
+                    &state_guard.state_rect,
+                    state_guard.state_max_line_width,
+                );
+                if state_guard.state_h_scroll < max {
+                    state_guard.state_h_scroll += 1;
                 }
             }
             ActivePane::LogPane => {
-                let max = Self::max_scroll_right(&self.log_rect, self.log_max_line_width);
-                if self.log_h_scroll < max {
-                    self.log_h_scroll += 1;
+                let max =
+                    Self::max_scroll_right(&state_guard.log_rect, state_guard.log_max_line_width);
+                if state_guard.log_h_scroll < max {
+                    state_guard.log_h_scroll += 1;
                 }
             }
         }
     }
 
-    pub fn switch_pane(&mut self) {
-        self.active_pane = match self.active_pane {
+    pub fn switch_pane(&self) {
+        let mut state_guard = self.get_state();
+
+        state_guard.active_pane = match state_guard.active_pane {
             ActivePane::StatePane => ActivePane::LogPane,
             ActivePane::LogPane => ActivePane::StatePane,
         };
@@ -230,7 +270,7 @@ impl SyncTuiContent {
         )
     }
 
-    pub fn render(&mut self, f: &mut Frame) {
+    pub fn render(&self, f: &mut Frame) {
         let frame_rect = f.area();
 
         let main_area = Rect {
@@ -245,26 +285,28 @@ impl SyncTuiContent {
             .constraints([Constraint::Length(65), Constraint::Min(0)])
             .split(main_area);
 
-        self.state_rect = main_chunks[0];
-        self.log_rect = main_chunks[1];
+        let mut state_guard = self.get_state();
+
+        state_guard.state_rect = main_chunks[0];
+        state_guard.log_rect = main_chunks[1];
 
         let state_list = Self::get_list(
             "Sync State",
-            &self.state_lines,
-            self.state_v_scroll,
-            self.state_h_scroll,
-            self.active_pane == ActivePane::StatePane,
+            &state_guard.state_lines,
+            state_guard.state_v_scroll,
+            state_guard.state_h_scroll,
+            state_guard.active_pane == ActivePane::StatePane,
         );
-        f.render_widget(state_list, self.state_rect);
+        f.render_widget(state_list, state_guard.state_rect);
 
         let log_list = Self::get_list(
             "Log",
-            &self.log_entries,
-            self.log_v_scroll,
-            self.log_h_scroll,
-            self.active_pane == ActivePane::LogPane,
+            &state_guard.log_entries,
+            state_guard.log_v_scroll,
+            state_guard.log_h_scroll,
+            state_guard.active_pane == ActivePane::LogPane,
         );
-        f.render_widget(log_list, self.log_rect);
+        f.render_widget(log_list, state_guard.log_rect);
 
         let help_text = "Press 'q' to quit, Tab to switch panes, ↑/↓ ←/→ to scroll active pane";
         let help_paragraph = Paragraph::new(help_text).style(Style::default().fg(Color::Gray));
