@@ -19,104 +19,20 @@ use super::{
 };
 
 mod content;
+mod status;
 mod terminal;
 
 use content::SyncTuiContent;
+use status::SyncTuiStatusManager;
 use terminal::SyncTuiTerminal;
+
+pub use status::{SyncTuiStatus, SyncTuiStatusStopped};
 
 #[derive(Debug)]
 enum UiMessage {
     LogEntry(String),
     StateUpdate(String),
     ShutdownCompleted,
-}
-
-#[derive(Debug, PartialEq)]
-pub enum SyncTuiStatusStopped {
-    Crashed(SyncError),
-    Shutdown,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum SyncTuiStatus {
-    Running,
-    ShutdownInitiated,
-    Stopped(Arc<SyncTuiStatusStopped>),
-}
-
-impl SyncTuiStatus {
-    pub fn is_crashed(&self) -> bool {
-        if let SyncTuiStatus::Stopped(ref status_stopped) = *self {
-            if let SyncTuiStatusStopped::Crashed(_) = status_stopped.as_ref() {
-                return true;
-            }
-        }
-        false
-    }
-
-    pub fn is_shutdown_initiated(&self) -> bool {
-        SyncTuiStatus::ShutdownInitiated == *self
-    }
-}
-
-impl From<SyncTuiStatusStopped> for SyncTuiStatus {
-    fn from(value: SyncTuiStatusStopped) -> Self {
-        Self::Stopped(Arc::new(value))
-    }
-}
-
-impl From<Arc<SyncTuiStatusStopped>> for SyncTuiStatus {
-    fn from(value: Arc<SyncTuiStatusStopped>) -> Self {
-        Self::Stopped(value)
-    }
-}
-
-struct SyncTuiStatusManager(Mutex<SyncTuiStatus>);
-
-impl SyncTuiStatusManager {
-    fn new_running() -> Arc<Self> {
-        Arc::new(Self(Mutex::new(SyncTuiStatus::Running)))
-    }
-
-    fn status(&self) -> SyncTuiStatus {
-        self.0.lock().expect("not poisoned").clone()
-    }
-
-    fn set(&self, new_status: SyncTuiStatus) {
-        let mut curr = self.0.lock().expect("not poisoned");
-
-        if curr.is_crashed() {
-            // Don't overwrite 'crashed' status
-            return;
-        }
-
-        *curr = new_status
-    }
-
-    fn set_crashed(&self, error: SyncError) -> Arc<SyncTuiStatusStopped> {
-        let status_stopped = Arc::new(SyncTuiStatusStopped::Crashed(error));
-        self.set(status_stopped.clone().into());
-
-        status_stopped
-    }
-
-    fn set_shutdown_initiated(&self) {
-        self.set(SyncTuiStatus::ShutdownInitiated.into());
-    }
-
-    fn set_shutdown(&self) {
-        self.set(SyncTuiStatusStopped::Shutdown.into());
-    }
-
-    fn require_running(&self) -> Result<()> {
-        match self.status() {
-            SyncTuiStatus::Running => Ok(()),
-            status_not_running => Err(SyncError::Generic(format!(
-                "TUI is not running {:?}",
-                status_not_running
-            ))),
-        }
-    }
 }
 
 pub struct SyncTui {
