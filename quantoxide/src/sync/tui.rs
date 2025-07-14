@@ -1,5 +1,7 @@
 use std::{
-    io::{self, Stdout},
+    fs::{self, File, OpenOptions},
+    io::{self, Stdout, Write},
+    path::Path,
     sync::{Arc, Mutex, MutexGuard},
     time::Duration,
 };
@@ -119,6 +121,7 @@ impl Drop for SyncTuiTerminal {
 }
 
 struct SyncTuiContent {
+    log_file: Option<File>,
     active_pane: ActivePane,
 
     log_entries: Vec<String>,
@@ -135,8 +138,9 @@ struct SyncTuiContent {
 }
 
 impl SyncTuiContent {
-    fn new() -> Self {
+    fn new(log_file: Option<File>) -> Self {
         Self {
+            log_file,
             active_pane: ActivePane::StatePane,
 
             log_entries: Vec::new(),
@@ -178,13 +182,13 @@ impl SyncTuiContent {
         self.state_lines = new_lines;
     }
 
-    fn add_log_entry(&mut self, entry: String) {
+    fn add_log_entry(&mut self, entry: String) -> Result<()> {
         let timestamp = chrono::Local::now().format("%H:%M:%S").to_string();
 
         let lines: Vec<&str> = entry.lines().collect();
 
         if lines.is_empty() {
-            return;
+            return Ok(());
         }
 
         let mut log_entry = Vec::new();
@@ -196,7 +200,14 @@ impl SyncTuiContent {
                 format!("           {}", line)
             };
 
-            // TODO: write log entry to file
+            if let Some(log_file) = self.log_file.as_mut() {
+                writeln!(log_file, "{}", log_entry_line).map_err(|e| {
+                    SyncError::Generic(format!("couldn't write to log file {}", e.to_string()))
+                })?;
+                log_file.flush().map_err(|e| {
+                    SyncError::Generic(format!("couldn't flush log file {}", e.to_string()))
+                })?;
+            }
 
             log_entry.push(log_entry_line)
         }
@@ -219,6 +230,8 @@ impl SyncTuiContent {
             let max_scroll = Self::max_scroll_down(&self.log_rect, self.log_entries.len());
             self.log_v_scroll = self.log_v_scroll.min(max_scroll);
         }
+
+        Ok(())
     }
 
     fn scroll_up(&mut self) {
@@ -471,33 +484,37 @@ pub struct SyncTui {
 
 impl SyncTui {
     async fn run_ui(
+        log_file: Option<File>,
         terminal: Arc<SyncTuiTerminal>,
         mut ui_rx: mpsc::Receiver<UiMessage>,
         shutdown_tx: mpsc::Sender<()>,
     ) -> Result<()> {
-        let handle_ui_message_content = |msg: UiMessage, content: &mut SyncTuiContent| match msg {
-            UiMessage::LogEntry(entry) => {
-                content.add_log_entry(entry);
-                false
-            }
-            UiMessage::StateUpdate(state) => {
-                content.update_state(state);
-                false
-            }
-            UiMessage::ShutdownCompleted => {
-                content.add_log_entry("Shutdown completed.".to_string());
-                true
-            }
-        };
+        let handle_ui_message_content =
+            |msg: UiMessage, content: &mut SyncTuiContent| -> Result<bool> {
+                match msg {
+                    UiMessage::LogEntry(entry) => {
+                        content.add_log_entry(entry)?;
+                        Ok(false)
+                    }
+                    UiMessage::StateUpdate(state) => {
+                        content.update_state(state);
+                        Ok(false)
+                    }
+                    UiMessage::ShutdownCompleted => {
+                        content.add_log_entry("Shutdown completed.".to_string())?;
+                        Ok(true)
+                    }
+                }
+            };
 
-        let mut content = SyncTuiContent::new();
+        let mut content = SyncTuiContent::new(log_file);
 
         loop {
             task::yield_now().await;
             terminal.draw(&mut content)?;
 
             if let Ok(message) = ui_rx.try_recv() {
-                let is_shutdown_completed = handle_ui_message_content(message, &mut content);
+                let is_shutdown_completed = handle_ui_message_content(message, &mut content)?;
                 if is_shutdown_completed {
                     terminal.draw(&mut content)?;
                     time::sleep(Duration::from_secs(2)).await;
@@ -513,7 +530,7 @@ impl SyncTui {
                 {
                     match key.code {
                         KeyCode::Char('q') | KeyCode::Char('Q') => {
-                            content.add_log_entry("'q' pressed".to_string());
+                            content.add_log_entry("'q' pressed".to_string())?;
 
                             shutdown_tx.send(()).await.map_err(|e| {
                                 SyncError::Generic(format!(
@@ -540,7 +557,7 @@ impl SyncTui {
             time::sleep(Duration::from_millis(50)).await;
 
             if let Ok(message) = ui_rx.try_recv() {
-                let is_shutdown_completed = handle_ui_message_content(message, &mut content);
+                let is_shutdown_completed = handle_ui_message_content(message, &mut content)?;
                 if is_shutdown_completed {
                     terminal.draw(&mut content)?;
                     time::sleep(Duration::from_secs(2)).await;
@@ -551,6 +568,7 @@ impl SyncTui {
     }
 
     fn spawn_ui_task(
+        log_file: Option<File>,
         status_manager: Arc<SyncTuiStatusManager>,
         terminal: Arc<SyncTuiTerminal>,
         ui_rx: mpsc::Receiver<UiMessage>,
@@ -558,7 +576,7 @@ impl SyncTui {
     ) -> Arc<Mutex<Option<AbortOnDropHandle<()>>>> {
         Arc::new(Mutex::new(Some(
             tokio::spawn(async move {
-                if let Err(e) = Self::run_ui(terminal, ui_rx, shutdown_tx).await {
+                if let Err(e) = Self::run_ui(log_file, terminal, ui_rx, shutdown_tx).await {
                     status_manager.set_crashed(e);
                 }
             })
@@ -673,7 +691,29 @@ impl SyncTui {
         .into()
     }
 
-    pub async fn launch() -> Result<Self> {
+    pub async fn launch(log_file_path: Option<&str>) -> Result<Self> {
+        let log_file = log_file_path
+            .map(|log_file_path| {
+                if let Some(parent) = Path::new(log_file_path).parent() {
+                    fs::create_dir_all(parent).map_err(|e| {
+                        SyncError::Generic(format!(
+                            "couldn't create log_file parent {}",
+                            e.to_string()
+                        ))
+                    })?;
+                }
+
+                OpenOptions::new()
+                    .read(true)
+                    .write(true)
+                    .create(true)
+                    .open(log_file_path)
+                    .map_err(|e| {
+                        SyncError::Generic(format!("couldn't open the log file. {}", e.to_string()))
+                    })
+            })
+            .transpose()?;
+
         let (ui_tx, ui_rx) = mpsc::channel::<UiMessage>(100);
         let (shutdown_tx, shutdown_rx) = mpsc::channel::<()>(10);
 
@@ -682,6 +722,7 @@ impl SyncTui {
         let status_manager = SyncTuiStatusManager::new_running();
 
         let ui_task_handle = Self::spawn_ui_task(
+            log_file,
             status_manager.clone(),
             sync_tui_terminal.clone(),
             ui_rx,
