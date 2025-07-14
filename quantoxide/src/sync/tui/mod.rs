@@ -18,13 +18,13 @@ use super::{
     error::Result,
 };
 
-mod content;
 mod status;
 mod terminal;
+mod view;
 
-use content::{SyncTuiLogger, SyncTuiView};
 use status::SyncTuiStatusManager;
 use terminal::SyncTuiTerminal;
+use view::{SyncTuiLogger, SyncTuiView};
 
 pub use status::{SyncTuiStatus, SyncTuiStatusStopped};
 

@@ -2,7 +2,7 @@ use std::sync::{Arc, Mutex};
 
 use super::{
     super::{SyncError, error::Result},
-    content::SyncTuiLogger,
+    view::SyncTuiLogger,
 };
 
 #[derive(Debug, PartialEq)]

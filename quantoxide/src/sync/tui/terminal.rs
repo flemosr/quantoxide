@@ -12,7 +12,7 @@ use ratatui::{Terminal, backend::CrosstermBackend};
 
 use super::{
     super::{SyncError, error::Result},
-    content::SyncTuiView,
+    view::SyncTuiView,
 };
 
 struct TerminalState {
