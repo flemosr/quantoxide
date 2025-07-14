@@ -28,6 +28,52 @@ use view::{SyncTuiLogger, SyncTuiView};
 
 pub use status::{SyncTuiStatus, SyncTuiStatusStopped};
 
+#[derive(Clone, Debug)]
+pub struct SyncTuiConfig {
+    event_check_interval: Duration,
+    max_tui_log_len: usize,
+    shutdown_timeout: Duration,
+}
+
+impl Default for SyncTuiConfig {
+    fn default() -> Self {
+        Self {
+            event_check_interval: Duration::from_millis(50),
+            max_tui_log_len: 10_000,
+            shutdown_timeout: Duration::from_secs(6),
+        }
+    }
+}
+
+impl SyncTuiConfig {
+    pub fn event_check_interval(&self) -> Duration {
+        self.event_check_interval
+    }
+
+    pub fn max_tui_log_len(&self) -> usize {
+        self.max_tui_log_len
+    }
+
+    pub fn shutdown_timeout(&self) -> Duration {
+        self.shutdown_timeout
+    }
+
+    pub fn set_event_check_interval(mut self, millis: u64) -> Self {
+        self.event_check_interval = Duration::from_millis(millis);
+        self
+    }
+
+    pub fn set_max_tui_log_len(mut self, len: usize) -> Self {
+        self.max_tui_log_len = len;
+        self
+    }
+
+    pub fn set_shutdown_timeout(mut self, secs: u64) -> Self {
+        self.shutdown_timeout = Duration::from_secs(secs);
+        self
+    }
+}
+
 #[derive(Debug)]
 enum UiMessage {
     LogEntry(String),
@@ -36,6 +82,8 @@ enum UiMessage {
 }
 
 pub struct SyncTui {
+    event_check_interval: Duration,
+    shutdown_timeout: Duration,
     status_manager: Arc<SyncTuiStatusManager>,
     // Retain ownership to ensure `SyncTuiTerminal` destructor is executed when
     // `SyncTui` is dropped.
@@ -51,6 +99,7 @@ pub struct SyncTui {
 
 impl SyncTui {
     async fn run_ui(
+        event_check_interval: Duration,
         tui_view: Arc<SyncTuiView>,
         terminal: Arc<SyncTuiTerminal>,
         mut ui_rx: mpsc::Receiver<UiMessage>,
@@ -81,9 +130,7 @@ impl SyncTui {
                 }
             }
 
-            if event::poll(Duration::from_millis(50))
-                .map_err(|e| SyncError::Generic(e.to_string()))?
-            {
+            if event::poll(event_check_interval).map_err(|e| SyncError::Generic(e.to_string()))? {
                 if let Event::Key(key) =
                     event::read().map_err(|e| SyncError::Generic(e.to_string()))?
                 {
@@ -115,7 +162,7 @@ impl SyncTui {
 
         loop {
             terminal.draw(&tui_view)?;
-            time::sleep(Duration::from_millis(50)).await;
+            time::sleep(event_check_interval).await;
 
             if let Ok(message) = ui_rx.try_recv() {
                 let is_shutdown_completed = handle_ui_message(message, &tui_view)?;
@@ -127,6 +174,7 @@ impl SyncTui {
     }
 
     fn spawn_ui_task(
+        event_check_interval: Duration,
         tui_view: Arc<SyncTuiView>,
         status_manager: Arc<SyncTuiStatusManager>,
         terminal: Arc<SyncTuiTerminal>,
@@ -135,7 +183,9 @@ impl SyncTui {
     ) -> Arc<Mutex<Option<AbortOnDropHandle<()>>>> {
         Arc::new(Mutex::new(Some(
             tokio::spawn(async move {
-                if let Err(e) = Self::run_ui(tui_view, terminal, ui_rx, shutdown_tx).await {
+                if let Err(e) =
+                    Self::run_ui(event_check_interval, tui_view, terminal, ui_rx, shutdown_tx).await
+                {
                     status_manager.set_crashed(e);
                 }
             })
@@ -144,6 +194,7 @@ impl SyncTui {
     }
 
     async fn shutdown_inner(
+        shutdown_timeout: time::Duration,
         status_manager: Arc<SyncTuiStatusManager>,
         ui_task_handle: Arc<Mutex<Option<AbortOnDropHandle<()>>>>,
         ui_tx: mpsc::Sender<UiMessage>,
@@ -200,7 +251,7 @@ impl SyncTui {
                     join_res.map_err(SyncError::TaskJoin)?;
                     Ok(())
                 }
-                _ = time::sleep(Duration::from_secs(5)) => {
+                _ = time::sleep(shutdown_timeout) => {
                     handle.abort();
                     Err(SyncError::Generic("Shutdown timeout".to_string()))
                 }
@@ -220,6 +271,7 @@ impl SyncTui {
     }
 
     fn spawn_shutdown_signal_listener(
+        shutdown_timeout: time::Duration,
         status_manager: Arc<SyncTuiStatusManager>,
         mut shutdown_rx: mpsc::Receiver<()>,
         ui_task_handle: Arc<Mutex<Option<AbortOnDropHandle<()>>>>,
@@ -234,6 +286,7 @@ impl SyncTui {
 
                 // Error handling via `SyncTuiStatus`
                 let _ = Self::shutdown_inner(
+                    shutdown_timeout,
                     status_manager,
                     ui_task_handle,
                     ui_tx.clone(),
@@ -245,7 +298,7 @@ impl SyncTui {
         .into()
     }
 
-    pub async fn launch(log_file_path: Option<&str>) -> Result<Self> {
+    pub async fn launch(config: SyncTuiConfig, log_file_path: Option<&str>) -> Result<Self> {
         let log_file = log_file_path
             .map(|log_file_path| {
                 if let Some(parent) = Path::new(log_file_path).parent() {
@@ -273,11 +326,12 @@ impl SyncTui {
 
         let sync_tui_terminal = SyncTuiTerminal::new()?;
 
-        let tui_view = SyncTuiView::new(log_file);
+        let tui_view = SyncTuiView::new(config.max_tui_log_len, log_file);
 
         let status_manager = SyncTuiStatusManager::new_running(tui_view.clone());
 
         let ui_task_handle = Self::spawn_ui_task(
+            config.event_check_interval,
             tui_view,
             status_manager.clone(),
             sync_tui_terminal.clone(),
@@ -288,6 +342,7 @@ impl SyncTui {
         let sync_controller = Arc::new(OnceCell::new());
 
         let _shutdown_listener_handle = Self::spawn_shutdown_signal_listener(
+            config.shutdown_timeout,
             status_manager.clone(),
             shutdown_rx,
             ui_task_handle.clone(),
@@ -296,6 +351,8 @@ impl SyncTui {
         );
 
         Ok(Self {
+            event_check_interval: config.event_check_interval,
+            shutdown_timeout: config.shutdown_timeout,
             status_manager,
             _sync_tui_terminal: sync_tui_terminal,
             ui_tx,
@@ -451,6 +508,7 @@ impl SyncTui {
             .map(|inner_ref| inner_ref.clone());
 
         Self::shutdown_inner(
+            self.shutdown_timeout,
             self.status_manager.clone(),
             self.ui_task_handle.clone(),
             self.ui_tx.clone(),
@@ -465,7 +523,7 @@ impl SyncTui {
                 return status_stopped;
             }
 
-            time::sleep(Duration::from_millis(200)).await;
+            time::sleep(self.event_check_interval).await;
         }
     }
 }
