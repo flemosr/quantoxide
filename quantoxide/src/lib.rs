@@ -9,3 +9,5 @@ pub mod trade;
 pub mod util;
 
 pub mod indicators;
+
+mod tui;

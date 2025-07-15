@@ -1,9 +1,8 @@
 use std::sync::{Arc, Mutex};
 
-use super::{
-    error::{Result, SyncTuiError},
-    view::SyncTuiLogger,
-};
+use crate::tui::{Result, TuiError as SyncTuiError};
+
+use super::view::SyncTuiLogger;
 
 #[derive(Debug, PartialEq)]
 pub enum SyncTuiStatusStopped {

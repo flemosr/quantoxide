@@ -10,10 +10,9 @@ use crossterm::{
 };
 use ratatui::{Terminal, backend::CrosstermBackend};
 
-use super::{
-    error::{Result, SyncTuiError},
-    view::SyncTuiView,
-};
+use crate::tui::{Result, TuiError as SyncTuiError};
+
+use super::view::SyncTuiView;
 
 struct TerminalState {
     terminal: Terminal<CrosstermBackend<Stdout>>,

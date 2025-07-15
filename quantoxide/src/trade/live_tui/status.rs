@@ -1,9 +1,8 @@
 use std::sync::{Arc, Mutex};
 
-use super::{
-    error::{LiveTuiError, Result},
-    view::LiveTuiLogger,
-};
+use crate::tui::{Result, TuiError as LiveTuiError};
+
+use super::view::LiveTuiLogger;
 
 #[derive(Debug, PartialEq)]
 pub enum LiveTuiStatusStopped {

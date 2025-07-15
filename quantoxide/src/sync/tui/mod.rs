@@ -11,21 +11,20 @@ use tokio::{
     task, time,
 };
 
-use crate::util::AbortOnDropHandle;
+use crate::{tui::Result, util::AbortOnDropHandle};
+
+pub use crate::tui::TuiError as SyncTuiError;
 
 use super::{SyncController, SyncEngine, SyncReceiver, SyncState, SyncStateNotSynced, SyncUpdate};
 
-mod error;
 mod status;
 mod terminal;
 mod view;
 
-use error::Result;
 use status::SyncTuiStatusManager;
 use terminal::SyncTuiTerminal;
 use view::{SyncTuiLogger, SyncTuiView};
 
-pub use error::SyncTuiError;
 pub use status::{SyncTuiStatus, SyncTuiStatusStopped};
 
 #[derive(Clone, Debug)]

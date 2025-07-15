@@ -11,21 +11,20 @@ use tokio::{
     task, time,
 };
 
-use crate::util::AbortOnDropHandle;
+use crate::{tui::Result, util::AbortOnDropHandle};
+
+pub use crate::tui::TuiError as LiveTuiError;
 
 use super::live_engine::{LiveController, LiveEngine, LiveReceiver, LiveUpdate};
 
-mod error;
 mod status;
 mod terminal;
 mod view;
 
-use error::Result;
 use status::LiveTuiStatusManager;
 use terminal::LiveTuiTerminal;
 use view::{LiveTuiLogger, LiveTuiView};
 
-pub use error::LiveTuiError;
 pub use status::{LiveTuiStatus, LiveTuiStatusStopped};
 
 #[derive(Clone, Debug)]

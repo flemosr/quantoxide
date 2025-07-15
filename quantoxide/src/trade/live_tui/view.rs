@@ -12,7 +12,7 @@ use ratatui::{
     widgets::{Block, Borders, List, ListItem, Paragraph},
 };
 
-use super::error::{LiveTuiError, Result};
+use crate::tui::{Result, TuiError as LiveTuiError};
 
 pub trait LiveTuiLogger: Sync + Send + 'static {
     fn add_log_entry(&self, entry: String) -> Result<()>;
