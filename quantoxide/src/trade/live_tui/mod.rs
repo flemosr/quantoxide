@@ -48,32 +48,6 @@ pub struct LiveTui {
 }
 
 impl LiveTui {
-    fn spawn_ui_task(
-        event_check_interval: Duration,
-        tui_view: Arc<LiveTuiView>,
-        status_manager: Arc<TuiStatusManager>,
-        tui_terminal: Arc<TuiTerminal>,
-        ui_rx: mpsc::Receiver<LiveUiMessage>,
-        shutdown_tx: mpsc::Sender<()>,
-    ) -> Arc<Mutex<Option<AbortOnDropHandle<()>>>> {
-        Arc::new(Mutex::new(Some(
-            tokio::spawn(async move {
-                if let Err(e) = tui::run_ui(
-                    event_check_interval,
-                    tui_view,
-                    tui_terminal,
-                    ui_rx,
-                    shutdown_tx,
-                )
-                .await
-                {
-                    status_manager.set_crashed(e);
-                }
-            })
-            .into(),
-        )))
-    }
-
     async fn shutdown_inner(
         shutdown_timeout: Duration,
         status_manager: Arc<TuiStatusManager>,
@@ -220,7 +194,7 @@ impl LiveTui {
 
         let status_manager = TuiStatusManager::new_running(tui_view.clone());
 
-        let ui_task_handle = Self::spawn_ui_task(
+        let ui_task_handle = tui::spawn_ui_task(
             config.event_check_interval(),
             tui_view,
             status_manager.clone(),

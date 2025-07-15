@@ -1,11 +1,16 @@
-use std::{sync::Arc, time::Duration};
+use std::{
+    sync::{Arc, Mutex},
+    time::Duration,
+};
 
 use crossterm::event::{self, Event, KeyCode};
 use tokio::{sync::mpsc, task, time};
 
+use crate::{tui::TuiStatusManager, util::AbortOnDropHandle};
+
 use super::{Result, TuiError, TuiTerminal, TuiView};
 
-pub async fn run_ui<TView, TMessage>(
+async fn run_ui<TView, TMessage>(
     event_check_interval: Duration,
     tui_view: Arc<TView>,
     tui_terminal: Arc<TuiTerminal>,
@@ -63,4 +68,34 @@ where
             }
         }
     }
+}
+
+pub fn spawn_ui_task<TView, TMessage>(
+    event_check_interval: Duration,
+    tui_view: Arc<TView>,
+    status_manager: Arc<TuiStatusManager>,
+    tui_terminal: Arc<TuiTerminal>,
+    ui_rx: mpsc::Receiver<TMessage>,
+    shutdown_tx: mpsc::Sender<()>,
+) -> Arc<Mutex<Option<AbortOnDropHandle<()>>>>
+where
+    TView: TuiView<UiMessage = TMessage>,
+    TMessage: Send + 'static,
+{
+    Arc::new(Mutex::new(Some(
+        tokio::spawn(async move {
+            if let Err(e) = run_ui(
+                event_check_interval,
+                tui_view,
+                tui_terminal,
+                ui_rx,
+                shutdown_tx,
+            )
+            .await
+            {
+                status_manager.set_crashed(e);
+            }
+        })
+        .into(),
+    )))
 }
