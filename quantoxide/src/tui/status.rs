@@ -1,24 +1,24 @@
 use std::sync::{Arc, Mutex};
 
-use crate::tui::{Result, TuiError as SyncTuiError, TuiLogger};
+use crate::tui::{Result, TuiError, TuiLogger};
 
 #[derive(Debug, PartialEq)]
-pub enum SyncTuiStatusStopped {
-    Crashed(SyncTuiError),
+pub enum TuiStatusStopped {
+    Crashed(TuiError),
     Shutdown,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum SyncTuiStatus {
+pub enum TuiStatus {
     Running,
     ShutdownInitiated,
-    Stopped(Arc<SyncTuiStatusStopped>),
+    Stopped(Arc<TuiStatusStopped>),
 }
 
-impl SyncTuiStatus {
+impl TuiStatus {
     pub fn is_crashed(&self) -> bool {
-        if let SyncTuiStatus::Stopped(ref status_stopped) = *self {
-            if let SyncTuiStatusStopped::Crashed(_) = status_stopped.as_ref() {
+        if let TuiStatus::Stopped(ref status_stopped) = *self {
+            if let TuiStatusStopped::Crashed(_) = status_stopped.as_ref() {
                 return true;
             }
         }
@@ -26,47 +26,47 @@ impl SyncTuiStatus {
     }
 
     pub fn is_shutdown_initiated(&self) -> bool {
-        SyncTuiStatus::ShutdownInitiated == *self
+        TuiStatus::ShutdownInitiated == *self
     }
 
     pub fn is_shutdown(&self) -> bool {
-        if let SyncTuiStatus::Stopped(ref status_stopped) = *self {
-            return SyncTuiStatusStopped::Shutdown == **status_stopped;
+        if let TuiStatus::Stopped(ref status_stopped) = *self {
+            return TuiStatusStopped::Shutdown == **status_stopped;
         }
         false
     }
 }
 
-impl From<SyncTuiStatusStopped> for SyncTuiStatus {
-    fn from(value: SyncTuiStatusStopped) -> Self {
+impl From<TuiStatusStopped> for TuiStatus {
+    fn from(value: TuiStatusStopped) -> Self {
         Self::Stopped(Arc::new(value))
     }
 }
 
-impl From<Arc<SyncTuiStatusStopped>> for SyncTuiStatus {
-    fn from(value: Arc<SyncTuiStatusStopped>) -> Self {
+impl From<Arc<TuiStatusStopped>> for TuiStatus {
+    fn from(value: Arc<TuiStatusStopped>) -> Self {
         Self::Stopped(value)
     }
 }
 
-pub struct SyncTuiStatusManager {
+pub struct TuiStatusManager {
     logger: Arc<dyn TuiLogger>,
-    status: Mutex<SyncTuiStatus>,
+    status: Mutex<TuiStatus>,
 }
 
-impl SyncTuiStatusManager {
+impl TuiStatusManager {
     pub fn new_running(logger: Arc<dyn TuiLogger>) -> Arc<Self> {
         Arc::new(Self {
             logger,
-            status: Mutex::new(SyncTuiStatus::Running),
+            status: Mutex::new(TuiStatus::Running),
         })
     }
 
-    pub fn status(&self) -> SyncTuiStatus {
+    pub fn status(&self) -> TuiStatus {
         self.status.lock().expect("not poisoned").clone()
     }
 
-    fn set(&self, new_status: SyncTuiStatus) {
+    fn set(&self, new_status: TuiStatus) {
         let mut status = self.status.lock().expect("not poisoned");
 
         if status.is_crashed() {
@@ -82,25 +82,25 @@ impl SyncTuiStatusManager {
         *status = new_status
     }
 
-    pub fn set_crashed(&self, error: SyncTuiError) -> Arc<SyncTuiStatusStopped> {
-        let status_stopped = Arc::new(SyncTuiStatusStopped::Crashed(error));
+    pub fn set_crashed(&self, error: TuiError) -> Arc<TuiStatusStopped> {
+        let status_stopped = Arc::new(TuiStatusStopped::Crashed(error));
         self.set(status_stopped.clone().into());
 
         status_stopped
     }
 
     pub fn set_shutdown_initiated(&self) {
-        self.set(SyncTuiStatus::ShutdownInitiated.into());
+        self.set(TuiStatus::ShutdownInitiated.into());
     }
 
     pub fn set_shutdown(&self) {
-        self.set(SyncTuiStatusStopped::Shutdown.into());
+        self.set(TuiStatusStopped::Shutdown.into());
     }
 
     pub fn require_running(&self) -> Result<()> {
         match self.status() {
-            SyncTuiStatus::Running => Ok(()),
-            status_not_running => Err(SyncTuiError::Generic(format!(
+            TuiStatus::Running => Ok(()),
+            status_not_running => Err(TuiError::Generic(format!(
                 "TUI is not running {:?}",
                 status_not_running
             ))),

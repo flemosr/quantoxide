@@ -12,21 +12,17 @@ use tokio::{
 };
 
 use crate::{
-    tui::{Result, TuiLogger, TuiTerminal},
+    tui::{Result, TuiLogger, TuiStatusManager, TuiTerminal},
     util::AbortOnDropHandle,
 };
 
-pub use crate::tui::TuiError as SyncTuiError;
+pub use crate::tui::{TuiError as SyncTuiError, TuiStatus, TuiStatusStopped};
 
 use super::{SyncController, SyncEngine, SyncReceiver, SyncState, SyncStateNotSynced, SyncUpdate};
 
-mod status;
 mod view;
 
-use status::SyncTuiStatusManager;
 use view::SyncTuiView;
-
-pub use status::{SyncTuiStatus, SyncTuiStatusStopped};
 
 #[derive(Clone, Debug)]
 pub struct SyncTuiConfig {
@@ -84,7 +80,7 @@ enum UiMessage {
 pub struct SyncTui {
     event_check_interval: Duration,
     shutdown_timeout: Duration,
-    status_manager: Arc<SyncTuiStatusManager>,
+    status_manager: Arc<TuiStatusManager>,
     // Retain ownership to ensure `TuiTerminal` destructor is executed when
     // `SyncTui` is dropped.
     _tui_terminal: Arc<TuiTerminal>,
@@ -178,7 +174,7 @@ impl SyncTui {
     fn spawn_ui_task(
         event_check_interval: Duration,
         tui_view: Arc<SyncTuiView>,
-        status_manager: Arc<SyncTuiStatusManager>,
+        status_manager: Arc<TuiStatusManager>,
         tui_terminal: Arc<TuiTerminal>,
         ui_rx: mpsc::Receiver<UiMessage>,
         shutdown_tx: mpsc::Sender<()>,
@@ -203,7 +199,7 @@ impl SyncTui {
 
     async fn shutdown_inner(
         shutdown_timeout: Duration,
-        status_manager: Arc<SyncTuiStatusManager>,
+        status_manager: Arc<TuiStatusManager>,
         ui_task_handle: Arc<Mutex<Option<AbortOnDropHandle<()>>>>,
         ui_tx: mpsc::Sender<UiMessage>,
         sync_controller: Option<Arc<SyncController>>,
@@ -225,7 +221,7 @@ impl SyncTui {
 
             let status_not_running = match status_manager.status() {
                 // "Should Never Happen" case
-                SyncTuiStatus::Running => status_manager
+                TuiStatus::Running => status_manager
                     .set_crashed(SyncTuiError::Generic(
                         "UI task crashed without corresponding status update".to_string(),
                     ))
@@ -283,7 +279,7 @@ impl SyncTui {
 
     fn spawn_shutdown_signal_listener(
         shutdown_timeout: Duration,
-        status_manager: Arc<SyncTuiStatusManager>,
+        status_manager: Arc<TuiStatusManager>,
         mut shutdown_rx: mpsc::Receiver<()>,
         ui_task_handle: Arc<Mutex<Option<AbortOnDropHandle<()>>>>,
         ui_tx: mpsc::Sender<UiMessage>,
@@ -342,7 +338,7 @@ impl SyncTui {
 
         let tui_view = SyncTuiView::new(config.max_tui_log_len, log_file);
 
-        let status_manager = SyncTuiStatusManager::new_running(tui_view.clone());
+        let status_manager = TuiStatusManager::new_running(tui_view.clone());
 
         let ui_task_handle = Self::spawn_ui_task(
             config.event_check_interval,
@@ -377,7 +373,7 @@ impl SyncTui {
         })
     }
 
-    pub fn status(&self) -> SyncTuiStatus {
+    pub fn status(&self) -> TuiStatus {
         self.status_manager.status()
     }
 
@@ -393,7 +389,7 @@ impl SyncTui {
     }
 
     fn spawn_sync_update_listener(
-        status_manager: Arc<SyncTuiStatusManager>,
+        status_manager: Arc<TuiStatusManager>,
         mut sync_rx: SyncReceiver,
         ui_tx: mpsc::Sender<UiMessage>,
     ) -> AbortOnDropHandle<()> {
@@ -522,9 +518,9 @@ impl SyncTui {
         .await
     }
 
-    pub async fn until_stopped(self) -> Arc<SyncTuiStatusStopped> {
+    pub async fn until_stopped(self) -> Arc<TuiStatusStopped> {
         loop {
-            if let SyncTuiStatus::Stopped(status_stopped) = self.status() {
+            if let TuiStatus::Stopped(status_stopped) = self.status() {
                 return status_stopped;
             }
 
