@@ -1,8 +1,6 @@
 use std::sync::{Arc, Mutex};
 
-use crate::tui::{Result, TuiError as SyncTuiError};
-
-use super::view::SyncTuiLogger;
+use crate::tui::{Result, TuiError as SyncTuiError, TuiLogger};
 
 #[derive(Debug, PartialEq)]
 pub enum SyncTuiStatusStopped {
@@ -52,12 +50,12 @@ impl From<Arc<SyncTuiStatusStopped>> for SyncTuiStatus {
 }
 
 pub struct SyncTuiStatusManager {
-    logger: Arc<dyn SyncTuiLogger>,
+    logger: Arc<dyn TuiLogger>,
     status: Mutex<SyncTuiStatus>,
 }
 
 impl SyncTuiStatusManager {
-    pub fn new_running(logger: Arc<dyn SyncTuiLogger>) -> Arc<Self> {
+    pub fn new_running(logger: Arc<dyn TuiLogger>) -> Arc<Self> {
         Arc::new(Self {
             logger,
             status: Mutex::new(SyncTuiStatus::Running),

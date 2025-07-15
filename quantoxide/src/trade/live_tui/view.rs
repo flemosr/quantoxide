@@ -12,11 +12,7 @@ use ratatui::{
     widgets::{Block, Borders, List, ListItem, Paragraph},
 };
 
-use crate::tui::{Result, TuiError as LiveTuiError, TuiViewRenderer};
-
-pub trait LiveTuiLogger: Sync + Send + 'static {
-    fn add_log_entry(&self, entry: String) -> Result<()>;
-}
+use crate::tui::{Result, TuiError as LiveTuiError, TuiLogger, TuiViewRenderer};
 
 #[derive(Debug, PartialEq)]
 enum ActivePane {
@@ -387,7 +383,7 @@ impl TuiViewRenderer for LiveTuiView {
     }
 }
 
-impl LiveTuiLogger for LiveTuiView {
+impl TuiLogger for LiveTuiView {
     fn add_log_entry(&self, entry: String) -> Result<()> {
         let mut state_guard = self.get_state();
 

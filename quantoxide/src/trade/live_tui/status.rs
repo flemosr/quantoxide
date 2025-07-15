@@ -1,8 +1,6 @@
 use std::sync::{Arc, Mutex};
 
-use crate::tui::{Result, TuiError as LiveTuiError};
-
-use super::view::LiveTuiLogger;
+use crate::tui::{Result, TuiError as LiveTuiError, TuiLogger};
 
 #[derive(Debug, PartialEq)]
 pub enum LiveTuiStatusStopped {
@@ -52,12 +50,12 @@ impl From<Arc<LiveTuiStatusStopped>> for LiveTuiStatus {
 }
 
 pub struct LiveTuiStatusManager {
-    logger: Arc<dyn LiveTuiLogger>,
+    logger: Arc<dyn TuiLogger>,
     status: Mutex<LiveTuiStatus>,
 }
 
 impl LiveTuiStatusManager {
-    pub fn new_running(logger: Arc<dyn LiveTuiLogger>) -> Arc<Self> {
+    pub fn new_running(logger: Arc<dyn TuiLogger>) -> Arc<Self> {
         Arc::new(Self {
             logger,
             status: Mutex::new(LiveTuiStatus::Running),

@@ -12,7 +12,7 @@ use tokio::{
 };
 
 use crate::{
-    tui::{Result, TuiTerminal},
+    tui::{Result, TuiLogger, TuiTerminal},
     util::AbortOnDropHandle,
 };
 
@@ -24,7 +24,7 @@ mod status;
 mod view;
 
 use status::LiveTuiStatusManager;
-use view::{LiveTuiLogger, LiveTuiView};
+use view::LiveTuiView;
 
 pub use status::{LiveTuiStatus, LiveTuiStatusStopped};
 

@@ -12,7 +12,7 @@ use tokio::{
 };
 
 use crate::{
-    tui::{Result, TuiTerminal},
+    tui::{Result, TuiLogger, TuiTerminal},
     util::AbortOnDropHandle,
 };
 
@@ -24,7 +24,7 @@ mod status;
 mod view;
 
 use status::SyncTuiStatusManager;
-use view::{SyncTuiLogger, SyncTuiView};
+use view::SyncTuiView;
 
 pub use status::{SyncTuiStatus, SyncTuiStatusStopped};
 
