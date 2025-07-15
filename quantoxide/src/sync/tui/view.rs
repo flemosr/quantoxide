@@ -12,7 +12,9 @@ use ratatui::{
     widgets::{Block, Borders, List, ListItem, Paragraph},
 };
 
-use crate::tui::{Result, TuiError as SyncTuiError, TuiLogger, TuiViewRenderer};
+use crate::tui::{Result, TuiError as SyncTuiError, TuiLogger, TuiView};
+
+use super::SyncUiMessage;
 
 #[derive(Debug, PartialEq)]
 enum ActivePane {
@@ -252,57 +254,6 @@ impl SyncTuiView {
     }
 }
 
-impl TuiViewRenderer for SyncTuiView {
-    fn render(&self, f: &mut Frame) {
-        let frame_rect = f.area();
-
-        let main_area = Rect {
-            x: frame_rect.x,
-            y: frame_rect.y,
-            width: frame_rect.width,
-            height: frame_rect.height.saturating_sub(1), // Leave 1 row for help text
-        };
-
-        let main_chunks = Layout::default()
-            .direction(Direction::Horizontal)
-            .constraints([Constraint::Length(65), Constraint::Min(0)])
-            .split(main_area);
-
-        let mut state_guard = self.get_state();
-
-        state_guard.state_rect = main_chunks[0];
-        state_guard.log_rect = main_chunks[1];
-
-        let state_list = Self::get_list(
-            "Sync State",
-            &state_guard.state_lines,
-            state_guard.state_v_scroll,
-            state_guard.state_h_scroll,
-            state_guard.active_pane == ActivePane::StatePane,
-        );
-        f.render_widget(state_list, state_guard.state_rect);
-
-        let log_list = Self::get_list(
-            "Log",
-            &state_guard.log_entries,
-            state_guard.log_v_scroll,
-            state_guard.log_h_scroll,
-            state_guard.active_pane == ActivePane::LogPane,
-        );
-        f.render_widget(log_list, state_guard.log_rect);
-
-        let help_text = " Press 'q' to quit, Tab to switch panes, scroll with ↑/↓, ←/→, 'b' to bottom and 't' to top";
-        let help_paragraph = Paragraph::new(help_text).style(Style::default().fg(Color::Gray));
-        let help_area = Rect {
-            x: frame_rect.x,
-            y: frame_rect.y + frame_rect.height.saturating_sub(1), // Last row
-            width: frame_rect.width,
-            height: 1,
-        };
-        f.render_widget(help_paragraph, help_area);
-    }
-}
-
 impl TuiLogger for SyncTuiView {
     fn add_log_entry(&self, entry: String) -> Result<()> {
         let mut state_guard = self.get_state();
@@ -357,5 +308,72 @@ impl TuiLogger for SyncTuiView {
         }
 
         Ok(())
+    }
+}
+
+impl TuiView for SyncTuiView {
+    type UiMessage = SyncUiMessage;
+
+    fn handle_ui_message(&self, message: Self::UiMessage) -> Result<bool> {
+        match message {
+            SyncUiMessage::LogEntry(entry) => {
+                self.add_log_entry(entry)?;
+                Ok(false)
+            }
+            SyncUiMessage::StateUpdate(state) => {
+                self.update_sync_state(state);
+                Ok(false)
+            }
+            SyncUiMessage::ShutdownCompleted => Ok(true),
+        }
+    }
+
+    fn render(&self, f: &mut Frame) {
+        let frame_rect = f.area();
+
+        let main_area = Rect {
+            x: frame_rect.x,
+            y: frame_rect.y,
+            width: frame_rect.width,
+            height: frame_rect.height.saturating_sub(1), // Leave 1 row for help text
+        };
+
+        let main_chunks = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([Constraint::Length(65), Constraint::Min(0)])
+            .split(main_area);
+
+        let mut state_guard = self.get_state();
+
+        state_guard.state_rect = main_chunks[0];
+        state_guard.log_rect = main_chunks[1];
+
+        let state_list = Self::get_list(
+            "Sync State",
+            &state_guard.state_lines,
+            state_guard.state_v_scroll,
+            state_guard.state_h_scroll,
+            state_guard.active_pane == ActivePane::StatePane,
+        );
+        f.render_widget(state_list, state_guard.state_rect);
+
+        let log_list = Self::get_list(
+            "Log",
+            &state_guard.log_entries,
+            state_guard.log_v_scroll,
+            state_guard.log_h_scroll,
+            state_guard.active_pane == ActivePane::LogPane,
+        );
+        f.render_widget(log_list, state_guard.log_rect);
+
+        let help_text = " Press 'q' to quit, Tab to switch panes, scroll with ↑/↓, ←/→, 'b' to bottom and 't' to top";
+        let help_paragraph = Paragraph::new(help_text).style(Style::default().fg(Color::Gray));
+        let help_area = Rect {
+            x: frame_rect.x,
+            y: frame_rect.y + frame_rect.height.saturating_sub(1), // Last row
+            width: frame_rect.width,
+            height: 1,
+        };
+        f.render_widget(help_paragraph, help_area);
     }
 }

@@ -12,7 +12,7 @@ use tokio::{
 };
 
 use crate::{
-    tui::{Result, TuiLogger, TuiStatusManager, TuiTerminal},
+    tui::{Result, TuiLogger, TuiStatusManager, TuiTerminal, TuiView},
     util::AbortOnDropHandle,
 };
 
@@ -25,7 +25,7 @@ mod view;
 use view::LiveTuiView;
 
 #[derive(Debug)]
-enum UiMessage {
+pub enum LiveUiMessage {
     LogEntry(String),
     SummaryUpdate(String),
     TradesUpdate(String),
@@ -36,10 +36,10 @@ pub struct LiveTui {
     event_check_interval: Duration,
     shutdown_timeout: Duration,
     status_manager: Arc<TuiStatusManager>,
-    // Retain ownership to ensure `LiveTuiTerminal` destructor is executed when
+    // Retain ownership to ensure `TuiTerminal` destructor is executed when
     // `LiveTui` is dropped.
     _tui_terminal: Arc<TuiTerminal>,
-    ui_tx: mpsc::Sender<UiMessage>,
+    ui_tx: mpsc::Sender<LiveUiMessage>,
     // Explicitly aborted on drop, to ensure the terminal is restored before
     // `LiveTui`'s drop is completed.
     ui_task_handle: Arc<Mutex<Option<AbortOnDropHandle<()>>>>,
@@ -53,33 +53,15 @@ impl LiveTui {
         event_check_interval: Duration,
         tui_view: Arc<LiveTuiView>,
         tui_terminal: Arc<TuiTerminal>,
-        mut ui_rx: mpsc::Receiver<UiMessage>,
+        mut ui_rx: mpsc::Receiver<LiveUiMessage>,
         shutdown_tx: mpsc::Sender<()>,
     ) -> Result<()> {
-        let handle_ui_message = |msg: UiMessage, content: &LiveTuiView| -> Result<bool> {
-            match msg {
-                UiMessage::LogEntry(entry) => {
-                    content.add_log_entry(entry)?;
-                    Ok(false)
-                }
-                UiMessage::SummaryUpdate(summary) => {
-                    content.update_summary(summary);
-                    Ok(false)
-                }
-                UiMessage::TradesUpdate(trades_table) => {
-                    content.update_trades(trades_table);
-                    Ok(false)
-                }
-                UiMessage::ShutdownCompleted => Ok(true),
-            }
-        };
-
         loop {
             task::yield_now().await;
             tui_terminal.draw(tui_view.clone())?;
 
             if let Ok(message) = ui_rx.try_recv() {
-                let is_shutdown_completed = handle_ui_message(message, &tui_view)?;
+                let is_shutdown_completed = tui_view.handle_ui_message(message)?;
                 if is_shutdown_completed {
                     return Ok(());
                 }
@@ -122,7 +104,7 @@ impl LiveTui {
             time::sleep(event_check_interval).await;
 
             if let Ok(message) = ui_rx.try_recv() {
-                let is_shutdown_completed = handle_ui_message(message, &tui_view)?;
+                let is_shutdown_completed = tui_view.handle_ui_message(message)?;
                 if is_shutdown_completed {
                     return Ok(());
                 }
@@ -135,7 +117,7 @@ impl LiveTui {
         tui_view: Arc<LiveTuiView>,
         status_manager: Arc<TuiStatusManager>,
         tui_terminal: Arc<TuiTerminal>,
-        ui_rx: mpsc::Receiver<UiMessage>,
+        ui_rx: mpsc::Receiver<LiveUiMessage>,
         shutdown_tx: mpsc::Sender<()>,
     ) -> Arc<Mutex<Option<AbortOnDropHandle<()>>>> {
         Arc::new(Mutex::new(Some(
@@ -160,7 +142,7 @@ impl LiveTui {
         shutdown_timeout: Duration,
         status_manager: Arc<TuiStatusManager>,
         ui_task_handle: Arc<Mutex<Option<AbortOnDropHandle<()>>>>,
-        ui_tx: mpsc::Sender<UiMessage>,
+        ui_tx: mpsc::Sender<LiveUiMessage>,
         live_controller: Option<Arc<LiveController>>,
     ) -> Result<()> {
         let Some(mut handle) = ui_task_handle
@@ -205,10 +187,13 @@ impl LiveTui {
                 None => Ok(()),
             };
 
-            let ui_message_res = ui_tx.send(UiMessage::ShutdownCompleted).await.map_err(|e| {
-                handle.abort();
-                LiveTuiError::Generic(format!("Failed to send shutdown confirmation, {e}"))
-            });
+            let ui_message_res = ui_tx
+                .send(LiveUiMessage::ShutdownCompleted)
+                .await
+                .map_err(|e| {
+                    handle.abort();
+                    LiveTuiError::Generic(format!("Failed to send shutdown confirmation, {e}"))
+                });
 
             shutdown_res.and(ui_message_res)?;
 
@@ -241,7 +226,7 @@ impl LiveTui {
         status_manager: Arc<TuiStatusManager>,
         mut shutdown_rx: mpsc::Receiver<()>,
         ui_task_handle: Arc<Mutex<Option<AbortOnDropHandle<()>>>>,
-        ui_tx: mpsc::Sender<UiMessage>,
+        ui_tx: mpsc::Sender<LiveUiMessage>,
         live_controller: Arc<OnceCell<Arc<LiveController>>>,
     ) -> AbortOnDropHandle<()> {
         tokio::spawn(async move {
@@ -290,7 +275,7 @@ impl LiveTui {
             })
             .transpose()?;
 
-        let (ui_tx, ui_rx) = mpsc::channel::<UiMessage>(100);
+        let (ui_tx, ui_rx) = mpsc::channel::<LiveUiMessage>(100);
         let (shutdown_tx, shutdown_rx) = mpsc::channel::<()>(10);
 
         let tui_terminal = TuiTerminal::new()?;
@@ -342,7 +327,7 @@ impl LiveTui {
         // An error here would be an edge case
 
         self.ui_tx
-            .send(UiMessage::LogEntry(log_entry.into()))
+            .send(LiveUiMessage::LogEntry(log_entry.into()))
             .await
             .map_err(|_| LiveTuiError::Generic("TUI is not running".to_string()))
     }
@@ -350,32 +335,32 @@ impl LiveTui {
     fn spawn_live_update_listener(
         status_manager: Arc<TuiStatusManager>,
         mut live_rx: LiveReceiver,
-        ui_tx: mpsc::Sender<UiMessage>,
+        ui_tx: mpsc::Sender<LiveUiMessage>,
     ) -> AbortOnDropHandle<()> {
         tokio::spawn(async move {
             let handle_live_update = async |live_update: LiveUpdate| -> Result<()> {
                 match live_update {
                     LiveUpdate::State(live_state) => {
                         ui_tx
-                            .send(UiMessage::LogEntry(format!("{:?}", live_state)))
+                            .send(LiveUiMessage::LogEntry(format!("{:?}", live_state)))
                             .await
                             .map_err(|e| LiveTuiError::Generic(e.to_string()))?;
                     }
                     LiveUpdate::Signal(signal) => {
                         ui_tx
-                            .send(UiMessage::LogEntry(format!("{}", signal.to_string())))
+                            .send(LiveUiMessage::LogEntry(format!("{}", signal.to_string())))
                             .await
                             .map_err(|e| LiveTuiError::Generic(e.to_string()))?;
                     }
                     LiveUpdate::Order(order) => {
                         ui_tx
-                            .send(UiMessage::LogEntry(format!("Order: {:?}", order)))
+                            .send(LiveUiMessage::LogEntry(format!("Order: {:?}", order)))
                             .await
                             .map_err(|e| LiveTuiError::Generic(e.to_string()))?;
                     }
                     LiveUpdate::TradingState(trading_state) => {
                         ui_tx
-                            .send(UiMessage::SummaryUpdate(format!(
+                            .send(LiveUiMessage::SummaryUpdate(format!(
                                 "\n{}",
                                 trading_state.summary()
                             )))
@@ -391,7 +376,7 @@ impl LiveTui {
                         .join("\n");
 
                         ui_tx
-                            .send(UiMessage::TradesUpdate(tables))
+                            .send(LiveUiMessage::TradesUpdate(tables))
                             .await
                             .map_err(|e| LiveTuiError::Generic(e.to_string()))?;
                     }

@@ -12,7 +12,7 @@ use tokio::{
 };
 
 use crate::{
-    tui::{Result, TuiLogger, TuiStatusManager, TuiTerminal},
+    tui::{Result, TuiLogger, TuiStatusManager, TuiTerminal, TuiView},
     util::AbortOnDropHandle,
 };
 
@@ -25,7 +25,7 @@ mod view;
 use view::SyncTuiView;
 
 #[derive(Debug)]
-enum UiMessage {
+pub enum SyncUiMessage {
     LogEntry(String),
     StateUpdate(String),
     ShutdownCompleted,
@@ -38,7 +38,7 @@ pub struct SyncTui {
     // Retain ownership to ensure `TuiTerminal` destructor is executed when
     // `SyncTui` is dropped.
     _tui_terminal: Arc<TuiTerminal>,
-    ui_tx: mpsc::Sender<UiMessage>,
+    ui_tx: mpsc::Sender<SyncUiMessage>,
     // Explicitly aborted on drop, to ensure the terminal is restored before
     // `SyncTui`'s drop is completed.
     ui_task_handle: Arc<Mutex<Option<AbortOnDropHandle<()>>>>,
@@ -52,29 +52,15 @@ impl SyncTui {
         event_check_interval: Duration,
         tui_view: Arc<SyncTuiView>,
         tui_terminal: Arc<TuiTerminal>,
-        mut ui_rx: mpsc::Receiver<UiMessage>,
+        mut ui_rx: mpsc::Receiver<SyncUiMessage>,
         shutdown_tx: mpsc::Sender<()>,
     ) -> Result<()> {
-        let handle_ui_message = |msg: UiMessage, tui_view: &SyncTuiView| -> Result<bool> {
-            match msg {
-                UiMessage::LogEntry(entry) => {
-                    tui_view.add_log_entry(entry)?;
-                    Ok(false)
-                }
-                UiMessage::StateUpdate(state) => {
-                    tui_view.update_sync_state(state);
-                    Ok(false)
-                }
-                UiMessage::ShutdownCompleted => Ok(true),
-            }
-        };
-
         loop {
             task::yield_now().await;
             tui_terminal.draw(tui_view.clone())?;
 
             if let Ok(message) = ui_rx.try_recv() {
-                let is_shutdown_completed = handle_ui_message(message, &tui_view)?;
+                let is_shutdown_completed = tui_view.handle_ui_message(message)?;
                 if is_shutdown_completed {
                     return Ok(());
                 }
@@ -117,7 +103,7 @@ impl SyncTui {
             time::sleep(event_check_interval).await;
 
             if let Ok(message) = ui_rx.try_recv() {
-                let is_shutdown_completed = handle_ui_message(message, &tui_view)?;
+                let is_shutdown_completed = tui_view.handle_ui_message(message)?;
                 if is_shutdown_completed {
                     return Ok(());
                 }
@@ -130,7 +116,7 @@ impl SyncTui {
         tui_view: Arc<SyncTuiView>,
         status_manager: Arc<TuiStatusManager>,
         tui_terminal: Arc<TuiTerminal>,
-        ui_rx: mpsc::Receiver<UiMessage>,
+        ui_rx: mpsc::Receiver<SyncUiMessage>,
         shutdown_tx: mpsc::Sender<()>,
     ) -> Arc<Mutex<Option<AbortOnDropHandle<()>>>> {
         Arc::new(Mutex::new(Some(
@@ -155,7 +141,7 @@ impl SyncTui {
         shutdown_timeout: Duration,
         status_manager: Arc<TuiStatusManager>,
         ui_task_handle: Arc<Mutex<Option<AbortOnDropHandle<()>>>>,
-        ui_tx: mpsc::Sender<UiMessage>,
+        ui_tx: mpsc::Sender<SyncUiMessage>,
         sync_controller: Option<Arc<SyncController>>,
     ) -> Result<()> {
         let Some(mut handle) = ui_task_handle
@@ -200,10 +186,13 @@ impl SyncTui {
                 None => Ok(()),
             };
 
-            let ui_message_res = ui_tx.send(UiMessage::ShutdownCompleted).await.map_err(|e| {
-                handle.abort();
-                SyncTuiError::Generic(format!("Failed to send shutdown confirmation, {e}"))
-            });
+            let ui_message_res = ui_tx
+                .send(SyncUiMessage::ShutdownCompleted)
+                .await
+                .map_err(|e| {
+                    handle.abort();
+                    SyncTuiError::Generic(format!("Failed to send shutdown confirmation, {e}"))
+                });
 
             shutdown_res.and(ui_message_res)?;
 
@@ -236,7 +225,7 @@ impl SyncTui {
         status_manager: Arc<TuiStatusManager>,
         mut shutdown_rx: mpsc::Receiver<()>,
         ui_task_handle: Arc<Mutex<Option<AbortOnDropHandle<()>>>>,
-        ui_tx: mpsc::Sender<UiMessage>,
+        ui_tx: mpsc::Sender<SyncUiMessage>,
         sync_controller: Arc<OnceCell<Arc<SyncController>>>,
     ) -> AbortOnDropHandle<()> {
         tokio::spawn(async move {
@@ -285,7 +274,7 @@ impl SyncTui {
             })
             .transpose()?;
 
-        let (ui_tx, ui_rx) = mpsc::channel::<UiMessage>(100);
+        let (ui_tx, ui_rx) = mpsc::channel::<SyncUiMessage>(100);
         let (shutdown_tx, shutdown_rx) = mpsc::channel::<()>(10);
 
         let tui_terminal = TuiTerminal::new()?;
@@ -337,7 +326,7 @@ impl SyncTui {
         // An error here would be an edge case
 
         self.ui_tx
-            .send(UiMessage::LogEntry(log_entry.into()))
+            .send(SyncUiMessage::LogEntry(log_entry.into()))
             .await
             .map_err(|_| SyncTuiError::Generic("TUI is not running".to_string()))
     }
@@ -345,7 +334,7 @@ impl SyncTui {
     fn spawn_sync_update_listener(
         status_manager: Arc<TuiStatusManager>,
         mut sync_rx: SyncReceiver,
-        ui_tx: mpsc::Sender<UiMessage>,
+        ui_tx: mpsc::Sender<SyncUiMessage>,
     ) -> AbortOnDropHandle<()> {
         tokio::spawn(async move {
             let handle_sync_update = async |sync_update: SyncUpdate| -> Result<()> {
@@ -362,7 +351,7 @@ impl SyncTui {
                                     }
                                     SyncStateNotSynced::InProgress(price_history_state) => {
                                         ui_tx
-                                            .send(UiMessage::StateUpdate(
+                                            .send(SyncUiMessage::StateUpdate(
                                                 price_history_state.to_string(),
                                             ))
                                             .await
@@ -389,13 +378,13 @@ impl SyncTui {
                         };
 
                         ui_tx
-                            .send(UiMessage::LogEntry(log_str))
+                            .send(SyncUiMessage::LogEntry(log_str))
                             .await
                             .map_err(|e| SyncTuiError::Generic(e.to_string()))?;
                     }
                     SyncUpdate::PriceTick(tick) => {
                         ui_tx
-                            .send(UiMessage::LogEntry(format!("Price tick: {:?}", tick)))
+                            .send(SyncUiMessage::LogEntry(format!("Price tick: {:?}", tick)))
                             .await
                             .map_err(|e| SyncTuiError::Generic(e.to_string()))?;
                     }

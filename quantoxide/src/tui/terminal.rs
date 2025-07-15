@@ -10,7 +10,7 @@ use crossterm::{
 };
 use ratatui::{Terminal, backend::CrosstermBackend};
 
-use super::{Result, TuiError, TuiViewRenderer};
+use super::{Result, TuiError, TuiView};
 
 struct TerminalState {
     terminal: Terminal<CrosstermBackend<Stdout>>,
@@ -38,7 +38,7 @@ impl TuiTerminal {
         self.0.lock().expect("not poisoned")
     }
 
-    pub fn draw(&self, tui_view: Arc<dyn TuiViewRenderer>) -> Result<()> {
+    pub fn draw<T: TuiView>(&self, tui_view: Arc<T>) -> Result<()> {
         let mut state = self.get_state();
         if state.restored {
             return Err(TuiError::Generic("Terminal already restored".to_string()));
