@@ -1,4 +1,6 @@
 use std::{
+    fs::{self, File, OpenOptions},
+    path::Path,
     sync::{Arc, Mutex},
     time::Duration,
 };
@@ -19,6 +21,27 @@ use crate::{
 };
 
 use super::{Result, TuiError, TuiTerminal, TuiView};
+
+pub fn open_log_file(log_file_path: Option<&str>) -> Result<Option<File>> {
+    log_file_path
+        .map(|log_file_path| {
+            if let Some(parent) = Path::new(log_file_path).parent() {
+                fs::create_dir_all(parent).map_err(|e| {
+                    TuiError::Generic(format!("couldn't create log_file parent {}", e.to_string()))
+                })?;
+            }
+
+            OpenOptions::new()
+                .read(true)
+                .append(true)
+                .create(true)
+                .open(log_file_path)
+                .map_err(|e| {
+                    TuiError::Generic(format!("couldn't open the log file. {}", e.to_string()))
+                })
+        })
+        .transpose()
+}
 
 async fn run_ui<TView, TMessage>(
     event_check_interval: Duration,

@@ -1,6 +1,4 @@
 use std::{
-    fs::{self, OpenOptions},
-    path::Path,
     sync::{Arc, Mutex},
     time::Duration,
 };
@@ -49,30 +47,7 @@ pub struct LiveTui {
 
 impl LiveTui {
     pub async fn launch(config: TuiConfig, log_file_path: Option<&str>) -> Result<Self> {
-        let log_file = log_file_path
-            .map(|log_file_path| {
-                if let Some(parent) = Path::new(log_file_path).parent() {
-                    fs::create_dir_all(parent).map_err(|e| {
-                        LiveTuiError::Generic(format!(
-                            "couldn't create log_file parent {}",
-                            e.to_string()
-                        ))
-                    })?;
-                }
-
-                OpenOptions::new()
-                    .read(true)
-                    .append(true)
-                    .create(true)
-                    .open(log_file_path)
-                    .map_err(|e| {
-                        LiveTuiError::Generic(format!(
-                            "couldn't open the log file. {}",
-                            e.to_string()
-                        ))
-                    })
-            })
-            .transpose()?;
+        let log_file = tui::open_log_file(log_file_path)?;
 
         let (ui_tx, ui_rx) = mpsc::channel::<LiveUiMessage>(100);
         let (shutdown_tx, shutdown_rx) = mpsc::channel::<()>(10);
