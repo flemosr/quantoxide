@@ -16,59 +16,13 @@ use crate::{
     util::AbortOnDropHandle,
 };
 
-pub use crate::tui::{TuiError as LiveTuiError, TuiStatus, TuiStatusStopped};
+pub use crate::tui::{TuiConfig, TuiError as LiveTuiError, TuiStatus, TuiStatusStopped};
 
 use super::live_engine::{LiveController, LiveEngine, LiveReceiver, LiveUpdate};
 
 mod view;
 
 use view::LiveTuiView;
-
-#[derive(Clone, Debug)]
-pub struct LiveTuiConfig {
-    event_check_interval: Duration,
-    max_tui_log_len: usize,
-    shutdown_timeout: Duration,
-}
-
-impl Default for LiveTuiConfig {
-    fn default() -> Self {
-        Self {
-            event_check_interval: Duration::from_millis(50),
-            max_tui_log_len: 10_000,
-            shutdown_timeout: Duration::from_secs(6),
-        }
-    }
-}
-
-impl LiveTuiConfig {
-    pub fn event_check_interval(&self) -> Duration {
-        self.event_check_interval
-    }
-
-    pub fn max_tui_log_len(&self) -> usize {
-        self.max_tui_log_len
-    }
-
-    pub fn shutdown_timeout(&self) -> Duration {
-        self.shutdown_timeout
-    }
-
-    pub fn set_event_check_interval(mut self, millis: u64) -> Self {
-        self.event_check_interval = Duration::from_millis(millis);
-        self
-    }
-
-    pub fn set_max_tui_log_len(mut self, len: usize) -> Self {
-        self.max_tui_log_len = len;
-        self
-    }
-
-    pub fn set_shutdown_timeout(mut self, secs: u64) -> Self {
-        self.shutdown_timeout = Duration::from_secs(secs);
-        self
-    }
-}
 
 #[derive(Debug)]
 enum UiMessage {
@@ -310,7 +264,7 @@ impl LiveTui {
         .into()
     }
 
-    pub async fn launch(config: LiveTuiConfig, log_file_path: Option<&str>) -> Result<Self> {
+    pub async fn launch(config: TuiConfig, log_file_path: Option<&str>) -> Result<Self> {
         let log_file = log_file_path
             .map(|log_file_path| {
                 if let Some(parent) = Path::new(log_file_path).parent() {
@@ -341,12 +295,12 @@ impl LiveTui {
 
         let tui_terminal = TuiTerminal::new()?;
 
-        let tui_view = LiveTuiView::new(config.max_tui_log_len, log_file);
+        let tui_view = LiveTuiView::new(config.max_tui_log_len(), log_file);
 
         let status_manager = TuiStatusManager::new_running(tui_view.clone());
 
         let ui_task_handle = Self::spawn_ui_task(
-            config.event_check_interval,
+            config.event_check_interval(),
             tui_view,
             status_manager.clone(),
             tui_terminal.clone(),
@@ -357,7 +311,7 @@ impl LiveTui {
         let live_controller = Arc::new(OnceCell::new());
 
         let _shutdown_listener_handle = Self::spawn_shutdown_signal_listener(
-            config.shutdown_timeout,
+            config.shutdown_timeout(),
             status_manager.clone(),
             shutdown_rx,
             ui_task_handle.clone(),
@@ -366,8 +320,8 @@ impl LiveTui {
         );
 
         Ok(Self {
-            event_check_interval: config.event_check_interval,
-            shutdown_timeout: config.shutdown_timeout,
+            event_check_interval: config.event_check_interval(),
+            shutdown_timeout: config.shutdown_timeout(),
             status_manager,
             _tui_terminal: tui_terminal,
             ui_tx,
