@@ -436,7 +436,8 @@ impl LiveTui {
 
             // `live_tx` was dropped, which is expected during shutdown
 
-            if status_manager.status().is_shutdown_initiated() {
+            let status = status_manager.status();
+            if status.is_shutdown_initiated() || status.is_shutdown() {
                 return;
             }
 

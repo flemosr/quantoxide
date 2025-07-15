@@ -31,6 +31,13 @@ impl LiveTuiStatus {
     pub fn is_shutdown_initiated(&self) -> bool {
         LiveTuiStatus::ShutdownInitiated == *self
     }
+
+    pub fn is_shutdown(&self) -> bool {
+        if let LiveTuiStatus::Stopped(ref status_stopped) = *self {
+            return LiveTuiStatusStopped::Shutdown == **status_stopped;
+        }
+        false
+    }
 }
 
 impl From<LiveTuiStatusStopped> for LiveTuiStatus {
