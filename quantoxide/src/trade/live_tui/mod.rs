@@ -48,86 +48,6 @@ pub struct LiveTui {
 }
 
 impl LiveTui {
-    async fn shutdown_inner(
-        shutdown_timeout: Duration,
-        status_manager: Arc<TuiStatusManager>,
-        ui_task_handle: Arc<Mutex<Option<AbortOnDropHandle<()>>>>,
-        ui_tx: mpsc::Sender<LiveUiMessage>,
-        live_controller: Option<Arc<dyn TuiControllerShutdown>>,
-    ) -> Result<()> {
-        let Some(mut handle) = ui_task_handle
-            .lock()
-            .expect("`ui_task_handle` mutex can't be poisoned")
-            .take()
-        else {
-            return Err(LiveTuiError::Generic(
-                "Live TUI shutdown can only be run once".to_string(),
-            ));
-        };
-
-        if handle.is_finished() {
-            // Edge case. UI task crashed just after the shutdown signal
-            // was sent, or just after the `LiveTui::shutdown` guard. It can be
-            // assumed that the error state is available in `LiveTuiStatus`.
-
-            let status_not_running = match status_manager.status() {
-                // "Should Never Happen" case
-                TuiStatus::Running => status_manager
-                    .set_crashed(LiveTuiError::Generic(
-                        "UI task crashed without corresponding status update".to_string(),
-                    ))
-                    .into(),
-                status_not_running => status_not_running,
-            };
-
-            return Err(LiveTuiError::Generic(format!(
-                "Tried to shutdown TUI that is not running: {:?}",
-                status_not_running
-            )));
-        }
-
-        status_manager.set_shutdown_initiated();
-
-        let shutdown_procedure = async move || -> Result<()> {
-            let shutdown_res = match live_controller {
-                Some(controller) => controller.tui_shutdown().await,
-                None => Ok(()),
-            };
-
-            let ui_message_res = ui_tx
-                .send(LiveUiMessage::ShutdownCompleted)
-                .await
-                .map_err(|e| {
-                    handle.abort();
-                    LiveTuiError::Generic(format!("Failed to send shutdown confirmation, {e}"))
-                });
-
-            shutdown_res.and(ui_message_res)?;
-
-            tokio::select! {
-                join_res = &mut handle => {
-                    join_res.map_err(|e| LiveTuiError::Generic(e.to_string()))?;
-                    Ok(())
-                }
-                _ = time::sleep(shutdown_timeout) => {
-                    handle.abort();
-                    Err(LiveTuiError::Generic("Shutdown timeout".to_string()))
-                }
-            }
-        };
-
-        if let Err(e) = shutdown_procedure().await {
-            let status_stopped = status_manager.set_crashed(e);
-            Err(LiveTuiError::Generic(format!(
-                "Shutdown failed: {:?}",
-                status_stopped
-            )))
-        } else {
-            status_manager.set_shutdown();
-            Ok(())
-        }
-    }
-
     fn spawn_shutdown_signal_listener(
         shutdown_timeout: Duration,
         status_manager: Arc<TuiStatusManager>,
@@ -142,12 +62,12 @@ impl LiveTui {
             if let Some(_) = shutdown_rx.recv().await {
                 let live_controller = live_controller.get().map(|inner_ref| inner_ref.clone());
 
-                // Error handling via `LiveTuiStatus`
-                let _ = Self::shutdown_inner(
+                // Error handling via `TuiStatus`
+                let _ = tui::shutdown_inner(
                     shutdown_timeout,
                     status_manager,
                     ui_task_handle,
-                    ui_tx.clone(),
+                    || ui_tx.send(LiveUiMessage::ShutdownCompleted),
                     live_controller,
                 )
                 .await;
@@ -354,11 +274,11 @@ impl LiveTui {
             .get()
             .map(|inner_ref| inner_ref.clone());
 
-        Self::shutdown_inner(
+        tui::shutdown_inner(
             self.shutdown_timeout,
             self.status_manager.clone(),
             self.ui_task_handle.clone(),
-            self.ui_tx.clone(),
+            || self.ui_tx.send(LiveUiMessage::ShutdownCompleted),
             live_controller,
         )
         .await

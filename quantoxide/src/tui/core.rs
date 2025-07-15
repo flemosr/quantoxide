@@ -5,9 +5,15 @@ use std::{
 
 use async_trait::async_trait;
 use crossterm::event::{self, Event, KeyCode};
-use tokio::{sync::mpsc, task, time};
+use tokio::{
+    sync::mpsc::{self, error::SendError},
+    task, time,
+};
 
-use crate::{tui::TuiStatusManager, util::AbortOnDropHandle};
+use crate::{
+    tui::{TuiStatus, TuiStatusManager},
+    util::AbortOnDropHandle,
+};
 
 use super::{Result, TuiError, TuiTerminal, TuiView};
 
@@ -104,4 +110,86 @@ where
 #[async_trait]
 pub trait TuiControllerShutdown: Sync + Send + 'static {
     async fn tui_shutdown(&self) -> Result<()>;
+}
+
+pub async fn shutdown_inner<TMessage, Fut, F>(
+    shutdown_timeout: Duration,
+    status_manager: Arc<TuiStatusManager>,
+    ui_task_handle: Arc<Mutex<Option<AbortOnDropHandle<()>>>>,
+    send_completed_signal: F,
+    live_controller: Option<Arc<dyn TuiControllerShutdown>>,
+) -> Result<()>
+where
+    TMessage: Send + 'static,
+    Fut: Future<Output = std::result::Result<(), SendError<TMessage>>>,
+    F: FnOnce() -> Fut,
+{
+    let Some(mut handle) = ui_task_handle
+        .lock()
+        .expect("`ui_task_handle` mutex can't be poisoned")
+        .take()
+    else {
+        return Err(TuiError::Generic(
+            "Live TUI shutdown can only be run once".to_string(),
+        ));
+    };
+
+    if handle.is_finished() {
+        // Edge case. UI task crashed just after the shutdown signal
+        // was sent, or just after the `LiveTui::shutdown` guard. It can be
+        // assumed that the error state is available in `LiveTuiStatus`.
+
+        let status_not_running = match status_manager.status() {
+            // "Should Never Happen" case
+            TuiStatus::Running => status_manager
+                .set_crashed(TuiError::Generic(
+                    "UI task crashed without corresponding status update".to_string(),
+                ))
+                .into(),
+            status_not_running => status_not_running,
+        };
+
+        return Err(TuiError::Generic(format!(
+            "Tried to shutdown TUI that is not running: {:?}",
+            status_not_running
+        )));
+    }
+
+    status_manager.set_shutdown_initiated();
+
+    let shutdown_procedure = async move || -> Result<()> {
+        let shutdown_res = match live_controller {
+            Some(controller) => controller.tui_shutdown().await,
+            None => Ok(()),
+        };
+
+        let ui_message_res = send_completed_signal().await.map_err(|e| {
+            handle.abort();
+            TuiError::Generic(format!("Failed to send shutdown completed signal, {e}"))
+        });
+
+        shutdown_res.and(ui_message_res)?;
+
+        tokio::select! {
+            join_res = &mut handle => {
+                join_res.map_err(|e| TuiError::Generic(e.to_string()))?;
+                Ok(())
+            }
+            _ = time::sleep(shutdown_timeout) => {
+                handle.abort();
+                Err(TuiError::Generic("Shutdown timeout".to_string()))
+            }
+        }
+    };
+
+    if let Err(e) = shutdown_procedure().await {
+        let status_stopped = status_manager.set_crashed(e);
+        Err(TuiError::Generic(format!(
+            "Shutdown failed: {:?}",
+            status_stopped
+        )))
+    } else {
+        status_manager.set_shutdown();
+        Ok(())
+    }
 }

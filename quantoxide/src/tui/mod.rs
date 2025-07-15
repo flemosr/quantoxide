@@ -6,7 +6,7 @@ mod terminal;
 mod view;
 
 pub use config::TuiConfig;
-pub use core::{TuiControllerShutdown, spawn_ui_task};
+pub use core::{TuiControllerShutdown, shutdown_inner, spawn_ui_task};
 pub use error::{Result, TuiError};
 pub use status::{TuiStatus, TuiStatusManager, TuiStatusStopped};
 pub use terminal::TuiTerminal;
