@@ -11,13 +11,13 @@ use tokio::{
 };
 
 use crate::{
-    tui::{self, Result, TuiStatusManager, TuiTerminal},
+    tui::{self, Result, TuiControllerShutdown, TuiStatusManager, TuiTerminal},
     util::AbortOnDropHandle,
 };
 
 pub use crate::tui::{TuiConfig, TuiError as LiveTuiError, TuiStatus, TuiStatusStopped};
 
-use super::live_engine::{LiveController, LiveEngine, LiveReceiver, LiveUpdate};
+use super::live_engine::{LiveEngine, LiveReceiver, LiveUpdate};
 
 mod view;
 
@@ -43,7 +43,7 @@ pub struct LiveTui {
     // `LiveTui`'s drop is completed.
     ui_task_handle: Arc<Mutex<Option<AbortOnDropHandle<()>>>>,
     _shutdown_listener_handle: AbortOnDropHandle<()>,
-    live_controller: Arc<OnceCell<Arc<LiveController>>>,
+    live_controller: Arc<OnceCell<Arc<dyn TuiControllerShutdown>>>,
     live_update_listener_handle: OnceCell<AbortOnDropHandle<()>>,
 }
 
@@ -53,7 +53,7 @@ impl LiveTui {
         status_manager: Arc<TuiStatusManager>,
         ui_task_handle: Arc<Mutex<Option<AbortOnDropHandle<()>>>>,
         ui_tx: mpsc::Sender<LiveUiMessage>,
-        live_controller: Option<Arc<LiveController>>,
+        live_controller: Option<Arc<dyn TuiControllerShutdown>>,
     ) -> Result<()> {
         let Some(mut handle) = ui_task_handle
             .lock()
@@ -90,10 +90,7 @@ impl LiveTui {
 
         let shutdown_procedure = async move || -> Result<()> {
             let shutdown_res = match live_controller {
-                Some(controller) => controller
-                    .shutdown()
-                    .await
-                    .map_err(|e| LiveTuiError::Generic(e.to_string())),
+                Some(controller) => controller.tui_shutdown().await,
                 None => Ok(()),
             };
 
@@ -137,7 +134,7 @@ impl LiveTui {
         mut shutdown_rx: mpsc::Receiver<()>,
         ui_task_handle: Arc<Mutex<Option<AbortOnDropHandle<()>>>>,
         ui_tx: mpsc::Sender<LiveUiMessage>,
-        live_controller: Arc<OnceCell<Arc<LiveController>>>,
+        live_controller: Arc<OnceCell<Arc<dyn TuiControllerShutdown>>>,
     ) -> AbortOnDropHandle<()> {
         tokio::spawn(async move {
             // If `shutdown_tx` is dropped, UI task is finished

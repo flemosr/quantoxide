@@ -3,6 +3,7 @@ use std::{
     time::Duration,
 };
 
+use async_trait::async_trait;
 use crossterm::event::{self, Event, KeyCode};
 use tokio::{sync::mpsc, task, time};
 
@@ -98,4 +99,9 @@ where
         })
         .into(),
     )))
+}
+
+#[async_trait]
+pub trait TuiControllerShutdown: Sync + Send + 'static {
+    async fn tui_shutdown(&self) -> Result<()>;
 }

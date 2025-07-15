@@ -1,5 +1,6 @@
 use std::sync::{Arc, Mutex, MutexGuard};
 
+use async_trait::async_trait;
 use chrono::Duration;
 use tokio::{sync::broadcast, time};
 
@@ -15,6 +16,7 @@ use crate::{
         },
     },
     sync::{SyncController, SyncEngine, SyncMode},
+    tui::{Result as TuiResult, TuiControllerShutdown, TuiError},
     util::{AbortOnDropHandle, Never},
 };
 
@@ -405,6 +407,15 @@ impl LiveController {
             .and(close_all_res)
             .and(signal_shutdown_res)
             .and(sync_shutdown_res)
+    }
+}
+
+#[async_trait]
+impl TuiControllerShutdown for LiveController {
+    async fn tui_shutdown(&self) -> TuiResult<()> {
+        self.shutdown()
+            .await
+            .map_err(|e| TuiError::Generic(e.to_string()))
     }
 }
 

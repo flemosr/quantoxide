@@ -1,11 +1,17 @@
 use std::sync::{Arc, Mutex};
 
+use async_trait::async_trait;
 use chrono::Duration;
 use tokio::{sync::broadcast, time};
 
 use lnm_sdk::api::ApiContext;
 
-use crate::{db::DbContext, trade::live_engine::LiveConfig, util::AbortOnDropHandle};
+use crate::{
+    db::DbContext,
+    trade::live_engine::LiveConfig,
+    tui::{Result as TuiResult, TuiControllerShutdown, TuiError},
+    util::AbortOnDropHandle,
+};
 
 mod error;
 mod process;
@@ -112,6 +118,15 @@ impl SyncController {
         self.state_manager.update(SyncState::Shutdown);
 
         shutdown_res
+    }
+}
+
+#[async_trait]
+impl TuiControllerShutdown for SyncController {
+    async fn tui_shutdown(&self) -> TuiResult<()> {
+        self.shutdown()
+            .await
+            .map_err(|e| TuiError::Generic(e.to_string()))
     }
 }
 

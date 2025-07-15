@@ -11,13 +11,13 @@ use tokio::{
 };
 
 use crate::{
-    tui::{self, Result, TuiStatusManager, TuiTerminal},
+    tui::{self, Result, TuiControllerShutdown, TuiStatusManager, TuiTerminal},
     util::AbortOnDropHandle,
 };
 
 pub use crate::tui::{TuiConfig, TuiError as SyncTuiError, TuiStatus, TuiStatusStopped};
 
-use super::{SyncController, SyncEngine, SyncReceiver, SyncState, SyncStateNotSynced, SyncUpdate};
+use super::{SyncEngine, SyncReceiver, SyncState, SyncStateNotSynced, SyncUpdate};
 
 mod view;
 
@@ -42,7 +42,7 @@ pub struct SyncTui {
     // `SyncTui`'s drop is completed.
     ui_task_handle: Arc<Mutex<Option<AbortOnDropHandle<()>>>>,
     _shutdown_listener_handle: AbortOnDropHandle<()>,
-    sync_controller: Arc<OnceCell<Arc<SyncController>>>,
+    sync_controller: Arc<OnceCell<Arc<dyn TuiControllerShutdown>>>,
     sync_update_listener_handle: OnceCell<AbortOnDropHandle<()>>,
 }
 
@@ -52,7 +52,7 @@ impl SyncTui {
         status_manager: Arc<TuiStatusManager>,
         ui_task_handle: Arc<Mutex<Option<AbortOnDropHandle<()>>>>,
         ui_tx: mpsc::Sender<SyncUiMessage>,
-        sync_controller: Option<Arc<SyncController>>,
+        sync_controller: Option<Arc<dyn TuiControllerShutdown>>,
     ) -> Result<()> {
         let Some(mut handle) = ui_task_handle
             .lock()
@@ -89,10 +89,7 @@ impl SyncTui {
 
         let shutdown_procedure = async move || -> Result<()> {
             let shutdown_res = match sync_controller {
-                Some(controller) => controller
-                    .shutdown()
-                    .await
-                    .map_err(|e| SyncTuiError::Generic(e.to_string())),
+                Some(controller) => controller.tui_shutdown().await,
                 None => Ok(()),
             };
 
@@ -136,7 +133,7 @@ impl SyncTui {
         mut shutdown_rx: mpsc::Receiver<()>,
         ui_task_handle: Arc<Mutex<Option<AbortOnDropHandle<()>>>>,
         ui_tx: mpsc::Sender<SyncUiMessage>,
-        sync_controller: Arc<OnceCell<Arc<SyncController>>>,
+        sync_controller: Arc<OnceCell<Arc<dyn TuiControllerShutdown>>>,
     ) -> AbortOnDropHandle<()> {
         tokio::spawn(async move {
             // If `shutdown_tx` is dropped, UI task is finished
