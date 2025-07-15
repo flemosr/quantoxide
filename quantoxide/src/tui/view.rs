@@ -13,4 +13,18 @@ pub trait TuiView: TuiLogger {
 
     /// Handle a UI message and return whether shutdown was completed
     fn handle_ui_message(&self, message: Self::UiMessage) -> Result<bool>;
+
+    fn scroll_up(&self);
+
+    fn scroll_down(&self);
+
+    fn scroll_left(&self);
+
+    fn scroll_right(&self);
+
+    fn reset_scroll(&self);
+
+    fn scroll_to_bottom(&self);
+
+    fn switch_pane(&self);
 }

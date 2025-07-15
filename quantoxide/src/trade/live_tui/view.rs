@@ -86,11 +86,6 @@ impl LiveTuiView {
             .expect("`LiveTuiContent` mutex can't be poisoned")
     }
 
-    fn max_scroll_down(rect: &Rect, entries_len: usize) -> usize {
-        let visible_height = rect.height.saturating_sub(2) as usize; // Subtract borders
-        entries_len.saturating_sub(visible_height)
-    }
-
     pub fn update_summary(&self, state: String) {
         let mut state_guard = self.get_state();
 
@@ -132,158 +127,6 @@ impl LiveTuiView {
         state_guard.trades_lines = new_lines;
     }
 
-    pub fn scroll_up(&self) {
-        let mut state_guard = self.get_state();
-
-        match state_guard.active_pane {
-            ActivePane::TradesPane => {
-                state_guard.trades_v_scroll = state_guard.trades_v_scroll.saturating_sub(1)
-            }
-            ActivePane::SummaryPane => {
-                state_guard.summary_v_scroll = state_guard.summary_v_scroll.saturating_sub(1)
-            }
-            ActivePane::LogPane => {
-                state_guard.log_v_scroll = state_guard.log_v_scroll.saturating_sub(1)
-            }
-        }
-    }
-
-    pub fn scroll_down(&self) {
-        let mut state_guard = self.get_state();
-
-        match state_guard.active_pane {
-            ActivePane::TradesPane => {
-                let max =
-                    Self::max_scroll_down(&state_guard.trades_rect, state_guard.trades_lines.len());
-                if state_guard.trades_v_scroll < max {
-                    state_guard.trades_v_scroll += 1;
-                }
-            }
-            ActivePane::SummaryPane => {
-                let max = Self::max_scroll_down(
-                    &state_guard.summary_rect,
-                    state_guard.summary_lines.len(),
-                );
-                if state_guard.summary_v_scroll < max {
-                    state_guard.summary_v_scroll += 1;
-                }
-            }
-            ActivePane::LogPane => {
-                let max =
-                    Self::max_scroll_down(&state_guard.log_rect, state_guard.log_entries.len());
-                if state_guard.log_v_scroll < max {
-                    state_guard.log_v_scroll += 1;
-                }
-            }
-        }
-    }
-
-    pub fn scroll_left(&self) {
-        let mut state_guard = self.get_state();
-
-        match state_guard.active_pane {
-            ActivePane::TradesPane => {
-                state_guard.trades_h_scroll = state_guard.trades_h_scroll.saturating_sub(1);
-            }
-            ActivePane::SummaryPane => {
-                state_guard.summary_h_scroll = state_guard.summary_h_scroll.saturating_sub(1);
-            }
-            ActivePane::LogPane => {
-                state_guard.log_h_scroll = state_guard.log_h_scroll.saturating_sub(1);
-            }
-        }
-    }
-
-    fn max_scroll_right(rect: &Rect, max_line_width: usize) -> usize {
-        let visible_width = rect.width.saturating_sub(4) as usize; // Subtract borders and padding
-        max_line_width.saturating_sub(visible_width)
-    }
-
-    pub fn scroll_right(&self) {
-        let mut state_guard = self.get_state();
-
-        match state_guard.active_pane {
-            ActivePane::TradesPane => {
-                let max = Self::max_scroll_right(
-                    &state_guard.trades_rect,
-                    state_guard.trades_max_line_width,
-                );
-                if state_guard.trades_h_scroll < max {
-                    state_guard.trades_h_scroll += 1;
-                }
-            }
-            ActivePane::SummaryPane => {
-                let max = Self::max_scroll_right(
-                    &state_guard.summary_rect,
-                    state_guard.summary_max_line_width,
-                );
-                if state_guard.summary_h_scroll < max {
-                    state_guard.summary_h_scroll += 1;
-                }
-            }
-            ActivePane::LogPane => {
-                let max =
-                    Self::max_scroll_right(&state_guard.log_rect, state_guard.log_max_line_width);
-                if state_guard.log_h_scroll < max {
-                    state_guard.log_h_scroll += 1;
-                }
-            }
-        }
-    }
-
-    pub fn reset_scroll(&self) {
-        let mut state_guard = self.get_state();
-
-        match state_guard.active_pane {
-            ActivePane::TradesPane => {
-                state_guard.trades_v_scroll = 0;
-                state_guard.trades_h_scroll = 0;
-            }
-            ActivePane::SummaryPane => {
-                state_guard.summary_v_scroll = 0;
-                state_guard.summary_h_scroll = 0;
-            }
-            ActivePane::LogPane => {
-                state_guard.log_v_scroll = 0;
-                state_guard.log_h_scroll = 0;
-            }
-        }
-    }
-
-    pub fn scroll_to_bottom(&self) {
-        let mut state_guard = self.get_state();
-
-        match state_guard.active_pane {
-            ActivePane::TradesPane => {
-                state_guard.trades_v_scroll =
-                    Self::max_scroll_down(&state_guard.trades_rect, state_guard.trades_lines.len());
-                state_guard.trades_h_scroll = 0;
-            }
-            ActivePane::SummaryPane => {
-                state_guard.summary_v_scroll = Self::max_scroll_down(
-                    &state_guard.summary_rect,
-                    state_guard.summary_lines.len(),
-                );
-                state_guard.summary_h_scroll = 0;
-            }
-            ActivePane::LogPane => {
-                state_guard.log_v_scroll =
-                    Self::max_scroll_down(&state_guard.log_rect, state_guard.log_entries.len());
-                state_guard.log_h_scroll = 0;
-            }
-        }
-    }
-
-    pub fn switch_pane(&self) {
-        let mut state_guard = self.get_state();
-
-        state_guard.active_pane = match state_guard.active_pane {
-            ActivePane::TradesPane => ActivePane::LogPane,
-            ActivePane::LogPane => ActivePane::SummaryPane,
-            ActivePane::SummaryPane => ActivePane::TradesPane,
-        };
-    }
-
     fn get_list<'a>(
         title: &'a str,
         items: &'a [String],
@@ -316,6 +159,16 @@ impl LiveTuiView {
                 .title(title)
                 .border_style(border_style),
         )
+    }
+
+    fn max_scroll_down(rect: &Rect, entries_len: usize) -> usize {
+        let visible_height = rect.height.saturating_sub(2) as usize; // Subtract borders
+        entries_len.saturating_sub(visible_height)
+    }
+
+    fn max_scroll_right(rect: &Rect, max_line_width: usize) -> usize {
+        let visible_width = rect.width.saturating_sub(4) as usize; // Subtract borders and padding
+        max_line_width.saturating_sub(visible_width)
     }
 }
 
@@ -459,5 +312,152 @@ impl TuiView for LiveTuiView {
             height: 1,
         };
         f.render_widget(help_paragraph, help_area);
+    }
+
+    fn scroll_up(&self) {
+        let mut state_guard = self.get_state();
+
+        match state_guard.active_pane {
+            ActivePane::TradesPane => {
+                state_guard.trades_v_scroll = state_guard.trades_v_scroll.saturating_sub(1)
+            }
+            ActivePane::SummaryPane => {
+                state_guard.summary_v_scroll = state_guard.summary_v_scroll.saturating_sub(1)
+            }
+            ActivePane::LogPane => {
+                state_guard.log_v_scroll = state_guard.log_v_scroll.saturating_sub(1)
+            }
+        }
+    }
+
+    fn scroll_down(&self) {
+        let mut state_guard = self.get_state();
+
+        match state_guard.active_pane {
+            ActivePane::TradesPane => {
+                let max =
+                    Self::max_scroll_down(&state_guard.trades_rect, state_guard.trades_lines.len());
+                if state_guard.trades_v_scroll < max {
+                    state_guard.trades_v_scroll += 1;
+                }
+            }
+            ActivePane::SummaryPane => {
+                let max = Self::max_scroll_down(
+                    &state_guard.summary_rect,
+                    state_guard.summary_lines.len(),
+                );
+                if state_guard.summary_v_scroll < max {
+                    state_guard.summary_v_scroll += 1;
+                }
+            }
+            ActivePane::LogPane => {
+                let max =
+                    Self::max_scroll_down(&state_guard.log_rect, state_guard.log_entries.len());
+                if state_guard.log_v_scroll < max {
+                    state_guard.log_v_scroll += 1;
+                }
+            }
+        }
+    }
+
+    fn scroll_left(&self) {
+        let mut state_guard = self.get_state();
+
+        match state_guard.active_pane {
+            ActivePane::TradesPane => {
+                state_guard.trades_h_scroll = state_guard.trades_h_scroll.saturating_sub(1);
+            }
+            ActivePane::SummaryPane => {
+                state_guard.summary_h_scroll = state_guard.summary_h_scroll.saturating_sub(1);
+            }
+            ActivePane::LogPane => {
+                state_guard.log_h_scroll = state_guard.log_h_scroll.saturating_sub(1);
+            }
+        }
+    }
+
+    fn scroll_right(&self) {
+        let mut state_guard = self.get_state();
+
+        match state_guard.active_pane {
+            ActivePane::TradesPane => {
+                let max = Self::max_scroll_right(
+                    &state_guard.trades_rect,
+                    state_guard.trades_max_line_width,
+                );
+                if state_guard.trades_h_scroll < max {
+                    state_guard.trades_h_scroll += 1;
+                }
+            }
+            ActivePane::SummaryPane => {
+                let max = Self::max_scroll_right(
+                    &state_guard.summary_rect,
+                    state_guard.summary_max_line_width,
+                );
+                if state_guard.summary_h_scroll < max {
+                    state_guard.summary_h_scroll += 1;
+                }
+            }
+            ActivePane::LogPane => {
+                let max =
+                    Self::max_scroll_right(&state_guard.log_rect, state_guard.log_max_line_width);
+                if state_guard.log_h_scroll < max {
+                    state_guard.log_h_scroll += 1;
+                }
+            }
+        }
+    }
+
+    fn reset_scroll(&self) {
+        let mut state_guard = self.get_state();
+
+        match state_guard.active_pane {
+            ActivePane::TradesPane => {
+                state_guard.trades_v_scroll = 0;
+                state_guard.trades_h_scroll = 0;
+            }
+            ActivePane::SummaryPane => {
+                state_guard.summary_v_scroll = 0;
+                state_guard.summary_h_scroll = 0;
+            }
+            ActivePane::LogPane => {
+                state_guard.log_v_scroll = 0;
+                state_guard.log_h_scroll = 0;
+            }
+        }
+    }
+
+    fn scroll_to_bottom(&self) {
+        let mut state_guard = self.get_state();
+
+        match state_guard.active_pane {
+            ActivePane::TradesPane => {
+                state_guard.trades_v_scroll =
+                    Self::max_scroll_down(&state_guard.trades_rect, state_guard.trades_lines.len());
+                state_guard.trades_h_scroll = 0;
+            }
+            ActivePane::SummaryPane => {
+                state_guard.summary_v_scroll = Self::max_scroll_down(
+                    &state_guard.summary_rect,
+                    state_guard.summary_lines.len(),
+                );
+                state_guard.summary_h_scroll = 0;
+            }
+            ActivePane::LogPane => {
+                state_guard.log_v_scroll =
+                    Self::max_scroll_down(&state_guard.log_rect, state_guard.log_entries.len());
+                state_guard.log_h_scroll = 0;
+            }
+        }
+    }
+
+    fn switch_pane(&self) {
+        let mut state_guard = self.get_state();
+
+        state_guard.active_pane = match state_guard.active_pane {
+            ActivePane::TradesPane => ActivePane::LogPane,
+            ActivePane::LogPane => ActivePane::SummaryPane,
+            ActivePane::SummaryPane => ActivePane::TradesPane,
+        };
     }
 }
