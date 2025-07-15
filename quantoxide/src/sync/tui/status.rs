@@ -31,6 +31,13 @@ impl SyncTuiStatus {
     pub fn is_shutdown_initiated(&self) -> bool {
         SyncTuiStatus::ShutdownInitiated == *self
     }
+
+    pub fn is_shutdown(&self) -> bool {
+        if let SyncTuiStatus::Stopped(ref status_stopped) = *self {
+            return SyncTuiStatusStopped::Shutdown == **status_stopped;
+        }
+        false
+    }
 }
 
 impl From<SyncTuiStatusStopped> for SyncTuiStatus {
