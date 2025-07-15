@@ -6,7 +6,10 @@ use std::{
 use async_trait::async_trait;
 use crossterm::event::{self, Event, KeyCode};
 use tokio::{
-    sync::mpsc::{self, error::SendError},
+    sync::{
+        OnceCell,
+        mpsc::{self, error::SendError},
+    },
     task, time,
 };
 
@@ -192,4 +195,36 @@ where
         status_manager.set_shutdown();
         Ok(())
     }
+}
+
+pub fn spawn_shutdown_signal_listener<TMessage, Fut, F>(
+    shutdown_timeout: Duration,
+    status_manager: Arc<TuiStatusManager>,
+    mut shutdown_rx: mpsc::Receiver<()>,
+    ui_task_handle: Arc<Mutex<Option<AbortOnDropHandle<()>>>>,
+    send_completed_signal: F,
+    sync_controller: Arc<OnceCell<Arc<dyn TuiControllerShutdown>>>,
+) -> AbortOnDropHandle<()>
+where
+    TMessage: Send + 'static,
+    Fut: Future<Output = std::result::Result<(), SendError<TMessage>>> + Send,
+    F: FnOnce() -> Fut + Send + 'static,
+{
+    tokio::spawn(async move {
+        // If `shutdown_tx` is dropped, UI task is finished
+        if let Some(_) = shutdown_rx.recv().await {
+            let sync_controller = sync_controller.get().map(|inner_ref| inner_ref.clone());
+
+            // Error handling via `TuiStatusManager`
+            let _ = shutdown_inner(
+                shutdown_timeout,
+                status_manager,
+                ui_task_handle,
+                send_completed_signal,
+                sync_controller,
+            )
+            .await;
+        }
+    })
+    .into()
 }

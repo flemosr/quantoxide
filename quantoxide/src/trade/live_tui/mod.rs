@@ -48,34 +48,6 @@ pub struct LiveTui {
 }
 
 impl LiveTui {
-    fn spawn_shutdown_signal_listener(
-        shutdown_timeout: Duration,
-        status_manager: Arc<TuiStatusManager>,
-        mut shutdown_rx: mpsc::Receiver<()>,
-        ui_task_handle: Arc<Mutex<Option<AbortOnDropHandle<()>>>>,
-        ui_tx: mpsc::Sender<LiveUiMessage>,
-        live_controller: Arc<OnceCell<Arc<dyn TuiControllerShutdown>>>,
-    ) -> AbortOnDropHandle<()> {
-        tokio::spawn(async move {
-            // If `shutdown_tx` is dropped, UI task is finished
-
-            if let Some(_) = shutdown_rx.recv().await {
-                let live_controller = live_controller.get().map(|inner_ref| inner_ref.clone());
-
-                // Error handling via `TuiStatus`
-                let _ = tui::shutdown_inner(
-                    shutdown_timeout,
-                    status_manager,
-                    ui_task_handle,
-                    || ui_tx.send(LiveUiMessage::ShutdownCompleted),
-                    live_controller,
-                )
-                .await;
-            }
-        })
-        .into()
-    }
-
     pub async fn launch(config: TuiConfig, log_file_path: Option<&str>) -> Result<Self> {
         let log_file = log_file_path
             .map(|log_file_path| {
@@ -122,12 +94,15 @@ impl LiveTui {
 
         let live_controller = Arc::new(OnceCell::new());
 
-        let _shutdown_listener_handle = Self::spawn_shutdown_signal_listener(
+        let _shutdown_listener_handle = tui::spawn_shutdown_signal_listener(
             config.shutdown_timeout(),
             status_manager.clone(),
             shutdown_rx,
             ui_task_handle.clone(),
-            ui_tx.clone(),
+            {
+                let ui_tx = ui_tx.clone();
+                || async move { ui_tx.send(LiveUiMessage::ShutdownCompleted).await }
+            },
             live_controller.clone(),
         );
 
