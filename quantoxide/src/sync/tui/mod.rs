@@ -11,18 +11,19 @@ use tokio::{
     task, time,
 };
 
-use crate::{tui::Result, util::AbortOnDropHandle};
+use crate::{
+    tui::{Result, TuiTerminal, TuiViewRenderer},
+    util::AbortOnDropHandle,
+};
 
 pub use crate::tui::TuiError as SyncTuiError;
 
 use super::{SyncController, SyncEngine, SyncReceiver, SyncState, SyncStateNotSynced, SyncUpdate};
 
 mod status;
-mod terminal;
 mod view;
 
 use status::SyncTuiStatusManager;
-use terminal::SyncTuiTerminal;
 use view::{SyncTuiLogger, SyncTuiView};
 
 pub use status::{SyncTuiStatus, SyncTuiStatusStopped};
@@ -84,9 +85,9 @@ pub struct SyncTui {
     event_check_interval: Duration,
     shutdown_timeout: Duration,
     status_manager: Arc<SyncTuiStatusManager>,
-    // Retain ownership to ensure `SyncTuiTerminal` destructor is executed when
+    // Retain ownership to ensure `TuiTerminal` destructor is executed when
     // `SyncTui` is dropped.
-    _sync_tui_terminal: Arc<SyncTuiTerminal>,
+    _tui_terminal: Arc<TuiTerminal>,
     ui_tx: mpsc::Sender<UiMessage>,
     // Explicitly aborted on drop, to ensure the terminal is restored before
     // `SyncTui`'s drop is completed.
@@ -100,18 +101,18 @@ impl SyncTui {
     async fn run_ui(
         event_check_interval: Duration,
         tui_view: Arc<SyncTuiView>,
-        terminal: Arc<SyncTuiTerminal>,
+        tui_terminal: Arc<TuiTerminal>,
         mut ui_rx: mpsc::Receiver<UiMessage>,
         shutdown_tx: mpsc::Sender<()>,
     ) -> Result<()> {
-        let handle_ui_message = |msg: UiMessage, content: &SyncTuiView| -> Result<bool> {
+        let handle_ui_message = |msg: UiMessage, tui_view: &SyncTuiView| -> Result<bool> {
             match msg {
                 UiMessage::LogEntry(entry) => {
-                    content.add_log_entry(entry)?;
+                    tui_view.add_log_entry(entry)?;
                     Ok(false)
                 }
                 UiMessage::StateUpdate(state) => {
-                    content.update_sync_state(state);
+                    tui_view.update_sync_state(state);
                     Ok(false)
                 }
                 UiMessage::ShutdownCompleted => Ok(true),
@@ -120,7 +121,7 @@ impl SyncTui {
 
         loop {
             task::yield_now().await;
-            terminal.draw(&tui_view)?;
+            tui_terminal.draw(tui_view.clone())?;
 
             if let Ok(message) = ui_rx.try_recv() {
                 let is_shutdown_completed = handle_ui_message(message, &tui_view)?;
@@ -162,7 +163,7 @@ impl SyncTui {
         }
 
         loop {
-            terminal.draw(&tui_view)?;
+            tui_terminal.draw(tui_view.clone())?;
             time::sleep(event_check_interval).await;
 
             if let Ok(message) = ui_rx.try_recv() {
@@ -178,14 +179,20 @@ impl SyncTui {
         event_check_interval: Duration,
         tui_view: Arc<SyncTuiView>,
         status_manager: Arc<SyncTuiStatusManager>,
-        terminal: Arc<SyncTuiTerminal>,
+        tui_terminal: Arc<TuiTerminal>,
         ui_rx: mpsc::Receiver<UiMessage>,
         shutdown_tx: mpsc::Sender<()>,
     ) -> Arc<Mutex<Option<AbortOnDropHandle<()>>>> {
         Arc::new(Mutex::new(Some(
             tokio::spawn(async move {
-                if let Err(e) =
-                    Self::run_ui(event_check_interval, tui_view, terminal, ui_rx, shutdown_tx).await
+                if let Err(e) = Self::run_ui(
+                    event_check_interval,
+                    tui_view,
+                    tui_terminal,
+                    ui_rx,
+                    shutdown_tx,
+                )
+                .await
                 {
                     status_manager.set_crashed(e);
                 }
@@ -331,7 +338,7 @@ impl SyncTui {
         let (ui_tx, ui_rx) = mpsc::channel::<UiMessage>(100);
         let (shutdown_tx, shutdown_rx) = mpsc::channel::<()>(10);
 
-        let sync_tui_terminal = SyncTuiTerminal::new()?;
+        let tui_terminal = TuiTerminal::new()?;
 
         let tui_view = SyncTuiView::new(config.max_tui_log_len, log_file);
 
@@ -341,7 +348,7 @@ impl SyncTui {
             config.event_check_interval,
             tui_view,
             status_manager.clone(),
-            sync_tui_terminal.clone(),
+            tui_terminal.clone(),
             ui_rx,
             shutdown_tx,
         );
@@ -361,7 +368,7 @@ impl SyncTui {
             event_check_interval: config.event_check_interval,
             shutdown_timeout: config.shutdown_timeout,
             status_manager,
-            _sync_tui_terminal: sync_tui_terminal,
+            _tui_terminal: tui_terminal,
             ui_tx,
             ui_task_handle,
             _shutdown_listener_handle,
