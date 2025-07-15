@@ -12,7 +12,7 @@ use ratatui::{
     widgets::{Block, Borders, List, ListItem, Paragraph},
 };
 
-use crate::tui::{Result, TuiError as LiveTuiError};
+use crate::tui::{Result, TuiError as LiveTuiError, TuiViewRenderer};
 
 pub trait LiveTuiLogger: Sync + Send + 'static {
     fn add_log_entry(&self, entry: String) -> Result<()>;
@@ -319,8 +319,10 @@ impl LiveTuiView {
                 .border_style(border_style),
         )
     }
+}
 
-    pub fn render(&self, f: &mut Frame) {
+impl TuiViewRenderer for LiveTuiView {
+    fn render(&self, f: &mut Frame) {
         let frame_rect = f.area();
 
         let main_area = Rect {

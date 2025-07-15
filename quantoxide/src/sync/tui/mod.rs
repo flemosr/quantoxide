@@ -12,7 +12,7 @@ use tokio::{
 };
 
 use crate::{
-    tui::{Result, TuiTerminal, TuiViewRenderer},
+    tui::{Result, TuiTerminal},
     util::AbortOnDropHandle,
 };
 
