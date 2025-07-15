@@ -77,7 +77,8 @@ impl LiveTuiConfig {
 #[derive(Debug)]
 enum UiMessage {
     LogEntry(String),
-    StateUpdate(String),
+    SummaryUpdate(String),
+    TradesUpdate(String),
     ShutdownCompleted,
 }
 
@@ -111,8 +112,12 @@ impl LiveTui {
                     content.add_log_entry(entry)?;
                     Ok(false)
                 }
-                UiMessage::StateUpdate(state) => {
-                    // content.update_live_state(state);
+                UiMessage::SummaryUpdate(summary) => {
+                    content.update_summary(summary);
+                    Ok(false)
+                }
+                UiMessage::TradesUpdate(trades_table) => {
+                    content.update_trades(trades_table);
                     Ok(false)
                 }
                 UiMessage::ShutdownCompleted => Ok(true),
@@ -395,16 +400,14 @@ impl LiveTui {
             let handle_live_update = async |live_update: LiveUpdate| -> Result<()> {
                 match live_update {
                     LiveUpdate::State(live_state) => {
-                        let log_str = "TODO".to_string();
-
                         ui_tx
-                            .send(UiMessage::LogEntry(log_str))
+                            .send(UiMessage::LogEntry(format!("{:?}", live_state)))
                             .await
                             .map_err(|e| LiveTuiError::Generic(e.to_string()))?;
                     }
                     LiveUpdate::Signal(signal) => {
                         ui_tx
-                            .send(UiMessage::LogEntry(format!("Signal: {:?}", signal)))
+                            .send(UiMessage::LogEntry(format!("{}", signal.to_string())))
                             .await
                             .map_err(|e| LiveTuiError::Generic(e.to_string()))?;
                     }
@@ -416,14 +419,28 @@ impl LiveTui {
                     }
                     LiveUpdate::TradingState(trading_state) => {
                         ui_tx
-                            .send(UiMessage::LogEntry(format!(
-                                "Trading State: {}",
-                                trading_state
+                            .send(UiMessage::SummaryUpdate(format!(
+                                "\n{}",
+                                trading_state.summary()
                             )))
+                            .await
+                            .map_err(|e| LiveTuiError::Generic(e.to_string()))?;
+
+                        let tables = vec![
+                            "\nRunning Trades\n".to_string(),
+                            trading_state.running_trades_table(),
+                            "\n\nClosed Trades\n".to_string(),
+                            trading_state.closed_trades_table(),
+                        ]
+                        .join("\n");
+
+                        ui_tx
+                            .send(UiMessage::TradesUpdate(tables))
                             .await
                             .map_err(|e| LiveTuiError::Generic(e.to_string()))?;
                     }
                 }
+
                 Ok(())
             };
 
