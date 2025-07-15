@@ -20,11 +20,12 @@ mod status;
 mod terminal;
 mod view;
 
-use error::{Result, SyncTuiError};
+use error::Result;
 use status::SyncTuiStatusManager;
 use terminal::SyncTuiTerminal;
 use view::{SyncTuiLogger, SyncTuiView};
 
+pub use error::SyncTuiError;
 pub use status::{SyncTuiStatus, SyncTuiStatusStopped};
 
 #[derive(Clone, Debug)]
