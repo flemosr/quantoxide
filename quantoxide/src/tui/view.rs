@@ -1,4 +1,4 @@
-use std::sync::MutexGuard;
+use std::{fs::File, io::Write, sync::MutexGuard};
 
 use ratatui::{
     Frame,
@@ -9,10 +9,89 @@ use ratatui::{
 };
 use strum::IntoEnumIterator;
 
+use crate::tui::TuiError;
+
 use super::Result;
 
 pub trait TuiLogger: Sync + Send + 'static {
-    fn add_log_entry(&self, entry: String) -> Result<()>;
+    type State;
+
+    fn get_max_tui_log_len(&self) -> usize;
+
+    fn get_log_data_mut(
+        state: &mut Self::State,
+    ) -> (
+        Option<&mut File>,
+        &mut Vec<String>,
+        &mut usize,
+        Rect,
+        &mut usize,
+    );
+
+    fn get_state(&self) -> MutexGuard<'_, Self::State>;
+
+    fn max_scroll_down(rect: &Rect, entries_len: usize) -> usize {
+        let visible_height = rect.height.saturating_sub(2) as usize; // Subtract borders
+        entries_len.saturating_sub(visible_height)
+    }
+
+    fn add_log_entry(&self, entry: String) -> Result<()> {
+        let mut state_guard = self.get_state();
+
+        let max_tui_log_len = self.get_max_tui_log_len();
+        let (mut log_file, log_entries, log_max_line_width, log_rect, log_v_scroll) =
+            Self::get_log_data_mut(&mut state_guard);
+
+        let timestamp = chrono::Local::now().format("%H:%M:%S").to_string();
+
+        let lines: Vec<&str> = entry.lines().collect();
+
+        if lines.is_empty() {
+            return Ok(());
+        }
+
+        let mut log_entry = Vec::new();
+
+        for (i, line) in lines.iter().enumerate() {
+            let log_entry_line = if i == 0 {
+                format!("[{}] {}", timestamp, line)
+            } else {
+                format!("           {}", line)
+            };
+
+            if let Some(log_file) = log_file.as_mut() {
+                writeln!(log_file, "{}", log_entry_line).map_err(|e| {
+                    TuiError::Generic(format!("couldn't write to log file {}", e.to_string()))
+                })?;
+                log_file.flush().map_err(|e| {
+                    TuiError::Generic(format!("couldn't flush log file {}", e.to_string()))
+                })?;
+            }
+
+            log_entry.push(log_entry_line)
+        }
+
+        // Add entry at the beginning of the TUI log
+
+        for entry_line in log_entry.into_iter().rev() {
+            *log_max_line_width = (*log_max_line_width).max(entry_line.len());
+            log_entries.insert(0, entry_line);
+        }
+
+        // Adjust scroll position to maintain the user's view
+        if *log_v_scroll != 0 {
+            *log_v_scroll = log_v_scroll.saturating_add(lines.len());
+        }
+
+        if log_entries.len() > max_tui_log_len {
+            log_entries.truncate(max_tui_log_len);
+
+            let max_scroll = Self::max_scroll_down(&log_rect, log_entries.len());
+            *log_v_scroll = (*log_v_scroll).min(max_scroll);
+        }
+
+        Ok(())
+    }
 }
 
 pub trait TuiView: TuiLogger {
@@ -20,17 +99,12 @@ pub trait TuiView: TuiLogger {
 
     type TuiPane: IntoEnumIterator;
 
-    type State;
+    // type State;
 
     fn render(&self, f: &mut Frame);
 
     /// Handle a UI message and return whether shutdown was completed
     fn handle_ui_message(&self, message: Self::UiMessage) -> Result<bool>;
-
-    fn max_scroll_down(rect: &Rect, entries_len: usize) -> usize {
-        let visible_height = rect.height.saturating_sub(2) as usize; // Subtract borders
-        entries_len.saturating_sub(visible_height)
-    }
 
     fn max_scroll_right(rect: &Rect, max_line_width: usize) -> usize {
         let visible_width = rect.width.saturating_sub(4) as usize; // Subtract borders and padding
@@ -136,8 +210,6 @@ pub trait TuiView: TuiLogger {
     ///
     /// This allows the scroll positions to be modified based on user input or other events.
     fn get_active_scroll_mut(state: &mut Self::State) -> (&mut usize, &mut usize);
-
-    fn get_state(&self) -> MutexGuard<'_, Self::State>;
 
     fn scroll_up(&self) {
         let mut state_guard = self.get_state();

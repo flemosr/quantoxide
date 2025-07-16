@@ -16,7 +16,7 @@ use tokio::{
 };
 
 use crate::{
-    tui::{TuiStatus, TuiStatusManager},
+    tui::{TuiLogger, TuiStatus, TuiStatusManager},
     util::AbortOnDropHandle,
 };
 
@@ -106,7 +106,7 @@ where
 pub fn spawn_ui_task<TView, TMessage>(
     event_check_interval: Duration,
     tui_view: Arc<TView>,
-    status_manager: Arc<TuiStatusManager>,
+    status_manager: Arc<TuiStatusManager<TView>>,
     tui_terminal: Arc<TuiTerminal>,
     ui_rx: mpsc::Receiver<TMessage>,
     shutdown_tx: mpsc::Sender<()>,
@@ -138,14 +138,15 @@ pub trait TuiControllerShutdown: Sync + Send + 'static {
     async fn tui_shutdown(&self) -> Result<()>;
 }
 
-pub async fn shutdown_inner<TMessage, Fut, F>(
+pub async fn shutdown_inner<TView, TMessage, Fut, F>(
     shutdown_timeout: Duration,
-    status_manager: Arc<TuiStatusManager>,
+    status_manager: Arc<TuiStatusManager<TView>>,
     ui_task_handle: Arc<Mutex<Option<AbortOnDropHandle<()>>>>,
     send_completed_signal: F,
     live_controller: Option<Arc<dyn TuiControllerShutdown>>,
 ) -> Result<()>
 where
+    TView: TuiLogger,
     TMessage: Send + 'static,
     Fut: Future<Output = std::result::Result<(), SendError<TMessage>>>,
     F: FnOnce() -> Fut,
@@ -220,15 +221,16 @@ where
     }
 }
 
-pub fn spawn_shutdown_signal_listener<TMessage, Fut, F>(
+pub fn spawn_shutdown_signal_listener<TView, TMessage, Fut, F>(
     shutdown_timeout: Duration,
-    status_manager: Arc<TuiStatusManager>,
+    status_manager: Arc<TuiStatusManager<TView>>,
     mut shutdown_rx: mpsc::Receiver<()>,
     ui_task_handle: Arc<Mutex<Option<AbortOnDropHandle<()>>>>,
     send_completed_signal: F,
     sync_controller: Arc<OnceCell<Arc<dyn TuiControllerShutdown>>>,
 ) -> AbortOnDropHandle<()>
 where
+    TView: TuiLogger,
     TMessage: Send + 'static,
     Fut: Future<Output = std::result::Result<(), SendError<TMessage>>> + Send,
     F: FnOnce() -> Fut + Send + 'static,

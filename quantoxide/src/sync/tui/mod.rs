@@ -31,7 +31,7 @@ pub enum SyncUiMessage {
 pub struct SyncTui {
     event_check_interval: Duration,
     shutdown_timeout: Duration,
-    status_manager: Arc<TuiStatusManager>,
+    status_manager: Arc<TuiStatusManager<SyncTuiView>>,
     // Retain ownership to ensure `TuiTerminal` destructor is executed when
     // `SyncTui` is dropped.
     _tui_terminal: Arc<TuiTerminal>,
@@ -109,7 +109,7 @@ impl SyncTui {
     }
 
     fn spawn_sync_update_listener(
-        status_manager: Arc<TuiStatusManager>,
+        status_manager: Arc<TuiStatusManager<SyncTuiView>>,
         mut sync_rx: SyncReceiver,
         ui_tx: mpsc::Sender<SyncUiMessage>,
     ) -> AbortOnDropHandle<()> {

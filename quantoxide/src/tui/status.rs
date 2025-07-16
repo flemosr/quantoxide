@@ -49,13 +49,13 @@ impl From<Arc<TuiStatusStopped>> for TuiStatus {
     }
 }
 
-pub struct TuiStatusManager {
-    logger: Arc<dyn TuiLogger>,
+pub struct TuiStatusManager<TView: TuiLogger> {
+    logger: Arc<TView>,
     status: Mutex<TuiStatus>,
 }
 
-impl TuiStatusManager {
-    pub fn new_running(logger: Arc<dyn TuiLogger>) -> Arc<Self> {
+impl<TView: TuiLogger> TuiStatusManager<TView> {
+    pub fn new_running(logger: Arc<TView>) -> Arc<Self> {
         Arc::new(Self {
             logger,
             status: Mutex::new(TuiStatus::Running),

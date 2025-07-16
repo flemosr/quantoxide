@@ -32,7 +32,7 @@ pub enum LiveUiMessage {
 pub struct LiveTui {
     event_check_interval: Duration,
     shutdown_timeout: Duration,
-    status_manager: Arc<TuiStatusManager>,
+    status_manager: Arc<TuiStatusManager<LiveTuiView>>,
     // Retain ownership to ensure `TuiTerminal` destructor is executed when
     // `LiveTui` is dropped.
     _tui_terminal: Arc<TuiTerminal>,
@@ -110,7 +110,7 @@ impl LiveTui {
     }
 
     fn spawn_live_update_listener(
-        status_manager: Arc<TuiStatusManager>,
+        status_manager: Arc<TuiStatusManager<LiveTuiView>>,
         mut live_rx: LiveReceiver,
         ui_tx: mpsc::Sender<LiveUiMessage>,
     ) -> AbortOnDropHandle<()> {
