@@ -1,5 +1,6 @@
 use std::sync::{Arc, Mutex};
 
+use async_trait::async_trait;
 use chrono::{DateTime, Duration, Utc};
 use tokio::sync::broadcast;
 
@@ -9,6 +10,7 @@ use crate::{
     db::DbContext,
     signal::core::{ConfiguredSignalEvaluator, Signal},
     sync::PriceHistoryState,
+    tui::{Result as TuiResult, TuiControllerShutdown, TuiError},
     util::{AbortOnDropHandle, DateTimeExt},
 };
 
@@ -130,6 +132,15 @@ impl BacktestController {
         Err(BacktestError::Generic(
             "Backtest process was already consumed".to_string(),
         ))
+    }
+}
+
+#[async_trait]
+impl TuiControllerShutdown for BacktestController {
+    async fn tui_shutdown(&self) -> TuiResult<()> {
+        self.abort()
+            .await
+            .map_err(|e| TuiError::Generic(e.to_string()))
     }
 }
 
