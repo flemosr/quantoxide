@@ -16,12 +16,39 @@ pub trait TuiLogger: Sync + Send + 'static {
 
 pub trait TuiView: TuiLogger {
     type UiMessage;
+
+    type TuiPane;
+
     type State;
 
     fn render(&self, f: &mut Frame);
 
     /// Handle a UI message and return whether shutdown was completed
     fn handle_ui_message(&self, message: Self::UiMessage) -> Result<bool>;
+
+    fn max_scroll_down(rect: &Rect, entries_len: usize) -> usize {
+        let visible_height = rect.height.saturating_sub(2) as usize; // Subtract borders
+        entries_len.saturating_sub(visible_height)
+    }
+
+    fn max_scroll_right(rect: &Rect, max_line_width: usize) -> usize {
+        let visible_width = rect.width.saturating_sub(4) as usize; // Subtract borders and padding
+        max_line_width.saturating_sub(visible_width)
+    }
+
+    /// Returns the scroll data for the currently active pane.
+    ///
+    /// Returns a tuple containing:
+    /// - `title`
+    /// - `lines`
+    /// - `vertical_scroll`: Current vertical scroll position
+    /// - `horizontal_scroll`: Current horizontal scroll position
+    /// - `rect`: Reference to the pane's display rectangle
+    /// - `is_active`
+    fn get_pane_render_info(
+        state: &Self::State,
+        pane: Self::TuiPane,
+    ) -> (&'static str, &Vec<String>, usize, usize, Rect, bool);
 
     fn get_list<'a>(
         title: &'a str,
@@ -57,14 +84,13 @@ pub trait TuiView: TuiLogger {
         )
     }
 
-    fn max_scroll_down(rect: &Rect, entries_len: usize) -> usize {
-        let visible_height = rect.height.saturating_sub(2) as usize; // Subtract borders
-        entries_len.saturating_sub(visible_height)
-    }
+    fn render_pane(state: &Self::State, pane: Self::TuiPane, f: &mut Frame) {
+        let (title, lines, v_scroll, h_scroll, rect, is_active) =
+            Self::get_pane_render_info(state, pane);
 
-    fn max_scroll_right(rect: &Rect, max_line_width: usize) -> usize {
-        let visible_width = rect.width.saturating_sub(4) as usize; // Subtract borders and padding
-        max_line_width.saturating_sub(visible_width)
+        let list = Self::get_list(title, lines, v_scroll, h_scroll, is_active);
+
+        f.render_widget(list, rect);
     }
 
     /// Returns the scroll data for the currently active pane.

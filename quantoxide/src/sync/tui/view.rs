@@ -16,7 +16,7 @@ use crate::tui::{Result, TuiError as SyncTuiError, TuiLogger, TuiView};
 use super::SyncUiMessage;
 
 #[derive(Debug, PartialEq)]
-enum SyncTuiPane {
+pub enum SyncTuiPane {
     PriceHistoryStatePane,
     LogPane,
 }
@@ -153,6 +153,8 @@ impl TuiLogger for SyncTuiView {
 impl TuiView for SyncTuiView {
     type UiMessage = SyncUiMessage;
 
+    type TuiPane = SyncTuiPane;
+
     type State = SyncTuiViewState;
 
     fn get_active_scroll_data(state: &Self::State) -> (usize, usize, &Rect, usize, usize) {
@@ -180,6 +182,30 @@ impl TuiView for SyncTuiView {
                 (&mut state.ph_state_v_scroll, &mut state.ph_state_h_scroll)
             }
             SyncTuiPane::LogPane => (&mut state.log_v_scroll, &mut state.log_h_scroll),
+        }
+    }
+
+    fn get_pane_render_info(
+        state: &Self::State,
+        pane: Self::TuiPane,
+    ) -> (&'static str, &Vec<String>, usize, usize, Rect, bool) {
+        match pane {
+            SyncTuiPane::PriceHistoryStatePane => (
+                "Price History State",
+                &state.ph_state_lines,
+                state.ph_state_v_scroll,
+                state.ph_state_h_scroll,
+                state.ph_state_rect,
+                state.active_pane == SyncTuiPane::PriceHistoryStatePane,
+            ),
+            SyncTuiPane::LogPane => (
+                "Log",
+                &state.log_entries,
+                state.log_v_scroll,
+                state.log_h_scroll,
+                state.log_rect,
+                state.active_pane == SyncTuiPane::LogPane,
+            ),
         }
     }
 
@@ -223,32 +249,18 @@ impl TuiView for SyncTuiView {
         state_guard.ph_state_rect = main_chunks[0];
         state_guard.log_rect = main_chunks[1];
 
-        let state_list = Self::get_list(
-            "Price History State",
-            &state_guard.ph_state_lines,
-            state_guard.ph_state_v_scroll,
-            state_guard.ph_state_h_scroll,
-            state_guard.active_pane == SyncTuiPane::PriceHistoryStatePane,
-        );
-        f.render_widget(state_list, state_guard.ph_state_rect);
+        Self::render_pane(&state_guard, SyncTuiPane::PriceHistoryStatePane, f);
+        Self::render_pane(&state_guard, SyncTuiPane::LogPane, f);
 
-        let log_list = Self::get_list(
-            "Log",
-            &state_guard.log_entries,
-            state_guard.log_v_scroll,
-            state_guard.log_h_scroll,
-            state_guard.active_pane == SyncTuiPane::LogPane,
-        );
-        f.render_widget(log_list, state_guard.log_rect);
-
-        let help_text = " Press 'q' to quit, Tab to switch panes, scroll with ↑/↓, ←/→, 'b' to bottom and 't' to top";
-        let help_paragraph = Paragraph::new(help_text).style(Style::default().fg(Color::Gray));
         let help_area = Rect {
             x: frame_rect.x,
             y: frame_rect.y + frame_rect.height.saturating_sub(1), // Last row
             width: frame_rect.width,
             height: 1,
         };
+
+        let help_text = " Press 'q' to quit, Tab to switch panes, scroll with ↑/↓, ←/→, 'b' to bottom and 't' to top";
+        let help_paragraph = Paragraph::new(help_text).style(Style::default().fg(Color::Gray));
         f.render_widget(help_paragraph, help_area);
     }
 

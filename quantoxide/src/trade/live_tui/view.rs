@@ -16,7 +16,7 @@ use crate::tui::{Result, TuiError as LiveTuiError, TuiLogger, TuiView};
 use super::LiveUiMessage;
 
 #[derive(Debug, PartialEq)]
-enum LiveTuiPane {
+pub enum LiveTuiPane {
     TradesPane,
     SummaryPane,
     LogPane,
@@ -181,6 +181,8 @@ impl TuiLogger for LiveTuiView {
 impl TuiView for LiveTuiView {
     type UiMessage = LiveUiMessage;
 
+    type TuiPane = LiveTuiPane;
+
     type State = LiveTuiViewState;
 
     fn get_active_scroll_data(state: &Self::State) -> (usize, usize, &Rect, usize, usize) {
@@ -214,6 +216,38 @@ impl TuiView for LiveTuiView {
             LiveTuiPane::TradesPane => (&mut state.trades_v_scroll, &mut state.trades_h_scroll),
             LiveTuiPane::SummaryPane => (&mut state.summary_v_scroll, &mut state.summary_h_scroll),
             LiveTuiPane::LogPane => (&mut state.log_v_scroll, &mut state.log_h_scroll),
+        }
+    }
+
+    fn get_pane_render_info(
+        state: &Self::State,
+        pane: Self::TuiPane,
+    ) -> (&'static str, &Vec<String>, usize, usize, Rect, bool) {
+        match pane {
+            LiveTuiPane::TradesPane => (
+                "Trades",
+                &state.trades_lines,
+                state.trades_v_scroll,
+                state.trades_h_scroll,
+                state.trades_rect,
+                state.active_pane == LiveTuiPane::TradesPane,
+            ),
+            LiveTuiPane::SummaryPane => (
+                "Trades Summary",
+                &state.summary_lines,
+                state.summary_v_scroll,
+                state.summary_h_scroll,
+                state.summary_rect,
+                state.active_pane == LiveTuiPane::SummaryPane,
+            ),
+            LiveTuiPane::LogPane => (
+                "Log",
+                &state.log_entries,
+                state.log_v_scroll,
+                state.log_h_scroll,
+                state.log_rect,
+                state.active_pane == LiveTuiPane::LogPane,
+            ),
         }
     }
 
@@ -267,39 +301,16 @@ impl TuiView for LiveTuiView {
         state_guard.summary_rect = bottom_chunks[0];
         state_guard.log_rect = bottom_chunks[1];
 
+        Self::render_pane(&state_guard, LiveTuiPane::TradesPane, f);
+        Self::render_pane(&state_guard, LiveTuiPane::SummaryPane, f);
+        Self::render_pane(&state_guard, LiveTuiPane::LogPane, f);
+
         let help_area = Rect {
             x: frame_rect.x,
             y: frame_rect.y + frame_rect.height.saturating_sub(1), // Last row
             width: frame_rect.width,
             height: 1,
         };
-
-        let state_list = Self::get_list(
-            "Trades",
-            &state_guard.trades_lines,
-            state_guard.trades_v_scroll,
-            state_guard.trades_h_scroll,
-            state_guard.active_pane == LiveTuiPane::TradesPane,
-        );
-        f.render_widget(state_list, state_guard.trades_rect);
-
-        let state_list = Self::get_list(
-            "Trades Summary",
-            &state_guard.summary_lines,
-            state_guard.summary_v_scroll,
-            state_guard.summary_h_scroll,
-            state_guard.active_pane == LiveTuiPane::SummaryPane,
-        );
-        f.render_widget(state_list, state_guard.summary_rect);
-
-        let log_list = Self::get_list(
-            "Log",
-            &state_guard.log_entries,
-            state_guard.log_v_scroll,
-            state_guard.log_h_scroll,
-            state_guard.active_pane == LiveTuiPane::LogPane,
-        );
-        f.render_widget(log_list, state_guard.log_rect);
 
         let help_text = " Press 'q' to quit, Tab to switch panes, scroll with ↑/↓, ←/→, 'b' to bottom and 't' to top";
         let help_paragraph = Paragraph::new(help_text).style(Style::default().fg(Color::Gray));
