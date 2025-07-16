@@ -67,8 +67,23 @@ pub trait TuiView: TuiLogger {
         max_line_width.saturating_sub(visible_width)
     }
 
+    /// Returns the scroll data for the currently active pane.
+    ///
+    /// Returns a tuple containing:
+    /// - `vertical_scroll`: Current vertical scroll position
+    /// - `horizontal_scroll`: Current horizontal scroll position
+    /// - `rect`: Reference to the pane's display rectangle
+    /// - `total_lines`: Total number of lines in the pane
+    /// - `max_line_width`: Maximum line width in the pane for horizontal scrolling
     fn get_active_scroll_data(state: &Self::State) -> (usize, usize, &Rect, usize, usize);
 
+    /// Returns mutable references to the scroll positions for the currently active pane.
+    ///
+    /// Returns a tuple containing:
+    /// - `vertical_scroll`: Mutable reference to the vertical scroll position
+    /// - `horizontal_scroll`: Mutable reference to the horizontal scroll position
+    ///
+    /// This allows the scroll positions to be modified based on user input or other events.
     fn get_active_scroll_mut(state: &mut Self::State) -> (&mut usize, &mut usize);
 
     fn get_state(&self) -> MutexGuard<'_, Self::State>;
