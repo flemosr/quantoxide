@@ -13,9 +13,9 @@ use crate::{
     util::AbortOnDropHandle,
 };
 
-pub use crate::tui::{TuiConfig, TuiError, TuiStatus, TuiStatusStopped};
+use super::{TuiConfig, TuiError, TuiStatus, TuiStatusStopped};
 
-use super::live_engine::{LiveEngine, LiveReceiver, LiveUpdate};
+use crate::trade::live_engine::{LiveEngine, LiveReceiver, LiveUpdate};
 
 mod view;
 

@@ -1,6 +1,7 @@
 mod config;
 mod core;
 mod error;
+mod live;
 mod status;
 mod sync;
 mod terminal;
@@ -12,6 +13,7 @@ pub use core::{
     spawn_ui_task,
 };
 pub use error::{Result, TuiError};
+pub use live::LiveTui;
 pub use status::{TuiStatus, TuiStatusManager, TuiStatusStopped};
 pub use sync::SyncTui;
 pub use terminal::TuiTerminal;

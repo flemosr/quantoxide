@@ -12,4 +12,4 @@ pub mod indicators;
 
 mod tui;
 
-pub use tui::{SyncTui, TuiConfig, TuiError, TuiStatus, TuiStatusStopped};
+pub use tui::{LiveTui, SyncTui, TuiConfig, TuiError, TuiStatus, TuiStatusStopped};
