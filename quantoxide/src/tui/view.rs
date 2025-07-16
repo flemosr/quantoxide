@@ -205,6 +205,46 @@ pub trait TuiView: TuiLogger {
         f.render_widget(help_paragraph, help_area);
     }
 
+    /// Returns mutable references to the pane data components needed for updating content.
+    ///
+    /// # Returns
+    ///
+    /// A tuple containing:
+    /// - `&mut Vec<String>`: Mutable reference to the pane's lines buffer
+    /// - `&mut usize`: Mutable reference to the pane's maximum line width tracker
+    /// - `&mut usize`: Mutable reference to the pane's vertical scroll position
+    ///
+    /// This method provides access to all the necessary components for updating
+    /// pane content while maintaining scroll state appropriately.
+    fn get_pane_data_mut(
+        state: &mut Self::State,
+        pane: Self::TuiPane,
+    ) -> (&mut Vec<String>, &mut usize, &mut usize);
+
+    fn update_pane_content(&self, pane: Self::TuiPane, content: String) {
+        let mut state_guard = self.get_state();
+
+        let mut new_lines: Vec<String> = content.lines().map(|line| line.to_string()).collect();
+        new_lines.push("".to_string()); // Add empty line
+
+        let max_line_width = new_lines.iter().map(|line| line.len()).max().unwrap_or(0);
+
+        let (lines, max_width_ref, v_scroll) = Self::get_pane_data_mut(&mut state_guard, pane);
+
+        *max_width_ref = max_line_width;
+
+        // Only reset scroll if the content structure has significantly changed
+        // or if current scroll position would be out of bounds
+        if new_lines.len() != lines.len() {
+            // If new content is shorter, adjust scroll to stay within bounds
+            if *v_scroll >= new_lines.len() && new_lines.len() > 0 {
+                *v_scroll = new_lines.len().saturating_sub(1);
+            }
+        }
+
+        *lines = new_lines;
+    }
+
     /// Returns the scroll data for the currently active pane.
     ///
     /// Returns a tuple containing:
