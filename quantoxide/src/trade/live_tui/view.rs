@@ -76,47 +76,6 @@ impl LiveTuiView {
             }),
         })
     }
-
-    pub fn update_trades(&self, trades_table: String) {
-        let mut state_guard = self.get_state();
-
-        let mut new_lines: Vec<String> =
-            trades_table.lines().map(|line| line.to_string()).collect();
-        new_lines.push("".to_string()); // Add empty line
-
-        state_guard.trades_max_line_width = new_lines.iter().map(|line| line.len()).max().unwrap();
-
-        // Only reset scroll if the content structure has significantly changed
-        // or if current scroll position would be out of bounds
-        if new_lines.len() != state_guard.trades_lines.len() {
-            // If new content is shorter, adjust scroll to stay within bounds
-            if state_guard.trades_v_scroll >= new_lines.len() && new_lines.len() > 0 {
-                state_guard.trades_v_scroll = new_lines.len().saturating_sub(1);
-            }
-        }
-
-        state_guard.trades_lines = new_lines;
-    }
-
-    pub fn update_summary(&self, state: String) {
-        let mut state_guard = self.get_state();
-
-        let mut new_lines: Vec<String> = state.lines().map(|line| line.to_string()).collect();
-        new_lines.push("".to_string()); // Add empty line
-
-        state_guard.summary_max_line_width = new_lines.iter().map(|line| line.len()).max().unwrap();
-
-        // Only reset scroll if the content structure has significantly changed
-        // or if current scroll position would be out of bounds
-        if new_lines.len() != state_guard.summary_lines.len() {
-            // If new content is shorter, adjust scroll to stay within bounds
-            if state_guard.summary_v_scroll >= new_lines.len() && new_lines.len() > 0 {
-                state_guard.summary_v_scroll = new_lines.len().saturating_sub(1);
-            }
-        }
-
-        state_guard.summary_lines = new_lines;
-    }
 }
 
 impl TuiLogger for LiveTuiView {
@@ -222,14 +181,37 @@ impl TuiView for LiveTuiView {
         }
     }
 
+    fn get_pane_data_mut(
+        state: &mut Self::State,
+        pane: Self::TuiPane,
+    ) -> (&mut Vec<String>, &mut usize, &mut usize) {
+        match pane {
+            LiveTuiPane::TradesPane => (
+                &mut state.trades_lines,
+                &mut state.trades_max_line_width,
+                &mut state.trades_v_scroll,
+            ),
+            LiveTuiPane::SummaryPane => (
+                &mut state.summary_lines,
+                &mut state.summary_max_line_width,
+                &mut state.summary_v_scroll,
+            ),
+            LiveTuiPane::LogPane => (
+                &mut state.log_entries,
+                &mut state.log_max_line_width,
+                &mut state.log_v_scroll,
+            ),
+        }
+    }
+
     fn handle_ui_message(&self, message: Self::UiMessage) -> Result<bool> {
         match message {
             LiveUiMessage::TradesUpdate(trades_table) => {
-                self.update_trades(trades_table);
+                self.update_pane_content(LiveTuiPane::TradesPane, trades_table);
                 Ok(false)
             }
             LiveUiMessage::SummaryUpdate(summary) => {
-                self.update_summary(summary);
+                self.update_pane_content(LiveTuiPane::SummaryPane, summary);
                 Ok(false)
             }
             LiveUiMessage::LogEntry(entry) => {
