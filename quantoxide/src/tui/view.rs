@@ -7,6 +7,7 @@ use ratatui::{
     text::{Line, Span},
     widgets::{Block, Borders, List, ListItem},
 };
+use strum::IntoEnumIterator;
 
 use super::Result;
 
@@ -17,7 +18,7 @@ pub trait TuiLogger: Sync + Send + 'static {
 pub trait TuiView: TuiLogger {
     type UiMessage;
 
-    type TuiPane;
+    type TuiPane: IntoEnumIterator;
 
     type State;
 
@@ -50,14 +51,11 @@ pub trait TuiView: TuiLogger {
         pane: Self::TuiPane,
     ) -> (&'static str, &Vec<String>, usize, usize, Rect, bool);
 
-    fn get_list<'a>(
-        title: &'a str,
-        items: &'a [String],
-        v_scroll: usize,
-        h_scroll: usize,
-        is_active: bool,
-    ) -> List<'a> {
-        let list_items: Vec<ListItem> = items
+    fn render_pane(state: &Self::State, pane: Self::TuiPane, f: &mut Frame) {
+        let (title, lines, v_scroll, h_scroll, rect, is_active) =
+            Self::get_pane_render_info(state, pane);
+
+        let list_items: Vec<ListItem> = lines
             .iter()
             .skip(v_scroll)
             .map(|item| {
@@ -76,21 +74,20 @@ pub trait TuiView: TuiLogger {
             Style::default()
         };
 
-        List::new(list_items).block(
+        let list = List::new(list_items).block(
             Block::default()
                 .borders(Borders::ALL)
                 .title(title)
                 .border_style(border_style),
-        )
-    }
-
-    fn render_pane(state: &Self::State, pane: Self::TuiPane, f: &mut Frame) {
-        let (title, lines, v_scroll, h_scroll, rect, is_active) =
-            Self::get_pane_render_info(state, pane);
-
-        let list = Self::get_list(title, lines, v_scroll, h_scroll, is_active);
+        );
 
         f.render_widget(list, rect);
+    }
+
+    fn render_all_panes(state: &Self::State, f: &mut Frame) {
+        for pane in Self::TuiPane::iter() {
+            Self::render_pane(state, pane, f);
+        }
     }
 
     /// Returns the scroll data for the currently active pane.

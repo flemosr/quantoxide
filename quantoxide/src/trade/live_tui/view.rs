@@ -10,12 +10,13 @@ use ratatui::{
     style::{Color, Style},
     widgets::Paragraph,
 };
+use strum::EnumIter;
 
 use crate::tui::{Result, TuiError as LiveTuiError, TuiLogger, TuiView};
 
 use super::LiveUiMessage;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, EnumIter)]
 pub enum LiveTuiPane {
     TradesPane,
     SummaryPane,
@@ -301,9 +302,7 @@ impl TuiView for LiveTuiView {
         state_guard.summary_rect = bottom_chunks[0];
         state_guard.log_rect = bottom_chunks[1];
 
-        Self::render_pane(&state_guard, LiveTuiPane::TradesPane, f);
-        Self::render_pane(&state_guard, LiveTuiPane::SummaryPane, f);
-        Self::render_pane(&state_guard, LiveTuiPane::LogPane, f);
+        Self::render_all_panes(&state_guard, f);
 
         let help_area = Rect {
             x: frame_rect.x,

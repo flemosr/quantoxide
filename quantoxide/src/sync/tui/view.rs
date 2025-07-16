@@ -10,12 +10,13 @@ use ratatui::{
     style::{Color, Style},
     widgets::Paragraph,
 };
+use strum::EnumIter;
 
 use crate::tui::{Result, TuiError as SyncTuiError, TuiLogger, TuiView};
 
 use super::SyncUiMessage;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, EnumIter)]
 pub enum SyncTuiPane {
     PriceHistoryStatePane,
     LogPane,
@@ -249,8 +250,7 @@ impl TuiView for SyncTuiView {
         state_guard.ph_state_rect = main_chunks[0];
         state_guard.log_rect = main_chunks[1];
 
-        Self::render_pane(&state_guard, SyncTuiPane::PriceHistoryStatePane, f);
-        Self::render_pane(&state_guard, SyncTuiPane::LogPane, f);
+        Self::render_all_panes(&state_guard, f);
 
         let help_area = Rect {
             x: frame_rect.x,
