@@ -98,7 +98,7 @@ impl TuiLogger for SyncTuiView {
         self.max_tui_log_len
     }
 
-    fn get_log_data_mut(
+    fn get_log_components_mut(
         state: &mut Self::State,
     ) -> (
         Option<&mut File>,

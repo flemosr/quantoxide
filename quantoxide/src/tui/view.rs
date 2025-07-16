@@ -18,7 +18,20 @@ pub trait TuiLogger: Sync + Send + 'static {
 
     fn get_max_tui_log_len(&self) -> usize;
 
-    fn get_log_data_mut(
+    /// Returns mutable references to the log data components needed for TUI logging.
+    ///
+    /// # Returns
+    ///
+    /// A tuple containing:
+    /// - `Option<&mut File>`: Optional log file handle for writing log entries to disk
+    /// - `&mut Vec<String>`: Mutable reference to the log entries buffer
+    /// - `&mut usize`: Mutable reference to the maximum line width tracker
+    /// - `Rect`: The rectangular area where logs should be displayed in the TUI
+    /// - `&mut usize`: Mutable reference to the vertical scroll position
+    ///
+    /// This method provides access to all the necessary components for managing
+    /// log display and persistence in the terminal user interface.
+    fn get_log_components_mut(
         state: &mut Self::State,
     ) -> (
         Option<&mut File>,
@@ -40,7 +53,7 @@ pub trait TuiLogger: Sync + Send + 'static {
 
         let max_tui_log_len = self.get_max_tui_log_len();
         let (mut log_file, log_entries, log_max_line_width, log_rect, log_v_scroll) =
-            Self::get_log_data_mut(&mut state_guard);
+            Self::get_log_components_mut(&mut state_guard);
 
         let timestamp = chrono::Local::now().format("%H:%M:%S").to_string();
 
