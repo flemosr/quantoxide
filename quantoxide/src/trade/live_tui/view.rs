@@ -305,68 +305,6 @@ impl TuiView for LiveTuiView {
         f.render_widget(help_paragraph, help_area);
     }
 
-    fn scroll_up(&self) {
-        let mut state_guard = self.get_state();
-
-        let (v_scroll, _) = Self::get_active_scroll_mut(&mut state_guard);
-
-        *v_scroll = v_scroll.saturating_sub(1);
-    }
-
-    fn scroll_down(&self) {
-        let mut state_guard = self.get_state();
-        let (curr_v_scroll, _, rect, lines_len, _) = Self::get_active_scroll_data(&state_guard);
-
-        let max_v = Self::max_scroll_down(rect, lines_len);
-        if curr_v_scroll < max_v {
-            let (v_scroll, _) = Self::get_active_scroll_mut(&mut state_guard);
-
-            *v_scroll += 1;
-        }
-    }
-
-    fn scroll_left(&self) {
-        let mut state_guard = self.get_state();
-
-        let (_, h_scroll) = Self::get_active_scroll_mut(&mut state_guard);
-
-        *h_scroll = h_scroll.saturating_sub(1);
-    }
-
-    fn scroll_right(&self) {
-        let mut state_guard = self.get_state();
-
-        let (_, current_h_scroll, rect, _, max_line_width) =
-            Self::get_active_scroll_data(&state_guard);
-
-        let max_h = Self::max_scroll_right(rect, max_line_width);
-        if current_h_scroll < max_h {
-            let (_, h_scroll) = Self::get_active_scroll_mut(&mut state_guard);
-
-            *h_scroll += 1;
-        }
-    }
-
-    fn reset_scroll(&self) {
-        let mut state_guard = self.get_state();
-
-        let (v_scroll, h_scroll) = Self::get_active_scroll_mut(&mut state_guard);
-
-        *v_scroll = 0;
-        *h_scroll = 0;
-    }
-
-    fn scroll_to_bottom(&self) {
-        let mut state_guard = self.get_state();
-        let (_, _, rect, lines_len, _) = Self::get_active_scroll_data(&state_guard);
-
-        let max_v_scroll = Self::max_scroll_down(rect, lines_len);
-        let (v_scroll, h_scroll) = Self::get_active_scroll_mut(&mut state_guard);
-
-        *v_scroll = max_v_scroll;
-        *h_scroll = 0;
-    }
-
     fn switch_pane(&self) {
         let mut state_guard = self.get_state();
 
