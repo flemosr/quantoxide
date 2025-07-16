@@ -13,7 +13,7 @@ use crate::{
     util::AbortOnDropHandle,
 };
 
-pub use crate::tui::{TuiConfig, TuiError as SyncTuiError, TuiStatus, TuiStatusStopped};
+pub use crate::tui::{TuiConfig, TuiError, TuiStatus, TuiStatusStopped};
 
 use super::{SyncEngine, SyncReceiver, SyncState, SyncStateNotSynced, SyncUpdate};
 
@@ -105,7 +105,7 @@ impl SyncTui {
         self.ui_tx
             .send(SyncUiMessage::LogEntry(log_entry.into()))
             .await
-            .map_err(|_| SyncTuiError::Generic("TUI is not running".to_string()))
+            .map_err(|_| TuiError::Generic("TUI is not running".to_string()))
     }
 
     fn spawn_sync_update_listener(
@@ -132,7 +132,7 @@ impl SyncTui {
                                                 price_history_state.to_string(),
                                             ))
                                             .await
-                                            .map_err(|e| SyncTuiError::Generic(e.to_string()))?;
+                                            .map_err(|e| TuiError::Generic(e.to_string()))?;
 
                                         "Sync state: InProgress".to_string()
                                     }
@@ -157,13 +157,13 @@ impl SyncTui {
                         ui_tx
                             .send(SyncUiMessage::LogEntry(log_str))
                             .await
-                            .map_err(|e| SyncTuiError::Generic(e.to_string()))?;
+                            .map_err(|e| TuiError::Generic(e.to_string()))?;
                     }
                     SyncUpdate::PriceTick(tick) => {
                         ui_tx
                             .send(SyncUiMessage::LogEntry(format!("Price tick: {:?}", tick)))
                             .await
-                            .map_err(|e| SyncTuiError::Generic(e.to_string()))?;
+                            .map_err(|e| TuiError::Generic(e.to_string()))?;
                     }
                 }
                 Ok(())
@@ -183,7 +183,7 @@ impl SyncTui {
                 return;
             }
 
-            status_manager.set_crashed(SyncTuiError::Generic(
+            status_manager.set_crashed(TuiError::Generic(
                 "`sync_tx` was unexpectedly dropped".to_string(),
             ));
         })
@@ -192,7 +192,7 @@ impl SyncTui {
 
     pub fn couple(&self, engine: SyncEngine) -> Result<()> {
         if self.sync_controller.initialized() {
-            return Err(SyncTuiError::Generic(
+            return Err(TuiError::Generic(
                 "`sync_engine` was already coupled".to_string(),
             ));
         }
@@ -209,12 +209,12 @@ impl SyncTui {
 
         self.sync_controller
             .set(sync_controller)
-            .map_err(|_| SyncTuiError::Generic("Failed to set `sync_controller`".to_string()))?;
+            .map_err(|_| TuiError::Generic("Failed to set `sync_controller`".to_string()))?;
 
         self.sync_update_listener_handle
             .set(sync_update_listener_handle)
             .map_err(|_| {
-                SyncTuiError::Generic("Failed to set `sync_update_listener_handle`".to_string())
+                TuiError::Generic("Failed to set `sync_update_listener_handle`".to_string())
             })?;
 
         Ok(())

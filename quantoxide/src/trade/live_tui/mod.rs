@@ -13,7 +13,7 @@ use crate::{
     util::AbortOnDropHandle,
 };
 
-pub use crate::tui::{TuiConfig, TuiError as LiveTuiError, TuiStatus, TuiStatusStopped};
+pub use crate::tui::{TuiConfig, TuiError, TuiStatus, TuiStatusStopped};
 
 use super::live_engine::{LiveEngine, LiveReceiver, LiveUpdate};
 
@@ -106,7 +106,7 @@ impl LiveTui {
         self.ui_tx
             .send(LiveUiMessage::LogEntry(log_entry.into()))
             .await
-            .map_err(|_| LiveTuiError::Generic("TUI is not running".to_string()))
+            .map_err(|_| TuiError::Generic("TUI is not running".to_string()))
     }
 
     fn spawn_live_update_listener(
@@ -121,19 +121,19 @@ impl LiveTui {
                         ui_tx
                             .send(LiveUiMessage::LogEntry(format!("{:?}", live_state)))
                             .await
-                            .map_err(|e| LiveTuiError::Generic(e.to_string()))?;
+                            .map_err(|e| TuiError::Generic(e.to_string()))?;
                     }
                     LiveUpdate::Signal(signal) => {
                         ui_tx
                             .send(LiveUiMessage::LogEntry(format!("{}", signal.to_string())))
                             .await
-                            .map_err(|e| LiveTuiError::Generic(e.to_string()))?;
+                            .map_err(|e| TuiError::Generic(e.to_string()))?;
                     }
                     LiveUpdate::Order(order) => {
                         ui_tx
                             .send(LiveUiMessage::LogEntry(format!("Order: {:?}", order)))
                             .await
-                            .map_err(|e| LiveTuiError::Generic(e.to_string()))?;
+                            .map_err(|e| TuiError::Generic(e.to_string()))?;
                     }
                     LiveUpdate::TradingState(trading_state) => {
                         ui_tx
@@ -142,7 +142,7 @@ impl LiveTui {
                                 trading_state.summary()
                             )))
                             .await
-                            .map_err(|e| LiveTuiError::Generic(e.to_string()))?;
+                            .map_err(|e| TuiError::Generic(e.to_string()))?;
 
                         let tables = vec![
                             "\nRunning Trades\n".to_string(),
@@ -155,7 +155,7 @@ impl LiveTui {
                         ui_tx
                             .send(LiveUiMessage::TradesUpdate(tables))
                             .await
-                            .map_err(|e| LiveTuiError::Generic(e.to_string()))?;
+                            .map_err(|e| TuiError::Generic(e.to_string()))?;
                     }
                 }
 
@@ -176,7 +176,7 @@ impl LiveTui {
                 return;
             }
 
-            status_manager.set_crashed(LiveTuiError::Generic(
+            status_manager.set_crashed(TuiError::Generic(
                 "`live_tx` was unexpectedly dropped".to_string(),
             ));
         })
@@ -185,7 +185,7 @@ impl LiveTui {
 
     pub async fn couple(&self, engine: LiveEngine) -> Result<()> {
         if self.live_controller.initialized() {
-            return Err(LiveTuiError::Generic(
+            return Err(TuiError::Generic(
                 "`live_engine` was already coupled".to_string(),
             ));
         }
@@ -201,16 +201,16 @@ impl LiveTui {
         let live_controller = engine
             .start()
             .await
-            .map_err(|e| LiveTuiError::Generic(e.to_string()))?;
+            .map_err(|e| TuiError::Generic(e.to_string()))?;
 
         self.live_controller
             .set(live_controller)
-            .map_err(|_| LiveTuiError::Generic("Failed to set `live_controller`".to_string()))?;
+            .map_err(|_| TuiError::Generic("Failed to set `live_controller`".to_string()))?;
 
         self.live_update_listener_handle
             .set(live_update_listener_handle)
             .map_err(|_| {
-                LiveTuiError::Generic("Failed to set `live_update_listener_handle`".to_string())
+                TuiError::Generic("Failed to set `live_update_listener_handle`".to_string())
             })?;
 
         Ok(())

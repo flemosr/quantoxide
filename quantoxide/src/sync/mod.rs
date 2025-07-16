@@ -6,4 +6,4 @@ pub use engine::{
     SyncMode, SyncPriceHistoryError, SyncReader, SyncReceiver, SyncState, SyncStateNotSynced,
     SyncUpdate,
 };
-pub use tui::{SyncTui, SyncTuiError, TuiConfig, TuiStatus, TuiStatusStopped};
+pub use tui::{SyncTui, TuiConfig, TuiError, TuiStatus, TuiStatusStopped};
