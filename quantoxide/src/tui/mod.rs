@@ -2,6 +2,7 @@ mod config;
 mod core;
 mod error;
 mod status;
+mod sync;
 mod terminal;
 mod view;
 
@@ -12,5 +13,6 @@ pub use core::{
 };
 pub use error::{Result, TuiError};
 pub use status::{TuiStatus, TuiStatusManager, TuiStatusStopped};
+pub use sync::SyncTui;
 pub use terminal::TuiTerminal;
 pub use view::{TuiLogger, TuiView};

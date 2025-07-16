@@ -11,3 +11,5 @@ pub mod util;
 pub mod indicators;
 
 mod tui;
+
+pub use tui::{SyncTui, TuiConfig, TuiError, TuiStatus, TuiStatusStopped};
