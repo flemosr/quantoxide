@@ -13,17 +13,11 @@ use crate::{
     util::AbortOnDropHandle,
 };
 
-mod error;
-mod process;
-mod state;
-
-use error::Result;
-use process::SyncProcess;
-use state::{SyncStateManager, SyncTransmiter};
-
-pub use error::SyncError;
-pub use process::{PriceHistoryState, RealTimeCollectionError, SyncPriceHistoryError};
-pub use state::{SyncReader, SyncReceiver, SyncState, SyncStateNotSynced, SyncUpdate};
+use super::{
+    error::{Result, SyncError},
+    process::SyncProcess,
+    state::{SyncReader, SyncReceiver, SyncState, SyncStateManager, SyncTransmiter, SyncUpdate},
+};
 
 #[derive(Debug)]
 struct SyncControllerConfig {
