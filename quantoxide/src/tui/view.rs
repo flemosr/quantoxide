@@ -1,3 +1,5 @@
+use std::sync::MutexGuard;
+
 use ratatui::{
     Frame,
     layout::Rect,
@@ -14,6 +16,7 @@ pub trait TuiLogger: Sync + Send + 'static {
 
 pub trait TuiView: TuiLogger {
     type UiMessage;
+    type State;
 
     fn render(&self, f: &mut Frame);
 
@@ -63,6 +66,12 @@ pub trait TuiView: TuiLogger {
         let visible_width = rect.width.saturating_sub(4) as usize; // Subtract borders and padding
         max_line_width.saturating_sub(visible_width)
     }
+
+    fn get_active_scroll_data(state: &Self::State) -> (usize, usize, &Rect, usize, usize);
+
+    fn get_active_scroll_mut(state: &mut Self::State) -> (&mut usize, &mut usize);
+
+    fn get_state(&self) -> MutexGuard<'_, Self::State>;
 
     fn scroll_up(&self);
 

@@ -21,7 +21,7 @@ enum ActivePane {
     LogPane,
 }
 
-struct SyncTuiViewState {
+pub struct SyncTuiViewState {
     log_file: Option<File>,
     active_pane: ActivePane,
 
@@ -64,12 +64,6 @@ impl SyncTuiView {
                 state_h_scroll: 0,
             }),
         })
-    }
-
-    fn get_state(&self) -> MutexGuard<'_, SyncTuiViewState> {
-        self.state
-            .lock()
-            .expect("`SyncTuiContent` mutex can't be poisoned")
     }
 
     pub fn update_sync_state(&self, state: String) {
@@ -157,6 +151,40 @@ impl TuiLogger for SyncTuiView {
 
 impl TuiView for SyncTuiView {
     type UiMessage = SyncUiMessage;
+
+    type State = SyncTuiViewState;
+
+    fn get_active_scroll_data(state: &Self::State) -> (usize, usize, &Rect, usize, usize) {
+        match state.active_pane {
+            ActivePane::StatePane => (
+                state.state_v_scroll,
+                state.state_h_scroll,
+                &state.state_rect,
+                state.state_lines.len(),
+                state.state_max_line_width,
+            ),
+            ActivePane::LogPane => (
+                state.log_v_scroll,
+                state.log_h_scroll,
+                &state.log_rect,
+                state.log_entries.len(),
+                state.log_max_line_width,
+            ),
+        }
+    }
+
+    fn get_active_scroll_mut(state: &mut Self::State) -> (&mut usize, &mut usize) {
+        match state.active_pane {
+            ActivePane::StatePane => (&mut state.state_v_scroll, &mut state.state_h_scroll),
+            ActivePane::LogPane => (&mut state.log_v_scroll, &mut state.log_h_scroll),
+        }
+    }
+
+    fn get_state(&self) -> MutexGuard<'_, Self::State> {
+        self.state
+            .lock()
+            .expect("`SyncTuiView` mutex can't be poisoned")
+    }
 
     fn handle_ui_message(&self, message: Self::UiMessage) -> Result<bool> {
         match message {

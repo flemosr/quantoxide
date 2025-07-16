@@ -22,7 +22,7 @@ enum ActivePane {
     LogPane,
 }
 
-struct LiveTuiViewState {
+pub struct LiveTuiViewState {
     log_file: Option<File>,
     active_pane: ActivePane,
 
@@ -77,12 +77,6 @@ impl LiveTuiView {
                 trades_h_scroll: 0,
             }),
         })
-    }
-
-    fn get_state(&self) -> MutexGuard<'_, LiveTuiViewState> {
-        self.state
-            .lock()
-            .expect("`LiveTuiContent` mutex can't be poisoned")
     }
 
     pub fn update_summary(&self, state: String) {
@@ -187,6 +181,48 @@ impl TuiLogger for LiveTuiView {
 impl TuiView for LiveTuiView {
     type UiMessage = LiveUiMessage;
 
+    type State = LiveTuiViewState;
+
+    fn get_active_scroll_data(state: &Self::State) -> (usize, usize, &Rect, usize, usize) {
+        match state.active_pane {
+            ActivePane::TradesPane => (
+                state.trades_v_scroll,
+                state.trades_h_scroll,
+                &state.trades_rect,
+                state.trades_lines.len(),
+                state.trades_max_line_width,
+            ),
+            ActivePane::SummaryPane => (
+                state.summary_v_scroll,
+                state.summary_h_scroll,
+                &state.summary_rect,
+                state.summary_lines.len(),
+                state.summary_max_line_width,
+            ),
+            ActivePane::LogPane => (
+                state.log_v_scroll,
+                state.log_h_scroll,
+                &state.log_rect,
+                state.log_entries.len(),
+                state.log_max_line_width,
+            ),
+        }
+    }
+
+    fn get_active_scroll_mut(state: &mut Self::State) -> (&mut usize, &mut usize) {
+        match state.active_pane {
+            ActivePane::TradesPane => (&mut state.trades_v_scroll, &mut state.trades_h_scroll),
+            ActivePane::SummaryPane => (&mut state.summary_v_scroll, &mut state.summary_h_scroll),
+            ActivePane::LogPane => (&mut state.log_v_scroll, &mut state.log_h_scroll),
+        }
+    }
+
+    fn get_state(&self) -> MutexGuard<'_, Self::State> {
+        self.state
+            .lock()
+            .expect("`LiveTuiView` mutex can't be poisoned")
+    }
+
     fn handle_ui_message(&self, message: Self::UiMessage) -> Result<bool> {
         match message {
             LiveUiMessage::LogEntry(entry) => {
@@ -272,138 +308,63 @@ impl TuiView for LiveTuiView {
     fn scroll_up(&self) {
         let mut state_guard = self.get_state();
 
-        match state_guard.active_pane {
-            ActivePane::TradesPane => {
-                state_guard.trades_v_scroll = state_guard.trades_v_scroll.saturating_sub(1)
-            }
-            ActivePane::SummaryPane => {
-                state_guard.summary_v_scroll = state_guard.summary_v_scroll.saturating_sub(1)
-            }
-            ActivePane::LogPane => {
-                state_guard.log_v_scroll = state_guard.log_v_scroll.saturating_sub(1)
-            }
-        }
+        let (v_scroll, _) = Self::get_active_scroll_mut(&mut state_guard);
+
+        *v_scroll = v_scroll.saturating_sub(1);
     }
 
     fn scroll_down(&self) {
         let mut state_guard = self.get_state();
+        let (curr_v_scroll, _, rect, lines_len, _) = Self::get_active_scroll_data(&state_guard);
 
-        match state_guard.active_pane {
-            ActivePane::TradesPane => {
-                let max =
-                    Self::max_scroll_down(&state_guard.trades_rect, state_guard.trades_lines.len());
-                if state_guard.trades_v_scroll < max {
-                    state_guard.trades_v_scroll += 1;
-                }
-            }
-            ActivePane::SummaryPane => {
-                let max = Self::max_scroll_down(
-                    &state_guard.summary_rect,
-                    state_guard.summary_lines.len(),
-                );
-                if state_guard.summary_v_scroll < max {
-                    state_guard.summary_v_scroll += 1;
-                }
-            }
-            ActivePane::LogPane => {
-                let max =
-                    Self::max_scroll_down(&state_guard.log_rect, state_guard.log_entries.len());
-                if state_guard.log_v_scroll < max {
-                    state_guard.log_v_scroll += 1;
-                }
-            }
+        let max_v = Self::max_scroll_down(rect, lines_len);
+        if curr_v_scroll < max_v {
+            let (v_scroll, _) = Self::get_active_scroll_mut(&mut state_guard);
+
+            *v_scroll += 1;
         }
     }
 
     fn scroll_left(&self) {
         let mut state_guard = self.get_state();
 
-        match state_guard.active_pane {
-            ActivePane::TradesPane => {
-                state_guard.trades_h_scroll = state_guard.trades_h_scroll.saturating_sub(1);
-            }
-            ActivePane::SummaryPane => {
-                state_guard.summary_h_scroll = state_guard.summary_h_scroll.saturating_sub(1);
-            }
-            ActivePane::LogPane => {
-                state_guard.log_h_scroll = state_guard.log_h_scroll.saturating_sub(1);
-            }
-        }
+        let (_, h_scroll) = Self::get_active_scroll_mut(&mut state_guard);
+
+        *h_scroll = h_scroll.saturating_sub(1);
     }
 
     fn scroll_right(&self) {
         let mut state_guard = self.get_state();
 
-        match state_guard.active_pane {
-            ActivePane::TradesPane => {
-                let max = Self::max_scroll_right(
-                    &state_guard.trades_rect,
-                    state_guard.trades_max_line_width,
-                );
-                if state_guard.trades_h_scroll < max {
-                    state_guard.trades_h_scroll += 1;
-                }
-            }
-            ActivePane::SummaryPane => {
-                let max = Self::max_scroll_right(
-                    &state_guard.summary_rect,
-                    state_guard.summary_max_line_width,
-                );
-                if state_guard.summary_h_scroll < max {
-                    state_guard.summary_h_scroll += 1;
-                }
-            }
-            ActivePane::LogPane => {
-                let max =
-                    Self::max_scroll_right(&state_guard.log_rect, state_guard.log_max_line_width);
-                if state_guard.log_h_scroll < max {
-                    state_guard.log_h_scroll += 1;
-                }
-            }
+        let (_, current_h_scroll, rect, _, max_line_width) =
+            Self::get_active_scroll_data(&state_guard);
+
+        let max_h = Self::max_scroll_right(rect, max_line_width);
+        if current_h_scroll < max_h {
+            let (_, h_scroll) = Self::get_active_scroll_mut(&mut state_guard);
+
+            *h_scroll += 1;
         }
     }
 
     fn reset_scroll(&self) {
         let mut state_guard = self.get_state();
 
-        match state_guard.active_pane {
-            ActivePane::TradesPane => {
-                state_guard.trades_v_scroll = 0;
-                state_guard.trades_h_scroll = 0;
-            }
-            ActivePane::SummaryPane => {
-                state_guard.summary_v_scroll = 0;
-                state_guard.summary_h_scroll = 0;
-            }
-            ActivePane::LogPane => {
-                state_guard.log_v_scroll = 0;
-                state_guard.log_h_scroll = 0;
-            }
-        }
+        let (v_scroll, h_scroll) = Self::get_active_scroll_mut(&mut state_guard);
+
+        *v_scroll = 0;
+        *h_scroll = 0;
     }
 
     fn scroll_to_bottom(&self) {
         let mut state_guard = self.get_state();
+        let (_, _, rect, lines_len, _) = Self::get_active_scroll_data(&state_guard);
 
-        match state_guard.active_pane {
-            ActivePane::TradesPane => {
-                state_guard.trades_v_scroll =
-                    Self::max_scroll_down(&state_guard.trades_rect, state_guard.trades_lines.len());
-                state_guard.trades_h_scroll = 0;
-            }
-            ActivePane::SummaryPane => {
-                state_guard.summary_v_scroll = Self::max_scroll_down(
-                    &state_guard.summary_rect,
-                    state_guard.summary_lines.len(),
-                );
-                state_guard.summary_h_scroll = 0;
-            }
-            ActivePane::LogPane => {
-                state_guard.log_v_scroll =
-                    Self::max_scroll_down(&state_guard.log_rect, state_guard.log_entries.len());
-                state_guard.log_h_scroll = 0;
-            }
-        }
+        let max_v_scroll = Self::max_scroll_down(rect, lines_len);
+        let (v_scroll, h_scroll) = Self::get_active_scroll_mut(&mut state_guard);
+
+        *v_scroll = max_v_scroll;
+        *h_scroll = 0;
     }
 
     fn switch_pane(&self) {
