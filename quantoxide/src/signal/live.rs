@@ -6,7 +6,7 @@ use tokio::{sync::broadcast, time};
 use crate::{
     db::DbContext,
     sync::{SyncReader, SyncState, SyncStateNotSynced, SyncUpdate},
-    trade::live_engine::LiveConfig,
+    trade::live::LiveConfig,
     util::{AbortOnDropHandle, DateTimeExt, Never},
 };
 

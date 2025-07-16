@@ -15,7 +15,7 @@ use crate::{
 
 use super::{TuiConfig, TuiError, TuiStatus, TuiStatusStopped};
 
-use crate::trade::live_engine::{LiveEngine, LiveReceiver, LiveUpdate};
+use crate::trade::live::{LiveEngine, LiveReceiver, LiveUpdate};
 
 mod view;
 

@@ -6,7 +6,7 @@ use lnm_sdk::api::rest::models::error::PriceValidationError;
 
 use super::{
     backtest::error::{BacktestError, SimulatedTradeExecutorError},
-    live_engine::error::LiveError,
+    live::error::LiveError,
 };
 
 #[derive(Error, Debug)]
