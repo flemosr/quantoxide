@@ -38,7 +38,7 @@ impl TuiTerminal {
         self.0.lock().expect("not poisoned")
     }
 
-    pub fn draw<T: TuiView>(&self, tui_view: Arc<T>) -> Result<()> {
+    pub fn draw<T: TuiView>(&self, tui_view: &T) -> Result<()> {
         let mut state = self.get_state();
         if state.restored {
             return Err(TuiError::Generic("Terminal already restored".to_string()));

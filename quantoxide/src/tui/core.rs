@@ -56,7 +56,7 @@ where
 {
     loop {
         task::yield_now().await;
-        tui_terminal.draw(tui_view.clone())?;
+        tui_terminal.draw(tui_view.as_ref())?;
 
         if let Ok(message) = ui_rx.try_recv() {
             let is_shutdown_completed = tui_view.handle_ui_message(message)?;
@@ -91,7 +91,7 @@ where
     }
 
     loop {
-        tui_terminal.draw(tui_view.clone())?;
+        tui_terminal.draw(tui_view.as_ref())?;
         time::sleep(event_check_interval).await;
 
         if let Ok(message) = ui_rx.try_recv() {
