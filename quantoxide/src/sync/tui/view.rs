@@ -1,6 +1,5 @@
 use std::{
     fs::File,
-    io::Write,
     sync::{Arc, Mutex, MutexGuard},
 };
 
@@ -10,7 +9,7 @@ use ratatui::{
 };
 use strum::EnumIter;
 
-use crate::tui::{Result, TuiError as SyncTuiError, TuiLogger, TuiView};
+use crate::tui::{Result, TuiLogger, TuiView};
 
 use super::SyncUiMessage;
 
@@ -93,59 +92,34 @@ impl SyncTuiView {
 }
 
 impl TuiLogger for SyncTuiView {
-    fn add_log_entry(&self, entry: String) -> Result<()> {
-        let mut state_guard = self.get_state();
+    type State = SyncTuiViewState;
 
-        let timestamp = chrono::Local::now().format("%H:%M:%S").to_string();
+    fn get_max_tui_log_len(&self) -> usize {
+        self.max_tui_log_len
+    }
 
-        let lines: Vec<&str> = entry.lines().collect();
+    fn get_log_data_mut(
+        state: &mut Self::State,
+    ) -> (
+        Option<&mut File>,
+        &mut Vec<String>,
+        &mut usize,
+        Rect,
+        &mut usize,
+    ) {
+        (
+            state.log_file.as_mut(),
+            &mut state.log_entries,
+            &mut state.log_max_line_width,
+            state.log_rect.clone(),
+            &mut state.log_v_scroll,
+        )
+    }
 
-        if lines.is_empty() {
-            return Ok(());
-        }
-
-        let mut log_entry = Vec::new();
-
-        for (i, line) in lines.iter().enumerate() {
-            let log_entry_line = if i == 0 {
-                format!("[{}] {}", timestamp, line)
-            } else {
-                format!("           {}", line)
-            };
-
-            if let Some(log_file) = state_guard.log_file.as_mut() {
-                writeln!(log_file, "{}", log_entry_line).map_err(|e| {
-                    SyncTuiError::Generic(format!("couldn't write to log file {}", e.to_string()))
-                })?;
-                log_file.flush().map_err(|e| {
-                    SyncTuiError::Generic(format!("couldn't flush log file {}", e.to_string()))
-                })?;
-            }
-
-            log_entry.push(log_entry_line)
-        }
-
-        // Add entry at the beginning of the TUI log
-
-        for entry_line in log_entry.into_iter().rev() {
-            state_guard.log_max_line_width = state_guard.log_max_line_width.max(entry_line.len());
-            state_guard.log_entries.insert(0, entry_line);
-        }
-
-        // Adjust scroll position to maintain the user's view
-        if state_guard.log_v_scroll != 0 {
-            state_guard.log_v_scroll = state_guard.log_v_scroll.saturating_add(lines.len());
-        }
-
-        if state_guard.log_entries.len() > self.max_tui_log_len {
-            state_guard.log_entries.truncate(self.max_tui_log_len);
-
-            let max_scroll =
-                Self::max_scroll_down(&state_guard.log_rect, state_guard.log_entries.len());
-            state_guard.log_v_scroll = state_guard.log_v_scroll.min(max_scroll);
-        }
-
-        Ok(())
+    fn get_state(&self) -> MutexGuard<'_, Self::State> {
+        self.state
+            .lock()
+            .expect("`SyncTuiView` mutex can't be poisoned")
     }
 }
 
@@ -153,8 +127,6 @@ impl TuiView for SyncTuiView {
     type UiMessage = SyncUiMessage;
 
     type TuiPane = SyncTuiPane;
-
-    type State = SyncTuiViewState;
 
     fn get_active_scroll_data(state: &Self::State) -> (usize, usize, &Rect, usize, usize) {
         match state.active_pane {
@@ -206,12 +178,6 @@ impl TuiView for SyncTuiView {
                 state.active_pane == SyncTuiPane::LogPane,
             ),
         }
-    }
-
-    fn get_state(&self) -> MutexGuard<'_, Self::State> {
-        self.state
-            .lock()
-            .expect("`SyncTuiView` mutex can't be poisoned")
     }
 
     fn handle_ui_message(&self, message: Self::UiMessage) -> Result<bool> {
