@@ -63,32 +63,6 @@ impl SyncTuiView {
             }),
         })
     }
-
-    pub fn update_sync_state(&self, state: String) {
-        let mut state_guard = self
-            .state
-            .lock()
-            .expect("`SyncTuiContent` mutex can't be poisoned");
-
-        let mut new_lines = Vec::new();
-
-        // Split the state into lines for display
-        for line in state.lines() {
-            state_guard.ph_state_max_line_width =
-                state_guard.ph_state_max_line_width.max(line.len());
-            new_lines.push(line.to_string());
-        }
-
-        new_lines.push("".to_string());
-
-        if new_lines.len() != state_guard.ph_state_lines.len() {
-            if state_guard.ph_state_v_scroll >= new_lines.len() && new_lines.len() > 0 {
-                state_guard.ph_state_v_scroll = new_lines.len().saturating_sub(1);
-            }
-        }
-
-        state_guard.ph_state_lines = new_lines;
-    }
 }
 
 impl TuiLogger for SyncTuiView {
@@ -180,14 +154,32 @@ impl TuiView for SyncTuiView {
         }
     }
 
+    fn get_pane_data_mut(
+        state: &mut Self::State,
+        pane: Self::TuiPane,
+    ) -> (&mut Vec<String>, &mut usize, &mut usize) {
+        match pane {
+            SyncTuiPane::PriceHistoryStatePane => (
+                &mut state.ph_state_lines,
+                &mut state.ph_state_max_line_width,
+                &mut state.ph_state_v_scroll,
+            ),
+            SyncTuiPane::LogPane => (
+                &mut state.log_entries,
+                &mut state.log_max_line_width,
+                &mut state.log_v_scroll,
+            ),
+        }
+    }
+
     fn handle_ui_message(&self, message: Self::UiMessage) -> Result<bool> {
         match message {
-            SyncUiMessage::LogEntry(entry) => {
-                self.add_log_entry(entry)?;
+            SyncUiMessage::StateUpdate(state) => {
+                self.update_pane_content(SyncTuiPane::PriceHistoryStatePane, state);
                 Ok(false)
             }
-            SyncUiMessage::StateUpdate(state) => {
-                self.update_sync_state(state);
+            SyncUiMessage::LogEntry(entry) => {
+                self.add_log_entry(entry)?;
                 Ok(false)
             }
             SyncUiMessage::ShutdownCompleted => Ok(true),
