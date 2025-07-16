@@ -7,8 +7,6 @@ use std::{
 use ratatui::{
     Frame,
     layout::{Constraint, Direction, Layout, Rect},
-    style::{Color, Style},
-    widgets::Paragraph,
 };
 use strum::EnumIter;
 
@@ -277,14 +275,7 @@ impl TuiView for LiveTuiView {
     }
 
     fn render(&self, f: &mut Frame) {
-        let frame_rect = f.area();
-
-        let main_area = Rect {
-            x: frame_rect.x,
-            y: frame_rect.y,
-            width: frame_rect.width,
-            height: frame_rect.height.saturating_sub(1), // Leave 1 row for help text
-        };
+        let main_area = Self::get_main_area(f);
 
         let main_chunks = Layout::default()
             .direction(Direction::Vertical)
@@ -302,18 +293,7 @@ impl TuiView for LiveTuiView {
         state_guard.summary_rect = bottom_chunks[0];
         state_guard.log_rect = bottom_chunks[1];
 
-        Self::render_all_panes(&state_guard, f);
-
-        let help_area = Rect {
-            x: frame_rect.x,
-            y: frame_rect.y + frame_rect.height.saturating_sub(1), // Last row
-            width: frame_rect.width,
-            height: 1,
-        };
-
-        let help_text = " Press 'q' to quit, Tab to switch panes, scroll with ↑/↓, ←/→, 'b' to bottom and 't' to top";
-        let help_paragraph = Paragraph::new(help_text).style(Style::default().fg(Color::Gray));
-        f.render_widget(help_paragraph, help_area);
+        Self::render_widgets(f, &state_guard);
     }
 
     fn switch_pane(&self) {

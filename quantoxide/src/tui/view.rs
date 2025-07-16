@@ -5,7 +5,7 @@ use ratatui::{
     layout::Rect,
     style::{Color, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, List, ListItem},
+    widgets::{Block, Borders, List, ListItem, Paragraph},
 };
 use strum::IntoEnumIterator;
 
@@ -37,6 +37,28 @@ pub trait TuiView: TuiLogger {
         max_line_width.saturating_sub(visible_width)
     }
 
+    fn get_main_area(f: &mut Frame) -> Rect {
+        let frame_rect = f.area();
+
+        Rect {
+            x: frame_rect.x,
+            y: frame_rect.y,
+            width: frame_rect.width,
+            height: frame_rect.height.saturating_sub(1), // Leave 1 row for help text
+        }
+    }
+
+    fn get_help_area(f: &mut Frame) -> Rect {
+        let frame_rect = f.area();
+
+        Rect {
+            x: frame_rect.x,
+            y: frame_rect.y + frame_rect.height.saturating_sub(1), // Last row
+            width: frame_rect.width,
+            height: 1,
+        }
+    }
+
     /// Returns the scroll data for the currently active pane.
     ///
     /// Returns a tuple containing:
@@ -51,7 +73,7 @@ pub trait TuiView: TuiLogger {
         pane: Self::TuiPane,
     ) -> (&'static str, &Vec<String>, usize, usize, Rect, bool);
 
-    fn render_pane(state: &Self::State, pane: Self::TuiPane, f: &mut Frame) {
+    fn render_pane(f: &mut Frame, state: &Self::State, pane: Self::TuiPane) {
         let (title, lines, v_scroll, h_scroll, rect, is_active) =
             Self::get_pane_render_info(state, pane);
 
@@ -84,10 +106,16 @@ pub trait TuiView: TuiLogger {
         f.render_widget(list, rect);
     }
 
-    fn render_all_panes(state: &Self::State, f: &mut Frame) {
+    fn render_widgets(f: &mut Frame, state: &Self::State) {
         for pane in Self::TuiPane::iter() {
-            Self::render_pane(state, pane, f);
+            Self::render_pane(f, state, pane);
         }
+
+        let help_area = Self::get_help_area(f);
+
+        let help_text = " Press 'q' to quit, Tab to switch panes, scroll with ↑/↓, ←/→, 'b' to bottom and 't' to top";
+        let help_paragraph = Paragraph::new(help_text).style(Style::default().fg(Color::Gray));
+        f.render_widget(help_paragraph, help_area);
     }
 
     /// Returns the scroll data for the currently active pane.
