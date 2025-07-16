@@ -16,26 +16,26 @@ use crate::tui::{Result, TuiError as SyncTuiError, TuiLogger, TuiView};
 use super::SyncUiMessage;
 
 #[derive(Debug, PartialEq)]
-enum ActivePane {
-    StatePane,
+enum SyncTuiPane {
+    PriceHistoryStatePane,
     LogPane,
 }
 
 pub struct SyncTuiViewState {
     log_file: Option<File>,
-    active_pane: ActivePane,
+    active_pane: SyncTuiPane,
+
+    ph_state_lines: Vec<String>,
+    ph_state_max_line_width: usize,
+    ph_state_rect: Rect,
+    ph_state_v_scroll: usize,
+    ph_state_h_scroll: usize,
 
     log_entries: Vec<String>,
     log_max_line_width: usize,
     log_rect: Rect,
     log_v_scroll: usize,
     log_h_scroll: usize,
-
-    state_lines: Vec<String>,
-    state_max_line_width: usize,
-    state_rect: Rect,
-    state_v_scroll: usize,
-    state_h_scroll: usize,
 }
 
 pub struct SyncTuiView {
@@ -49,19 +49,19 @@ impl SyncTuiView {
             max_tui_log_len,
             state: Mutex::new(SyncTuiViewState {
                 log_file,
-                active_pane: ActivePane::StatePane,
+                active_pane: SyncTuiPane::PriceHistoryStatePane,
+
+                ph_state_lines: vec!["Initializing...".to_string()],
+                ph_state_max_line_width: 0,
+                ph_state_rect: Rect::default(),
+                ph_state_v_scroll: 0,
+                ph_state_h_scroll: 0,
 
                 log_entries: Vec::new(),
                 log_max_line_width: 0,
                 log_rect: Rect::default(),
                 log_v_scroll: 0,
                 log_h_scroll: 0,
-
-                state_lines: vec!["Initializing...".to_string()],
-                state_max_line_width: 0,
-                state_rect: Rect::default(),
-                state_v_scroll: 0,
-                state_h_scroll: 0,
             }),
         })
     }
@@ -76,19 +76,20 @@ impl SyncTuiView {
 
         // Split the state into lines for display
         for line in state.lines() {
-            state_guard.state_max_line_width = state_guard.state_max_line_width.max(line.len());
+            state_guard.ph_state_max_line_width =
+                state_guard.ph_state_max_line_width.max(line.len());
             new_lines.push(line.to_string());
         }
 
         new_lines.push("".to_string());
 
-        if new_lines.len() != state_guard.state_lines.len() {
-            if state_guard.state_v_scroll >= new_lines.len() && new_lines.len() > 0 {
-                state_guard.state_v_scroll = new_lines.len().saturating_sub(1);
+        if new_lines.len() != state_guard.ph_state_lines.len() {
+            if state_guard.ph_state_v_scroll >= new_lines.len() && new_lines.len() > 0 {
+                state_guard.ph_state_v_scroll = new_lines.len().saturating_sub(1);
             }
         }
 
-        state_guard.state_lines = new_lines;
+        state_guard.ph_state_lines = new_lines;
     }
 }
 
@@ -156,14 +157,14 @@ impl TuiView for SyncTuiView {
 
     fn get_active_scroll_data(state: &Self::State) -> (usize, usize, &Rect, usize, usize) {
         match state.active_pane {
-            ActivePane::StatePane => (
-                state.state_v_scroll,
-                state.state_h_scroll,
-                &state.state_rect,
-                state.state_lines.len(),
-                state.state_max_line_width,
+            SyncTuiPane::PriceHistoryStatePane => (
+                state.ph_state_v_scroll,
+                state.ph_state_h_scroll,
+                &state.ph_state_rect,
+                state.ph_state_lines.len(),
+                state.ph_state_max_line_width,
             ),
-            ActivePane::LogPane => (
+            SyncTuiPane::LogPane => (
                 state.log_v_scroll,
                 state.log_h_scroll,
                 &state.log_rect,
@@ -175,8 +176,10 @@ impl TuiView for SyncTuiView {
 
     fn get_active_scroll_mut(state: &mut Self::State) -> (&mut usize, &mut usize) {
         match state.active_pane {
-            ActivePane::StatePane => (&mut state.state_v_scroll, &mut state.state_h_scroll),
-            ActivePane::LogPane => (&mut state.log_v_scroll, &mut state.log_h_scroll),
+            SyncTuiPane::PriceHistoryStatePane => {
+                (&mut state.ph_state_v_scroll, &mut state.ph_state_h_scroll)
+            }
+            SyncTuiPane::LogPane => (&mut state.log_v_scroll, &mut state.log_h_scroll),
         }
     }
 
@@ -217,24 +220,24 @@ impl TuiView for SyncTuiView {
 
         let mut state_guard = self.get_state();
 
-        state_guard.state_rect = main_chunks[0];
+        state_guard.ph_state_rect = main_chunks[0];
         state_guard.log_rect = main_chunks[1];
 
         let state_list = Self::get_list(
-            "Sync State",
-            &state_guard.state_lines,
-            state_guard.state_v_scroll,
-            state_guard.state_h_scroll,
-            state_guard.active_pane == ActivePane::StatePane,
+            "Price History State",
+            &state_guard.ph_state_lines,
+            state_guard.ph_state_v_scroll,
+            state_guard.ph_state_h_scroll,
+            state_guard.active_pane == SyncTuiPane::PriceHistoryStatePane,
         );
-        f.render_widget(state_list, state_guard.state_rect);
+        f.render_widget(state_list, state_guard.ph_state_rect);
 
         let log_list = Self::get_list(
             "Log",
             &state_guard.log_entries,
             state_guard.log_v_scroll,
             state_guard.log_h_scroll,
-            state_guard.active_pane == ActivePane::LogPane,
+            state_guard.active_pane == SyncTuiPane::LogPane,
         );
         f.render_widget(log_list, state_guard.log_rect);
 
@@ -253,8 +256,8 @@ impl TuiView for SyncTuiView {
         let mut state_guard = self.get_state();
 
         state_guard.active_pane = match state_guard.active_pane {
-            ActivePane::StatePane => ActivePane::LogPane,
-            ActivePane::LogPane => ActivePane::StatePane,
+            SyncTuiPane::PriceHistoryStatePane => SyncTuiPane::LogPane,
+            SyncTuiPane::LogPane => SyncTuiPane::PriceHistoryStatePane,
         };
     }
 }
