@@ -15,12 +15,14 @@ use tokio::{
     task, time,
 };
 
-use crate::{
-    tui::{TuiLogger, TuiStatus, TuiStatusManager},
-    util::AbortOnDropHandle,
-};
+use crate::util::AbortOnDropHandle;
 
-use super::{Result, TuiError, TuiTerminal, TuiView};
+use super::{
+    error::{Result, TuiError},
+    status::{TuiStatus, TuiStatusManager},
+    terminal::TuiTerminal,
+    view::{TuiLogger, TuiView},
+};
 
 pub fn open_log_file(log_file_path: Option<&str>) -> Result<Option<File>> {
     log_file_path

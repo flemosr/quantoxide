@@ -9,9 +9,7 @@ use ratatui::{
 };
 use strum::IntoEnumIterator;
 
-use crate::tui::TuiError;
-
-use super::Result;
+use super::error::{Result, TuiError};
 
 pub trait TuiLogger: Sync + Send + 'static {
     type State;

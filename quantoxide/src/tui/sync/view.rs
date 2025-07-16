@@ -9,9 +9,13 @@ use ratatui::{
 };
 use strum::EnumIter;
 
-use crate::tui::{Result, TuiLogger, TuiView};
-
-use super::SyncUiMessage;
+use super::{
+    super::{
+        error::Result,
+        view::{TuiLogger, TuiView},
+    },
+    SyncUiMessage,
+};
 
 #[derive(Debug, PartialEq, EnumIter)]
 pub enum SyncTuiPane {

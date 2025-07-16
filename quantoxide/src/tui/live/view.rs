@@ -9,9 +9,13 @@ use ratatui::{
 };
 use strum::EnumIter;
 
-use crate::tui::{Result, TuiLogger, TuiView};
-
-use super::LiveUiMessage;
+use super::{
+    super::{
+        error::Result,
+        view::{TuiLogger, TuiView},
+    },
+    LiveUiMessage,
+};
 
 #[derive(Debug, PartialEq, EnumIter)]
 pub enum LiveTuiPane {

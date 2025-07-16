@@ -9,13 +9,17 @@ use tokio::{
 };
 
 use crate::{
-    tui::{self, Result, TuiControllerShutdown, TuiStatusManager, TuiTerminal},
+    sync::{SyncEngine, SyncReceiver, SyncState, SyncStateNotSynced, SyncUpdate},
     util::AbortOnDropHandle,
 };
 
-use super::{TuiConfig, TuiError, TuiStatus, TuiStatusStopped};
-
-use crate::sync::{SyncEngine, SyncReceiver, SyncState, SyncStateNotSynced, SyncUpdate};
+use super::{
+    config::TuiConfig,
+    core::{self, TuiControllerShutdown},
+    error::{Result, TuiError},
+    status::{TuiStatus, TuiStatusManager, TuiStatusStopped},
+    terminal::TuiTerminal,
+};
 
 mod view;
 
@@ -46,7 +50,7 @@ pub struct SyncTui {
 
 impl SyncTui {
     pub async fn launch(config: TuiConfig, log_file_path: Option<&str>) -> Result<Self> {
-        let log_file = tui::open_log_file(log_file_path)?;
+        let log_file = core::open_log_file(log_file_path)?;
 
         let (ui_tx, ui_rx) = mpsc::channel::<SyncUiMessage>(100);
         let (shutdown_tx, shutdown_rx) = mpsc::channel::<()>(10);
@@ -57,7 +61,7 @@ impl SyncTui {
 
         let status_manager = TuiStatusManager::new_running(tui_view.clone());
 
-        let ui_task_handle = tui::spawn_ui_task(
+        let ui_task_handle = core::spawn_ui_task(
             config.event_check_interval(),
             tui_view,
             status_manager.clone(),
@@ -68,7 +72,7 @@ impl SyncTui {
 
         let sync_controller = Arc::new(OnceCell::new());
 
-        let _shutdown_listener_handle = tui::spawn_shutdown_signal_listener(
+        let _shutdown_listener_handle = core::spawn_shutdown_signal_listener(
             config.shutdown_timeout(),
             status_manager.clone(),
             shutdown_rx,
@@ -228,7 +232,7 @@ impl SyncTui {
             .get()
             .map(|inner_ref| inner_ref.clone());
 
-        tui::shutdown_inner(
+        core::shutdown_inner(
             self.shutdown_timeout,
             self.status_manager.clone(),
             self.ui_task_handle.clone(),
