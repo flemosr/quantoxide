@@ -93,12 +93,19 @@ impl BacktestController {
         self.state_manager.snapshot()
     }
 
+    fn try_consume_handle(&self) -> Option<AbortOnDropHandle<()>> {
+        let mut handle_guard = self
+            .handle
+            .lock()
+            .expect("`BacktestController` mutex can't be poisoned");
+        handle_guard.take()
+    }
+
     /// Consumes the task handle and waits for the backtest to complete.
     /// This method can only be called once per controller instance.
     /// Returns an error if the internal task was not properly handled.
     pub async fn wait_for_completion(&self) -> Result<()> {
-        let mut handle_guard = self.handle.lock().expect("handle lock can't be poisoned");
-        if let Some(handle) = handle_guard.take() {
+        if let Some(handle) = self.try_consume_handle() {
             return handle.await.map_err(BacktestError::TaskJoin);
         }
 
@@ -111,8 +118,7 @@ impl BacktestController {
     /// This method can only be called once per controller instance.
     /// Returns an error if the internal task was not properly handled.
     pub async fn abort(&self) -> Result<()> {
-        let mut handle_guard = self.handle.lock().expect("handle lock can't be poisoned");
-        if let Some(handle) = handle_guard.take() {
+        if let Some(handle) = self.try_consume_handle() {
             if !handle.is_finished() {
                 handle.abort();
                 self.state_manager.update(BacktestState::Aborted);
