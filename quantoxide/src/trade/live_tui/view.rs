@@ -16,7 +16,7 @@ use crate::tui::{Result, TuiError as LiveTuiError, TuiLogger, TuiView};
 use super::LiveUiMessage;
 
 #[derive(Debug, PartialEq)]
-enum ActivePane {
+enum LiveTuiPane {
     TradesPane,
     SummaryPane,
     LogPane,
@@ -24,13 +24,13 @@ enum ActivePane {
 
 pub struct LiveTuiViewState {
     log_file: Option<File>,
-    active_pane: ActivePane,
+    active_pane: LiveTuiPane,
 
-    log_entries: Vec<String>,
-    log_max_line_width: usize,
-    log_rect: Rect,
-    log_v_scroll: usize,
-    log_h_scroll: usize,
+    trades_lines: Vec<String>,
+    trades_max_line_width: usize,
+    trades_rect: Rect,
+    trades_v_scroll: usize,
+    trades_h_scroll: usize,
 
     summary_lines: Vec<String>,
     summary_max_line_width: usize,
@@ -38,11 +38,11 @@ pub struct LiveTuiViewState {
     summary_v_scroll: usize,
     summary_h_scroll: usize,
 
-    trades_lines: Vec<String>,
-    trades_max_line_width: usize,
-    trades_rect: Rect,
-    trades_v_scroll: usize,
-    trades_h_scroll: usize,
+    log_entries: Vec<String>,
+    log_max_line_width: usize,
+    log_rect: Rect,
+    log_v_scroll: usize,
+    log_h_scroll: usize,
 }
 
 pub struct LiveTuiView {
@@ -56,13 +56,13 @@ impl LiveTuiView {
             max_tui_log_len,
             state: Mutex::new(LiveTuiViewState {
                 log_file,
-                active_pane: ActivePane::LogPane,
+                active_pane: LiveTuiPane::LogPane,
 
-                log_entries: Vec::new(),
-                log_max_line_width: 0,
-                log_rect: Rect::default(),
-                log_v_scroll: 0,
-                log_h_scroll: 0,
+                trades_lines: vec!["Initializing...".to_string()],
+                trades_max_line_width: 0,
+                trades_rect: Rect::default(),
+                trades_v_scroll: 0,
+                trades_h_scroll: 0,
 
                 summary_lines: vec!["Initializing...".to_string()],
                 summary_max_line_width: 0,
@@ -70,33 +70,13 @@ impl LiveTuiView {
                 summary_v_scroll: 0,
                 summary_h_scroll: 0,
 
-                trades_lines: vec!["Initializing...".to_string()],
-                trades_max_line_width: 0,
-                trades_rect: Rect::default(),
-                trades_v_scroll: 0,
-                trades_h_scroll: 0,
+                log_entries: Vec::new(),
+                log_max_line_width: 0,
+                log_rect: Rect::default(),
+                log_v_scroll: 0,
+                log_h_scroll: 0,
             }),
         })
-    }
-
-    pub fn update_summary(&self, state: String) {
-        let mut state_guard = self.get_state();
-
-        let mut new_lines: Vec<String> = state.lines().map(|line| line.to_string()).collect();
-        new_lines.push("".to_string()); // Add empty line
-
-        state_guard.summary_max_line_width = new_lines.iter().map(|line| line.len()).max().unwrap();
-
-        // Only reset scroll if the content structure has significantly changed
-        // or if current scroll position would be out of bounds
-        if new_lines.len() != state_guard.summary_lines.len() {
-            // If new content is shorter, adjust scroll to stay within bounds
-            if state_guard.summary_v_scroll >= new_lines.len() && new_lines.len() > 0 {
-                state_guard.summary_v_scroll = new_lines.len().saturating_sub(1);
-            }
-        }
-
-        state_guard.summary_lines = new_lines;
     }
 
     pub fn update_trades(&self, trades_table: String) {
@@ -118,6 +98,26 @@ impl LiveTuiView {
         }
 
         state_guard.trades_lines = new_lines;
+    }
+
+    pub fn update_summary(&self, state: String) {
+        let mut state_guard = self.get_state();
+
+        let mut new_lines: Vec<String> = state.lines().map(|line| line.to_string()).collect();
+        new_lines.push("".to_string()); // Add empty line
+
+        state_guard.summary_max_line_width = new_lines.iter().map(|line| line.len()).max().unwrap();
+
+        // Only reset scroll if the content structure has significantly changed
+        // or if current scroll position would be out of bounds
+        if new_lines.len() != state_guard.summary_lines.len() {
+            // If new content is shorter, adjust scroll to stay within bounds
+            if state_guard.summary_v_scroll >= new_lines.len() && new_lines.len() > 0 {
+                state_guard.summary_v_scroll = new_lines.len().saturating_sub(1);
+            }
+        }
+
+        state_guard.summary_lines = new_lines;
     }
 }
 
@@ -185,21 +185,21 @@ impl TuiView for LiveTuiView {
 
     fn get_active_scroll_data(state: &Self::State) -> (usize, usize, &Rect, usize, usize) {
         match state.active_pane {
-            ActivePane::TradesPane => (
+            LiveTuiPane::TradesPane => (
                 state.trades_v_scroll,
                 state.trades_h_scroll,
                 &state.trades_rect,
                 state.trades_lines.len(),
                 state.trades_max_line_width,
             ),
-            ActivePane::SummaryPane => (
+            LiveTuiPane::SummaryPane => (
                 state.summary_v_scroll,
                 state.summary_h_scroll,
                 &state.summary_rect,
                 state.summary_lines.len(),
                 state.summary_max_line_width,
             ),
-            ActivePane::LogPane => (
+            LiveTuiPane::LogPane => (
                 state.log_v_scroll,
                 state.log_h_scroll,
                 &state.log_rect,
@@ -211,9 +211,9 @@ impl TuiView for LiveTuiView {
 
     fn get_active_scroll_mut(state: &mut Self::State) -> (&mut usize, &mut usize) {
         match state.active_pane {
-            ActivePane::TradesPane => (&mut state.trades_v_scroll, &mut state.trades_h_scroll),
-            ActivePane::SummaryPane => (&mut state.summary_v_scroll, &mut state.summary_h_scroll),
-            ActivePane::LogPane => (&mut state.log_v_scroll, &mut state.log_h_scroll),
+            LiveTuiPane::TradesPane => (&mut state.trades_v_scroll, &mut state.trades_h_scroll),
+            LiveTuiPane::SummaryPane => (&mut state.summary_v_scroll, &mut state.summary_h_scroll),
+            LiveTuiPane::LogPane => (&mut state.log_v_scroll, &mut state.log_h_scroll),
         }
     }
 
@@ -225,16 +225,16 @@ impl TuiView for LiveTuiView {
 
     fn handle_ui_message(&self, message: Self::UiMessage) -> Result<bool> {
         match message {
-            LiveUiMessage::LogEntry(entry) => {
-                self.add_log_entry(entry)?;
+            LiveUiMessage::TradesUpdate(trades_table) => {
+                self.update_trades(trades_table);
                 Ok(false)
             }
             LiveUiMessage::SummaryUpdate(summary) => {
                 self.update_summary(summary);
                 Ok(false)
             }
-            LiveUiMessage::TradesUpdate(trades_table) => {
-                self.update_trades(trades_table);
+            LiveUiMessage::LogEntry(entry) => {
+                self.add_log_entry(entry)?;
                 Ok(false)
             }
             LiveUiMessage::ShutdownCompleted => Ok(true),
@@ -267,12 +267,19 @@ impl TuiView for LiveTuiView {
         state_guard.summary_rect = bottom_chunks[0];
         state_guard.log_rect = bottom_chunks[1];
 
+        let help_area = Rect {
+            x: frame_rect.x,
+            y: frame_rect.y + frame_rect.height.saturating_sub(1), // Last row
+            width: frame_rect.width,
+            height: 1,
+        };
+
         let state_list = Self::get_list(
             "Trades",
             &state_guard.trades_lines,
             state_guard.trades_v_scroll,
             state_guard.trades_h_scroll,
-            state_guard.active_pane == ActivePane::TradesPane,
+            state_guard.active_pane == LiveTuiPane::TradesPane,
         );
         f.render_widget(state_list, state_guard.trades_rect);
 
@@ -281,7 +288,7 @@ impl TuiView for LiveTuiView {
             &state_guard.summary_lines,
             state_guard.summary_v_scroll,
             state_guard.summary_h_scroll,
-            state_guard.active_pane == ActivePane::SummaryPane,
+            state_guard.active_pane == LiveTuiPane::SummaryPane,
         );
         f.render_widget(state_list, state_guard.summary_rect);
 
@@ -290,18 +297,12 @@ impl TuiView for LiveTuiView {
             &state_guard.log_entries,
             state_guard.log_v_scroll,
             state_guard.log_h_scroll,
-            state_guard.active_pane == ActivePane::LogPane,
+            state_guard.active_pane == LiveTuiPane::LogPane,
         );
         f.render_widget(log_list, state_guard.log_rect);
 
         let help_text = " Press 'q' to quit, Tab to switch panes, scroll with ↑/↓, ←/→, 'b' to bottom and 't' to top";
         let help_paragraph = Paragraph::new(help_text).style(Style::default().fg(Color::Gray));
-        let help_area = Rect {
-            x: frame_rect.x,
-            y: frame_rect.y + frame_rect.height.saturating_sub(1), // Last row
-            width: frame_rect.width,
-            height: 1,
-        };
         f.render_widget(help_paragraph, help_area);
     }
 
@@ -309,9 +310,9 @@ impl TuiView for LiveTuiView {
         let mut state_guard = self.get_state();
 
         state_guard.active_pane = match state_guard.active_pane {
-            ActivePane::TradesPane => ActivePane::LogPane,
-            ActivePane::LogPane => ActivePane::SummaryPane,
-            ActivePane::SummaryPane => ActivePane::TradesPane,
+            LiveTuiPane::TradesPane => LiveTuiPane::LogPane,
+            LiveTuiPane::LogPane => LiveTuiPane::SummaryPane,
+            LiveTuiPane::SummaryPane => LiveTuiPane::TradesPane,
         };
     }
 }
