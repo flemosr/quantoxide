@@ -51,7 +51,7 @@ impl SyncTuiView {
             max_tui_log_len,
             state: Mutex::new(SyncTuiViewState {
                 log_file,
-                active_pane: SyncTuiPane::PriceHistoryStatePane,
+                active_pane: SyncTuiPane::LogPane,
 
                 ph_state_lines: vec!["Initializing...".to_string()],
                 ph_state_max_line_width: 0,
