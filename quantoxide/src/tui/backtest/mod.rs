@@ -3,6 +3,7 @@ use std::{
     time::Duration,
 };
 
+use chrono::Utc;
 use tokio::{
     sync::{OnceCell, broadcast::error::RecvError, mpsc},
     time,
@@ -118,6 +119,8 @@ impl BacktestTui {
         ui_tx: mpsc::Sender<BacktestUiMessage>,
     ) -> AbortOnDropHandle<()> {
         tokio::spawn(async move {
+            let backtest_start = Utc::now();
+
             let handle_backtest_update = async |backtest_update: Arc<BacktestState>| -> Result<()> {
                 let log_str = match backtest_update.as_ref() {
                     BacktestState::NotInitiated => "BacktestState::NotInitiated".to_string(),
@@ -134,6 +137,8 @@ impl BacktestTui {
                         "BacktestState::Running".to_string()
                     }
                     BacktestState::Finished(trading_state) => {
+                        let backtest_elapsed = Utc::now().signed_duration_since(backtest_start);
+
                         ui_tx
                             .send(BacktestUiMessage::StateUpdate(format!(
                                 "\n{}",
@@ -142,7 +147,11 @@ impl BacktestTui {
                             .await
                             .map_err(|e| TuiError::Generic(e.to_string()))?;
 
-                        "BacktestState::Finished".to_string()
+                        format!(
+                            "BacktestState::Finished\nIterations completed. Elapsed: {}m {}s",
+                            backtest_elapsed.num_minutes(),
+                            backtest_elapsed.num_seconds() % 60
+                        )
                     }
                     BacktestState::Failed(err) => {
                         format!("BacktestState::Failed with error {err}")
@@ -196,7 +205,7 @@ impl BacktestTui {
         .into()
     }
 
-    pub fn couple(&self, engine: BacktestEngine) -> Result<()> {
+    pub async fn couple(&self, engine: BacktestEngine) -> Result<()> {
         if self.backtest_controller.initialized() {
             return Err(TuiError::Generic(
                 "`backtest_engine` was already coupled".to_string(),
@@ -204,6 +213,17 @@ impl BacktestTui {
         }
 
         let backtest_rx = engine.receiver();
+
+        let log_str = format!(
+            "Starting iterations from {} to {}...",
+            engine.start_time().format("%Y-%m-%d"),
+            engine.end_time().format("%Y-%m-%d")
+        );
+
+        self.ui_tx
+            .send(BacktestUiMessage::LogEntry(log_str))
+            .await
+            .map_err(|e| TuiError::Generic(e.to_string()))?;
 
         let backtest_update_listener_handle = Self::spawn_backtest_update_listener(
             self.status_manager.clone(),
