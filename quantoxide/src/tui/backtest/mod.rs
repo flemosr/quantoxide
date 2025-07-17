@@ -161,8 +161,6 @@ impl BacktestTui {
                         }
                     }
                     Err(RecvError::Lagged(skipped)) => {
-                        while let Err(_) = backtest_rx.recv().await {}
-
                         let log_msg = format!("Backtest updates lagged by {skipped} messages");
                         if let Err(e) = ui_tx.send(BacktestUiMessage::LogEntry(log_msg)).await {
                             status_manager.set_crashed(TuiError::Generic(e.to_string()));
