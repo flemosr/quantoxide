@@ -175,10 +175,6 @@ impl PriceHistoryState {
         Ok((Some(history_bounds.1), None))
     }
 
-    // pub fn get_upper_history_bound(&self) -> Option<DateTime<Utc>> {
-    //     Some(self.bounds?.1)
-    // }
-
     pub fn tail_continuous_duration(&self) -> Option<Duration> {
         let history_bounds = &self.bounds?;
 
@@ -200,57 +196,71 @@ impl PriceHistoryState {
             !self.gaps.is_empty() || reach_time < bounds.0
         }))
     }
-}
 
-fn eval_missing_hours(current: &DateTime<Utc>, target: &DateTime<Utc>) -> String {
-    let missing_hours = ((*current - *target).num_minutes() as f32 / 60. * 100.0).round() / 100.0;
-    if missing_hours <= 0. {
-        "Ok".to_string()
-    } else {
-        format!("missing {:.2} hours", missing_hours)
+    fn eval_missing_hours(current: &DateTime<Utc>, target: &DateTime<Utc>) -> String {
+        let missing_hours =
+            ((*current - *target).num_minutes() as f32 / 60. * 100.0).round() / 100.0;
+        if missing_hours <= 0. {
+            "Ok".to_string()
+        } else {
+            format!("missing {:.2} hours", missing_hours)
+        }
+    }
+
+    pub fn summary(&self) -> String {
+        let mut result = String::new();
+
+        if let Some(reach_time) = self.reach_time {
+            result.push_str(&format!("reach: {}\n", reach_time.to_rfc3339()));
+        }
+
+        match &self.bounds {
+            Some((start, end)) => {
+                result.push_str("bounds:\n");
+
+                if let Some(reach_time) = self.reach_time {
+                    let start_eval = Self::eval_missing_hours(start, &reach_time);
+                    result.push_str(&format!("  start: {} ({start_eval})\n", start.to_rfc3339()));
+                } else {
+                    result.push_str(&format!("  start: {}\n", start.to_rfc3339()));
+                };
+
+                let end_val = Self::eval_missing_hours(&Utc::now(), end);
+                result.push_str(&format!("  end: {} ({end_val})\n", end.to_rfc3339()));
+
+                if self.gaps.is_empty() {
+                    result.push_str("gaps: no gaps\n");
+                } else {
+                    result.push_str("gaps:\n");
+                    for (i, (gap_start, gap_end)) in self.gaps.iter().enumerate() {
+                        let gap_hours = (*gap_end - *gap_start).num_minutes() as f32 / 60.;
+                        result.push_str(&format!(
+                            "  - gap {} (missing {:.2} hours):\n",
+                            i + 1,
+                            gap_hours
+                        ));
+                        result.push_str(&format!("      from: {}\n", gap_start.to_rfc3339()));
+                        if i == self.gaps.len() - 1 {
+                            result.push_str(&format!("      to: {}", gap_end.to_rfc3339()));
+                        } else {
+                            result.push_str(&format!("      to: {}", gap_end.to_rfc3339()));
+                        }
+                    }
+                }
+            }
+            None => result.push_str("bounds: database is empty"),
+        }
+
+        result
     }
 }
 
 impl fmt::Display for PriceHistoryState {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "PriceHistoryState:")?;
-        if let Some(reach_time) = self.reach_time {
-            writeln!(f, "  reach: {}", reach_time.to_rfc3339())?;
+        write!(f, "PriceHistoryState:")?;
+        for line in self.summary().lines() {
+            write!(f, "\n  {line}")?;
         }
-
-        match &self.bounds {
-            Some((start, end)) => {
-                writeln!(f, "  bounds:")?;
-
-                if let Some(reach_time) = self.reach_time {
-                    let start_eval = eval_missing_hours(start, &reach_time);
-                    writeln!(f, "    start: {} ({start_eval})", start.to_rfc3339())?;
-                } else {
-                    writeln!(f, "    start: {}", start.to_rfc3339())?;
-                };
-
-                let end_val = eval_missing_hours(&Utc::now(), end);
-                writeln!(f, "    end: {} ({end_val})", end.to_rfc3339())?;
-
-                if self.gaps.is_empty() {
-                    write!(f, "  gaps: no gaps")?;
-                } else {
-                    writeln!(f, "  gaps:")?;
-                    for (i, (gap_start, gap_end)) in self.gaps.iter().enumerate() {
-                        let gap_hours = (*gap_end - *gap_start).num_minutes() as f32 / 60.;
-                        writeln!(f, "    - gap {} (missing {:.2} hours):", i + 1, gap_hours)?;
-                        writeln!(f, "        from: {}", gap_start.to_rfc3339())?;
-                        if i == self.gaps.len() - 1 {
-                            write!(f, "        to: {}", gap_end.to_rfc3339())?;
-                        } else {
-                            writeln!(f, "        to: {}", gap_end.to_rfc3339())?;
-                        }
-                    }
-                }
-            }
-            None => write!(f, "  bounds: database is empty")?,
-        }
-
         Ok(())
     }
 }
