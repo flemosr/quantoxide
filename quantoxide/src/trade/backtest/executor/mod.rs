@@ -414,18 +414,21 @@ impl TradeExecutor for SimulatedTradeExecutor {
             running.push(trade.clone());
         }
 
-        let closed = state_guard
-            .closed
-            .iter()
-            .map(|trade| trade.clone() as Arc<dyn Trade>)
-            .collect();
+        // let closed = state_guard
+        //     .closed
+        //     .iter()
+        //     .map(|trade| trade.clone() as Arc<dyn Trade>)
+        //     .collect();
 
         let trades_state = TradingState::new(
             state_guard.time,
             state_guard.balance.max(0) as u64,
             state_guard.market_price,
             state_guard.last_trade_time,
-            running,
+            // FIXME: Temporary workaround to avoid sending big `Vec`s over
+            // channels.
+            Vec::new(),
+            // running,
             running_long_qtd,
             running_long_margin,
             running_long_quantity,
@@ -434,7 +437,10 @@ impl TradeExecutor for SimulatedTradeExecutor {
             running_short_quantity,
             running_pl,
             running_fees,
-            closed,
+            // FIXME: Temporary workaround to avoid sending big `Vec`s over
+            // channels.
+            Vec::new(),
+            // closed,
             state_guard.closed.len(),
             state_guard.closed_pl,
             state_guard.closed_fees,

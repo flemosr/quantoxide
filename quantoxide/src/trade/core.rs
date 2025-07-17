@@ -35,6 +35,8 @@ pub struct TradingState {
     running_short_quantity: u64,
     running_pl: i64,
     running_fees: u64,
+    // FIXME: `TradingState` is sent over channels, and the `closed` `Vec` may
+    // grow large.
     closed: Vec<Arc<dyn Trade>>,
     closed_len: usize,
     closed_pl: i64,
