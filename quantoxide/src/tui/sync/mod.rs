@@ -4,7 +4,7 @@ use std::{
 };
 
 use tokio::{
-    sync::{OnceCell, mpsc},
+    sync::{OnceCell, broadcast::error::RecvError, mpsc},
     time,
 };
 
@@ -173,23 +173,40 @@ impl SyncTui {
                 Ok(())
             };
 
-            while let Ok(sync_update) = sync_rx.recv().await {
-                if let Err(e) = handle_sync_update(sync_update).await {
-                    status_manager.set_crashed(e);
-                    return;
+            loop {
+                match sync_rx.recv().await {
+                    Ok(live_update) => {
+                        if let Err(e) = handle_sync_update(live_update).await {
+                            status_manager.set_crashed(e);
+                            return;
+                        }
+                    }
+                    Err(RecvError::Lagged(skipped)) => {
+                        let log_msg = format!("Sync updates lagged by {skipped} messages");
+                        if let Err(e) = ui_tx.send(SyncUiMessage::LogEntry(log_msg)).await {
+                            status_manager.set_crashed(TuiError::Generic(e.to_string()));
+                            return;
+                        }
+
+                        // Keep trying to receive
+                    }
+                    Err(e) => {
+                        // `sync_rx` is expected to be dropped during shutdown
+
+                        let status = status_manager.status();
+                        if status.is_shutdown_initiated() || status.is_shutdown() {
+                            return;
+                        }
+
+                        status_manager.set_crashed(TuiError::Generic(format!(
+                            "`sync_rx` returned err {:?}",
+                            e
+                        )));
+
+                        return;
+                    }
                 }
             }
-
-            // `sync_tx` was dropped, which is expected during shutdown
-
-            let status = status_manager.status();
-            if status.is_shutdown_initiated() || status.is_shutdown() {
-                return;
-            }
-
-            status_manager.set_crashed(TuiError::Generic(
-                "`sync_tx` was unexpectedly dropped".to_string(),
-            ));
         })
         .into()
     }
