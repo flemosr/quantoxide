@@ -124,7 +124,10 @@ impl BacktestTui {
                     BacktestState::Starting => "BacktestState::Starting".to_string(),
                     BacktestState::Running(trading_state) => {
                         ui_tx
-                            .send(BacktestUiMessage::StateUpdate(trading_state.to_string()))
+                            .send(BacktestUiMessage::StateUpdate(format!(
+                                "\n{}",
+                                trading_state.summary()
+                            )))
                             .await
                             .map_err(|e| TuiError::Generic(e.to_string()))?;
 
@@ -132,7 +135,10 @@ impl BacktestTui {
                     }
                     BacktestState::Finished(trading_state) => {
                         ui_tx
-                            .send(BacktestUiMessage::StateUpdate(trading_state.to_string()))
+                            .send(BacktestUiMessage::StateUpdate(format!(
+                                "\n{}",
+                                trading_state.summary()
+                            )))
                             .await
                             .map_err(|e| TuiError::Generic(e.to_string()))?;
 
