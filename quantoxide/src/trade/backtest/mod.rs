@@ -367,7 +367,7 @@ impl BacktestEngine {
             mut price_ticks_cursor_idx,
         ) = get_buffers(time_cursor).await?;
 
-        {
+        let mut last_state_update = {
             let trades_state = trades_executor
                 .trading_state()
                 .await
@@ -375,7 +375,9 @@ impl BacktestEngine {
 
             self.state_manager
                 .update(BacktestState::Running(trades_state));
-        }
+
+            Utc::now()
+        };
 
         loop {
             if time_cursor >= self.end_time {
@@ -405,13 +407,22 @@ impl BacktestEngine {
             } else {
                 // Reached the end of the current buffer
 
-                let trades_state = trades_executor
-                    .trading_state()
-                    .await
-                    .map_err(|e| BacktestError::Generic(e.to_string()))?;
+                // Update the state not more than once every `update_interval`
 
-                self.state_manager
-                    .update(BacktestState::Running(trades_state));
+                if Utc::now().signed_duration_since(last_state_update) > self.config.update_interval
+                {
+                    let trades_state = trades_executor
+                        .trading_state()
+                        .await
+                        .map_err(|e| BacktestError::Generic(e.to_string()))?;
+
+                    self.state_manager
+                        .update(BacktestState::Running(trades_state));
+
+                    last_state_update = Utc::now();
+                }
+
+                // Update buffers
 
                 (
                     locf_buffer,
