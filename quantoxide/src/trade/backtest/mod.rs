@@ -277,6 +277,18 @@ impl BacktestEngine {
         })
     }
 
+    pub fn start_time(&self) -> DateTime<Utc> {
+        self.start_time
+    }
+
+    pub fn start_balance(&self) -> u64 {
+        self.start_balance
+    }
+
+    pub fn end_time(&self) -> DateTime<Utc> {
+        self.end_time
+    }
+
     pub fn receiver(&self) -> BacktestReceiver {
         self.state_manager.receiver()
     }
