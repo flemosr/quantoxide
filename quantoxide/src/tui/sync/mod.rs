@@ -132,9 +132,10 @@ impl SyncTui {
                                     }
                                     SyncStateNotSynced::InProgress(price_history_state) => {
                                         ui_tx
-                                            .send(SyncUiMessage::StateUpdate(
-                                                price_history_state.to_string(),
-                                            ))
+                                            .send(SyncUiMessage::StateUpdate(format!(
+                                                "\n{}",
+                                                price_history_state.summary()
+                                            )))
                                             .await
                                             .map_err(|e| TuiError::Generic(e.to_string()))?;
 
