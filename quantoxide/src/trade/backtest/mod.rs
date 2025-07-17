@@ -277,6 +277,10 @@ impl BacktestEngine {
         })
     }
 
+    pub fn receiver(&self) -> BacktestReceiver {
+        self.state_manager.receiver()
+    }
+
     async fn run(self) -> Result<TradingState> {
         self.state_manager.update(BacktestState::Starting);
 
