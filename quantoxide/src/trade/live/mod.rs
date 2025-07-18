@@ -33,7 +33,7 @@ use executor::{
 };
 
 #[derive(Debug)]
-pub enum LiveState {
+pub enum LiveStatus {
     NotInitiated,
     Starting,
     WaitingForSignal(Arc<LiveSignalStateNotRunning>),
@@ -47,15 +47,15 @@ pub enum LiveState {
 
 #[derive(Clone)]
 pub enum LiveUpdate {
-    State(Arc<LiveState>),
+    Status(Arc<LiveStatus>),
     Signal(Signal),
     Order(LiveTradeExecutorUpdateOrder),
     TradingState(TradingState),
 }
 
-impl From<Arc<LiveState>> for LiveUpdate {
-    fn from(value: Arc<LiveState>) -> Self {
-        Self::State(value)
+impl From<Arc<LiveStatus>> for LiveUpdate {
+    fn from(value: Arc<LiveStatus>) -> Self {
+        Self::Status(value)
     }
 }
 
@@ -82,73 +82,75 @@ pub type LiveReceiver = broadcast::Receiver<LiveUpdate>;
 
 pub trait LiveReader: Send + Sync + 'static {
     fn update_receiver(&self) -> LiveReceiver;
-    fn state_snapshot(&self) -> Arc<LiveState>;
+    fn status_snapshot(&self) -> Arc<LiveStatus>;
 }
 
 #[derive(Debug)]
-struct LiveStateManager {
-    state: Mutex<Arc<LiveState>>,
+struct LiveStatusManager {
+    status: Mutex<Arc<LiveStatus>>,
     update_tx: LiveTransmiter,
 }
 
-impl LiveStateManager {
+impl LiveStatusManager {
     pub fn new(update_tx: LiveTransmiter) -> Arc<Self> {
-        let state = Mutex::new(Arc::new(LiveState::NotInitiated));
+        let status = Mutex::new(Arc::new(LiveStatus::NotInitiated));
 
-        Arc::new(Self { state, update_tx })
+        Arc::new(Self { status, update_tx })
     }
 
-    fn update_state_guard(
+    fn update_status_guard(
         &self,
-        mut state_guard: MutexGuard<'_, Arc<LiveState>>,
-        new_state: LiveState,
+        mut status_guard: MutexGuard<'_, Arc<LiveStatus>>,
+        new_status: LiveStatus,
     ) {
-        let new_state = Arc::new(new_state);
+        let new_status = Arc::new(new_status);
 
-        *state_guard = new_state.clone();
-        drop(state_guard);
+        *status_guard = new_status.clone();
+        drop(status_guard);
 
         // Ignore no-receivers errors
-        let _ = self.update_tx.send(new_state.into());
+        let _ = self.update_tx.send(new_status.into());
     }
 
-    pub fn update(&self, new_state: LiveState) {
-        let state_guard = self.state.lock().expect("state lock can't be poisoned");
+    fn try_lock_status(&self) -> MutexGuard<'_, Arc<LiveStatus>> {
+        self.status
+            .lock()
+            .expect("`LiveStatusManager` mutex can't be poisoned")
+    }
+    pub fn update(&self, new_status: LiveStatus) {
+        let status_guard = self.try_lock_status();
 
-        self.update_state_guard(state_guard, new_state);
+        self.update_status_guard(status_guard, new_status);
     }
 
-    pub fn update_if_not_running(&self, new_state: LiveState) {
-        let state_guard = self.state.lock().expect("state lock can't be poisoned");
+    pub fn update_if_not_running(&self, new_status: LiveStatus) {
+        let status_guard = self.try_lock_status();
 
-        if matches!(state_guard.as_ref(), LiveState::Running) {
+        if matches!(status_guard.as_ref(), LiveStatus::Running) {
             return;
         }
 
-        self.update_state_guard(state_guard, new_state);
+        self.update_status_guard(status_guard, new_status);
     }
 
-    pub fn update_if_running(&self, new_state: LiveState) {
-        let state_guard = self.state.lock().expect("state lock can't be poisoned");
+    pub fn update_if_running(&self, new_status: LiveStatus) {
+        let status_guard = self.try_lock_status();
 
-        if !matches!(state_guard.as_ref(), LiveState::Running) {
+        if !matches!(status_guard.as_ref(), LiveStatus::Running) {
             return;
         }
 
-        self.update_state_guard(state_guard, new_state);
+        self.update_status_guard(status_guard, new_status);
     }
 }
 
-impl LiveReader for LiveStateManager {
+impl LiveReader for LiveStatusManager {
     fn update_receiver(&self) -> LiveReceiver {
         self.update_tx.subscribe()
     }
 
-    fn state_snapshot(&self) -> Arc<LiveState> {
-        self.state
-            .lock()
-            .expect("`LiveStateManager` mutex can't be poisoned")
-            .clone()
+    fn status_snapshot(&self) -> Arc<LiveStatus> {
+        self.try_lock_status().clone()
     }
 }
 
@@ -170,7 +172,7 @@ struct LiveProcess {
     shutdown_tx: broadcast::Sender<()>,
     signal_controller: Arc<LiveSignalController>,
     trade_executor: Arc<LiveTradeExecutor>,
-    state_manager: Arc<LiveStateManager>,
+    status_manager: Arc<LiveStatusManager>,
     update_tx: LiveTransmiter,
 }
 
@@ -181,7 +183,7 @@ impl LiveProcess {
         shutdown_tx: broadcast::Sender<()>,
         signal_controller: Arc<LiveSignalController>,
         trade_executor: Arc<LiveTradeExecutor>,
-        state_manager: Arc<LiveStateManager>,
+        status_manager: Arc<LiveStatusManager>,
         update_tx: LiveTransmiter,
     ) -> Self {
         Self {
@@ -190,7 +192,7 @@ impl LiveProcess {
             shutdown_tx,
             signal_controller,
             trade_executor,
-            state_manager,
+            status_manager,
             update_tx,
         }
     }
@@ -200,8 +202,8 @@ impl LiveProcess {
             match signal_update {
                 LiveSignalUpdate::StateChange(signal_state) => match signal_state {
                     LiveSignalState::NotRunning(signal_state_not_running) => {
-                        self.state_manager
-                            .update(LiveState::WaitingForSignal(signal_state_not_running));
+                        self.status_manager
+                            .update(LiveStatus::WaitingForSignal(signal_state_not_running));
                     }
                     LiveSignalState::Running => {}
                     LiveSignalState::ShutdownInitiated | LiveSignalState::Shutdown => {
@@ -217,7 +219,8 @@ impl LiveProcess {
                     if let LiveTradeExecutorStatus::Ready = tex_state.status() {
                         // Sync is ok, signal is ok and trade controller is ok
 
-                        self.state_manager.update_if_not_running(LiveState::Running);
+                        self.status_manager
+                            .update_if_not_running(LiveStatus::Running);
                     } else {
                         continue;
                     }
@@ -241,23 +244,23 @@ impl LiveProcess {
     pub fn spawn_recovery_loop(self) -> AbortOnDropHandle<()> {
         tokio::spawn(async move {
             loop {
-                self.state_manager.update(LiveState::Starting);
+                self.status_manager.update(LiveStatus::Starting);
 
                 let mut shutdown_rx = self.shutdown_tx.subscribe();
                 tokio::select! {
                     handle_signals_res = self.handle_signals() => {
                         let Err(e) = handle_signals_res;
-                        self.state_manager.update(LiveState::Failed(e));
+                        self.status_manager.update(LiveStatus::Failed(e));
                     }
                     shutdown_res = shutdown_rx.recv() => {
                         if let Err(e) = shutdown_res {
-                            self.state_manager.update(LiveState::Failed(LiveError::Generic(e.to_string())));
+                            self.status_manager.update(LiveStatus::Failed(LiveError::Generic(e.to_string())));
                         }
                         return;
                     }
                 };
 
-                self.state_manager.update(LiveState::Restarting);
+                self.status_manager.update(LiveStatus::Restarting);
 
                 // Handle shutdown signals while waiting for `restart_interval`
 
@@ -268,7 +271,7 @@ impl LiveProcess {
                     }
                     shutdown_res = shutdown_rx.recv() => {
                         if let Err(e) = shutdown_res {
-                            self.state_manager.update(LiveState::Failed(LiveError::Generic(e.to_string())));
+                            self.status_manager.update(LiveStatus::Failed(LiveError::Generic(e.to_string())));
                         }
                         return;
                     }
@@ -298,7 +301,7 @@ pub struct LiveController {
     _executor_updates_handle: AbortOnDropHandle<()>,
     process_handle: Mutex<Option<AbortOnDropHandle<()>>>,
     shutdown_tx: broadcast::Sender<()>,
-    state_manager: Arc<LiveStateManager>,
+    status_manager: Arc<LiveStatusManager>,
     trade_executor: Arc<LiveTradeExecutor>,
 }
 
@@ -310,7 +313,7 @@ impl LiveController {
         _executor_updates_handle: AbortOnDropHandle<()>,
         process_handle: AbortOnDropHandle<()>,
         shutdown_tx: broadcast::Sender<()>,
-        state_manager: Arc<LiveStateManager>,
+        status_manager: Arc<LiveStatusManager>,
         trade_executor: Arc<LiveTradeExecutor>,
     ) -> Arc<Self> {
         Arc::new(Self {
@@ -320,21 +323,21 @@ impl LiveController {
             _executor_updates_handle,
             process_handle: Mutex::new(Some(process_handle)),
             shutdown_tx,
-            state_manager,
+            status_manager,
             trade_executor,
         })
     }
 
     pub fn reader(&self) -> Arc<dyn LiveReader> {
-        self.state_manager.clone()
+        self.status_manager.clone()
     }
 
     pub fn update_receiver(&self) -> LiveReceiver {
-        self.state_manager.update_receiver()
+        self.status_manager.update_receiver()
     }
 
-    pub fn state_snapshot(&self) -> Arc<LiveState> {
-        self.state_manager.state_snapshot()
+    pub fn status_snapshot(&self) -> Arc<LiveStatus> {
+        self.status_manager.status_snapshot()
     }
 
     fn try_consume_handle(&self) -> Option<AbortOnDropHandle<()>> {
@@ -357,7 +360,7 @@ impl LiveController {
             ));
         };
 
-        self.state_manager.update(LiveState::ShutdownInitiated);
+        self.status_manager.update(LiveStatus::ShutdownInitiated);
 
         // Stop live trade process
 
@@ -401,7 +404,7 @@ impl LiveController {
             .await
             .map_err(|e| LiveError::Generic(e.to_string()));
 
-        self.state_manager.update(LiveState::Shutdown);
+        self.status_manager.update(LiveStatus::Shutdown);
 
         shutdown_res
             .and(close_all_res)
@@ -555,13 +558,13 @@ pub struct LiveEngine {
     signal_engine: LiveSignalEngine,
     trade_executor_launcher: LiveTradeExecutorLauncher,
     operator: WrappedOperator,
-    state_manager: Arc<LiveStateManager>,
+    status_manager: Arc<LiveStatusManager>,
     update_tx: LiveTransmiter,
 }
 
 impl LiveEngine {
     fn spawn_executor_update_handler(
-        state_manager: Arc<LiveStateManager>,
+        status_manager: Arc<LiveStatusManager>,
         update_tx: LiveTransmiter,
         mut executor_rx: LiveTradeExecutorReceiver,
     ) -> AbortOnDropHandle<()> {
@@ -570,9 +573,9 @@ impl LiveEngine {
                 match executor_update {
                     LiveTradeExecutorUpdate::Status(executor_status) => match executor_status {
                         LiveTradeExecutorStatus::NotReady(executor_state_not_ready) => {
-                            let new_state =
-                                LiveState::WaitingTradeExecutor(executor_state_not_ready);
-                            state_manager.update_if_running(new_state.into());
+                            let new_status =
+                                LiveStatus::WaitingTradeExecutor(executor_state_not_ready);
+                            status_manager.update_if_running(new_status.into());
                         }
                         LiveTradeExecutorStatus::Ready => {}
                     },
@@ -585,10 +588,10 @@ impl LiveEngine {
                 }
             }
 
-            let new_state = LiveState::Failed(LiveError::Generic(
+            let new_status = LiveStatus::Failed(LiveError::Generic(
                 "`trade_executor` job transmitter was dropped unexpectedly".to_string(),
             ));
-            state_manager.update(new_state);
+            status_manager.update(new_status);
         })
         .into()
     }
@@ -641,7 +644,7 @@ impl LiveEngine {
 
         let (update_tx, _) = broadcast::channel::<LiveUpdate>(100);
 
-        let state_manager = LiveStateManager::new(update_tx.clone());
+        let status_manager = LiveStatusManager::new(update_tx.clone());
 
         Ok(Self {
             config,
@@ -649,21 +652,21 @@ impl LiveEngine {
             signal_engine,
             trade_executor_launcher,
             operator,
-            state_manager,
+            status_manager,
             update_tx,
         })
     }
 
     pub fn reader(&self) -> Arc<dyn LiveReader> {
-        self.state_manager.clone()
+        self.status_manager.clone()
     }
 
     pub fn update_receiver(&self) -> LiveReceiver {
-        self.state_manager.update_receiver()
+        self.status_manager.update_receiver()
     }
 
-    pub fn state_snapshot(&self) -> Arc<LiveState> {
-        self.state_manager.state_snapshot()
+    pub fn status_snapshot(&self) -> Arc<LiveStatus> {
+        self.status_manager.status_snapshot()
     }
 
     pub async fn start(mut self) -> Result<Arc<LiveController>> {
@@ -676,7 +679,7 @@ impl LiveEngine {
             .map_err(|e| LiveError::Generic(e.to_string()))?;
 
         let _executor_updates_handle = Self::spawn_executor_update_handler(
-            self.state_manager.clone(),
+            self.status_manager.clone(),
             self.update_tx.clone(),
             executor_rx,
         );
@@ -703,7 +706,7 @@ impl LiveEngine {
             shutdown_tx.clone(),
             signal_controller.clone(),
             trade_executor.clone(),
-            self.state_manager.clone(),
+            self.status_manager.clone(),
             self.update_tx,
         )
         .spawn_recovery_loop();
@@ -715,7 +718,7 @@ impl LiveEngine {
             _executor_updates_handle,
             process_handle,
             shutdown_tx,
-            self.state_manager,
+            self.status_manager,
             trade_executor,
         );
 

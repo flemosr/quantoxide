@@ -121,9 +121,9 @@ impl LiveTui {
         tokio::spawn(async move {
             let handle_live_update = async |live_update: LiveUpdate| -> Result<()> {
                 match live_update {
-                    LiveUpdate::State(live_state) => {
+                    LiveUpdate::Status(live_status) => {
                         ui_tx
-                            .send(LiveUiMessage::LogEntry(format!("{:?}", live_state)))
+                            .send(LiveUiMessage::LogEntry(format!("{:?}", live_status)))
                             .await
                             .map_err(|e| TuiError::Generic(e.to_string()))?;
                     }
