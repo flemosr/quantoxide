@@ -10,7 +10,10 @@ use tokio::{
 };
 
 use crate::{
-    trade::backtest::{BacktestEngine, BacktestReceiver, BacktestState},
+    trade::{
+        backtest::{BacktestEngine, BacktestReceiver, BacktestState},
+        core::TradingState,
+    },
     util::AbortOnDropHandle,
 };
 
@@ -29,7 +32,7 @@ use view::BacktestTuiView;
 #[derive(Debug)]
 pub enum BacktestUiMessage {
     LogEntry(String),
-    StateUpdate(String),
+    StateUpdate(TradingState),
     ShutdownCompleted,
 }
 
@@ -47,6 +50,7 @@ pub struct BacktestTui {
     _shutdown_listener_handle: AbortOnDropHandle<()>,
     backtest_controller: Arc<OnceCell<Arc<dyn TuiControllerShutdown>>>,
     backtest_update_listener_handle: OnceCell<AbortOnDropHandle<()>>,
+    tui_view: Arc<BacktestTuiView>,
 }
 
 impl BacktestTui {
@@ -64,7 +68,7 @@ impl BacktestTui {
 
         let ui_task_handle = core::spawn_ui_task(
             config.event_check_interval(),
-            tui_view,
+            tui_view.clone(),
             status_manager.clone(),
             tui_terminal.clone(),
             ui_rx,
@@ -95,6 +99,7 @@ impl BacktestTui {
             _shutdown_listener_handle,
             backtest_controller: sync_controller,
             backtest_update_listener_handle: OnceCell::new(),
+            tui_view,
         })
     }
 
@@ -127,10 +132,7 @@ impl BacktestTui {
                     BacktestState::Starting => "BacktestState::Starting".to_string(),
                     BacktestState::Running(trading_state) => {
                         ui_tx
-                            .send(BacktestUiMessage::StateUpdate(format!(
-                                "\n{}",
-                                trading_state.summary()
-                            )))
+                            .send(BacktestUiMessage::StateUpdate(trading_state.clone()))
                             .await
                             .map_err(|e| TuiError::Generic(e.to_string()))?;
 
@@ -140,10 +142,7 @@ impl BacktestTui {
                         let backtest_elapsed = Utc::now().signed_duration_since(backtest_start);
 
                         ui_tx
-                            .send(BacktestUiMessage::StateUpdate(format!(
-                                "\n{}",
-                                trading_state.summary()
-                            )))
+                            .send(BacktestUiMessage::StateUpdate(trading_state.clone()))
                             .await
                             .map_err(|e| TuiError::Generic(e.to_string()))?;
 
@@ -211,6 +210,14 @@ impl BacktestTui {
                 "`backtest_engine` was already coupled".to_string(),
             ));
         }
+
+        // Now we have the info we need to finish setting up the chart
+
+        self.tui_view.initialize_chart(
+            engine.start_time(),
+            engine.end_time(),
+            engine.start_balance(),
+        );
 
         let backtest_rx = engine.receiver();
 
