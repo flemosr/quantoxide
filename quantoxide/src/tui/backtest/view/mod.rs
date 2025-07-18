@@ -228,7 +228,7 @@ impl TuiView for BacktestTuiView {
 
         let main_chunks = Layout::default()
             .direction(Direction::Vertical)
-            .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+            .constraints([Constraint::Percentage(35), Constraint::Percentage(65)])
             .split(main_area);
 
         let bottom_chunks = Layout::default()
