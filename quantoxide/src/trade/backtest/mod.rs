@@ -1,4 +1,4 @@
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, MutexGuard};
 
 use async_trait::async_trait;
 use chrono::{DateTime, Duration, Utc};
@@ -23,7 +23,7 @@ use error::{BacktestError, Result};
 use executor::SimulatedTradeExecutor;
 
 #[derive(Debug)]
-pub enum BacktestState {
+pub enum BacktestStatus {
     NotInitiated,
     Starting,
     Running,
@@ -34,12 +34,12 @@ pub enum BacktestState {
 
 #[derive(Clone)]
 pub enum BacktestUpdate {
-    Status(Arc<BacktestState>),
+    Status(Arc<BacktestStatus>),
     TradingState(TradingState),
 }
 
-impl From<Arc<BacktestState>> for BacktestUpdate {
-    fn from(value: Arc<BacktestState>) -> Self {
+impl From<Arc<BacktestStatus>> for BacktestUpdate {
+    fn from(value: Arc<BacktestStatus>) -> Self {
         Self::Status(value)
     }
 }
@@ -54,61 +54,64 @@ pub type BacktestTransmiter = broadcast::Sender<BacktestUpdate>;
 pub type BacktestReceiver = broadcast::Receiver<BacktestUpdate>;
 
 #[derive(Debug)]
-struct BacktestStateManager {
-    state: Mutex<Arc<BacktestState>>,
+struct BacktestStatusManager {
+    status: Mutex<Arc<BacktestStatus>>,
     update_tx: BacktestTransmiter,
 }
 
-impl BacktestStateManager {
+impl BacktestStatusManager {
     pub fn new(update_tx: BacktestTransmiter) -> Arc<Self> {
-        let state = Mutex::new(Arc::new(BacktestState::NotInitiated));
+        let status = Mutex::new(Arc::new(BacktestStatus::NotInitiated));
 
-        Arc::new(Self { state, update_tx })
+        Arc::new(Self { status, update_tx })
     }
 
-    pub fn snapshot(&self) -> Arc<BacktestState> {
-        self.state
+    fn lock_status(&self) -> MutexGuard<'_, Arc<BacktestStatus>> {
+        self.status
             .lock()
-            .expect("state lock can't be poisoned")
-            .clone()
+            .expect("`BacktestStatusManager` mutex can't be poisoned")
+    }
+
+    pub fn snapshot(&self) -> Arc<BacktestStatus> {
+        self.lock_status().clone()
     }
 
     pub fn receiver(&self) -> BacktestReceiver {
         self.update_tx.subscribe()
     }
 
-    pub fn update(&self, new_state: BacktestState) {
-        let new_state = Arc::new(new_state);
+    pub fn update(&self, new_status: BacktestStatus) {
+        let new_status = Arc::new(new_status);
 
-        let mut state_guard = self.state.lock().expect("state lock can't be poisoned");
-        *state_guard = new_state.clone();
-        drop(state_guard);
+        let mut status_guard = self.lock_status();
+        *status_guard = new_status.clone();
+        drop(status_guard);
 
         // Ignore no-receivers errors
-        let _ = self.update_tx.send(new_state.into());
+        let _ = self.update_tx.send(new_status.into());
     }
 }
 
 #[derive(Debug)]
 pub struct BacktestController {
     handle: Mutex<Option<AbortOnDropHandle<()>>>,
-    state_manager: Arc<BacktestStateManager>,
+    status_manager: Arc<BacktestStatusManager>,
 }
 
 impl BacktestController {
-    fn new(handle: AbortOnDropHandle<()>, state_manager: Arc<BacktestStateManager>) -> Arc<Self> {
+    fn new(handle: AbortOnDropHandle<()>, status_manager: Arc<BacktestStatusManager>) -> Arc<Self> {
         Arc::new(Self {
             handle: Mutex::new(Some(handle)),
-            state_manager,
+            status_manager,
         })
     }
 
     pub fn receiver(&self) -> BacktestReceiver {
-        self.state_manager.receiver()
+        self.status_manager.receiver()
     }
 
-    pub fn state_snapshot(&self) -> Arc<BacktestState> {
-        self.state_manager.snapshot()
+    pub fn status_snapshot(&self) -> Arc<BacktestStatus> {
+        self.status_manager.snapshot()
     }
 
     fn try_consume_handle(&self) -> Option<AbortOnDropHandle<()>> {
@@ -139,7 +142,7 @@ impl BacktestController {
         if let Some(handle) = self.try_consume_handle() {
             if !handle.is_finished() {
                 handle.abort();
-                self.state_manager.update(BacktestState::Aborted);
+                self.status_manager.update(BacktestStatus::Aborted);
             }
 
             return handle.await.map_err(BacktestError::TaskJoin);
@@ -225,7 +228,7 @@ pub struct BacktestEngine {
     start_time: DateTime<Utc>,
     start_balance: u64,
     end_time: DateTime<Utc>,
-    state_manager: Arc<BacktestStateManager>,
+    status_manager: Arc<BacktestStatusManager>,
     update_tx: BacktestTransmiter,
 }
 
@@ -282,7 +285,7 @@ impl BacktestEngine {
 
         let (update_tx, _) = broadcast::channel::<BacktestUpdate>(100);
 
-        let state_manager = BacktestStateManager::new(update_tx.clone());
+        let status_manager = BacktestStatusManager::new(update_tx.clone());
 
         Ok(Self {
             config,
@@ -292,7 +295,7 @@ impl BacktestEngine {
             start_time,
             start_balance,
             end_time,
-            state_manager,
+            status_manager,
             update_tx,
         })
     }
@@ -310,11 +313,11 @@ impl BacktestEngine {
     }
 
     pub fn receiver(&self) -> BacktestReceiver {
-        self.state_manager.receiver()
+        self.status_manager.receiver()
     }
 
     async fn run(self) -> Result<TradingState> {
-        self.state_manager.update(BacktestState::Starting);
+        self.status_manager.update(BacktestStatus::Starting);
 
         let trades_executor = {
             let start_time_entry = self
@@ -403,9 +406,9 @@ impl BacktestEngine {
             mut price_ticks_cursor_idx,
         ) = get_buffers(time_cursor).await?;
 
-        let mut next_state_update = self.start_time + self.config.update_interval;
+        let mut send_next_update_at = self.start_time + self.config.update_interval;
 
-        self.state_manager.update(BacktestState::Running);
+        self.status_manager.update(BacktestStatus::Running);
 
         loop {
             if time_cursor >= self.end_time {
@@ -428,7 +431,7 @@ impl BacktestEngine {
                     .map_err(|e| BacktestError::Generic(e.to_string()))?;
             }
 
-            if time_cursor >= next_state_update {
+            if time_cursor >= send_next_update_at {
                 let trades_state = trades_executor
                     .trading_state()
                     .await
@@ -438,7 +441,7 @@ impl BacktestEngine {
                     .send(trades_state.into())
                     .map_err(|e| BacktestError::Generic(e.to_string()))?;
 
-                next_state_update += self.config.update_interval;
+                send_next_update_at += self.config.update_interval;
             }
 
             time_cursor = time_cursor + Duration::seconds(1);
@@ -486,24 +489,24 @@ impl BacktestEngine {
     }
 
     pub fn start(self) -> Arc<BacktestController> {
-        let state_manager = self.state_manager.clone();
+        let status_manager = self.status_manager.clone();
 
         let handle = tokio::spawn(async move {
-            let state_manager = self.state_manager.clone();
+            let status_manager = self.status_manager.clone();
             let update_tx = self.update_tx.clone();
 
             let final_backtest_state = match self.run().await {
                 Ok(final_trade_state) => match update_tx.send(final_trade_state.into()) {
-                    Ok(_) => BacktestState::Finished,
-                    Err(e) => BacktestState::Failed(BacktestError::Generic(e.to_string())),
+                    Ok(_) => BacktestStatus::Finished,
+                    Err(e) => BacktestStatus::Failed(BacktestError::Generic(e.to_string())),
                 },
-                Err(e) => BacktestState::Failed(e),
+                Err(e) => BacktestStatus::Failed(e),
             };
 
-            state_manager.update(final_backtest_state);
+            status_manager.update(final_backtest_state);
         })
         .into();
 
-        BacktestController::new(handle, state_manager)
+        BacktestController::new(handle, status_manager)
     }
 }

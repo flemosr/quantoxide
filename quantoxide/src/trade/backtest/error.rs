@@ -3,7 +3,7 @@ use std::{result, sync::Arc};
 use thiserror::Error;
 use tokio::{sync::broadcast::error::SendError, task::JoinError};
 
-use super::BacktestState;
+use super::BacktestStatus;
 pub use super::executor::error::SimulatedTradeExecutorError;
 
 #[derive(Error, Debug)]
@@ -12,7 +12,7 @@ pub enum BacktestError {
     Manager(#[from] SimulatedTradeExecutorError),
 
     #[error("TransmiterFailed error {0}")]
-    TransmiterFailed(SendError<Arc<BacktestState>>),
+    TransmiterFailed(SendError<Arc<BacktestStatus>>),
 
     #[error("[TaskJoin] {0}")]
     TaskJoin(JoinError),

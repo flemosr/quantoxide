@@ -11,7 +11,7 @@ use tokio::{
 
 use crate::{
     trade::{
-        backtest::{BacktestEngine, BacktestReceiver, BacktestState, BacktestUpdate},
+        backtest::{BacktestEngine, BacktestReceiver, BacktestStatus, BacktestUpdate},
         core::TradingState,
     },
     util::AbortOnDropHandle,
@@ -130,10 +130,10 @@ impl BacktestTui {
                 match backtest_update {
                     BacktestUpdate::Status(backtest_status) => {
                         let log_str = match backtest_status.as_ref() {
-                            BacktestState::NotInitiated => "BacktestState::NotInitiated".to_string(),
-                            BacktestState::Starting => "BacktestState::Starting".to_string(),
-                            BacktestState::Running => "BacktestState::Running".to_string(),
-                            BacktestState::Finished => {
+                            BacktestStatus::NotInitiated => "BacktestState::NotInitiated".to_string(),
+                            BacktestStatus::Starting => "BacktestState::Starting".to_string(),
+                            BacktestStatus::Running => "BacktestState::Running".to_string(),
+                            BacktestStatus::Finished => {
                                 let backtest_elapsed = Utc::now().signed_duration_since(backtest_start);
                                 format!(
                                     "BacktestState::Finished\nIterations completed. Elapsed: {}m {}s",
@@ -141,10 +141,10 @@ impl BacktestTui {
                                     backtest_elapsed.num_seconds() % 60
                                 )
                             }
-                            BacktestState::Failed(err) => {
+                            BacktestStatus::Failed(err) => {
                                 format!("BacktestState::Failed with error {err}")
                             }
-                            BacktestState::Aborted => "BacktestState::Aborted".to_string(),
+                            BacktestStatus::Aborted => "BacktestState::Aborted".to_string(),
                         };
 
                         ui_tx
