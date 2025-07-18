@@ -437,9 +437,8 @@ impl BacktestEngine {
                     .await
                     .map_err(|e| BacktestError::Generic(e.to_string()))?;
 
-                self.update_tx
-                    .send(trades_state.into())
-                    .map_err(|e| BacktestError::Generic(e.to_string()))?;
+                // Ignore no-receivers errors
+                let _ = self.update_tx.send(trades_state.into());
 
                 send_next_update_at += self.config.update_interval;
             }
@@ -496,10 +495,12 @@ impl BacktestEngine {
             let update_tx = self.update_tx.clone();
 
             let final_backtest_state = match self.run().await {
-                Ok(final_trade_state) => match update_tx.send(final_trade_state.into()) {
-                    Ok(_) => BacktestStatus::Finished,
-                    Err(e) => BacktestStatus::Failed(BacktestError::Generic(e.to_string())),
-                },
+                Ok(final_trade_state) => {
+                    // Ignore no-receivers errors
+                    let _ = update_tx.send(final_trade_state.into());
+
+                    BacktestStatus::Finished
+                }
                 Err(e) => BacktestStatus::Failed(e),
             };
 
