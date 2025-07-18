@@ -191,7 +191,7 @@ pub trait TuiView: TuiLogger {
         f.render_widget(list, rect);
     }
 
-    fn render_widgets(f: &mut Frame, state: &Self::State) {
+    fn render_panes(f: &mut Frame, state: &Self::State) {
         for pane in Self::TuiPane::iter() {
             Self::render_pane(f, state, pane);
         }

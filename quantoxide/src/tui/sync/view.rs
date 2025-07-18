@@ -203,7 +203,7 @@ impl TuiView for SyncTuiView {
         state_guard.ph_state_rect = main_chunks[0];
         state_guard.log_rect = main_chunks[1];
 
-        Self::render_widgets(f, &state_guard);
+        Self::render_panes(f, &state_guard);
     }
 
     fn switch_pane(&self) {

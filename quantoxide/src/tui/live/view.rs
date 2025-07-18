@@ -245,7 +245,7 @@ impl TuiView for LiveTuiView {
         state_guard.summary_rect = bottom_chunks[0];
         state_guard.log_rect = bottom_chunks[1];
 
-        Self::render_widgets(f, &state_guard);
+        Self::render_panes(f, &state_guard);
     }
 
     fn switch_pane(&self) {
