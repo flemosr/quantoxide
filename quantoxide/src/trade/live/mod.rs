@@ -112,19 +112,19 @@ impl LiveStatusManager {
         let _ = self.update_tx.send(new_status.into());
     }
 
-    fn try_lock_status(&self) -> MutexGuard<'_, Arc<LiveStatus>> {
+    fn lock_status(&self) -> MutexGuard<'_, Arc<LiveStatus>> {
         self.status
             .lock()
             .expect("`LiveStatusManager` mutex can't be poisoned")
     }
     pub fn update(&self, new_status: LiveStatus) {
-        let status_guard = self.try_lock_status();
+        let status_guard = self.lock_status();
 
         self.update_status_guard(status_guard, new_status);
     }
 
     pub fn update_if_not_running(&self, new_status: LiveStatus) {
-        let status_guard = self.try_lock_status();
+        let status_guard = self.lock_status();
 
         if matches!(status_guard.as_ref(), LiveStatus::Running) {
             return;
@@ -134,7 +134,7 @@ impl LiveStatusManager {
     }
 
     pub fn update_if_running(&self, new_status: LiveStatus) {
-        let status_guard = self.try_lock_status();
+        let status_guard = self.lock_status();
 
         if !matches!(status_guard.as_ref(), LiveStatus::Running) {
             return;
@@ -150,7 +150,7 @@ impl LiveReader for LiveStatusManager {
     }
 
     fn status_snapshot(&self) -> Arc<LiveStatus> {
-        self.try_lock_status().clone()
+        self.lock_status().clone()
     }
 }
 
