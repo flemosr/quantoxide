@@ -159,7 +159,7 @@ impl Default for BacktestConfig {
             max_running_qtd: 50,
             fee_perc: 0.1.try_into().expect("must be a valid `BoundedPercentage`"),
             tsl_step_size: BoundedPercentage::MIN,
-            update_interval: Duration::milliseconds(300),
+            update_interval: Duration::days(1),
         }
     }
 }
@@ -195,8 +195,8 @@ impl BacktestConfig {
         self
     }
 
-    pub fn set_update_interval(mut self, millis: u32) -> Self {
-        self.update_interval = Duration::milliseconds(millis as i64);
+    pub fn set_update_interval(mut self, hours: u32) -> Self {
+        self.update_interval = Duration::hours(hours as i64);
         self
     }
 }
@@ -383,17 +383,7 @@ impl BacktestEngine {
             mut price_ticks_cursor_idx,
         ) = get_buffers(time_cursor).await?;
 
-        let mut last_state_update = {
-            let trades_state = trades_executor
-                .trading_state()
-                .await
-                .map_err(|e| BacktestError::Generic(e.to_string()))?;
-
-            self.state_manager
-                .update(BacktestState::Running(trades_state));
-
-            Utc::now()
-        };
+        let mut next_state_update = self.start_time + self.config.update_interval;
 
         loop {
             if time_cursor >= self.end_time {
@@ -416,29 +406,24 @@ impl BacktestEngine {
                     .map_err(|e| BacktestError::Generic(e.to_string()))?;
             }
 
+            if time_cursor >= next_state_update {
+                let trades_state = trades_executor
+                    .trading_state()
+                    .await
+                    .map_err(|e| BacktestError::Generic(e.to_string()))?;
+
+                self.state_manager
+                    .update(BacktestState::Running(trades_state));
+
+                next_state_update += self.config.update_interval;
+            }
+
             time_cursor = time_cursor + Duration::seconds(1);
 
             if locf_buffer_cursor_idx < locf_buffer.len() - 1 {
                 locf_buffer_cursor_idx += 1;
             } else {
                 // Reached the end of the current buffer
-
-                // Update the state not more than once every `update_interval`
-
-                if Utc::now().signed_duration_since(last_state_update) > self.config.update_interval
-                {
-                    let trades_state = trades_executor
-                        .trading_state()
-                        .await
-                        .map_err(|e| BacktestError::Generic(e.to_string()))?;
-
-                    self.state_manager
-                        .update(BacktestState::Running(trades_state));
-
-                    last_state_update = Utc::now();
-                }
-
-                // Update buffers
 
                 (
                     locf_buffer,
