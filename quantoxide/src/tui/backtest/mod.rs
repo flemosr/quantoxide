@@ -11,7 +11,7 @@ use tokio::{
 
 use crate::{
     trade::{
-        backtest::{BacktestEngine, BacktestReceiver, BacktestState},
+        backtest::{BacktestEngine, BacktestReceiver, BacktestState, BacktestUpdate},
         core::TradingState,
     },
     util::AbortOnDropHandle,
@@ -126,42 +126,39 @@ impl BacktestTui {
         tokio::spawn(async move {
             let backtest_start = Utc::now();
 
-            let handle_backtest_update = async |backtest_update: Arc<BacktestState>| -> Result<()> {
-                let log_str = match backtest_update.as_ref() {
-                    BacktestState::NotInitiated => "BacktestState::NotInitiated".to_string(),
-                    BacktestState::Starting => "BacktestState::Starting".to_string(),
-                    BacktestState::Running(trading_state) => {
+            let handle_backtest_update = async |backtest_update: BacktestUpdate| -> Result<()> {
+                match backtest_update {
+                    BacktestUpdate::Status(backtest_status) => {
+                        let log_str = match backtest_status.as_ref() {
+                            BacktestState::NotInitiated => "BacktestState::NotInitiated".to_string(),
+                            BacktestState::Starting => "BacktestState::Starting".to_string(),
+                            BacktestState::Running => "BacktestState::Running".to_string(),
+                            BacktestState::Finished => {
+                                let backtest_elapsed = Utc::now().signed_duration_since(backtest_start);
+                                format!(
+                                    "BacktestState::Finished\nIterations completed. Elapsed: {}m {}s",
+                                    backtest_elapsed.num_minutes(),
+                                    backtest_elapsed.num_seconds() % 60
+                                )
+                            }
+                            BacktestState::Failed(err) => {
+                                format!("BacktestState::Failed with error {err}")
+                            }
+                            BacktestState::Aborted => "BacktestState::Aborted".to_string(),
+                        };
+
                         ui_tx
-                            .send(BacktestUiMessage::StateUpdate(trading_state.clone()))
+                            .send(BacktestUiMessage::LogEntry(log_str))
                             .await
                             .map_err(|e| TuiError::Generic(e.to_string()))?;
-
-                        "BacktestState::Running".to_string()
                     }
-                    BacktestState::Finished(trading_state) => {
-                        let backtest_elapsed = Utc::now().signed_duration_since(backtest_start);
-
+                    BacktestUpdate::TradingState(trading_state) => {
                         ui_tx
-                            .send(BacktestUiMessage::StateUpdate(trading_state.clone()))
+                            .send(BacktestUiMessage::StateUpdate(trading_state))
                             .await
                             .map_err(|e| TuiError::Generic(e.to_string()))?;
-
-                        format!(
-                            "BacktestState::Finished\nIterations completed. Elapsed: {}m {}s",
-                            backtest_elapsed.num_minutes(),
-                            backtest_elapsed.num_seconds() % 60
-                        )
                     }
-                    BacktestState::Failed(err) => {
-                        format!("BacktestState::Failed with error {err}")
-                    }
-                    BacktestState::Aborted => "BacktestState::Aborted".to_string(),
                 };
-
-                ui_tx
-                    .send(BacktestUiMessage::LogEntry(log_str))
-                    .await
-                    .map_err(|e| TuiError::Generic(e.to_string()))?;
 
                 Ok(())
             };
