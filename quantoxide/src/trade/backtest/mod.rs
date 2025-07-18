@@ -138,9 +138,9 @@ impl BacktestController {
 #[async_trait]
 impl TuiControllerShutdown for BacktestController {
     async fn tui_shutdown(&self) -> TuiResult<()> {
-        self.abort()
-            .await
-            .map_err(|e| TuiError::Generic(e.to_string()))
+        // A `TaskJoin` error is expected here and can be safely ignored.
+        let _ = self.abort().await;
+        Ok(())
     }
 }
 
