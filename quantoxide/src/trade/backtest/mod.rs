@@ -10,14 +10,13 @@ use crate::{
     db::DbContext,
     signal::core::{ConfiguredSignalEvaluator, Signal},
     sync::PriceHistoryState,
-    tui::{Result as TuiResult, TuiControllerShutdown, TuiError},
+    tui::{Result as TuiResult, TuiControllerShutdown},
     util::{AbortOnDropHandle, DateTimeExt},
 };
 
 use super::core::{Operator, TradeExecutor, TradingState, WrappedOperator};
 
 pub mod error;
-
 mod executor;
 
 use error::{BacktestError, Result};
@@ -27,27 +26,44 @@ use executor::SimulatedTradeExecutor;
 pub enum BacktestState {
     NotInitiated,
     Starting,
-    Running(TradingState),
-    Finished(TradingState),
+    Running,
+    Finished,
     Failed(BacktestError),
     Aborted,
 }
 
-pub type BacktestTransmiter = broadcast::Sender<Arc<BacktestState>>;
-pub type BacktestReceiver = broadcast::Receiver<Arc<BacktestState>>;
+#[derive(Clone)]
+pub enum BacktestUpdate {
+    Status(Arc<BacktestState>),
+    TradingState(TradingState),
+}
+
+impl From<Arc<BacktestState>> for BacktestUpdate {
+    fn from(value: Arc<BacktestState>) -> Self {
+        Self::Status(value)
+    }
+}
+
+impl From<TradingState> for BacktestUpdate {
+    fn from(value: TradingState) -> Self {
+        Self::TradingState(value)
+    }
+}
+
+pub type BacktestTransmiter = broadcast::Sender<BacktestUpdate>;
+pub type BacktestReceiver = broadcast::Receiver<BacktestUpdate>;
 
 #[derive(Debug)]
 struct BacktestStateManager {
     state: Mutex<Arc<BacktestState>>,
-    state_tx: BacktestTransmiter,
+    update_tx: BacktestTransmiter,
 }
 
 impl BacktestStateManager {
-    pub fn new() -> Arc<Self> {
+    pub fn new(update_tx: BacktestTransmiter) -> Arc<Self> {
         let state = Mutex::new(Arc::new(BacktestState::NotInitiated));
-        let (state_tx, _) = broadcast::channel::<Arc<BacktestState>>(100);
 
-        Arc::new(Self { state, state_tx })
+        Arc::new(Self { state, update_tx })
     }
 
     pub fn snapshot(&self) -> Arc<BacktestState> {
@@ -58,7 +74,7 @@ impl BacktestStateManager {
     }
 
     pub fn receiver(&self) -> BacktestReceiver {
-        self.state_tx.subscribe()
+        self.update_tx.subscribe()
     }
 
     pub fn update(&self, new_state: BacktestState) {
@@ -69,7 +85,7 @@ impl BacktestStateManager {
         drop(state_guard);
 
         // Ignore no-receivers errors
-        let _ = self.state_tx.send(new_state);
+        let _ = self.update_tx.send(new_state.into());
     }
 }
 
@@ -210,6 +226,7 @@ pub struct BacktestEngine {
     start_balance: u64,
     end_time: DateTime<Utc>,
     state_manager: Arc<BacktestStateManager>,
+    update_tx: BacktestTransmiter,
 }
 
 impl BacktestEngine {
@@ -263,7 +280,9 @@ impl BacktestEngine {
             )));
         }
 
-        let state_manager = BacktestStateManager::new();
+        let (update_tx, _) = broadcast::channel::<BacktestUpdate>(100);
+
+        let state_manager = BacktestStateManager::new(update_tx.clone());
 
         Ok(Self {
             config,
@@ -274,6 +293,7 @@ impl BacktestEngine {
             start_balance,
             end_time,
             state_manager,
+            update_tx,
         })
     }
 
@@ -385,6 +405,8 @@ impl BacktestEngine {
 
         let mut next_state_update = self.start_time + self.config.update_interval;
 
+        self.state_manager.update(BacktestState::Running);
+
         loop {
             if time_cursor >= self.end_time {
                 break;
@@ -412,8 +434,9 @@ impl BacktestEngine {
                     .await
                     .map_err(|e| BacktestError::Generic(e.to_string()))?;
 
-                self.state_manager
-                    .update(BacktestState::Running(trades_state));
+                self.update_tx
+                    .send(trades_state.into())
+                    .map_err(|e| BacktestError::Generic(e.to_string()))?;
 
                 next_state_update += self.config.update_interval;
             }
@@ -467,9 +490,13 @@ impl BacktestEngine {
 
         let handle = tokio::spawn(async move {
             let state_manager = self.state_manager.clone();
+            let update_tx = self.update_tx.clone();
 
             let final_backtest_state = match self.run().await {
-                Ok(final_trade_state) => BacktestState::Finished(final_trade_state),
+                Ok(final_trade_state) => match update_tx.send(final_trade_state.into()) {
+                    Ok(_) => BacktestState::Finished,
+                    Err(e) => BacktestState::Failed(BacktestError::Generic(e.to_string())),
+                },
                 Err(e) => BacktestState::Failed(e),
             };
 
