@@ -1,4 +1,5 @@
 use std::{
+    collections::BTreeMap,
     fmt,
     panic::{self, AssertUnwindSafe},
     sync::Arc,
@@ -35,9 +36,6 @@ pub struct TradingState {
     running_short_quantity: u64,
     running_pl: i64,
     running_fees: u64,
-    // FIXME: `TradingState` is sent over channels, and the `closed` `Vec` may
-    // grow large.
-    closed: Vec<Arc<dyn Trade>>,
     closed_len: usize,
     closed_pl: i64,
     closed_fees: u64,
@@ -58,7 +56,6 @@ impl TradingState {
         running_short_quantity: u64,
         running_pl: i64,
         running_fees: u64,
-        mut closed: Vec<Arc<dyn Trade>>,
         closed_len: usize,
         closed_pl: i64,
         closed_fees: u64,
@@ -69,17 +66,7 @@ impl TradingState {
             ));
         }
 
-        if closed.iter().any(|trade| {
-            !trade.closed() || trade.exit_price().is_none() || trade.closed_ts().is_none()
-        }) {
-            return Err(TradeError::Generic(
-                "`closed` contain a trade that is not closed".to_string(),
-            ));
-        }
-
         running.sort_by(|a, b| b.creation_ts().cmp(&a.creation_ts()));
-
-        closed.sort_by(|a, b| b.creation_ts().cmp(&a.creation_ts()));
 
         Ok(Self {
             current_time,
@@ -95,7 +82,6 @@ impl TradingState {
             running_short_quantity,
             running_pl,
             running_fees,
-            closed,
             closed_len,
             closed_pl,
             closed_fees,
@@ -307,9 +293,36 @@ impl TradingState {
 
         table
     }
+}
 
-    pub fn closed_trades_table(&self) -> String {
-        if self.closed.is_empty() {
+impl fmt::Display for TradingState {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "TradingState:")?;
+        for line in self.summary().lines() {
+            write!(f, "\n  {line}")?;
+        }
+        Ok(())
+    }
+}
+
+pub struct ClosedTradeHistory<T: Trade>(BTreeMap<DateTime<Utc>, T>);
+
+impl<T: Trade> ClosedTradeHistory<T> {
+    pub fn new() -> Self {
+        Self(BTreeMap::new())
+    }
+
+    pub fn add(&mut self, trade: T) -> Result<()> {
+        if !trade.closed() || trade.exit_price().is_none() || trade.closed_ts().is_none() {
+            return Err(TradeError::Generic("`trade` is not closed".to_string()));
+        }
+
+        self.0.insert(trade.creation_ts(), trade);
+        Ok(())
+    }
+
+    pub fn to_table(&self) -> String {
+        if self.0.is_empty() {
             return "No closed trades.".to_string();
         }
 
@@ -331,7 +344,7 @@ impl TradingState {
 
         table.push_str(&format!("\n{}", "-".repeat(137)));
 
-        for trade in &self.closed {
+        for trade in self.0.values().rev() {
             let creation_time = trade
                 .creation_ts()
                 .with_timezone(&chrono::Local)
@@ -367,16 +380,6 @@ impl TradingState {
         }
 
         table
-    }
-}
-
-impl fmt::Display for TradingState {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "TradingState:")?;
-        for line in self.summary().lines() {
-            write!(f, "\n  {line}")?;
-        }
-        Ok(())
     }
 }
 
