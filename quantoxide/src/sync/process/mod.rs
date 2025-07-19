@@ -122,10 +122,11 @@ impl SyncProcess {
         &self,
         mut history_state_rx: mpsc::Receiver<PriceHistoryState>,
     ) {
-        let state_manager = self.state_manager.clone();
+        let update_tx = self.update_tx.clone();
         tokio::spawn(async move {
             while let Some(new_history_state) = history_state_rx.recv().await {
-                state_manager.handle_price_history_state_update(new_history_state);
+                // Ignore no-receivers errors
+                let _ = update_tx.send(new_history_state.into());
             }
         });
     }
@@ -148,6 +149,9 @@ impl SyncProcess {
         loop {
             let (history_state_tx, history_state_rx) = mpsc::channel::<PriceHistoryState>(100);
 
+            self.state_manager
+                .update(SyncStateNotSynced::InProgress.into());
+
             self.spawn_history_state_update_handler(history_state_rx);
 
             self.run_price_history_task_backfill(Some(history_state_tx))
@@ -164,6 +168,9 @@ impl SyncProcess {
         // Start to collect real-time data
 
         let (price_tick_tx, _) = broadcast::channel::<PriceTick>(100);
+
+        self.state_manager
+            .update(SyncStateNotSynced::InProgress.into());
 
         let mut real_time_collection_handle =
             self.spawn_real_time_collection_task(price_tick_tx.clone());

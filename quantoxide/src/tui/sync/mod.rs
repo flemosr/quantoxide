@@ -130,15 +130,7 @@ impl SyncTui {
                                     SyncStateNotSynced::Starting => {
                                         "Sync state: Starting".to_string()
                                     }
-                                    SyncStateNotSynced::InProgress(price_history_state) => {
-                                        ui_tx
-                                            .send(SyncUiMessage::StateUpdate(format!(
-                                                "\n{}",
-                                                price_history_state.summary()
-                                            )))
-                                            .await
-                                            .map_err(|e| TuiError::Generic(e.to_string()))?;
-
+                                    SyncStateNotSynced::InProgress => {
                                         "Sync state: InProgress".to_string()
                                     }
                                     SyncStateNotSynced::WaitingForResync => {
@@ -167,6 +159,15 @@ impl SyncTui {
                     SyncUpdate::PriceTick(tick) => {
                         ui_tx
                             .send(SyncUiMessage::LogEntry(format!("Price tick: {:?}", tick)))
+                            .await
+                            .map_err(|e| TuiError::Generic(e.to_string()))?;
+                    }
+                    SyncUpdate::PriceHistoryState(price_history_state) => {
+                        ui_tx
+                            .send(SyncUiMessage::StateUpdate(format!(
+                                "\n{}",
+                                price_history_state.summary()
+                            )))
                             .await
                             .map_err(|e| TuiError::Generic(e.to_string()))?;
                     }

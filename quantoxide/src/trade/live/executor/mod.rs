@@ -382,6 +382,7 @@ impl LiveTradeExecutorLauncher {
                                 SyncState::Synced => refresh_trading_session().await,
                             },
                             SyncUpdate::PriceTick(_) => refresh_trading_session().await,
+                            SyncUpdate::PriceHistoryState(_) => {}
                         },
                         Err(e) => {
                             return Err(LiveError::Generic(format!("sync_rx error {e}")));

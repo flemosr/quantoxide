@@ -10,7 +10,7 @@ use super::{PriceHistoryState, SyncError};
 pub enum SyncStateNotSynced {
     NotInitiated,
     Starting,
-    InProgress(PriceHistoryState),
+    InProgress,
     WaitingForResync,
     Failed(SyncError),
     Restarting,
@@ -34,6 +34,7 @@ impl From<SyncStateNotSynced> for SyncState {
 pub enum SyncUpdate {
     StateChange(SyncState),
     PriceTick(PriceTick),
+    PriceHistoryState(PriceHistoryState),
 }
 
 impl From<SyncState> for SyncUpdate {
@@ -45,6 +46,12 @@ impl From<SyncState> for SyncUpdate {
 impl From<PriceTick> for SyncUpdate {
     fn from(value: PriceTick) -> Self {
         Self::PriceTick(value)
+    }
+}
+
+impl From<PriceHistoryState> for SyncUpdate {
+    fn from(value: PriceHistoryState) -> Self {
+        Self::PriceHistoryState(value)
     }
 }
 
@@ -69,6 +76,12 @@ impl SyncStateManager {
         Arc::new(Self { state, update_tx })
     }
 
+    fn lock_state(&self) -> MutexGuard<'_, SyncState> {
+        self.state
+            .lock()
+            .expect("`SyncStateManager` mutex can't be poisoned")
+    }
+
     fn update_state_guard(&self, mut state_guard: MutexGuard<'_, SyncState>, new_state: SyncState) {
         *state_guard = new_state.clone();
         drop(state_guard);
@@ -78,32 +91,9 @@ impl SyncStateManager {
     }
 
     pub fn update(&self, new_state: SyncState) {
-        let state_guard = self
-            .state
-            .lock()
-            .expect("`SyncStateManager` mutex can't be poisoned");
+        let state_guard = self.lock_state();
 
         self.update_state_guard(state_guard, new_state);
-    }
-
-    pub fn handle_price_history_state_update(&self, new_history_state: PriceHistoryState) {
-        let state_guard = self
-            .state
-            .lock()
-            .expect("`SyncStateManager` mutex can't be poisoned");
-
-        let SyncState::NotSynced(sync_state_not_synced) = &*state_guard else {
-            return;
-        };
-
-        if let SyncStateNotSynced::Starting
-        | SyncStateNotSynced::InProgress(_)
-        | SyncStateNotSynced::WaitingForResync = sync_state_not_synced.as_ref()
-        {
-            let new_state: SyncState = SyncStateNotSynced::InProgress(new_history_state).into();
-
-            self.update_state_guard(state_guard, new_state);
-        }
     }
 }
 
@@ -113,9 +103,6 @@ impl SyncReader for SyncStateManager {
     }
 
     fn state_snapshot(&self) -> SyncState {
-        self.state
-            .lock()
-            .expect("`SyncStateManager` mutex can't be poisoned")
-            .clone()
+        self.lock_state().clone()
     }
 }

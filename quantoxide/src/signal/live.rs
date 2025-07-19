@@ -191,6 +191,7 @@ impl LiveSignalProcess {
                             }
                         },
                         SyncUpdate::PriceTick(_) => break,
+                        SyncUpdate::PriceHistoryState(_) => {}
                     }
                 }
 
