@@ -72,6 +72,7 @@ pub enum LiveTradeExecutorUpdate {
     Order(LiveTradeExecutorUpdateOrder),
     Status(LiveTradeExecutorStatus),
     TradingState(TradingState),
+    ClosedTrade(LnmTrade),
 }
 
 impl From<LiveTradeExecutorUpdateOrder> for LiveTradeExecutorUpdate {
