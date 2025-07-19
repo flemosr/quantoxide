@@ -4,7 +4,10 @@ use async_trait::async_trait;
 use chrono::Duration;
 use tokio::{sync::broadcast, time};
 
-use lnm_sdk::api::{ApiContext, rest::models::BoundedPercentage};
+use lnm_sdk::api::{
+    ApiContext,
+    rest::models::{BoundedPercentage, LnmTrade},
+};
 
 use crate::{
     db::DbContext,
@@ -51,6 +54,7 @@ pub enum LiveUpdate {
     Signal(Signal),
     Order(LiveTradeExecutorUpdateOrder),
     TradingState(TradingState),
+    ClosedTrade(LnmTrade),
 }
 
 impl From<Arc<LiveStatus>> for LiveUpdate {
@@ -589,6 +593,9 @@ impl LiveEngine {
                     }
                     LiveTradeExecutorUpdate::TradingState(trading_state) => {
                         let _ = update_tx.send(trading_state.into());
+                    }
+                    LiveTradeExecutorUpdate::ClosedTrade(closed_trade) => {
+                        let _ = update_tx.send(LiveUpdate::ClosedTrade(closed_trade));
                     }
                 }
             }
