@@ -16,7 +16,7 @@ use crate::{
 use super::{
     error::{Result, SyncError},
     process::SyncProcess,
-    state::{SyncReader, SyncReceiver, SyncState, SyncStateManager, SyncTransmiter, SyncUpdate},
+    state::{SyncReader, SyncReceiver, SyncStatus, SyncStatusManager, SyncTransmiter, SyncUpdate},
 };
 
 #[derive(Debug)]
@@ -37,7 +37,7 @@ pub struct SyncController {
     config: SyncControllerConfig,
     handle: Mutex<Option<AbortOnDropHandle<()>>>,
     shutdown_tx: broadcast::Sender<()>,
-    state_manager: Arc<SyncStateManager>,
+    status_manager: Arc<SyncStatusManager>,
 }
 
 impl SyncController {
@@ -45,26 +45,26 @@ impl SyncController {
         config: &SyncConfig,
         handle: AbortOnDropHandle<()>,
         shutdown_tx: broadcast::Sender<()>,
-        state_manager: Arc<SyncStateManager>,
+        status_manager: Arc<SyncStatusManager>,
     ) -> Arc<Self> {
         Arc::new(Self {
             config: config.into(),
             handle: Mutex::new(Some(handle)),
             shutdown_tx,
-            state_manager,
+            status_manager,
         })
     }
 
     pub fn reader(&self) -> Arc<dyn SyncReader> {
-        self.state_manager.clone()
+        self.status_manager.clone()
     }
 
     pub fn update_receiver(&self) -> SyncReceiver {
-        self.state_manager.update_receiver()
+        self.status_manager.update_receiver()
     }
 
-    pub fn state_snapshot(&self) -> SyncState {
-        self.state_manager.state_snapshot()
+    pub fn status_snapshot(&self) -> SyncStatus {
+        self.status_manager.status_snapshot()
     }
 
     fn try_consume_handle(&self) -> Option<AbortOnDropHandle<()>> {
@@ -83,11 +83,11 @@ impl SyncController {
     pub async fn shutdown(&self) -> Result<()> {
         let Some(mut handle) = self.try_consume_handle() else {
             return Err(SyncError::Generic(
-                "Sync process was already shutdown".to_string(),
+                "`SyncProcess` was already shutdown".to_string(),
             ));
         };
 
-        self.state_manager.update(SyncState::ShutdownInitiated);
+        self.status_manager.update(SyncStatus::ShutdownInitiated);
 
         let shutdown_send_res = self.shutdown_tx.send(()).map_err(|e| {
             handle.abort();
@@ -109,7 +109,7 @@ impl SyncController {
             Err(e) => Err(e),
         };
 
-        self.state_manager.update(SyncState::Shutdown);
+        self.status_manager.update(SyncStatus::Shutdown);
 
         shutdown_res
     }
@@ -252,7 +252,7 @@ pub struct SyncEngine {
     db: Arc<DbContext>,
     api: Arc<ApiContext>,
     mode: SyncMode,
-    state_manager: Arc<SyncStateManager>,
+    status_manager: Arc<SyncStatusManager>,
     update_tx: SyncTransmiter,
 }
 
@@ -265,28 +265,28 @@ impl SyncEngine {
     ) -> Self {
         let (update_tx, _) = broadcast::channel::<SyncUpdate>(100);
 
-        let state_manager = SyncStateManager::new(update_tx.clone());
+        let status_manager = SyncStatusManager::new(update_tx.clone());
 
         Self {
             config: config.into(),
             db,
             api,
             mode,
-            state_manager,
+            status_manager,
             update_tx,
         }
     }
 
     pub fn reader(&self) -> Arc<dyn SyncReader> {
-        self.state_manager.clone()
+        self.status_manager.clone()
     }
 
     pub fn update_receiver(&self) -> SyncReceiver {
-        self.state_manager.update_receiver()
+        self.status_manager.update_receiver()
     }
 
-    pub fn state_snapshot(&self) -> SyncState {
-        self.state_manager.state_snapshot()
+    pub fn status_snapshot(&self) -> SyncStatus {
+        self.status_manager.status_snapshot()
     }
 
     pub fn start(self) -> Arc<SyncController> {
@@ -299,11 +299,11 @@ impl SyncEngine {
             self.api,
             self.mode,
             shutdown_tx.clone(),
-            self.state_manager.clone(),
+            self.status_manager.clone(),
             self.update_tx,
         )
         .spawn_recovery_loop();
 
-        SyncController::new(&self.config, handle, shutdown_tx, self.state_manager)
+        SyncController::new(&self.config, handle, shutdown_tx, self.status_manager)
     }
 }

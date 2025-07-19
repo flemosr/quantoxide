@@ -14,7 +14,7 @@ use tokio::sync::broadcast;
 
 use crate::{
     db::DbContext,
-    sync::{SyncReceiver, SyncState, SyncUpdate},
+    sync::{SyncReceiver, SyncStatus, SyncUpdate},
     util::{AbortOnDropHandle, Never},
 };
 
@@ -363,8 +363,8 @@ impl LiveTradeExecutorLauncher {
                 loop {
                     match sync_rx.recv().await {
                         Ok(sync_update) => match sync_update {
-                            SyncUpdate::StateChange(sync_state) => match sync_state {
-                                SyncState::NotSynced(sync_state_not_synced) => {
+                            SyncUpdate::Status(sync_state) => match sync_state {
+                                SyncStatus::NotSynced(sync_state_not_synced) => {
                                     let new_status_not_ready =
                                         LiveTradeExecutorStatusNotReady::WaitingForSync(
                                             sync_state_not_synced,
@@ -373,13 +373,13 @@ impl LiveTradeExecutorLauncher {
                                         .update_status_not_ready(new_status_not_ready)
                                         .await;
                                 }
-                                SyncState::ShutdownInitiated | SyncState::Shutdown => {
+                                SyncStatus::ShutdownInitiated | SyncStatus::Shutdown => {
                                     // Non-recoverable error
                                     return Err(LiveError::Generic(
                                         "sync process was shutdown".to_string(),
                                     ));
                                 }
-                                SyncState::Synced => refresh_trading_session().await,
+                                SyncStatus::Synced => refresh_trading_session().await,
                             },
                             SyncUpdate::PriceTick(_) => refresh_trading_session().await,
                             SyncUpdate::PriceHistoryState(_) => {}

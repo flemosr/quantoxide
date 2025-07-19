@@ -5,7 +5,7 @@ use tokio::{sync::broadcast, time};
 
 use crate::{
     db::DbContext,
-    sync::{SyncReader, SyncState, SyncStateNotSynced, SyncUpdate},
+    sync::{SyncReader, SyncStatus, SyncStatusNotSynced, SyncUpdate},
     trade::live::LiveConfig,
     util::{AbortOnDropHandle, DateTimeExt, Never},
 };
@@ -19,7 +19,7 @@ use super::{
 pub enum LiveSignalStateNotRunning {
     NotInitiated,
     Starting,
-    WaitingForSync(Arc<SyncStateNotSynced>),
+    WaitingForSync(Arc<SyncStatusNotSynced>),
     Failed(SignalError),
     Restarting,
 }
@@ -170,11 +170,11 @@ impl LiveSignalProcess {
                 target_exec
             };
 
-            if !matches!(self.sync_reader.state_snapshot(), SyncState::Synced) {
+            if !matches!(self.sync_reader.status_snapshot(), SyncStatus::Synced) {
                 while let Ok(sync_update) = self.sync_reader.update_receiver().recv().await {
                     match sync_update {
-                        SyncUpdate::StateChange(sync_state) => match sync_state {
-                            SyncState::NotSynced(sync_state_not_synced) => {
+                        SyncUpdate::Status(sync_state) => match sync_state {
+                            SyncStatus::NotSynced(sync_state_not_synced) => {
                                 self.state_manager.update(
                                     LiveSignalStateNotRunning::WaitingForSync(
                                         sync_state_not_synced,
@@ -182,8 +182,8 @@ impl LiveSignalProcess {
                                     .into(),
                                 );
                             }
-                            SyncState::Synced => break,
-                            SyncState::ShutdownInitiated | SyncState::Shutdown => {
+                            SyncStatus::Synced => break,
+                            SyncStatus::ShutdownInitiated | SyncStatus::Shutdown => {
                                 // Non-recoverable error
                                 return Err(SignalError::Generic(
                                     "sync process was shutdown".to_string(),

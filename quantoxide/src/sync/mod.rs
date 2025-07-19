@@ -6,4 +6,4 @@ mod state;
 pub use engine::{SyncConfig, SyncController, SyncEngine, SyncMode};
 pub use error::SyncError;
 pub use process::{PriceHistoryState, RealTimeCollectionError, SyncPriceHistoryError};
-pub use state::{SyncReader, SyncReceiver, SyncState, SyncStateNotSynced, SyncUpdate};
+pub use state::{SyncReader, SyncReceiver, SyncStatus, SyncStatusNotSynced, SyncUpdate};

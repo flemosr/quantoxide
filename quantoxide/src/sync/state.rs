@@ -7,7 +7,7 @@ use crate::db::models::PriceTick;
 use super::{PriceHistoryState, SyncError};
 
 #[derive(Debug, PartialEq)]
-pub enum SyncStateNotSynced {
+pub enum SyncStatusNotSynced {
     NotInitiated,
     Starting,
     InProgress,
@@ -17,29 +17,29 @@ pub enum SyncStateNotSynced {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum SyncState {
-    NotSynced(Arc<SyncStateNotSynced>),
+pub enum SyncStatus {
+    NotSynced(Arc<SyncStatusNotSynced>),
     Synced,
     ShutdownInitiated,
     Shutdown,
 }
 
-impl From<SyncStateNotSynced> for SyncState {
-    fn from(value: SyncStateNotSynced) -> Self {
+impl From<SyncStatusNotSynced> for SyncStatus {
+    fn from(value: SyncStatusNotSynced) -> Self {
         Self::NotSynced(Arc::new(value))
     }
 }
 
 #[derive(Debug, Clone)]
 pub enum SyncUpdate {
-    StateChange(SyncState),
+    Status(SyncStatus),
     PriceTick(PriceTick),
     PriceHistoryState(PriceHistoryState),
 }
 
-impl From<SyncState> for SyncUpdate {
-    fn from(value: SyncState) -> Self {
-        Self::StateChange(value)
+impl From<SyncStatus> for SyncUpdate {
+    fn from(value: SyncStatus) -> Self {
+        Self::Status(value)
     }
 }
 
@@ -60,49 +60,53 @@ pub type SyncReceiver = broadcast::Receiver<SyncUpdate>;
 
 pub trait SyncReader: Send + Sync + 'static {
     fn update_receiver(&self) -> SyncReceiver;
-    fn state_snapshot(&self) -> SyncState;
+    fn status_snapshot(&self) -> SyncStatus;
 }
 
 #[derive(Debug)]
-pub struct SyncStateManager {
-    state: Mutex<SyncState>,
+pub struct SyncStatusManager {
+    status: Mutex<SyncStatus>,
     update_tx: SyncTransmiter,
 }
 
-impl SyncStateManager {
+impl SyncStatusManager {
     pub fn new(update_tx: SyncTransmiter) -> Arc<Self> {
-        let state = Mutex::new(SyncStateNotSynced::NotInitiated.into());
+        let status = Mutex::new(SyncStatusNotSynced::NotInitiated.into());
 
-        Arc::new(Self { state, update_tx })
+        Arc::new(Self { status, update_tx })
     }
 
-    fn lock_state(&self) -> MutexGuard<'_, SyncState> {
-        self.state
+    fn lock_status(&self) -> MutexGuard<'_, SyncStatus> {
+        self.status
             .lock()
-            .expect("`SyncStateManager` mutex can't be poisoned")
+            .expect("`SyncStatusManager` mutex can't be poisoned")
     }
 
-    fn update_state_guard(&self, mut state_guard: MutexGuard<'_, SyncState>, new_state: SyncState) {
-        *state_guard = new_state.clone();
-        drop(state_guard);
+    fn update_status_guard(
+        &self,
+        mut status_guard: MutexGuard<'_, SyncStatus>,
+        new_status: SyncStatus,
+    ) {
+        *status_guard = new_status.clone();
+        drop(status_guard);
 
         // Ignore no-receivers errors
-        let _ = self.update_tx.send(new_state.into());
+        let _ = self.update_tx.send(new_status.into());
     }
 
-    pub fn update(&self, new_state: SyncState) {
-        let state_guard = self.lock_state();
+    pub fn update(&self, new_status: SyncStatus) {
+        let status_guard = self.lock_status();
 
-        self.update_state_guard(state_guard, new_state);
+        self.update_status_guard(status_guard, new_status);
     }
 }
 
-impl SyncReader for SyncStateManager {
+impl SyncReader for SyncStatusManager {
     fn update_receiver(&self) -> SyncReceiver {
         self.update_tx.subscribe()
     }
 
-    fn state_snapshot(&self) -> SyncState {
-        self.lock_state().clone()
+    fn status_snapshot(&self) -> SyncStatus {
+        self.lock_status().clone()
     }
 }

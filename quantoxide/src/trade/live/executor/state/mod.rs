@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use tokio::sync::{Mutex, MutexGuard};
 
-use crate::sync::SyncStateNotSynced;
+use crate::sync::SyncStatusNotSynced;
 
 use super::super::{
     error::{LiveError, Result as LiveResult},
@@ -16,7 +16,7 @@ pub use live_trading_session::LiveTradingSession;
 #[derive(Debug, PartialEq)]
 pub enum LiveTradeExecutorStatusNotReady {
     Starting,
-    WaitingForSync(Arc<SyncStateNotSynced>),
+    WaitingForSync(Arc<SyncStatusNotSynced>),
     Failed(LiveError),
     NotViable(LiveError),
 }

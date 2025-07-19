@@ -6,7 +6,7 @@ use tokio::{
     task::JoinError,
 };
 
-use super::{RealTimeCollectionError, SyncPriceHistoryError, SyncState};
+use super::{RealTimeCollectionError, SyncPriceHistoryError, SyncStatus};
 
 #[derive(Error, Debug)]
 pub enum SyncError {
@@ -17,7 +17,7 @@ pub enum SyncError {
     RealTimeCollection(#[from] RealTimeCollectionError),
 
     #[error("[SyncTransmiterFailed] {0}")]
-    SyncTransmiterFailed(SendError<Arc<SyncState>>),
+    SyncTransmiterFailed(SendError<Arc<SyncStatus>>),
 
     #[error("[TaskJoin] {0}")]
     TaskJoin(JoinError),
