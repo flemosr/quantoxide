@@ -120,35 +120,35 @@ impl SyncTui {
         tokio::spawn(async move {
             let handle_sync_update = async |sync_update: SyncUpdate| -> Result<()> {
                 match sync_update {
-                    SyncUpdate::Status(sync_state) => {
-                        let log_str = match sync_state {
-                            SyncStatus::NotSynced(sync_state_not_synced) => {
-                                match sync_state_not_synced.as_ref() {
+                    SyncUpdate::Status(sync_status) => {
+                        let log_str = match sync_status {
+                            SyncStatus::NotSynced(sync_status_not_synced) => {
+                                match sync_status_not_synced.as_ref() {
                                     SyncStatusNotSynced::NotInitiated => {
-                                        "Sync state: NotInitiated".to_string()
+                                        "SyncStatusNotSynced:NotInitiated".to_string()
                                     }
                                     SyncStatusNotSynced::Starting => {
-                                        "Sync state: Starting".to_string()
+                                        "SyncStatusNotSynced:Starting".to_string()
                                     }
                                     SyncStatusNotSynced::InProgress => {
-                                        "Sync state: InProgress".to_string()
+                                        "SyncStatusNotSynced:InProgress".to_string()
                                     }
                                     SyncStatusNotSynced::WaitingForResync => {
-                                        "Sync state: WaitingForResync".to_string()
+                                        "SyncStatusNotSynced:WaitingForResync".to_string()
                                     }
                                     SyncStatusNotSynced::Failed(e) => {
-                                        format!("Sync state: Failed - {:?}", e)
+                                        format!("SyncStatusNotSynced:Failed - {:?}", e)
                                     }
                                     SyncStatusNotSynced::Restarting => {
-                                        "Sync state: Restarting".to_string()
+                                        "SyncStatusNotSynced:Restarting".to_string()
                                     }
                                 }
                             }
-                            SyncStatus::Synced => "Sync state: Synced".to_string(),
+                            SyncStatus::Synced => "SyncStatus:Synced".to_string(),
                             SyncStatus::ShutdownInitiated => {
-                                "Sync state: ShutdownInitiated".to_string()
+                                "SyncStatus:ShutdownInitiated".to_string()
                             }
-                            SyncStatus::Shutdown => "Sync state: Shutdown".to_string(),
+                            SyncStatus::Shutdown => "SyncStatus:Shutdown".to_string(),
                         };
 
                         ui_tx
