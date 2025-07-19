@@ -4,10 +4,7 @@ use tokio::sync::broadcast;
 
 use lnm_sdk::api::{
     ApiContext,
-    websocket::{
-        models::{LnmWebSocketChannel, WebSocketApiRes},
-        state::ConnectionState,
-    },
+    websocket::models::{LnmWebSocketChannel, WebSocketUpdate},
 };
 
 use crate::db::{DbContext, models::PriceTick};
@@ -55,15 +52,15 @@ impl RealTimeCollectionTask {
                 ws_res = ws_rx.recv() => {
                     match ws_res {
                         Ok(res) => match res {
-                            WebSocketApiRes::PriceTick(tick) => {
+                            WebSocketUpdate::PriceTick(tick) => {
                                 if let Some(new_tick) = self.db.price_ticks.add_tick(&tick).await? {
                                     let _ = self.price_tick_tx.send(new_tick);
                                 }
                             }
-                            WebSocketApiRes::PriceIndex(_index) => {}
-                            WebSocketApiRes::ConnectionUpdate(new_state) => {
-                                if !matches!(new_state.as_ref(), ConnectionState::Connected) {
-                                    return Err(RealTimeCollectionError::BadConnectionUpdate(new_state));
+                            WebSocketUpdate::PriceIndex(_index) => {}
+                            WebSocketUpdate::ConnectionStatus(new_status) => {
+                                if !new_status.is_connected() {
+                                    return Err(RealTimeCollectionError::BadConnectionUpdate(new_status));
                                 }
                             },
                         },

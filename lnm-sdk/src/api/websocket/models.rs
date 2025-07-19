@@ -6,7 +6,7 @@ use std::{collections::HashSet, fmt, sync::Arc};
 
 use super::{
     error::{Result, WebSocketApiError},
-    state::ConnectionState,
+    state::ConnectionStatus,
 };
 
 #[derive(Serialize, Debug, PartialEq, Eq)]
@@ -295,23 +295,23 @@ impl<'de> Deserialize<'de> for LnmJsonRpcResponse {
 }
 
 #[derive(Debug, Clone)]
-pub enum WebSocketApiRes {
+pub enum WebSocketUpdate {
     PriceTick(PriceTickLNM),
     PriceIndex(PriceIndexLNM),
-    ConnectionUpdate(Arc<ConnectionState>),
+    ConnectionStatus(Arc<ConnectionStatus>),
 }
 
-impl From<Arc<ConnectionState>> for WebSocketApiRes {
-    fn from(value: Arc<ConnectionState>) -> Self {
-        Self::ConnectionUpdate(value)
+impl From<Arc<ConnectionStatus>> for WebSocketUpdate {
+    fn from(value: Arc<ConnectionStatus>) -> Self {
+        Self::ConnectionStatus(value)
     }
 }
 
-impl From<SubscriptionData> for WebSocketApiRes {
+impl From<SubscriptionData> for WebSocketUpdate {
     fn from(data: SubscriptionData) -> Self {
         match data {
-            SubscriptionData::PriceTick(price_tick) => WebSocketApiRes::PriceTick(price_tick),
-            SubscriptionData::PriceIndex(price_index) => WebSocketApiRes::PriceIndex(price_index),
+            SubscriptionData::PriceTick(price_tick) => WebSocketUpdate::PriceTick(price_tick),
+            SubscriptionData::PriceIndex(price_index) => WebSocketUpdate::PriceIndex(price_index),
         }
     }
 }

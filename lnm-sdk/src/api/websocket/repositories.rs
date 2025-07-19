@@ -4,15 +4,15 @@ use tokio::sync::broadcast::Receiver;
 
 use super::{
     error::Result,
-    models::{LnmWebSocketChannel, WebSocketApiRes},
-    state::ConnectionState,
+    models::{LnmWebSocketChannel, WebSocketUpdate},
+    state::ConnectionStatus,
 };
 
 #[async_trait]
 pub trait WebSocketRepository: Send + Sync {
     async fn is_connected(&self) -> bool;
 
-    async fn connection_state(&self) -> Arc<ConnectionState>;
+    async fn connection_status(&self) -> Arc<ConnectionStatus>;
 
     async fn subscribe(&self, channels: Vec<LnmWebSocketChannel>) -> Result<()>;
 
@@ -20,7 +20,7 @@ pub trait WebSocketRepository: Send + Sync {
 
     async fn subscriptions(&self) -> HashSet<LnmWebSocketChannel>;
 
-    async fn receiver(&self) -> Result<Receiver<WebSocketApiRes>>;
+    async fn receiver(&self) -> Result<Receiver<WebSocketUpdate>>;
 
     async fn disconnect(&self) -> Result<()>;
 }

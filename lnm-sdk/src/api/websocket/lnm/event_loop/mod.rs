@@ -8,8 +8,8 @@ use tokio::{
 
 use super::super::{
     error::{Result, WebSocketApiError},
-    models::{LnmJsonRpcRequest, LnmJsonRpcResponse, WebSocketApiRes},
-    state::{ConnectionState, ConnectionStateManager},
+    models::{LnmJsonRpcRequest, LnmJsonRpcResponse, WebSocketUpdate},
+    state::{ConnectionStatus, ConnectionStatusManager},
 };
 
 mod connection;
@@ -26,15 +26,15 @@ type DisconnectReceiver = mpsc::Receiver<()>;
 pub type RequestTransmiter = mpsc::Sender<(LnmJsonRpcRequest, oneshot::Sender<bool>)>;
 type RequestReceiver = mpsc::Receiver<(LnmJsonRpcRequest, oneshot::Sender<bool>)>;
 
-pub type ResponseTransmiter = broadcast::Sender<WebSocketApiRes>;
-pub type ResponseReceiver = broadcast::Receiver<WebSocketApiRes>;
+pub type ResponseTransmiter = broadcast::Sender<WebSocketUpdate>;
+pub type ResponseReceiver = broadcast::Receiver<WebSocketUpdate>;
 
 pub struct WebSocketEventLoop {
     ws: WebSocketApiConnection,
     disconnect_rx: DisconnectReceiver,
     request_rx: RequestReceiver,
     response_tx: ResponseTransmiter,
-    connection_state_manager: Arc<ConnectionStateManager>,
+    connection_status_manager: Arc<ConnectionStatusManager>,
 }
 
 impl WebSocketEventLoop {
@@ -43,7 +43,7 @@ impl WebSocketEventLoop {
         disconnect_rx: DisconnectReceiver,
         request_rx: RequestReceiver,
         response_tx: ResponseTransmiter,
-        connection_state_manager: Arc<ConnectionStateManager>,
+        connection_status_manager: Arc<ConnectionStatusManager>,
     ) -> Result<Self> {
         let ws = WebSocketApiConnection::new(api_domain).await?;
 
@@ -52,7 +52,7 @@ impl WebSocketEventLoop {
             disconnect_rx,
             request_rx,
             response_tx,
-            connection_state_manager,
+            connection_status_manager,
         })
     }
 
@@ -149,23 +149,23 @@ impl WebSocketEventLoop {
             }
         };
 
-        let new_connection_state = match handler().await {
-            Ok(_) => ConnectionState::Disconnected,
-            Err(err) => ConnectionState::Failed(err),
+        let new_connection_status = match handler().await {
+            Ok(_) => ConnectionStatus::Disconnected,
+            Err(err) => ConnectionStatus::Failed(err),
         };
 
-        self.connection_state_manager.update(new_connection_state);
+        self.connection_status_manager.update(new_connection_status);
 
         // Notify all pending RPC requests of failure on shutdown
         for (_, (_, oneshot_tx)) in pending {
-            // Ignore errors resulting from dropped receivers
+            // Ignore dropped receivers errors
             let _ = oneshot_tx.send(false);
         }
 
-        let connection_update = WebSocketApiRes::from(self.connection_state_manager.snapshot());
+        let connection_update = self.connection_status_manager.snapshot();
 
-        // Ignore errors resulting from no receivers
-        let _ = self.response_tx.send(connection_update);
+        // Ignore no-receivers errors
+        let _ = self.response_tx.send(connection_update.into());
 
         Ok(())
     }
@@ -175,20 +175,20 @@ impl WebSocketEventLoop {
         disconnect_rx: DisconnectReceiver,
         request_rx: RequestReceiver,
         response_tx: ResponseTransmiter,
-    ) -> Result<(JoinHandle<Result<()>>, Arc<ConnectionStateManager>)> {
-        let connection_state_manager = ConnectionStateManager::new();
+    ) -> Result<(JoinHandle<Result<()>>, Arc<ConnectionStatusManager>)> {
+        let connection_status_manager = ConnectionStatusManager::new();
 
         let event_loop = Self::new(
             api_domain,
             disconnect_rx,
             request_rx,
             response_tx,
-            connection_state_manager.clone(),
+            connection_status_manager.clone(),
         )
         .await?;
 
         let event_loop_handle = tokio::spawn(event_loop.run());
 
-        Ok((event_loop_handle, connection_state_manager))
+        Ok((event_loop_handle, connection_status_manager))
     }
 }

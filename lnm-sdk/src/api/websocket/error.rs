@@ -11,14 +11,14 @@ use tokio_rustls::rustls::pki_types::InvalidDnsNameError;
 
 use super::{
     lnm::ChannelStatus,
-    models::{JsonRpcResponse, LnmJsonRpcRequest, LnmWebSocketChannel, WebSocketApiRes},
-    state::ConnectionState,
+    models::{JsonRpcResponse, LnmJsonRpcRequest, LnmWebSocketChannel, WebSocketUpdate},
+    state::ConnectionStatus,
 };
 
 #[derive(Error, Debug)]
 pub enum WebSocketApiError {
-    #[error("BadConnectionState error, {0:?}")]
-    BadConnectionState(Arc<ConnectionState>),
+    #[error("BadConnectionStatus error, {0:?}")]
+    BadConnectionStatus(Arc<ConnectionStatus>),
 
     #[error("InvalidDnsName error, {0}")]
     InvalidDnsName(InvalidDnsNameError),
@@ -63,7 +63,7 @@ pub enum WebSocketApiError {
     NoServerPong,
 
     #[error("SendConnectionUpdate error")]
-    SendConnectionUpdate(broadcast::error::SendError<WebSocketApiRes>),
+    SendConnectionUpdate(broadcast::error::SendError<WebSocketUpdate>),
 
     #[error("SubscribeWithUnsubscriptionPending error, {0}")]
     SubscribeWithUnsubscriptionPending(LnmWebSocketChannel),
@@ -74,10 +74,10 @@ pub enum WebSocketApiError {
     #[error("ReceiveSubscriptionConfirmation error")]
     ReceiveSubscriptionConfirmation(oneshot::error::RecvError),
 
-    #[error("InvalidSubscriptionsStateChannelNotFound error")]
+    #[error("InvalidSubscriptionsChannelNotFound error")]
     InvalidSubscriptionsChannelNotFound(LnmWebSocketChannel),
 
-    #[error("InvalidSubscriptionsStateChannelNotPending error")]
+    #[error("InvalidSubscriptionsChannelStatus error")]
     InvalidSubscriptionsChannelStatus {
         channel: LnmWebSocketChannel,
         status: ChannelStatus,
