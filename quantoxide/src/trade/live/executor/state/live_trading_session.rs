@@ -24,7 +24,9 @@ pub struct LiveTradingSession {
     last_price: f64,
     trigger: PriceTrigger,
     running: HashMap<Uuid, (Arc<LnmTrade>, Option<TradeTrailingStoploss>)>,
-    closed: Vec<Arc<LnmTrade>>,
+    closed_len: usize,
+    closed_pl: i64,
+    closed_fees: u64,
 }
 
 impl LiveTradingSession {
@@ -45,7 +47,9 @@ impl LiveTradingSession {
             last_price: lastest_entry_price,
             trigger: PriceTrigger::NotSet,
             running: HashMap::new(),
-            closed: Vec::new(),
+            closed_len: 0,
+            closed_pl: 0,
+            closed_fees: 0,
         })
     }
 
@@ -59,10 +63,6 @@ impl LiveTradingSession {
 
     pub fn running(&self) -> &HashMap<Uuid, (Arc<LnmTrade>, Option<TradeTrailingStoploss>)> {
         &self.running
-    }
-
-    pub fn closed(&self) -> &Vec<Arc<LnmTrade>> {
-        &self.closed
     }
 
     pub async fn reevaluate(
@@ -301,6 +301,9 @@ impl LiveTradingSession {
         let mut new_running = HashMap::new();
         let mut new_trigger = PriceTrigger::NotSet;
         let mut new_balance = self.balance as i64;
+        let mut new_closed_len = self.closed_len;
+        let mut new_closed_pl = self.closed_pl;
+        let mut new_closed_fees = self.closed_fees;
 
         for (id, (trade, trade_tsl)) in &self.running {
             if let Some(closed_trade) = closed_map.remove(id) {
@@ -308,7 +311,10 @@ impl LiveTradingSession {
                     - closed_trade.closing_fee() as i64
                     + closed_trade.pl();
 
-                self.closed.push(Arc::new(closed_trade));
+                new_closed_len += 1;
+                new_closed_pl += trade.pl();
+                new_closed_fees += trade.opening_fee() + trade.closing_fee();
+
                 continue;
             }
 
@@ -323,6 +329,9 @@ impl LiveTradingSession {
         self.trigger = new_trigger;
         self.running = new_running;
         self.balance = new_balance.max(0) as u64;
+        self.closed_len = new_closed_len;
+        self.closed_pl = new_closed_pl;
+        self.closed_fees = new_closed_fees;
 
         Ok(())
     }
@@ -361,18 +370,6 @@ impl From<LiveTradingSession> for TradingState {
             running.push(trade.clone());
         }
 
-        let mut closed: Vec<Arc<dyn Trade>> = Vec::with_capacity(value.closed.len());
-        let mut closed_pl: i64 = 0;
-        let mut closed_fees: u64 = 0;
-
-        for trade in value.closed.into_iter() {
-            closed_pl += trade.pl();
-            closed_fees += trade.opening_fee() + trade.closing_fee();
-            closed.push(trade as Arc<dyn Trade>)
-        }
-
-        let closed_len = closed.len();
-
         TradingState::new(
             Utc::now(),
             value.balance,
@@ -387,10 +384,9 @@ impl From<LiveTradingSession> for TradingState {
             running_short_quantity,
             running_pl,
             running_fees,
-            closed,
-            closed_len,
-            closed_pl,
-            closed_fees,
+            value.closed_len,
+            value.closed_pl,
+            value.closed_fees,
         )
         .expect("`LiveTradingSession` can't contain inconsistent trades")
     }
