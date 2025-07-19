@@ -363,11 +363,11 @@ impl LiveTradeExecutorLauncher {
                 loop {
                     match sync_rx.recv().await {
                         Ok(sync_update) => match sync_update {
-                            SyncUpdate::Status(sync_state) => match sync_state {
-                                SyncStatus::NotSynced(sync_state_not_synced) => {
+                            SyncUpdate::Status(sync_status) => match sync_status {
+                                SyncStatus::NotSynced(sync_status_not_synced) => {
                                     let new_status_not_ready =
                                         LiveTradeExecutorStatusNotReady::WaitingForSync(
-                                            sync_state_not_synced,
+                                            sync_status_not_synced,
                                         );
                                     state_manager
                                         .update_status_not_ready(new_status_not_ready)
