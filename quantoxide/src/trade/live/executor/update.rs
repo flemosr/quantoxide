@@ -138,12 +138,6 @@ impl WrappedApiContext {
         let _ = self.update_tx.send(order_update.into());
     }
 
-    fn send_closed_trade_update(&self, closed_trade: LnmTrade) {
-        let _ = self
-            .update_tx
-            .send(LiveTradeExecutorUpdate::ClosedTrade(closed_trade));
-    }
-
     pub async fn create_new_trade(
         &self,
         side: TradeSide,
@@ -189,17 +183,12 @@ impl WrappedApiContext {
     pub async fn close_trade(&self, id: Uuid) -> LiveResult<LnmTrade> {
         self.send_order_update(LiveTradeExecutorUpdateOrder::CloseTrade { id });
 
-        let closed_trade = self
-            .api
+        self.api
             .rest
             .futures
             .close_trade(id)
             .await
-            .map_err(LiveError::RestApi)?;
-
-        self.send_closed_trade_update(closed_trade.clone());
-
-        Ok(closed_trade)
+            .map_err(LiveError::RestApi)
     }
 
     pub async fn cancel_all_trades(&self) -> LiveResult<Vec<LnmTrade>> {
@@ -216,18 +205,11 @@ impl WrappedApiContext {
     pub async fn close_all_trades(&self) -> LiveResult<Vec<LnmTrade>> {
         self.send_order_update(LiveTradeExecutorUpdateOrder::CloseAllTrades);
 
-        let closed_trades = self
-            .api
+        self.api
             .rest
             .futures
             .close_all_trades()
             .await
-            .map_err(LiveError::RestApi)?;
-
-        for closed_trade in closed_trades.clone().into_iter() {
-            self.send_closed_trade_update(closed_trade);
-        }
-
-        Ok(closed_trades)
+            .map_err(LiveError::RestApi)
     }
 }
