@@ -9,7 +9,10 @@ use tokio::{
 };
 
 use crate::{
-    trade::live::{LiveEngine, LiveReceiver, LiveUpdate},
+    trade::{
+        core::ClosedTradeHistory,
+        live::{LiveEngine, LiveReceiver, LiveUpdate},
+    },
     util::AbortOnDropHandle,
 };
 
@@ -119,7 +122,21 @@ impl LiveTui {
         ui_tx: mpsc::Sender<LiveUiMessage>,
     ) -> AbortOnDropHandle<()> {
         tokio::spawn(async move {
-            let handle_live_update = async |live_update: LiveUpdate| -> Result<()> {
+            let send_trades_update =
+                async |running_trades_table: &str, closed_trades_table: &str| -> Result<()> {
+                    let tables = format!("\nRunning Trades\n\n{running_trades_table}\n\n\nClosed Trades\n\n{closed_trades_table}");
+
+                    ui_tx
+                        .send(LiveUiMessage::TradesUpdate(tables))
+                        .await
+                        .map_err(|e| TuiError::Generic(e.to_string()))
+                };
+
+            let mut running_trades_table = "No running trades.".to_string();
+            let mut closed_trade_history = ClosedTradeHistory::new();
+            let mut closed_trades_table = closed_trade_history.to_table();
+
+            let mut handle_live_update = async |live_update: LiveUpdate| -> Result<()> {
                 match live_update {
                     LiveUpdate::Status(live_status) => {
                         ui_tx
@@ -148,18 +165,16 @@ impl LiveTui {
                             .await
                             .map_err(|e| TuiError::Generic(e.to_string()))?;
 
-                        let tables = vec![
-                            "\nRunning Trades\n".to_string(),
-                            trading_state.running_trades_table(),
-                            "\n\nClosed Trades\n".to_string(),
-                            trading_state.closed_trades_table(),
-                        ]
-                        .join("\n");
+                        running_trades_table = trading_state.running_trades_table();
 
-                        ui_tx
-                            .send(LiveUiMessage::TradesUpdate(tables))
-                            .await
-                            .map_err(|e| TuiError::Generic(e.to_string()))?;
+                        send_trades_update(&running_trades_table, &closed_trades_table).await?;
+                    }
+                    LiveUpdate::ClosedTrade(closed_trade) => {
+                        closed_trade_history.add(closed_trade).map_err(|e| TuiError::Generic(e.to_string()))?;
+
+                        closed_trades_table = closed_trade_history.to_table();
+
+                        send_trades_update(&running_trades_table, &closed_trades_table).await?;
                     }
                 }
 
