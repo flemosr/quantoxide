@@ -70,7 +70,7 @@ impl LiveTradingSession {
         tsl_step_size: BoundedPercentage,
         db: &DbContext,
         api: &WrappedApiContext,
-    ) -> LiveResult<()> {
+    ) -> LiveResult<Vec<LnmTrade>> {
         let (range_min, range_max, lastest_entry_time, latest_entry_price) = db
             .price_ticks
             .get_price_range_from(self.last_evaluation_time)
@@ -83,8 +83,7 @@ impl LiveTradingSession {
 
         if !self.trigger.was_reached(range_min) && !self.trigger.was_reached(range_max) {
             // General trigger was not reached. No trades need to be checked
-
-            return Ok(());
+            return Ok(Vec::new());
         }
 
         let mut to_get = Vec::new();
@@ -162,9 +161,9 @@ impl LiveTradingSession {
 
         self.update_running_trades(tsl_step_size, updated_trades)?;
 
-        self.close_trades(tsl_step_size, closed_trades)?;
+        self.close_trades(tsl_step_size, &closed_trades)?;
 
-        Ok(())
+        Ok(closed_trades)
     }
 
     pub fn register_running_trade(
@@ -266,7 +265,7 @@ impl LiveTradingSession {
     pub fn close_trades(
         &mut self,
         tsl_step_size: BoundedPercentage,
-        closed_trades: Vec<LnmTrade>,
+        closed_trades: &Vec<LnmTrade>,
     ) -> LiveResult<()> {
         if closed_trades.is_empty() {
             return Ok(());
