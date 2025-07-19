@@ -11,7 +11,7 @@ use crate::{
     signal::{
         core::{ConfiguredSignalEvaluator, Signal},
         live::{
-            LiveSignalController, LiveSignalEngine, LiveSignalState, LiveSignalStateNotRunning,
+            LiveSignalController, LiveSignalEngine, LiveSignalStatus, LiveSignalStatusNotRunning,
             LiveSignalUpdate,
         },
     },
@@ -36,7 +36,7 @@ use executor::{
 pub enum LiveStatus {
     NotInitiated,
     Starting,
-    WaitingForSignal(Arc<LiveSignalStateNotRunning>),
+    WaitingForSignal(Arc<LiveSignalStatusNotRunning>),
     WaitingTradeExecutor(Arc<LiveTradeExecutorStatusNotReady>),
     Running,
     Failed(LiveError),
@@ -200,13 +200,13 @@ impl LiveProcess {
     async fn handle_signals(&self) -> Result<Never> {
         while let Ok(signal_update) = self.signal_controller.update_receiver().recv().await {
             match signal_update {
-                LiveSignalUpdate::StateChange(signal_state) => match signal_state {
-                    LiveSignalState::NotRunning(signal_state_not_running) => {
+                LiveSignalUpdate::Status(signal_status) => match signal_status {
+                    LiveSignalStatus::NotRunning(signal_status_not_running) => {
                         self.status_manager
-                            .update(LiveStatus::WaitingForSignal(signal_state_not_running));
+                            .update(LiveStatus::WaitingForSignal(signal_status_not_running));
                     }
-                    LiveSignalState::Running => {}
-                    LiveSignalState::ShutdownInitiated | LiveSignalState::Shutdown => {
+                    LiveSignalStatus::Running => {}
+                    LiveSignalStatus::ShutdownInitiated | LiveSignalStatus::Shutdown => {
                         // Non-recoverable error
                         return Err(LiveError::Generic(
                             "signal process was shutdown".to_string(),
@@ -254,7 +254,9 @@ impl LiveProcess {
                     }
                     shutdown_res = shutdown_rx.recv() => {
                         if let Err(e) = shutdown_res {
-                            self.status_manager.update(LiveStatus::Failed(LiveError::Generic(e.to_string())));
+                            self.status_manager.update(LiveStatus::Failed(
+                                LiveError::Generic(e.to_string()))
+                            );
                         }
                         return;
                     }
@@ -271,13 +273,16 @@ impl LiveProcess {
                     }
                     shutdown_res = shutdown_rx.recv() => {
                         if let Err(e) = shutdown_res {
-                            self.status_manager.update(LiveStatus::Failed(LiveError::Generic(e.to_string())));
+                            self.status_manager.update(LiveStatus::Failed(
+                                LiveError::Generic(e.to_string()))
+                            );
                         }
                         return;
                     }
                 }
             }
-        }).into()
+        })
+        .into()
     }
 }
 

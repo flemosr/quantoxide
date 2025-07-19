@@ -1,4 +1,4 @@
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, MutexGuard};
 
 use chrono::Utc;
 use tokio::{sync::broadcast, time};
@@ -16,7 +16,7 @@ use super::{
 };
 
 #[derive(Debug, PartialEq)]
-pub enum LiveSignalStateNotRunning {
+pub enum LiveSignalStatusNotRunning {
     NotInitiated,
     Starting,
     WaitingForSync(Arc<SyncStatusNotSynced>),
@@ -25,28 +25,28 @@ pub enum LiveSignalStateNotRunning {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum LiveSignalState {
-    NotRunning(Arc<LiveSignalStateNotRunning>),
+pub enum LiveSignalStatus {
+    NotRunning(Arc<LiveSignalStatusNotRunning>),
     Running,
     ShutdownInitiated,
     Shutdown,
 }
 
-impl From<LiveSignalStateNotRunning> for LiveSignalState {
-    fn from(value: LiveSignalStateNotRunning) -> Self {
+impl From<LiveSignalStatusNotRunning> for LiveSignalStatus {
+    fn from(value: LiveSignalStatusNotRunning) -> Self {
         Self::NotRunning(Arc::new(value))
     }
 }
 
 #[derive(Debug, Clone)]
 pub enum LiveSignalUpdate {
-    StateChange(LiveSignalState),
+    Status(LiveSignalStatus),
     Signal(Signal),
 }
 
-impl From<LiveSignalState> for LiveSignalUpdate {
-    fn from(value: LiveSignalState) -> Self {
-        Self::StateChange(value)
+impl From<LiveSignalStatus> for LiveSignalUpdate {
+    fn from(value: LiveSignalStatus) -> Self {
+        Self::Status(value)
     }
 }
 
@@ -61,45 +61,44 @@ pub type LiveSignalReceiver = broadcast::Receiver<LiveSignalUpdate>;
 
 pub trait LiveSignalReader: Send + Sync + 'static {
     fn update_receiver(&self) -> LiveSignalReceiver;
-    fn state_snapshot(&self) -> LiveSignalState;
+    fn status_snapshot(&self) -> LiveSignalStatus;
 }
 
 #[derive(Debug)]
-struct LiveSignalStateManager {
-    state: Mutex<LiveSignalState>,
+struct LiveSignalStatusManager {
+    status: Mutex<LiveSignalStatus>,
     update_tx: LiveSignalTransmiter,
 }
 
-impl LiveSignalStateManager {
+impl LiveSignalStatusManager {
     pub fn new(update_tx: LiveSignalTransmiter) -> Arc<Self> {
-        let state = Mutex::new(LiveSignalStateNotRunning::NotInitiated.into());
+        let status = Mutex::new(LiveSignalStatusNotRunning::NotInitiated.into());
 
-        Arc::new(Self { state, update_tx })
+        Arc::new(Self { status, update_tx })
     }
 
-    pub fn update(&self, new_state: LiveSignalState) {
-        let mut state_guard = self
-            .state
+    fn lock_status(&self) -> MutexGuard<'_, LiveSignalStatus> {
+        self.status
             .lock()
-            .expect("`LiveSignalStateManager` mutex can't be poisoned");
-        *state_guard = new_state.clone();
-        drop(state_guard);
+            .expect("`LiveSignalStatusManager` mutex can't be poisoned")
+    }
+    pub fn update(&self, new_status: LiveSignalStatus) {
+        let mut status_guard = self.lock_status();
+        *status_guard = new_status.clone();
+        drop(status_guard);
 
         // Ignore no-receivers errors
-        let _ = self.update_tx.send(new_state.into());
+        let _ = self.update_tx.send(new_status.into());
     }
 }
 
-impl LiveSignalReader for LiveSignalStateManager {
+impl LiveSignalReader for LiveSignalStatusManager {
     fn update_receiver(&self) -> LiveSignalReceiver {
         self.update_tx.subscribe()
     }
 
-    fn state_snapshot(&self) -> LiveSignalState {
-        self.state
-            .lock()
-            .expect("`LiveSignalStateManager` mutex can't be poisoned")
-            .clone()
+    fn status_snapshot(&self) -> LiveSignalStatus {
+        self.lock_status().clone()
     }
 }
 
@@ -124,7 +123,7 @@ struct LiveSignalProcess {
     evaluators: Arc<Vec<ConfiguredSignalEvaluator>>,
     shutdown_tx: broadcast::Sender<()>,
     sync_reader: Arc<dyn SyncReader>,
-    state_manager: Arc<LiveSignalStateManager>,
+    status_manager: Arc<LiveSignalStatusManager>,
     update_tx: LiveSignalTransmiter,
 }
 
@@ -135,7 +134,7 @@ impl LiveSignalProcess {
         evaluators: Arc<Vec<ConfiguredSignalEvaluator>>,
         shutdown_tx: broadcast::Sender<()>,
         sync_reader: Arc<dyn SyncReader>,
-        state_manager: Arc<LiveSignalStateManager>,
+        status_manager: Arc<LiveSignalStatusManager>,
         update_tx: LiveSignalTransmiter,
     ) -> Self {
         Self {
@@ -144,7 +143,7 @@ impl LiveSignalProcess {
             evaluators,
             shutdown_tx,
             sync_reader,
-            state_manager,
+            status_manager,
             update_tx,
         }
     }
@@ -173,11 +172,11 @@ impl LiveSignalProcess {
             if !matches!(self.sync_reader.status_snapshot(), SyncStatus::Synced) {
                 while let Ok(sync_update) = self.sync_reader.update_receiver().recv().await {
                     match sync_update {
-                        SyncUpdate::Status(sync_state) => match sync_state {
-                            SyncStatus::NotSynced(sync_state_not_synced) => {
-                                self.state_manager.update(
-                                    LiveSignalStateNotRunning::WaitingForSync(
-                                        sync_state_not_synced,
+                        SyncUpdate::Status(sync_status) => match sync_status {
+                            SyncStatus::NotSynced(sync_status_not_synced) => {
+                                self.status_manager.update(
+                                    LiveSignalStatusNotRunning::WaitingForSync(
+                                        sync_status_not_synced,
                                     )
                                     .into(),
                                 );
@@ -241,23 +240,25 @@ impl LiveSignalProcess {
     fn spawn_recovery_loop(self) -> AbortOnDropHandle<()> {
         tokio::spawn(async move {
             loop {
-                self.state_manager.update(LiveSignalStateNotRunning::Starting.into());
+                self.status_manager.update(LiveSignalStatusNotRunning::Starting.into());
 
                 let mut shutdown_rx = self.shutdown_tx.subscribe();
                 tokio::select! {
                     run_res = self.run() => {
                         let Err(signal_error) = run_res;
-                        self.state_manager.update(LiveSignalStateNotRunning::Failed(signal_error).into());
+                        self.status_manager.update(LiveSignalStatusNotRunning::Failed(signal_error).into());
                     }
                     shutdown_res = shutdown_rx.recv() => {
                         if let Err(e) = shutdown_res {
-                            self.state_manager.update(LiveSignalStateNotRunning::Failed(SignalError::Generic(e.to_string())).into());
+                            self.status_manager.update(LiveSignalStatusNotRunning::Failed(
+                                SignalError::Generic(e.to_string())).into()
+                            );
                         }
                         return;
                     }
                 };
 
-                self.state_manager.update(LiveSignalStateNotRunning::Restarting.into());
+                self.status_manager.update(LiveSignalStatusNotRunning::Restarting.into());
 
                 // Handle shutdown signals while waiting for `restart_interval`
 
@@ -268,7 +269,9 @@ impl LiveSignalProcess {
                     }
                     shutdown_res = shutdown_rx.recv() => {
                         if let Err(e) = shutdown_res {
-                            self.state_manager.update(LiveSignalStateNotRunning::Failed(SignalError::Generic(e.to_string())).into());
+                            self.status_manager.update(LiveSignalStatusNotRunning::Failed(
+                                SignalError::Generic(e.to_string())).into()
+                            );
                         }
                         return;
                     }
@@ -296,7 +299,7 @@ pub struct LiveSignalController {
     config: LiveSignalControllerConfig,
     handle: Mutex<Option<AbortOnDropHandle<()>>>,
     shutdown_tx: broadcast::Sender<()>,
-    state_manager: Arc<LiveSignalStateManager>,
+    status_manager: Arc<LiveSignalStatusManager>,
 }
 
 impl LiveSignalController {
@@ -304,26 +307,26 @@ impl LiveSignalController {
         config: &LiveSignalConfig,
         handle: AbortOnDropHandle<()>,
         shutdown_tx: broadcast::Sender<()>,
-        state_manager: Arc<LiveSignalStateManager>,
+        status_manager: Arc<LiveSignalStatusManager>,
     ) -> Arc<Self> {
         Arc::new(Self {
             config: config.into(),
             handle: Mutex::new(Some(handle)),
             shutdown_tx,
-            state_manager,
+            status_manager,
         })
     }
 
     pub fn reader(&self) -> Arc<dyn LiveSignalReader> {
-        self.state_manager.clone()
+        self.status_manager.clone()
     }
 
     pub fn update_receiver(&self) -> LiveSignalReceiver {
-        self.state_manager.update_receiver()
+        self.status_manager.update_receiver()
     }
 
-    pub fn state_snapshot(&self) -> LiveSignalState {
-        self.state_manager.state_snapshot()
+    pub fn status_snapshot(&self) -> LiveSignalStatus {
+        self.status_manager.status_snapshot()
     }
 
     fn try_consume_handle(&self) -> Option<AbortOnDropHandle<()>> {
@@ -342,12 +345,12 @@ impl LiveSignalController {
     pub async fn shutdown(&self) -> Result<()> {
         let Some(mut handle) = self.try_consume_handle() else {
             return Err(SignalError::Generic(
-                "Live signal process was already shutdown".to_string(),
+                "`LiveSignalProcess` was already shutdown".to_string(),
             ));
         };
 
-        self.state_manager
-            .update(LiveSignalState::ShutdownInitiated);
+        self.status_manager
+            .update(LiveSignalStatus::ShutdownInitiated);
 
         let shutdown_send_res = self.shutdown_tx.send(()).map_err(|e| {
             handle.abort();
@@ -369,7 +372,7 @@ impl LiveSignalController {
             Err(e) => Err(e),
         };
 
-        self.state_manager.update(LiveSignalState::Shutdown);
+        self.status_manager.update(LiveSignalStatus::Shutdown);
 
         shutdown_res
     }
@@ -436,7 +439,7 @@ pub struct LiveSignalEngine {
     db: Arc<DbContext>,
     sync_reader: Arc<dyn SyncReader>,
     evaluators: Arc<Vec<ConfiguredSignalEvaluator>>,
-    state_manager: Arc<LiveSignalStateManager>,
+    status_manager: Arc<LiveSignalStatusManager>,
     update_tx: LiveSignalTransmiter,
 }
 
@@ -455,28 +458,28 @@ impl LiveSignalEngine {
 
         let (update_tx, _) = broadcast::channel::<LiveSignalUpdate>(100);
 
-        let state_manager = LiveSignalStateManager::new(update_tx.clone());
+        let status_manager = LiveSignalStatusManager::new(update_tx.clone());
 
         Ok(Self {
             config: config.into(),
             db,
             sync_reader,
             evaluators,
-            state_manager,
+            status_manager,
             update_tx,
         })
     }
 
     pub fn reader(&self) -> Arc<dyn LiveSignalReader> {
-        self.state_manager.clone()
+        self.status_manager.clone()
     }
 
     pub fn update_receiver(&self) -> LiveSignalReceiver {
-        self.state_manager.update_receiver()
+        self.status_manager.update_receiver()
     }
 
-    pub fn state_snapshot(&self) -> LiveSignalState {
-        self.state_manager.state_snapshot()
+    pub fn status_snapshot(&self) -> LiveSignalStatus {
+        self.status_manager.status_snapshot()
     }
 
     pub fn start(self) -> Arc<LiveSignalController> {
@@ -489,11 +492,11 @@ impl LiveSignalEngine {
             self.evaluators,
             shutdown_tx.clone(),
             self.sync_reader,
-            self.state_manager.clone(),
+            self.status_manager.clone(),
             self.update_tx,
         )
         .spawn_recovery_loop();
 
-        LiveSignalController::new(&self.config, handle, shutdown_tx, self.state_manager)
+        LiveSignalController::new(&self.config, handle, shutdown_tx, self.status_manager)
     }
 }

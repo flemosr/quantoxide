@@ -3,7 +3,7 @@ use std::{result, sync::Arc};
 use thiserror::Error;
 use tokio::{sync::broadcast::error::SendError, task::JoinError};
 
-use super::live::LiveSignalState;
+use super::live::LiveSignalStatus;
 
 #[derive(Error, Debug)]
 pub enum SignalError {
@@ -11,7 +11,7 @@ pub enum SignalError {
     Generic(String),
 
     #[error("SignalTransmiterFailed failed error {0}")]
-    SignalTransmiterFailed(SendError<Arc<LiveSignalState>>),
+    SignalTransmiterFailed(SendError<Arc<LiveSignalStatus>>),
 
     #[error("TaskJoin error {0}")]
     TaskJoin(JoinError),
