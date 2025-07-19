@@ -41,7 +41,7 @@ struct SimulatedTradeExecutorState {
     last_trade_time: Option<DateTime<Utc>>,
     trigger: PriceTrigger,
     running: Vec<(Arc<SimulatedTradeRunning>, Option<TradeTrailingStoploss>)>,
-    closed: Vec<Arc<SimulatedTradeClosed>>,
+    closed_len: usize,
     closed_pl: i64,
     closed_fees: u64,
 }
@@ -69,7 +69,7 @@ impl SimulatedTradeExecutor {
             last_trade_time: None,
             trigger: PriceTrigger::new(),
             running: Vec::new(),
-            closed: Vec::new(),
+            closed_len: 0,
             closed_pl: 0,
             closed_fees: 0,
         };
@@ -103,9 +103,9 @@ impl SimulatedTradeExecutor {
         // trades must be re-evaluated.
 
         let mut new_balance = state_guard.balance as i64;
+        let mut new_closed_len = state_guard.closed_len;
         let mut new_closed_pl = state_guard.closed_pl;
         let mut new_closed_fees = state_guard.closed_fees;
-        let mut new_closed_trades = Vec::new();
 
         let mut close_trade = |trade: Arc<SimulatedTradeRunning>, close_price: Price| {
             let trade = SimulatedTradeClosed::from_running(
@@ -118,9 +118,10 @@ impl SimulatedTradeExecutor {
             new_balance += trade.margin().into_i64() + trade.maintenance_margin()
                 - trade.closing_fee() as i64
                 + trade.pl();
+
+            new_closed_len += 1;
             new_closed_pl += trade.pl();
             new_closed_fees += trade.opening_fee() + trade.closing_fee();
-            new_closed_trades.push(trade);
         };
 
         let mut new_trigger = PriceTrigger::new();
@@ -186,7 +187,7 @@ impl SimulatedTradeExecutor {
         state_guard.trigger = new_trigger;
         state_guard.running = remaining_running_trades;
 
-        state_guard.closed.append(&mut new_closed_trades);
+        state_guard.closed_len = new_closed_len;
         state_guard.closed_pl = new_closed_pl;
         state_guard.closed_fees = new_closed_fees;
 
@@ -201,9 +202,9 @@ impl SimulatedTradeExecutor {
             .map_err(SimulatedTradeExecutorError::PriceValidation)?;
 
         let mut new_balance = state_guard.balance as i64;
+        let mut new_closed_len = state_guard.closed_len;
         let mut new_closed_pl = state_guard.closed_pl;
         let mut new_closed_fees = state_guard.closed_fees;
-        let mut new_closed_trades = Vec::new();
 
         let mut close_trade = |trade: Arc<SimulatedTradeRunning>| {
             let trade = SimulatedTradeClosed::from_running(
@@ -216,9 +217,10 @@ impl SimulatedTradeExecutor {
             new_balance += trade.margin().into_i64() + trade.maintenance_margin()
                 - trade.closing_fee() as i64
                 + trade.pl();
+
+            new_closed_len += 1;
             new_closed_pl += trade.pl();
             new_closed_fees += trade.opening_fee() + trade.closing_fee();
-            new_closed_trades.push(trade);
         };
 
         let mut new_trigger = PriceTrigger::new();
@@ -245,7 +247,7 @@ impl SimulatedTradeExecutor {
         state_guard.trigger = new_trigger;
         state_guard.running = remaining_running_trades;
 
-        state_guard.closed.append(&mut new_closed_trades);
+        state_guard.closed_len = new_closed_len;
         state_guard.closed_pl = new_closed_pl;
         state_guard.closed_fees = new_closed_fees;
 
@@ -414,12 +416,6 @@ impl TradeExecutor for SimulatedTradeExecutor {
             running.push(trade.clone());
         }
 
-        // let closed = state_guard
-        //     .closed
-        //     .iter()
-        //     .map(|trade| trade.clone() as Arc<dyn Trade>)
-        //     .collect();
-
         let trades_state = TradingState::new(
             state_guard.time,
             state_guard.balance.max(0) as u64,
@@ -437,11 +433,7 @@ impl TradeExecutor for SimulatedTradeExecutor {
             running_short_quantity,
             running_pl,
             running_fees,
-            // FIXME: Temporary workaround to avoid sending big `Vec`s over
-            // channels.
-            Vec::new(),
-            // closed,
-            state_guard.closed.len(),
+            state_guard.closed_len,
             state_guard.closed_pl,
             state_guard.closed_fees,
         )
