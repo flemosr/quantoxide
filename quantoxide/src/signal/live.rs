@@ -1,4 +1,7 @@
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::{
+    fmt,
+    sync::{Arc, Mutex, MutexGuard},
+};
 
 use chrono::Utc;
 use tokio::{sync::broadcast, time};
@@ -24,12 +27,37 @@ pub enum LiveSignalStatusNotRunning {
     Restarting,
 }
 
+impl fmt::Display for LiveSignalStatusNotRunning {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            LiveSignalStatusNotRunning::NotInitiated => write!(f, "Not initiated"),
+            LiveSignalStatusNotRunning::Starting => write!(f, "Starting"),
+            LiveSignalStatusNotRunning::WaitingForSync(status) => {
+                write!(f, "Waiting for sync ({status})")
+            }
+            LiveSignalStatusNotRunning::Failed(error) => write!(f, "Failed: {error}"),
+            LiveSignalStatusNotRunning::Restarting => write!(f, "Restarting"),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum LiveSignalStatus {
     NotRunning(Arc<LiveSignalStatusNotRunning>),
     Running,
     ShutdownInitiated,
     Shutdown,
+}
+
+impl fmt::Display for LiveSignalStatus {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            LiveSignalStatus::NotRunning(status) => write!(f, "Not running ({status})"),
+            LiveSignalStatus::Running => write!(f, "Running"),
+            LiveSignalStatus::ShutdownInitiated => write!(f, "Shutdown initiated"),
+            LiveSignalStatus::Shutdown => write!(f, "Shutdown"),
+        }
+    }
 }
 
 impl From<LiveSignalStatusNotRunning> for LiveSignalStatus {
