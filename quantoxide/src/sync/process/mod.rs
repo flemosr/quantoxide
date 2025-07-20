@@ -149,9 +149,6 @@ impl SyncProcess {
         loop {
             let (history_state_tx, history_state_rx) = mpsc::channel::<PriceHistoryState>(100);
 
-            self.status_manager
-                .update(SyncStatusNotSynced::InProgress.into());
-
             self.spawn_history_state_update_handler(history_state_rx);
 
             self.run_price_history_task_backfill(Some(history_state_tx))
@@ -168,9 +165,6 @@ impl SyncProcess {
         // Start to collect real-time data
 
         let (price_tick_tx, _) = broadcast::channel::<PriceTick>(100);
-
-        self.status_manager
-            .update(SyncStatusNotSynced::InProgress.into());
 
         let mut real_time_collection_handle =
             self.spawn_real_time_collection_task(price_tick_tx.clone());
@@ -273,6 +267,9 @@ impl SyncProcess {
     }
 
     fn run_mode(&self) -> Pin<Box<dyn Future<Output = Result<Never>> + Send + '_>> {
+        self.status_manager
+            .update(SyncStatusNotSynced::InProgress.into());
+
         match &self.mode {
             SyncMode::Backfill => Box::pin(self.run_backfill()),
             SyncMode::Live { range } => Box::pin(self.run_live(*range)),
