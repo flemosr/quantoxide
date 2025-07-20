@@ -26,7 +26,7 @@ impl fmt::Display for SyncStatusNotSynced {
             SyncStatusNotSynced::Starting => write!(f, "Starting"),
             SyncStatusNotSynced::InProgress => write!(f, "In progress"),
             SyncStatusNotSynced::WaitingForResync => write!(f, "Waiting for resync"),
-            SyncStatusNotSynced::Failed(error) => write!(f, "Failed: {}", error),
+            SyncStatusNotSynced::Failed(error) => write!(f, "Failed: {error}"),
             SyncStatusNotSynced::Restarting => write!(f, "Restarting"),
         }
     }
@@ -43,7 +43,7 @@ pub enum SyncStatus {
 impl fmt::Display for SyncStatus {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            SyncStatus::NotSynced(status) => write!(f, "Not synced ({})", status),
+            SyncStatus::NotSynced(status) => write!(f, "Not synced ({status})"),
             SyncStatus::Synced => write!(f, "Synced"),
             SyncStatus::ShutdownInitiated => write!(f, "Shutdown initiated"),
             SyncStatus::Shutdown => write!(f, "Shutdown"),
