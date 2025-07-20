@@ -16,6 +16,8 @@ pub trait DateTimeExt {
 
     fn is_round(&self) -> bool;
 
+    fn format_local_secs(&self) -> String;
+
     fn format_local_millis(&self) -> String;
 }
 
@@ -31,6 +33,11 @@ impl DateTimeExt for DateTime<Utc> {
 
     fn is_round(&self) -> bool {
         *self == self.trunc_subsecs(0)
+    }
+
+    fn format_local_secs(&self) -> String {
+        let local_time = self.with_timezone(&Local);
+        local_time.format("%Y-%m-%d %H:%M:%S (%Z)").to_string()
     }
 
     fn format_local_millis(&self) -> String {
