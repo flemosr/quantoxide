@@ -9,7 +9,7 @@ use tokio::{
 };
 
 use crate::{
-    sync::{SyncEngine, SyncReceiver, SyncStatus, SyncStatusNotSynced, SyncUpdate},
+    sync::{SyncEngine, SyncReceiver, SyncUpdate},
     util::AbortOnDropHandle,
 };
 
@@ -121,44 +121,16 @@ impl SyncTui {
             let handle_sync_update = async |sync_update: SyncUpdate| -> Result<()> {
                 match sync_update {
                     SyncUpdate::Status(sync_status) => {
-                        let log_str = match sync_status {
-                            SyncStatus::NotSynced(sync_status_not_synced) => {
-                                match sync_status_not_synced.as_ref() {
-                                    SyncStatusNotSynced::NotInitiated => {
-                                        "SyncStatusNotSynced:NotInitiated".to_string()
-                                    }
-                                    SyncStatusNotSynced::Starting => {
-                                        "SyncStatusNotSynced:Starting".to_string()
-                                    }
-                                    SyncStatusNotSynced::InProgress => {
-                                        "SyncStatusNotSynced:InProgress".to_string()
-                                    }
-                                    SyncStatusNotSynced::WaitingForResync => {
-                                        "SyncStatusNotSynced:WaitingForResync".to_string()
-                                    }
-                                    SyncStatusNotSynced::Failed(e) => {
-                                        format!("SyncStatusNotSynced:Failed - {:?}", e)
-                                    }
-                                    SyncStatusNotSynced::Restarting => {
-                                        "SyncStatusNotSynced:Restarting".to_string()
-                                    }
-                                }
-                            }
-                            SyncStatus::Synced => "SyncStatus:Synced".to_string(),
-                            SyncStatus::ShutdownInitiated => {
-                                "SyncStatus:ShutdownInitiated".to_string()
-                            }
-                            SyncStatus::Shutdown => "SyncStatus:Shutdown".to_string(),
-                        };
-
                         ui_tx
-                            .send(SyncUiMessage::LogEntry(log_str))
+                            .send(SyncUiMessage::LogEntry(format!(
+                                "Sync status: {sync_status}"
+                            )))
                             .await
                             .map_err(|e| TuiError::Generic(e.to_string()))?;
                     }
                     SyncUpdate::PriceTick(tick) => {
                         ui_tx
-                            .send(SyncUiMessage::LogEntry(format!("Price tick: {:?}", tick)))
+                            .send(SyncUiMessage::LogEntry(tick.to_string()))
                             .await
                             .map_err(|e| TuiError::Generic(e.to_string()))?;
                     }
