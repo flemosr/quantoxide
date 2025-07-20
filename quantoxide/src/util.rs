@@ -5,7 +5,7 @@ use std::{
     task::{Context, Poll},
 };
 
-use chrono::{DateTime, Duration, SubsecRound, Utc};
+use chrono::{DateTime, Duration, Local, SubsecRound, Utc};
 use tokio::task::{JoinError, JoinHandle};
 
 /// A type that can not be instantiated
@@ -15,6 +15,8 @@ pub trait DateTimeExt {
     fn ceil_sec(&self) -> DateTime<Utc>;
 
     fn is_round(&self) -> bool;
+
+    fn format_local_millis(&self) -> String;
 }
 
 impl DateTimeExt for DateTime<Utc> {
@@ -29,6 +31,11 @@ impl DateTimeExt for DateTime<Utc> {
 
     fn is_round(&self) -> bool {
         *self == self.trunc_subsecs(0)
+    }
+
+    fn format_local_millis(&self) -> String {
+        let local_time = self.with_timezone(&Local);
+        local_time.format("%Y-%m-%d %H:%M:%S.%3f (%Z)").to_string()
     }
 }
 
