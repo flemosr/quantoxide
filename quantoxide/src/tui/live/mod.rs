@@ -140,19 +140,19 @@ impl LiveTui {
                 match live_update {
                     LiveUpdate::Status(live_status) => {
                         ui_tx
-                            .send(LiveUiMessage::LogEntry(format!("{:?}", live_status)))
+                            .send(LiveUiMessage::LogEntry(format!("Live status: {live_status}")))
                             .await
                             .map_err(|e| TuiError::Generic(e.to_string()))?;
                     }
                     LiveUpdate::Signal(signal) => {
                         ui_tx
-                            .send(LiveUiMessage::LogEntry(format!("{}", signal.to_string())))
+                            .send(LiveUiMessage::LogEntry(signal.to_string()))
                             .await
                             .map_err(|e| TuiError::Generic(e.to_string()))?;
                     }
                     LiveUpdate::Order(order) => {
                         ui_tx
-                            .send(LiveUiMessage::LogEntry(format!("Order: {:?}", order)))
+                            .send(LiveUiMessage::LogEntry(format!("Order: {order}")))
                             .await
                             .map_err(|e| TuiError::Generic(e.to_string()))?;
                     }
