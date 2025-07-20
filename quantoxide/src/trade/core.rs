@@ -6,10 +6,7 @@ use std::{
 };
 
 use async_trait::async_trait;
-use chrono::{
-    DateTime, Utc,
-    format::{DelayedFormat, StrftimeItems},
-};
+use chrono::{DateTime, Utc};
 use futures::FutureExt;
 
 use lnm_sdk::api::rest::models::{
@@ -17,14 +14,14 @@ use lnm_sdk::api::rest::models::{
     estimate_pl,
 };
 
-use crate::signal::core::Signal;
+use crate::{signal::core::Signal, util::DateTimeExt};
 
 use super::error::{Result, TradeError};
 
 #[derive(Debug, Clone)]
 pub struct TradingState {
-    current_time: DateTime<Utc>,
-    current_balance: u64,
+    last_tick_time: DateTime<Utc>,
+    balance: u64,
     market_price: f64,
     last_trade_time: Option<DateTime<Utc>>,
     running: Vec<Arc<dyn Trade>>,
@@ -43,8 +40,8 @@ pub struct TradingState {
 
 impl TradingState {
     pub fn new(
-        current_time: DateTime<Utc>,
-        current_balance: u64,
+        last_tick_time: DateTime<Utc>,
+        balance: u64,
         market_price: f64,
         last_trade_time: Option<DateTime<Utc>>,
         mut running: Vec<Arc<dyn Trade>>,
@@ -69,8 +66,8 @@ impl TradingState {
         running.sort_by(|a, b| b.creation_ts().cmp(&a.creation_ts()));
 
         Ok(Self {
-            current_time,
-            current_balance,
+            last_tick_time,
+            balance,
             market_price,
             last_trade_time,
             running,
@@ -88,18 +85,12 @@ impl TradingState {
         })
     }
 
-    pub fn current_time(&self) -> DateTime<Utc> {
-        self.current_time
+    pub fn last_tick_time(&self) -> DateTime<Utc> {
+        self.last_tick_time
     }
 
-    pub fn current_time_local(&self) -> DelayedFormat<StrftimeItems<'_>> {
-        self.current_time
-            .with_timezone(&chrono::Local)
-            .format("%y-%m-%d %H:%M:%S%.3f %Z")
-    }
-
-    pub fn current_balance(&self) -> u64 {
-        self.current_balance
+    pub fn balance(&self) -> u64 {
+        self.balance
     }
 
     pub fn market_price(&self) -> f64 {
@@ -108,13 +99,6 @@ impl TradingState {
 
     pub fn last_trade_time(&self) -> Option<DateTime<Utc>> {
         self.last_trade_time
-    }
-
-    pub fn last_trade_time_local(&self) -> Option<DelayedFormat<StrftimeItems<'_>>> {
-        self.last_trade_time.map(|ltt| {
-            ltt.with_timezone(&chrono::Local)
-                .format("%y-%m-%d %H:%M:%S%.3f %Z")
-        })
     }
 
     /// Returns the number of running long trades
@@ -195,14 +179,17 @@ impl TradingState {
         let mut result = String::new();
 
         result.push_str("timing:\n");
-        result.push_str(&format!("  current_time: {}\n", self.current_time_local()));
+        result.push_str(&format!(
+            "  last_tick_time: {}\n",
+            self.last_tick_time().format_local_millis()
+        ));
         let lttl_str = self
-            .last_trade_time_local()
-            .map_or("null".to_string(), |lttl| lttl.to_string());
+            .last_trade_time()
+            .map_or("null".to_string(), |lttl| lttl.format_local_millis());
         result.push_str(&format!("  last_trade_time: {lttl_str}\n"));
 
         result.push_str("balance:\n");
-        result.push_str(&format!("  current_balance: {}\n", self.current_balance));
+        result.push_str(&format!("  current_balance: {}\n", self.balance));
         result.push_str(&format!("  market_price: {:.1}\n", self.market_price));
 
         result.push_str("running_positions:\n");
