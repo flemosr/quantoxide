@@ -24,8 +24,8 @@ async fn test_simulated_trade_executor_long_profit() -> Result<()> {
     );
 
     let state = executor.trading_state().await?;
-    assert_eq!(state.current_time(), start_time);
-    assert_eq!(state.current_balance(), start_balance);
+    assert_eq!(state.last_tick_time(), start_time);
+    assert_eq!(state.balance(), start_balance);
     assert_eq!(state.market_price(), market_price);
     assert_eq!(state.last_trade_time(), None);
     assert_eq!(state.running_long_len(), 0);
@@ -44,8 +44,8 @@ async fn test_simulated_trade_executor_long_profit() -> Result<()> {
     executor.tick_update(time, market_price).await?;
 
     let state = executor.trading_state().await?;
-    assert_eq!(state.current_time(), time);
-    assert_eq!(state.current_balance(), start_balance);
+    assert_eq!(state.last_tick_time(), time);
+    assert_eq!(state.balance(), start_balance);
     assert_eq!(state.market_price(), market_price);
     assert_eq!(state.last_trade_time(), None);
     assert_eq!(state.running_long_len(), 0);
@@ -79,8 +79,8 @@ async fn test_simulated_trade_executor_long_profit() -> Result<()> {
     let exp_trade_time = time;
     let expected_balance = start_balance - state.running_long_margin() - state.running_fees();
 
-    assert_eq!(state.current_time(), time);
-    assert_eq!(state.current_balance(), expected_balance);
+    assert_eq!(state.last_tick_time(), time);
+    assert_eq!(state.balance(), expected_balance);
     assert_eq!(state.market_price(), market_price);
     assert_eq!(state.last_trade_time(), Some(exp_trade_time));
     assert_eq!(state.running_long_len(), 1);
@@ -102,8 +102,8 @@ async fn test_simulated_trade_executor_long_profit() -> Result<()> {
     executor.tick_update(time, market_price).await?;
 
     let state = executor.trading_state().await?;
-    assert_eq!(state.current_time(), time);
-    assert_eq!(state.current_balance(), expected_balance);
+    assert_eq!(state.last_tick_time(), time);
+    assert_eq!(state.balance(), expected_balance);
     assert_eq!(state.market_price(), market_price);
     assert_eq!(state.last_trade_time(), Some(exp_trade_time));
     assert_eq!(state.running_long_len(), 1);
@@ -130,8 +130,8 @@ async fn test_simulated_trade_executor_long_profit() -> Result<()> {
     let expected_balance =
         (start_balance as i64 + state.closed_pl() - state.closed_fees() as i64) as u64;
 
-    assert_eq!(state.current_time(), time);
-    assert_eq!(state.current_balance(), expected_balance);
+    assert_eq!(state.last_tick_time(), time);
+    assert_eq!(state.balance(), expected_balance);
     assert_eq!(state.market_price(), market_price);
     assert_eq!(state.last_trade_time(), Some(exp_trade_time));
     assert_eq!(state.running_long_len(), 0);
@@ -170,8 +170,8 @@ async fn test_simulated_trade_executor_long_loss() -> Result<()> {
     );
 
     let state = executor.trading_state().await?;
-    assert_eq!(state.current_time(), start_time);
-    assert_eq!(state.current_balance(), start_balance);
+    assert_eq!(state.last_tick_time(), start_time);
+    assert_eq!(state.balance(), start_balance);
     assert_eq!(state.market_price(), market_price);
     assert_eq!(state.last_trade_time(), None);
     assert_eq!(state.running_long_len(), 0);
@@ -204,8 +204,8 @@ async fn test_simulated_trade_executor_long_loss() -> Result<()> {
     let state = executor.trading_state().await?;
     let expected_balance = start_balance - state.running_long_margin() - state.running_fees();
 
-    assert_eq!(state.current_time(), start_time);
-    assert_eq!(state.current_balance(), expected_balance);
+    assert_eq!(state.last_tick_time(), start_time);
+    assert_eq!(state.balance(), expected_balance);
     assert_eq!(state.last_trade_time(), Some(start_time));
     assert_eq!(state.running_long_len(), 1);
     assert!(
@@ -222,8 +222,8 @@ async fn test_simulated_trade_executor_long_loss() -> Result<()> {
     executor.tick_update(time, market_price).await?;
 
     let state = executor.trading_state().await?;
-    assert_eq!(state.current_time(), time);
-    assert_eq!(state.current_balance(), expected_balance);
+    assert_eq!(state.last_tick_time(), time);
+    assert_eq!(state.balance(), expected_balance);
     assert_eq!(state.market_price(), market_price);
     assert_eq!(state.last_trade_time(), Some(start_time));
     assert_eq!(state.running_long_len(), 1);
@@ -246,8 +246,8 @@ async fn test_simulated_trade_executor_long_loss() -> Result<()> {
     let expected_balance =
         (start_balance as i64 + state.closed_pl() - state.closed_fees() as i64) as u64;
 
-    assert_eq!(state.current_time(), time);
-    assert_eq!(state.current_balance(), expected_balance);
+    assert_eq!(state.last_tick_time(), time);
+    assert_eq!(state.balance(), expected_balance);
     assert_eq!(state.market_price(), market_price);
     assert_eq!(state.last_trade_time(), Some(start_time));
     assert_eq!(state.running_long_len(), 0); // Trade should be closed by stoploss
@@ -284,8 +284,8 @@ async fn test_simulated_trade_executor_short_profit() -> Result<()> {
     );
 
     let state = executor.trading_state().await?;
-    assert_eq!(state.current_time(), start_time);
-    assert_eq!(state.current_balance(), start_balance);
+    assert_eq!(state.last_tick_time(), start_time);
+    assert_eq!(state.balance(), start_balance);
     assert_eq!(state.market_price(), market_price);
     assert_eq!(state.last_trade_time(), None);
     assert_eq!(state.running_long_len(), 0);
@@ -318,8 +318,8 @@ async fn test_simulated_trade_executor_short_profit() -> Result<()> {
     let state = executor.trading_state().await?;
     let expected_balance = start_balance - state.running_short_margin() - state.running_fees();
 
-    assert_eq!(state.current_time(), start_time);
-    assert_eq!(state.current_balance(), expected_balance);
+    assert_eq!(state.last_tick_time(), start_time);
+    assert_eq!(state.balance(), expected_balance);
     assert_eq!(state.last_trade_time(), Some(start_time));
     assert_eq!(state.market_price(), market_price);
     assert_eq!(state.last_trade_time(), Some(start_time));
@@ -342,8 +342,8 @@ async fn test_simulated_trade_executor_short_profit() -> Result<()> {
     executor.tick_update(time, market_price).await?;
 
     let state = executor.trading_state().await?;
-    assert_eq!(state.current_time(), time);
-    assert_eq!(state.current_balance(), expected_balance);
+    assert_eq!(state.last_tick_time(), time);
+    assert_eq!(state.balance(), expected_balance);
     assert_eq!(state.market_price(), market_price);
     assert_eq!(state.last_trade_time(), Some(start_time));
     assert_eq!(state.running_short_len(), 1);
@@ -369,8 +369,8 @@ async fn test_simulated_trade_executor_short_profit() -> Result<()> {
     let expected_balance =
         (start_balance as i64 + state.closed_pl() - state.closed_fees() as i64) as u64;
 
-    assert_eq!(state.current_time(), time);
-    assert_eq!(state.current_balance(), expected_balance);
+    assert_eq!(state.last_tick_time(), time);
+    assert_eq!(state.balance(), expected_balance);
     assert_eq!(state.market_price(), market_price);
     assert_eq!(state.last_trade_time(), Some(start_time));
     assert_eq!(state.running_short_len(), 0); // Trade should be closed by takeprofit
@@ -407,8 +407,8 @@ async fn test_simulated_trade_executor_short_loss() -> Result<()> {
     );
 
     let state = executor.trading_state().await?;
-    assert_eq!(state.current_time(), start_time);
-    assert_eq!(state.current_balance(), start_balance);
+    assert_eq!(state.last_tick_time(), start_time);
+    assert_eq!(state.balance(), start_balance);
     assert_eq!(state.market_price(), market_price);
     assert_eq!(state.last_trade_time(), None);
     assert_eq!(state.running_long_len(), 0);
@@ -441,8 +441,8 @@ async fn test_simulated_trade_executor_short_loss() -> Result<()> {
     let state = executor.trading_state().await?;
     let expected_balance = start_balance - state.running_short_margin() - state.running_fees();
 
-    assert_eq!(state.current_time(), start_time);
-    assert_eq!(state.current_balance(), expected_balance);
+    assert_eq!(state.last_tick_time(), start_time);
+    assert_eq!(state.balance(), expected_balance);
     assert_eq!(state.last_trade_time(), Some(start_time));
     assert_eq!(state.running_short_len(), 1);
     assert!(
@@ -459,8 +459,8 @@ async fn test_simulated_trade_executor_short_loss() -> Result<()> {
     executor.tick_update(time, market_price).await?;
 
     let state = executor.trading_state().await?;
-    assert_eq!(state.current_time(), time);
-    assert_eq!(state.current_balance(), expected_balance);
+    assert_eq!(state.last_tick_time(), time);
+    assert_eq!(state.balance(), expected_balance);
     assert_eq!(state.market_price(), market_price);
     assert_eq!(state.last_trade_time(), Some(start_time));
     assert_eq!(state.running_short_len(), 1);
@@ -483,8 +483,8 @@ async fn test_simulated_trade_executor_short_loss() -> Result<()> {
     let expected_balance =
         (start_balance as i64 + state.closed_pl() - state.closed_fees() as i64) as u64;
 
-    assert_eq!(state.current_time(), time);
-    assert_eq!(state.current_balance(), expected_balance);
+    assert_eq!(state.last_tick_time(), time);
+    assert_eq!(state.balance(), expected_balance);
     assert_eq!(state.market_price(), market_price);
     assert_eq!(state.last_trade_time(), Some(start_time));
     assert_eq!(state.running_short_len(), 0); // Trade should be closed by stoploss
@@ -534,8 +534,8 @@ async fn test_simulated_trade_executor_trailing_stoploss_long() {
     let state = executor.trading_state().await.unwrap();
     let expected_balance = start_balance - state.running_long_margin() - state.running_fees();
 
-    assert_eq!(state.current_time(), start_time);
-    assert_eq!(state.current_balance(), expected_balance);
+    assert_eq!(state.last_tick_time(), start_time);
+    assert_eq!(state.balance(), expected_balance);
     assert_eq!(state.market_price(), market_price);
     assert_eq!(state.running_long_len(), 1);
     assert_eq!(state.running_short_len(), 0);
@@ -600,8 +600,8 @@ async fn test_simulated_trade_executor_trailing_stoploss_short() {
     let state = executor.trading_state().await.unwrap();
     let expected_balance = start_balance - state.running_short_margin() - state.running_fees();
 
-    assert_eq!(state.current_time(), start_time);
-    assert_eq!(state.current_balance(), expected_balance);
+    assert_eq!(state.last_tick_time(), start_time);
+    assert_eq!(state.balance(), expected_balance);
     assert_eq!(state.market_price(), market_price);
     assert_eq!(state.running_long_len(), 0);
     assert_eq!(state.running_short_len(), 1);
