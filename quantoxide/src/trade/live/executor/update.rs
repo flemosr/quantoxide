@@ -47,22 +47,22 @@ impl fmt::Display for LiveTradeExecutorUpdateOrder {
             } => {
                 write!(
                     f,
-                    "CreateNewTrade:\n  side: {}\n  quantity: {}\n  leverage: {}\n  stoploss: {:.1}\n  takeprofit: {:.1}",
+                    "Create New Trade:\n  side: {}\n  quantity: {}\n  leverage: {}\n  stoploss: {:.1}\n  takeprofit: {:.1}",
                     side, quantity, leverage, stoploss, takeprofit
                 )
             }
             Self::UpdateTradeStoploss { id, stoploss } => {
                 write!(
                     f,
-                    "UpdateTradeStoploss:\n  id: {}\n  stoploss: {:.1}",
+                    "Update Trade Stoploss:\n  id: {}\n  stoploss: {:.1}",
                     id, stoploss
                 )
             }
             Self::CloseTrade { id } => {
-                write!(f, "CloseTrade:\n  id: {}", id)
+                write!(f, "Close Trade:\n  id: {}", id)
             }
-            Self::CancelAllTrades => write!(f, "CancelAllTrades"),
-            Self::CloseAllTrades => write!(f, "CloseAllTrades"),
+            Self::CancelAllTrades => write!(f, "Cancel All Trades"),
+            Self::CloseAllTrades => write!(f, "Close All Trades"),
         }
     }
 }
