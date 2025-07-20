@@ -1,4 +1,7 @@
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::{
+    fmt,
+    sync::{Arc, Mutex, MutexGuard},
+};
 
 use async_trait::async_trait;
 use chrono::Duration;
@@ -46,6 +49,24 @@ pub enum LiveStatus {
     Restarting,
     ShutdownInitiated,
     Shutdown,
+}
+
+impl fmt::Display for LiveStatus {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            LiveStatus::NotInitiated => write!(f, "Not initiated"),
+            LiveStatus::Starting => write!(f, "Starting"),
+            LiveStatus::WaitingForSignal(status) => write!(f, "Waiting for signal ({status})"),
+            LiveStatus::WaitingTradeExecutor(status) => {
+                write!(f, "Waiting trade executor ({status})")
+            }
+            LiveStatus::Running => write!(f, "Running"),
+            LiveStatus::Failed(error) => write!(f, "Failed: {error}"),
+            LiveStatus::Restarting => write!(f, "Restarting"),
+            LiveStatus::ShutdownInitiated => write!(f, "Shutdown initiated"),
+            LiveStatus::Shutdown => write!(f, "Shutdown"),
+        }
+    }
 }
 
 #[derive(Clone)]
