@@ -2,7 +2,7 @@ use std::fmt;
 
 use chrono::{DateTime, Duration, Utc};
 
-use crate::db::DbContext;
+use crate::{db::DbContext, util::DateTimeExt};
 
 use super::error::{Result, SyncPriceHistoryError};
 
@@ -211,7 +211,7 @@ impl PriceHistoryState {
         let mut result = String::new();
 
         if let Some(reach_time) = self.reach_time {
-            result.push_str(&format!("reach: {}\n", reach_time.to_rfc3339()));
+            result.push_str(&format!("reach: {}\n", reach_time.format_local_millis()));
         }
 
         match &self.bounds {
@@ -220,13 +220,16 @@ impl PriceHistoryState {
 
                 if let Some(reach_time) = self.reach_time {
                     let start_eval = Self::eval_missing_hours(start, &reach_time);
-                    result.push_str(&format!("  start: {} ({start_eval})\n", start.to_rfc3339()));
+                    let start_str = start.format_local_millis();
+                    result.push_str(&format!("  start: {start_str} ({start_eval})\n"));
                 } else {
-                    result.push_str(&format!("  start: {}\n", start.to_rfc3339()));
+                    let start_str = start.format_local_millis();
+                    result.push_str(&format!("  start: {start_str}\n"));
                 };
 
                 let end_val = Self::eval_missing_hours(&Utc::now(), end);
-                result.push_str(&format!("  end: {} ({end_val})\n", end.to_rfc3339()));
+                let end_str = end.format_local_millis();
+                result.push_str(&format!("  end: {end_str} ({end_val})\n"));
 
                 if self.gaps.is_empty() {
                     result.push_str("gaps: no gaps\n");
@@ -239,11 +242,14 @@ impl PriceHistoryState {
                             i + 1,
                             gap_hours
                         ));
-                        result.push_str(&format!("      from: {}\n", gap_start.to_rfc3339()));
+                        let gap_start_str = gap_start.format_local_millis();
+                        result.push_str(&format!("      from: {gap_start_str}\n"));
+
+                        let gap_end_str = gap_end.format_local_millis();
                         if i == self.gaps.len() - 1 {
-                            result.push_str(&format!("      to: {}", gap_end.to_rfc3339()));
+                            result.push_str(&format!("      to: {gap_end_str}"));
                         } else {
-                            result.push_str(&format!("      to: {}", gap_end.to_rfc3339()));
+                            result.push_str(&format!("      to: {gap_end_str}\n"));
                         }
                     }
                 }
@@ -257,7 +263,7 @@ impl PriceHistoryState {
 
 impl fmt::Display for PriceHistoryState {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "PriceHistoryState:")?;
+        write!(f, "Price History State:")?;
         for line in self.summary().lines() {
             write!(f, "\n  {line}")?;
         }
