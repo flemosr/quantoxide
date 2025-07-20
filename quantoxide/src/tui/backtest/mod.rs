@@ -11,7 +11,7 @@ use tokio::{
 
 use crate::{
     trade::{
-        backtest::{BacktestEngine, BacktestReceiver, BacktestStatus, BacktestUpdate},
+        backtest::{BacktestEngine, BacktestReceiver, BacktestUpdate},
         core::TradingState,
     },
     util::AbortOnDropHandle,
@@ -129,26 +129,21 @@ impl BacktestTui {
             let handle_backtest_update = async |backtest_update: BacktestUpdate| -> Result<()> {
                 match backtest_update {
                     BacktestUpdate::Status(backtest_status) => {
-                        let log_str = match backtest_status.as_ref() {
-                            BacktestStatus::NotInitiated => "BacktestState::NotInitiated".to_string(),
-                            BacktestStatus::Starting => "BacktestState::Starting".to_string(),
-                            BacktestStatus::Running => "BacktestState::Running".to_string(),
-                            BacktestStatus::Finished => {
-                                let backtest_elapsed = Utc::now().signed_duration_since(backtest_start);
-                                format!(
-                                    "BacktestState::Finished\nIterations completed. Elapsed: {}m {}s",
-                                    backtest_elapsed.num_minutes(),
-                                    backtest_elapsed.num_seconds() % 60
-                                )
-                            }
-                            BacktestStatus::Failed(err) => {
-                                format!("BacktestState::Failed with error {err}")
-                            }
-                            BacktestStatus::Aborted => "BacktestState::Aborted".to_string(),
+                        let complement = if backtest_status.is_finished() {
+                            let backtest_elapsed = Utc::now().signed_duration_since(backtest_start);
+                            format!(
+                                "\nIterations completed. Elapsed: {}m {}s",
+                                backtest_elapsed.num_minutes(),
+                                backtest_elapsed.num_seconds() % 60
+                            )
+                        } else {
+                            String::new()
                         };
 
                         ui_tx
-                            .send(BacktestUiMessage::LogEntry(log_str))
+                            .send(BacktestUiMessage::LogEntry(format!(
+                                "Backtest status: {backtest_status}{complement}"
+                            )))
                             .await
                             .map_err(|e| TuiError::Generic(e.to_string()))?;
                     }
