@@ -236,7 +236,7 @@ impl TuiView for LiveTuiView {
 
         let bottom_chunks = Layout::default()
             .direction(Direction::Horizontal)
-            .constraints([Constraint::Length(52), Constraint::Min(0)].as_ref())
+            .constraints([Constraint::Length(55), Constraint::Min(0)].as_ref())
             .split(main_chunks[1]);
 
         let mut state_guard = self.get_state();
