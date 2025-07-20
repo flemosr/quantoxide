@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use futures::FutureExt;
 
-use crate::db::models::PriceHistoryEntryLOCF;
+use crate::{db::models::PriceHistoryEntryLOCF, util::DateTimeExt};
 
 use super::error::{Result, SignalError};
 
@@ -180,17 +180,23 @@ impl Signal {
     pub fn action(&self) -> SignalAction {
         self.action
     }
-}
 
-impl fmt::Display for Signal {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let local_time = self.time.with_timezone(&chrono::Local);
-        write!(
-            f,
-            "Signal:\n  time: {}\n  name: {}\n  action: {}",
-            local_time.format("%y-%m-%d %H:%M:%S %Z"),
+    pub fn as_data_str(&self) -> String {
+        format!(
+            "time: {}\nname: {}\naction: {}",
+            self.time.format_local_secs(),
             self.name,
             self.action
         )
+    }
+}
+
+impl fmt::Display for Signal {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Signal:")?;
+        for line in self.as_data_str().lines() {
+            write!(f, "\n  {line}")?;
+        }
+        Ok(())
     }
 }
