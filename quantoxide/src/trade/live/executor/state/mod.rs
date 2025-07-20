@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{fmt, sync::Arc};
 
 use tokio::sync::{Mutex, MutexGuard};
 
@@ -21,10 +21,32 @@ pub enum LiveTradeExecutorStatusNotReady {
     NotViable(LiveError),
 }
 
+impl fmt::Display for LiveTradeExecutorStatusNotReady {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            LiveTradeExecutorStatusNotReady::Starting => write!(f, "Starting"),
+            LiveTradeExecutorStatusNotReady::WaitingForSync(status) => {
+                write!(f, "Waiting for sync ({status})")
+            }
+            LiveTradeExecutorStatusNotReady::Failed(error) => write!(f, "Failed: {error}"),
+            LiveTradeExecutorStatusNotReady::NotViable(error) => write!(f, "Not viable: {error}"),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum LiveTradeExecutorStatus {
     NotReady(Arc<LiveTradeExecutorStatusNotReady>),
     Ready,
+}
+
+impl fmt::Display for LiveTradeExecutorStatus {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            LiveTradeExecutorStatus::NotReady(status) => write!(f, "Not ready ({})", status),
+            LiveTradeExecutorStatus::Ready => write!(f, "Ready"),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
