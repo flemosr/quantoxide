@@ -68,7 +68,7 @@ impl fmt::Display for BacktestStatus {
             BacktestStatus::Starting => write!(f, "Starting"),
             BacktestStatus::Running => write!(f, "Running"),
             BacktestStatus::Finished => write!(f, "Finished"),
-            BacktestStatus::Failed(error) => write!(f, "Failed: {}", error),
+            BacktestStatus::Failed(error) => write!(f, "Failed: {error}"),
             BacktestStatus::Aborted => write!(f, "Aborted"),
         }
     }
