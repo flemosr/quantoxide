@@ -1,4 +1,7 @@
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::{
+    fmt,
+    sync::{Arc, Mutex, MutexGuard},
+};
 
 use async_trait::async_trait;
 use chrono::{DateTime, Duration, Utc};
@@ -30,6 +33,45 @@ pub enum BacktestStatus {
     Finished,
     Failed(BacktestError),
     Aborted,
+}
+
+impl BacktestStatus {
+    pub fn is_not_initiated(&self) -> bool {
+        matches!(self, Self::NotInitiated)
+    }
+
+    pub fn is_starting(&self) -> bool {
+        matches!(self, Self::Starting)
+    }
+
+    pub fn is_running(&self) -> bool {
+        matches!(self, Self::Running)
+    }
+
+    pub fn is_finished(&self) -> bool {
+        matches!(self, Self::Finished)
+    }
+
+    pub fn is_failed(&self) -> bool {
+        matches!(self, Self::Failed(_))
+    }
+
+    pub fn is_aborted(&self) -> bool {
+        matches!(self, Self::Aborted)
+    }
+}
+
+impl fmt::Display for BacktestStatus {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            BacktestStatus::NotInitiated => write!(f, "Not initiated"),
+            BacktestStatus::Starting => write!(f, "Starting"),
+            BacktestStatus::Running => write!(f, "Running"),
+            BacktestStatus::Finished => write!(f, "Finished"),
+            BacktestStatus::Failed(error) => write!(f, "Failed: {}", error),
+            BacktestStatus::Aborted => write!(f, "Aborted"),
+        }
+    }
 }
 
 #[derive(Clone)]
