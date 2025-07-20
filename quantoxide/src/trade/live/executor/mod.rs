@@ -160,7 +160,7 @@ impl LiveTradeExecutor {
                 .map(|&trade_id| self.api.close_trade(trade_id))
                 .collect::<Vec<_>>();
 
-            let closed = match future::join_all(close_futures)
+            let closed_trades = match future::join_all(close_futures)
                 .await
                 .into_iter()
                 .collect::<result::Result<Vec<_>, _>>()
@@ -177,7 +177,14 @@ impl LiveTradeExecutor {
                 }
             };
 
-            new_trading_session.close_trades(self.tsl_step_size, closed)?;
+            new_trading_session.close_trades(self.tsl_step_size, &closed_trades)?;
+
+            for closed_trade in closed_trades {
+                // Ignore no-receiver errors
+                let _ = self
+                    .update_tx
+                    .send(LiveTradeExecutorUpdate::ClosedTrade(closed_trade));
+            }
         }
 
         locked_ready_state
@@ -241,7 +248,7 @@ impl TradeExecutor for LiveTradeExecutor {
 
         let mut new_trading_session = locked_ready_state.trading_session().to_owned();
 
-        let closed =
+        let closed_trades =
             match futures::try_join!(self.api.cancel_all_trades(), self.api.close_all_trades()) {
                 Ok((_, closed)) => closed,
                 Err(e) => {
@@ -255,7 +262,14 @@ impl TradeExecutor for LiveTradeExecutor {
                 }
             };
 
-        new_trading_session.close_trades(self.tsl_step_size, closed)?;
+        new_trading_session.close_trades(self.tsl_step_size, &closed_trades)?;
+
+        for closed_trade in closed_trades {
+            // Ignore no-receiver errors
+            let _ = self
+                .update_tx
+                .send(LiveTradeExecutorUpdate::ClosedTrade(closed_trade));
+        }
 
         locked_ready_state
             .update_trading_session(new_trading_session)
@@ -322,38 +336,49 @@ impl LiveTradeExecutorLauncher {
         tsl_step_size: BoundedPercentage,
         db: Arc<DbContext>,
         api: WrappedApiContext,
-        sync_rx: SyncReceiver,
+        update_tx: LiveTradeExecutorTransmiter,
         state_manager: Arc<LiveTradeExecutorStateManager>,
+        sync_rx: SyncReceiver,
     ) -> AbortOnDropHandle<()> {
         tokio::spawn(async move {
             let refresh_trading_session = async || {
                 let locked_state = state_manager.lock_state().await;
 
-                let current_trading_session =
-                    if let Some(old_trading_session) = locked_state.trading_session() {
-                        let mut restored_trading_session = old_trading_session.clone();
+                let current_trading_session = if let Some(old_trading_session) =
+                    locked_state.trading_session()
+                {
+                    let mut restored_trading_session = old_trading_session.clone();
 
-                        if let Err(e) = restored_trading_session
-                            .reevaluate(tsl_step_size, db.as_ref(), &api)
-                            .await
-                        {
+                    match restored_trading_session
+                        .reevaluate(tsl_step_size, db.as_ref(), &api)
+                        .await
+                    {
+                        Ok(closed_trades) => {
+                            for closed_trade in closed_trades.into_iter() {
+                                // Ignore no-receiver errors
+                                let _ = update_tx
+                                    .send(LiveTradeExecutorUpdate::ClosedTrade(closed_trade));
+                            }
+                        }
+                        Err(e) => {
                             let new_status_not_ready = LiveTradeExecutorStatusNotReady::Failed(e);
                             locked_state.update_status_not_ready(new_status_not_ready);
                             return;
                         }
+                    }
 
-                        restored_trading_session
-                    } else {
-                        match LiveTradingSession::new(db.as_ref(), &api).await {
-                            Ok(new_trading_session) => new_trading_session,
-                            Err(e) => {
-                                locked_state.update_status_not_ready(
-                                    LiveTradeExecutorStatusNotReady::Failed(e),
-                                );
-                                return;
-                            }
+                    restored_trading_session
+                } else {
+                    match LiveTradingSession::new(db.as_ref(), &api).await {
+                        Ok(new_trading_session) => new_trading_session,
+                        Err(e) => {
+                            locked_state.update_status_not_ready(
+                                LiveTradeExecutorStatusNotReady::Failed(e),
+                            );
+                            return;
                         }
-                    };
+                    }
+                };
 
                 locked_state.update_status_ready(current_trading_session);
             };
@@ -408,8 +433,9 @@ impl LiveTradeExecutorLauncher {
             self.tsl_step_size,
             self.db.clone(),
             self.api.clone(),
-            self.sync_rx,
+            self.update_tx.clone(),
             self.state_manager.clone(),
+            self.sync_rx,
         );
 
         Ok(LiveTradeExecutor::new(
