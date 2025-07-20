@@ -1,4 +1,7 @@
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::{
+    fmt,
+    sync::{Arc, Mutex, MutexGuard},
+};
 
 use tokio::sync::broadcast;
 
@@ -16,12 +19,36 @@ pub enum SyncStatusNotSynced {
     Restarting,
 }
 
+impl fmt::Display for SyncStatusNotSynced {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            SyncStatusNotSynced::NotInitiated => write!(f, "Not initiated"),
+            SyncStatusNotSynced::Starting => write!(f, "Starting"),
+            SyncStatusNotSynced::InProgress => write!(f, "In progress"),
+            SyncStatusNotSynced::WaitingForResync => write!(f, "Waiting for resync"),
+            SyncStatusNotSynced::Failed(error) => write!(f, "Failed: {}", error),
+            SyncStatusNotSynced::Restarting => write!(f, "Restarting"),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum SyncStatus {
     NotSynced(Arc<SyncStatusNotSynced>),
     Synced,
     ShutdownInitiated,
     Shutdown,
+}
+
+impl fmt::Display for SyncStatus {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            SyncStatus::NotSynced(status) => write!(f, "Not synced ({})", status),
+            SyncStatus::Synced => write!(f, "Synced"),
+            SyncStatus::ShutdownInitiated => write!(f, "Shutdown initiated"),
+            SyncStatus::Shutdown => write!(f, "Shutdown"),
+        }
+    }
 }
 
 impl From<SyncStatusNotSynced> for SyncStatus {
