@@ -188,9 +188,8 @@ impl TradingState {
             .map_or("null".to_string(), |lttl| lttl.format_local_millis());
         result.push_str(&format!("  last_trade_time: {lttl_str}\n"));
 
-        result.push_str("balance:\n");
-        result.push_str(&format!("  current_balance: {}\n", self.balance));
-        result.push_str(&format!("  market_price: {:.1}\n", self.market_price));
+        result.push_str(&format!("balance: {}\n", self.balance));
+        result.push_str(&format!("market_price: {:.1}\n", self.market_price));
 
         result.push_str("running_positions:\n");
         result.push_str("  long:\n");
