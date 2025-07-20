@@ -1,6 +1,10 @@
+use std::fmt;
+
 use chrono::{DateTime, Utc};
 use sqlx::FromRow;
 use uuid::Uuid;
+
+use crate::util::DateTimeExt;
 
 #[derive(Debug, FromRow)]
 pub struct PriceHistoryEntry {
@@ -30,6 +34,26 @@ pub struct PriceTick {
     pub time: DateTime<Utc>,
     pub last_price: f64,
     pub created_at: DateTime<Utc>,
+}
+
+impl PriceTick {
+    pub fn as_data_str(&self) -> String {
+        let time_str = self.time.format_local_millis();
+        let created_at_str = self.created_at.format_local_millis();
+        let price_str = format!("{:.1}", self.last_price);
+
+        format!("time: {time_str}\nprice: {price_str}\ncreated_at: {created_at_str}")
+    }
+}
+
+impl fmt::Display for PriceTick {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Price Tick:")?;
+        for line in self.as_data_str().lines() {
+            write!(f, "\n  {line}")?;
+        }
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, FromRow, PartialEq)]
