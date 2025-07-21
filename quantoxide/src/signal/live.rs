@@ -290,7 +290,6 @@ impl LiveSignalProcess {
 
                 // Handle shutdown signals while waiting for `restart_interval`
 
-                let mut shutdown_rx = self.shutdown_tx.subscribe();
                 tokio::select! {
                     _ = time::sleep(self.config.restart_interval) => {
                         // Continue with the restart loop
