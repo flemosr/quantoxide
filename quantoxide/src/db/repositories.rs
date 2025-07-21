@@ -1,7 +1,12 @@
+use std::collections::HashMap;
+
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
+use uuid::Uuid;
 
 use lnm_sdk::api::{rest::models::PriceEntryLNM, websocket::models::PriceTickLNM};
+
+use crate::trade::core::TradeTrailingStoploss;
 
 use super::{
     error::Result,
@@ -195,4 +200,19 @@ pub trait PriceTicksRepository: Send + Sync {
     ) -> Result<Vec<PriceHistoryEntryLOCF>>;
 
     async fn remove_ticks(&self, before: DateTime<Utc>) -> Result<()>;
+}
+
+#[async_trait]
+pub trait RunningTradesRepository: Send + Sync {
+    async fn add_running_trade(
+        &self,
+        trade_id: Uuid,
+        trailing_stoploss: Option<TradeTrailingStoploss>,
+    ) -> Result<()>;
+
+    async fn get_running_trades_map(&self) -> Result<HashMap<Uuid, Option<TradeTrailingStoploss>>>;
+
+    async fn remove_running_trades(&self, trade_ids: &[Uuid]) -> Result<()>;
+
+    async fn remove_all_running_trades(&self) -> Result<()>;
 }
