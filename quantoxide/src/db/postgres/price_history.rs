@@ -6,13 +6,11 @@ use sqlx::{Pool, Postgres, Transaction};
 
 use lnm_sdk::api::rest::models::PriceEntryLNM;
 
-use crate::{
-    db::models::PartialPriceHistoryEntryLOCF, indicators::IndicatorsEvaluator, util::DateTimeExt,
-};
+use crate::{indicators::IndicatorsEvaluator, util::DateTimeExt};
 
 use super::super::{
     error::{DbError, Result},
-    models::PriceHistoryEntry,
+    models::{PartialPriceHistoryEntryLOCF, PriceHistoryEntry},
     repositories::PriceHistoryRepository,
 };
 
