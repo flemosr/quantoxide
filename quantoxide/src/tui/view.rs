@@ -1,5 +1,6 @@
 use std::{fs::File, io::Write, sync::MutexGuard};
 
+use chrono::Local;
 use ratatui::{
     Frame,
     layout::Rect,
@@ -53,7 +54,7 @@ pub trait TuiLogger: Sync + Send + 'static {
         let (mut log_file, log_entries, log_max_line_width, log_rect, log_v_scroll) =
             Self::get_log_components_mut(&mut state_guard);
 
-        let timestamp = chrono::Local::now().format("%H:%M:%S").to_string();
+        let timestamp = Local::now().format("%Y-%m-%dT%H:%M:%S%.3f%:z").to_string();
 
         let lines: Vec<&str> = entry.lines().collect();
 
@@ -65,9 +66,9 @@ pub trait TuiLogger: Sync + Send + 'static {
 
         for (i, line) in lines.iter().enumerate() {
             let log_entry_line = if i == 0 {
-                format!("[{}] {}", timestamp, line)
+                format!("[{:<29}] {}", timestamp, line)
             } else {
-                format!("           {}", line)
+                format!("{}{}", " ".repeat(32), line)
             };
 
             if let Some(log_file) = log_file.as_mut() {
