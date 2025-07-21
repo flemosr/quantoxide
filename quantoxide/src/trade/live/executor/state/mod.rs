@@ -19,17 +19,21 @@ pub enum LiveTradeExecutorStatusNotReady {
     WaitingForSync(Arc<SyncStatusNotSynced>),
     Failed(LiveError),
     NotViable(LiveError),
+    ShutdownInitiated,
+    Shutdown,
 }
 
 impl fmt::Display for LiveTradeExecutorStatusNotReady {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            LiveTradeExecutorStatusNotReady::Starting => write!(f, "Starting"),
-            LiveTradeExecutorStatusNotReady::WaitingForSync(status) => {
+            Self::Starting => write!(f, "Starting"),
+            Self::WaitingForSync(status) => {
                 write!(f, "Waiting for sync ({status})")
             }
-            LiveTradeExecutorStatusNotReady::Failed(error) => write!(f, "Failed: {error}"),
-            LiveTradeExecutorStatusNotReady::NotViable(error) => write!(f, "Not viable: {error}"),
+            Self::Failed(error) => write!(f, "Failed: {error}"),
+            Self::NotViable(error) => write!(f, "Not viable: {error}"),
+            Self::ShutdownInitiated => write!(f, "Shutdown initiated"),
+            Self::Shutdown => write!(f, "Shutdown"),
         }
     }
 }
@@ -43,8 +47,8 @@ pub enum LiveTradeExecutorStatus {
 impl fmt::Display for LiveTradeExecutorStatus {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            LiveTradeExecutorStatus::NotReady(status) => write!(f, "Not ready ({})", status),
-            LiveTradeExecutorStatus::Ready => write!(f, "Ready"),
+            Self::NotReady(status) => write!(f, "Not ready ({})", status),
+            Self::Ready => write!(f, "Ready"),
         }
     }
 }
@@ -204,5 +208,12 @@ impl LiveTradeExecutorStateManager {
         self.lock_state()
             .await
             .update_status_ready(new_trading_session)
+    }
+
+    pub async fn has_registered_running_trades(&self) -> bool {
+        self.lock_state()
+            .await
+            .trading_session()
+            .map_or(false, |session| !session.running().is_empty())
     }
 }

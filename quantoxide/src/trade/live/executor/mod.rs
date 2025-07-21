@@ -1,4 +1,7 @@
-use std::{result, sync::Arc};
+use std::{
+    result,
+    sync::{Arc, Mutex},
+};
 
 use async_trait::async_trait;
 use futures::future;
@@ -44,7 +47,7 @@ pub struct LiveTradeExecutor {
     api: WrappedApiContext,
     update_tx: LiveTradeExecutorTransmiter,
     state_manager: Arc<LiveTradeExecutorStateManager>,
-    _handle: AbortOnDropHandle<()>,
+    handle: Mutex<Option<AbortOnDropHandle<()>>>,
 }
 
 impl LiveTradeExecutor {
@@ -54,7 +57,7 @@ impl LiveTradeExecutor {
         api: WrappedApiContext,
         update_tx: LiveTradeExecutorTransmiter,
         state_manager: Arc<LiveTradeExecutorStateManager>,
-        _handle: AbortOnDropHandle<()>,
+        handle: AbortOnDropHandle<()>,
     ) -> Arc<Self> {
         Arc::new(Self {
             tsl_step_size,
@@ -62,7 +65,7 @@ impl LiveTradeExecutor {
             api,
             update_tx,
             state_manager,
-            _handle,
+            handle: Mutex::new(Some(handle)),
         })
     }
 
@@ -192,6 +195,48 @@ impl LiveTradeExecutor {
             .await;
 
         Ok(())
+    }
+
+    fn try_consume_handle(&self) -> Option<AbortOnDropHandle<()>> {
+        self.handle
+            .lock()
+            .expect("`LiveTradeExecutor` mutex can't be poisoned")
+            .take()
+    }
+
+    pub async fn shutdown(&self) -> Result<()> {
+        let Some(handle) = self.try_consume_handle() else {
+            return Err(TradeError::Generic(
+                "`LiveTradeExecutor` was already shutdown".to_string(),
+            ));
+        };
+
+        self.state_manager
+            .update_status_not_ready(LiveTradeExecutorStatusNotReady::ShutdownInitiated)
+            .await;
+
+        handle.abort();
+
+        let (res, new_status) = if self.state_manager.has_registered_running_trades().await {
+            // Perform clean up if there are running trades registered
+
+            match futures::try_join!(self.api.cancel_all_trades(), self.api.close_all_trades()) {
+                Ok(_) => (Ok(()), LiveTradeExecutorStatusNotReady::Shutdown),
+                Err(e) => (
+                    Err(TradeError::Generic(format!(
+                        "couldn't cancel and close trades on shutdown {:?}",
+                        e
+                    ))),
+                    LiveTradeExecutorStatusNotReady::NotViable(e),
+                ),
+            }
+        } else {
+            (Ok(()), LiveTradeExecutorStatusNotReady::Shutdown)
+        };
+
+        self.state_manager.update_status_not_ready(new_status).await;
+
+        res
     }
 }
 
