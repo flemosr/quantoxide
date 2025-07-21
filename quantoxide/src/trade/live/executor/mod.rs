@@ -189,6 +189,12 @@ impl LiveTradeExecutor {
             }
         };
 
+        self.db
+            .running_trades
+            .add_running_trade(trade.id(), trade_tsl.clone())
+            .await
+            .map_err(|e| LiveError::Generic(e.to_string()))?;
+
         let mut new_trading_session = locked_ready_state.trading_session().to_owned();
 
         new_trading_session.register_running_trade(self.config.tsl_step_size, trade, trade_tsl)?;
