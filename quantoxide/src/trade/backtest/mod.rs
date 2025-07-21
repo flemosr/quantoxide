@@ -64,12 +64,12 @@ impl BacktestStatus {
 impl fmt::Display for BacktestStatus {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            BacktestStatus::NotInitiated => write!(f, "Not initiated"),
-            BacktestStatus::Starting => write!(f, "Starting"),
-            BacktestStatus::Running => write!(f, "Running"),
-            BacktestStatus::Finished => write!(f, "Finished"),
-            BacktestStatus::Failed(error) => write!(f, "Failed: {error}"),
-            BacktestStatus::Aborted => write!(f, "Aborted"),
+            Self::NotInitiated => write!(f, "Not initiated"),
+            Self::Starting => write!(f, "Starting"),
+            Self::Running => write!(f, "Running"),
+            Self::Finished => write!(f, "Finished"),
+            Self::Failed(error) => write!(f, "Failed: {error}"),
+            Self::Aborted => write!(f, "Aborted"),
         }
     }
 }
