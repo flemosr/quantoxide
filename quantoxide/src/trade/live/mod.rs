@@ -272,6 +272,7 @@ impl LiveProcess {
                 self.status_manager.update(LiveStatus::Starting);
 
                 let mut shutdown_rx = self.shutdown_tx.subscribe();
+
                 tokio::select! {
                     handle_signals_res = self.handle_signals() => {
                         let Err(e) = handle_signals_res;
@@ -291,7 +292,6 @@ impl LiveProcess {
 
                 // Handle shutdown signals while waiting for `restart_interval`
 
-                let mut shutdown_rx = self.shutdown_tx.subscribe();
                 tokio::select! {
                     _ = time::sleep(self.config.restart_interval) => {
                         // Continue with the restart loop
