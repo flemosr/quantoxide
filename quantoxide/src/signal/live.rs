@@ -30,13 +30,13 @@ pub enum LiveSignalStatusNotRunning {
 impl fmt::Display for LiveSignalStatusNotRunning {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            LiveSignalStatusNotRunning::NotInitiated => write!(f, "Not initiated"),
-            LiveSignalStatusNotRunning::Starting => write!(f, "Starting"),
-            LiveSignalStatusNotRunning::WaitingForSync(status) => {
+            Self::NotInitiated => write!(f, "Not initiated"),
+            Self::Starting => write!(f, "Starting"),
+            Self::WaitingForSync(status) => {
                 write!(f, "Waiting for sync ({status})")
             }
-            LiveSignalStatusNotRunning::Failed(error) => write!(f, "Failed: {error}"),
-            LiveSignalStatusNotRunning::Restarting => write!(f, "Restarting"),
+            Self::Failed(error) => write!(f, "Failed: {error}"),
+            Self::Restarting => write!(f, "Restarting"),
         }
     }
 }
@@ -52,10 +52,10 @@ pub enum LiveSignalStatus {
 impl fmt::Display for LiveSignalStatus {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            LiveSignalStatus::NotRunning(status) => write!(f, "Not running ({status})"),
-            LiveSignalStatus::Running => write!(f, "Running"),
-            LiveSignalStatus::ShutdownInitiated => write!(f, "Shutdown initiated"),
-            LiveSignalStatus::Shutdown => write!(f, "Shutdown"),
+            Self::NotRunning(status) => write!(f, "Not running ({status})"),
+            Self::Running => write!(f, "Running"),
+            Self::ShutdownInitiated => write!(f, "Shutdown initiated"),
+            Self::Shutdown => write!(f, "Shutdown"),
         }
     }
 }
