@@ -22,12 +22,12 @@ pub enum SyncStatusNotSynced {
 impl fmt::Display for SyncStatusNotSynced {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            SyncStatusNotSynced::NotInitiated => write!(f, "Not initiated"),
-            SyncStatusNotSynced::Starting => write!(f, "Starting"),
-            SyncStatusNotSynced::InProgress => write!(f, "In progress"),
-            SyncStatusNotSynced::WaitingForResync => write!(f, "Waiting for resync"),
-            SyncStatusNotSynced::Failed(error) => write!(f, "Failed: {error}"),
-            SyncStatusNotSynced::Restarting => write!(f, "Restarting"),
+            Self::NotInitiated => write!(f, "Not initiated"),
+            Self::Starting => write!(f, "Starting"),
+            Self::InProgress => write!(f, "In progress"),
+            Self::WaitingForResync => write!(f, "Waiting for resync"),
+            Self::Failed(error) => write!(f, "Failed: {error}"),
+            Self::Restarting => write!(f, "Restarting"),
         }
     }
 }
@@ -43,10 +43,10 @@ pub enum SyncStatus {
 impl fmt::Display for SyncStatus {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            SyncStatus::NotSynced(status) => write!(f, "Not synced ({status})"),
-            SyncStatus::Synced => write!(f, "Synced"),
-            SyncStatus::ShutdownInitiated => write!(f, "Shutdown initiated"),
-            SyncStatus::Shutdown => write!(f, "Shutdown"),
+            Self::NotSynced(status) => write!(f, "Not synced ({status})"),
+            Self::Synced => write!(f, "Synced"),
+            Self::ShutdownInitiated => write!(f, "Shutdown initiated"),
+            Self::Shutdown => write!(f, "Shutdown"),
         }
     }
 }
