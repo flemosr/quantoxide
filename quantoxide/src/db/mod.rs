@@ -12,12 +12,16 @@ mod repositories;
 
 use error::{DbError, Result};
 use models::PartialPriceHistoryEntryLOCF;
-use postgres::{price_history::PgPriceHistoryRepo, price_ticks::PgPriceTicksRepo};
-use repositories::{PriceHistoryRepository, PriceTicksRepository};
+use postgres::{
+    price_history::PgPriceHistoryRepo, price_ticks::PgPriceTicksRepo,
+    running_trades::PgRunningTradesRepo,
+};
+use repositories::{PriceHistoryRepository, PriceTicksRepository, RunningTradesRepository};
 
 pub struct DbContext {
     pub price_history: Box<dyn PriceHistoryRepository>,
     pub price_ticks: Box<dyn PriceTicksRepository>,
+    pub running_trades: Box<dyn RunningTradesRepository>,
 }
 
 impl DbContext {
@@ -38,10 +42,12 @@ impl DbContext {
         let pool = Arc::new(pool);
         let price_history = Box::new(PgPriceHistoryRepo::new(pool.clone()));
         let price_ticks = Box::new(PgPriceTicksRepo::new(pool.clone()));
+        let running_trades = Box::new(PgRunningTradesRepo::new(pool.clone()));
 
         Ok(Arc::new(Self {
             price_history,
             price_ticks,
+            running_trades,
         }))
     }
 
