@@ -692,12 +692,8 @@ impl LiveEngine {
         )
         .map_err(|e| LiveError::Generic(e.to_string()))?;
 
-        let trade_executor_launcher = LiveTradeExecutorLauncher::new(
-            config.tsl_step_size,
-            db,
-            api,
-            sync_engine.update_receiver(),
-        )?;
+        let trade_executor_launcher =
+            LiveTradeExecutorLauncher::new(&config, db, api, sync_engine.update_receiver())?;
 
         let (update_tx, _) = broadcast::channel::<LiveUpdate>(100);
 

@@ -26,6 +26,7 @@ use super::{
         core::{RiskParams, StoplossMode, TradeExecutor, TradeTrailingStoploss, TradingState},
         error::{Result, TradeError},
     },
+    LiveConfig,
     error::{LiveError, Result as LiveResult},
 };
 
@@ -41,8 +42,63 @@ use update::{
     WrappedApiContext,
 };
 
-pub struct LiveTradeExecutor {
+pub struct LiveTradeExecutorConfig {
     tsl_step_size: BoundedPercentage,
+    clean_up_trades_on_startup: bool,
+    clean_up_trades_on_shutdown: bool,
+}
+
+impl LiveTradeExecutorConfig {
+    pub fn trailing_stoploss_step_size(&self) -> BoundedPercentage {
+        self.tsl_step_size
+    }
+
+    pub fn clean_up_trades_on_startup(&self) -> bool {
+        self.clean_up_trades_on_startup
+    }
+
+    pub fn clean_up_trades_on_shutdown(&self) -> bool {
+        self.clean_up_trades_on_shutdown
+    }
+
+    pub fn set_trailing_stoploss_step_size(mut self, tsl_step_size: BoundedPercentage) -> Self {
+        self.tsl_step_size = tsl_step_size;
+        self
+    }
+
+    pub fn set_clean_up_trades_on_startup(mut self, clean_up_trades_on_startup: bool) -> Self {
+        self.clean_up_trades_on_startup = clean_up_trades_on_startup;
+        self
+    }
+
+    pub fn set_clean_up_trades_on_shutdown(mut self, clean_up_trades_on_shutdown: bool) -> Self {
+        self.clean_up_trades_on_shutdown = clean_up_trades_on_shutdown;
+        self
+    }
+}
+
+impl Default for LiveTradeExecutorConfig {
+    fn default() -> Self {
+        Self {
+            tsl_step_size: BoundedPercentage::MIN,
+            clean_up_trades_on_startup: true,
+            clean_up_trades_on_shutdown: true,
+        }
+    }
+}
+
+impl From<&LiveConfig> for LiveTradeExecutorConfig {
+    fn from(value: &LiveConfig) -> Self {
+        Self {
+            tsl_step_size: value.tsl_step_size,
+            clean_up_trades_on_startup: value.clean_up_trades_on_startup,
+            clean_up_trades_on_shutdown: value.clean_up_trades_on_shutdown,
+        }
+    }
+}
+
+pub struct LiveTradeExecutor {
+    config: LiveTradeExecutorConfig,
     db: Arc<DbContext>,
     api: WrappedApiContext,
     update_tx: LiveTradeExecutorTransmiter,
@@ -51,8 +107,8 @@ pub struct LiveTradeExecutor {
 }
 
 impl LiveTradeExecutor {
-    pub fn new(
-        tsl_step_size: BoundedPercentage,
+    fn new(
+        config: LiveTradeExecutorConfig,
         db: Arc<DbContext>,
         api: WrappedApiContext,
         update_tx: LiveTradeExecutorTransmiter,
@@ -60,7 +116,7 @@ impl LiveTradeExecutor {
         handle: AbortOnDropHandle<()>,
     ) -> Arc<Self> {
         Arc::new(Self {
-            tsl_step_size,
+            config,
             db,
             api,
             update_tx,
@@ -135,7 +191,7 @@ impl LiveTradeExecutor {
 
         let mut new_trading_session = locked_ready_state.trading_session().to_owned();
 
-        new_trading_session.register_running_trade(self.tsl_step_size, trade, trade_tsl)?;
+        new_trading_session.register_running_trade(self.config.tsl_step_size, trade, trade_tsl)?;
 
         locked_ready_state
             .update_trading_session(new_trading_session)
@@ -180,7 +236,7 @@ impl LiveTradeExecutor {
                 }
             };
 
-            new_trading_session.close_trades(self.tsl_step_size, &closed_trades)?;
+            new_trading_session.close_trades(self.config.tsl_step_size, &closed_trades)?;
 
             for closed_trade in closed_trades {
                 // Ignore no-receiver errors
@@ -217,6 +273,13 @@ impl LiveTradeExecutor {
 
         handle.abort();
 
+        if !self.config.clean_up_trades_on_shutdown() {
+            self.state_manager
+                .update_status_not_ready(LiveTradeExecutorStatusNotReady::Shutdown)
+                .await;
+            return Ok(());
+        }
+
         let (res, new_status) = if self.state_manager.has_registered_running_trades().await {
             // Perform clean up if there are running trades registered
 
@@ -250,7 +313,8 @@ impl TradeExecutor for LiveTradeExecutor {
         balance_perc: BoundedPercentage,
         leverage: Leverage,
     ) -> Result<()> {
-        let trade_tsl = stoploss_mode.validate_trade_tsl(self.tsl_step_size, stoploss_perc)?;
+        let trade_tsl =
+            stoploss_mode.validate_trade_tsl(self.config.tsl_step_size, stoploss_perc)?;
 
         let risk_params = RiskParams::Long {
             stoploss_perc,
@@ -269,7 +333,8 @@ impl TradeExecutor for LiveTradeExecutor {
         balance_perc: BoundedPercentage,
         leverage: Leverage,
     ) -> Result<()> {
-        let trade_tsl = stoploss_mode.validate_trade_tsl(self.tsl_step_size, stoploss_perc)?;
+        let trade_tsl =
+            stoploss_mode.validate_trade_tsl(self.config.tsl_step_size, stoploss_perc)?;
 
         let risk_params = RiskParams::Short {
             stoploss_perc,
@@ -307,7 +372,7 @@ impl TradeExecutor for LiveTradeExecutor {
                 }
             };
 
-        new_trading_session.close_trades(self.tsl_step_size, &closed_trades)?;
+        new_trading_session.close_trades(self.config.tsl_step_size, &closed_trades)?;
 
         for closed_trade in closed_trades {
             // Ignore no-receiver errors
@@ -336,7 +401,7 @@ impl TradeExecutor for LiveTradeExecutor {
 }
 
 pub struct LiveTradeExecutorLauncher {
-    tsl_step_size: BoundedPercentage,
+    config: LiveTradeExecutorConfig,
     db: Arc<DbContext>,
     api: WrappedApiContext,
     update_tx: LiveTradeExecutorTransmiter,
@@ -346,7 +411,7 @@ pub struct LiveTradeExecutorLauncher {
 
 impl LiveTradeExecutorLauncher {
     pub fn new(
-        tsl_step_size: BoundedPercentage,
+        config: impl Into<LiveTradeExecutorConfig>,
         db: Arc<DbContext>,
         api: Arc<ApiContext>,
         sync_rx: SyncReceiver,
@@ -364,7 +429,7 @@ impl LiveTradeExecutorLauncher {
         let state_manager = LiveTradeExecutorStateManager::new(update_tx.clone());
 
         Ok(Self {
-            tsl_step_size,
+            config: config.into(),
             db,
             api,
             update_tx,
@@ -472,10 +537,13 @@ impl LiveTradeExecutorLauncher {
     }
 
     pub async fn launch(self) -> Result<Arc<LiveTradeExecutor>> {
-        let (_, _) = futures::try_join!(self.api.cancel_all_trades(), self.api.close_all_trades())?;
+        if self.config.clean_up_trades_on_startup() {
+            let (_, _) =
+                futures::try_join!(self.api.cancel_all_trades(), self.api.close_all_trades())?;
+        }
 
-        let _handle = Self::spawn_sync_processor(
-            self.tsl_step_size,
+        let handle = Self::spawn_sync_processor(
+            self.config.tsl_step_size,
             self.db.clone(),
             self.api.clone(),
             self.update_tx.clone(),
@@ -484,12 +552,12 @@ impl LiveTradeExecutorLauncher {
         );
 
         Ok(LiveTradeExecutor::new(
-            self.tsl_step_size,
+            self.config,
             self.db,
             self.api,
             self.update_tx,
             self.state_manager,
-            _handle,
+            handle,
         ))
     }
 }
