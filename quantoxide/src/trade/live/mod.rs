@@ -26,7 +26,7 @@ use crate::{
     util::{AbortOnDropHandle, Never},
 };
 
-use super::core::{Operator, TradeExecutor, TradingState, WrappedOperator};
+use super::core::{Operator, TradingState, WrappedOperator};
 
 pub mod error;
 pub mod executor;
@@ -414,11 +414,9 @@ impl LiveController {
             Err(e) => Err(e),
         };
 
-        // Close and cancel all trades
-
-        let close_all_res = self
+        let executor_shutdown_res = self
             .trade_executor
-            .close_all()
+            .shutdown()
             .await
             .map_err(|e| LiveError::Generic(e.to_string()));
 
@@ -437,7 +435,7 @@ impl LiveController {
         self.status_manager.update(LiveStatus::Shutdown);
 
         shutdown_res
-            .and(close_all_res)
+            .and(executor_shutdown_res)
             .and(signal_shutdown_res)
             .and(sync_shutdown_res)
     }
