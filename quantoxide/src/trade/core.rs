@@ -432,6 +432,20 @@ impl TradeTrailingStoploss {
 
         Ok(Self(stoploss_perc))
     }
+
+    pub fn prev_validated(tsl: BoundedPercentage) -> Self {
+        Self(tsl)
+    }
+
+    pub fn into_f64(self) -> f64 {
+        self.into()
+    }
+}
+
+impl From<TradeTrailingStoploss> for f64 {
+    fn from(value: TradeTrailingStoploss) -> Self {
+        value.0.into_f64()
+    }
 }
 
 impl From<TradeTrailingStoploss> for BoundedPercentage {
