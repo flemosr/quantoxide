@@ -6,14 +6,11 @@ use sqlx::{Pool, Postgres};
 
 use lnm_sdk::api::websocket::models::PriceTickLNM;
 
-use crate::{
-    db::models::{PartialPriceHistoryEntryLOCF, PriceTick},
-    indicators::IndicatorsEvaluator,
-};
+use crate::indicators::IndicatorsEvaluator;
 
 use super::super::{
     error::{DbError, Result},
-    models::PriceHistoryEntryLOCF,
+    models::{PartialPriceHistoryEntryLOCF, PriceHistoryEntryLOCF, PriceTick},
     repositories::PriceTicksRepository,
 };
 
