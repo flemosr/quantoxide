@@ -461,6 +461,8 @@ pub struct LiveConfig {
     re_sync_history_interval: time::Duration,
     signal_eval_interval: time::Duration,
     tsl_step_size: BoundedPercentage,
+    clean_up_trades_on_startup: bool,
+    clean_up_trades_on_shutdown: bool,
     restart_interval: time::Duration,
     shutdown_timeout: time::Duration,
 }
@@ -477,6 +479,8 @@ impl Default for LiveConfig {
             re_sync_history_interval: time::Duration::from_secs(300),
             signal_eval_interval: time::Duration::from_secs(1),
             tsl_step_size: BoundedPercentage::MIN,
+            clean_up_trades_on_startup: true,
+            clean_up_trades_on_shutdown: true,
             restart_interval: time::Duration::from_secs(10),
             shutdown_timeout: time::Duration::from_secs(6),
         }
@@ -516,9 +520,16 @@ impl LiveConfig {
         self.signal_eval_interval
     }
 
-    pub fn set_trailing_stoploss_step_size(mut self, tsl_step_size: BoundedPercentage) -> Self {
-        self.tsl_step_size = tsl_step_size;
-        self
+    pub fn trailing_stoploss_step_size(&self) -> BoundedPercentage {
+        self.tsl_step_size
+    }
+
+    pub fn clean_up_trades_on_startup(&self) -> bool {
+        self.clean_up_trades_on_startup
+    }
+
+    pub fn clean_up_trades_on_shutdown(&self) -> bool {
+        self.clean_up_trades_on_shutdown
     }
 
     pub fn restart_interval(&self) -> time::Duration {
@@ -566,6 +577,21 @@ impl LiveConfig {
 
     pub fn set_signal_eval_interval(mut self, secs: u64) -> Self {
         self.signal_eval_interval = time::Duration::from_secs(secs);
+        self
+    }
+
+    pub fn set_trailing_stoploss_step_size(mut self, tsl_step_size: BoundedPercentage) -> Self {
+        self.tsl_step_size = tsl_step_size;
+        self
+    }
+
+    pub fn set_clean_up_trades_on_startup(mut self, clean_up_trades_on_startup: bool) -> Self {
+        self.clean_up_trades_on_startup = clean_up_trades_on_startup;
+        self
+    }
+
+    pub fn set_clean_up_trades_on_shutdown(mut self, clean_up_trades_on_shutdown: bool) -> Self {
+        self.clean_up_trades_on_shutdown = clean_up_trades_on_shutdown;
         self
     }
 
