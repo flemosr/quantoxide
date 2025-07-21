@@ -55,16 +55,16 @@ pub enum SignalAction {
 }
 
 impl fmt::Display for SignalAction {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            SignalAction::Buy { price, strength } => {
+            Self::Buy { price, strength } => {
                 write!(f, "Buy(price: {:.1}, strength: {})", price, strength)
             }
-            SignalAction::Sell { price, strength } => {
+            Self::Sell { price, strength } => {
                 write!(f, "Sell(price: {:.1}, strength: {})", price, strength)
             }
-            SignalAction::Hold => write!(f, "Hold"),
-            SignalAction::Wait => write!(f, "Wait"),
+            Self::Hold => write!(f, "Hold"),
+            Self::Wait => write!(f, "Wait"),
         }
     }
 }
