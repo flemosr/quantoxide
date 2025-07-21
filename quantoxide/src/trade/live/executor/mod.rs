@@ -479,7 +479,7 @@ impl LiveTradeExecutorLauncher {
 
                     restored_trading_session
                 } else {
-                    match LiveTradingSession::new(db.as_ref(), &api).await {
+                    match LiveTradingSession::new(tsl_step_size, db.as_ref(), &api).await {
                         Ok(new_trading_session) => new_trading_session,
                         Err(e) => {
                             locked_state.update_status_not_ready(

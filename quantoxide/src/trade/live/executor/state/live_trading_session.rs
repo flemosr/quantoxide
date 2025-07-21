@@ -30,7 +30,12 @@ pub struct LiveTradingSession {
 }
 
 impl LiveTradingSession {
-    pub async fn new(db: &DbContext, api: &WrappedApiContext) -> LiveResult<Self> {
+    pub async fn new(
+        // TODO: we should probably store this as config
+        tsl_step_size: BoundedPercentage,
+        db: &DbContext,
+        api: &WrappedApiContext,
+    ) -> LiveResult<Self> {
         let (lastest_entry_time, lastest_entry_price) = db
             .price_ticks
             .get_latest_entry()
@@ -40,7 +45,7 @@ impl LiveTradingSession {
 
         let user = api.get_user().await?;
 
-        Ok(Self {
+        let mut session = Self {
             last_trade_time: None,
             balance: user.balance(),
             last_evaluation_time: lastest_entry_time,
@@ -50,7 +55,41 @@ impl LiveTradingSession {
             closed_len: 0,
             closed_pl: 0,
             closed_fees: 0,
-        })
+        };
+
+        // TODO: running trades recovery should be optional
+
+        let running_trades = api.get_trades_running().await?;
+
+        // Recover trades 'trailing stoploss' config from db
+
+        let mut registered_trades_map = db
+            .running_trades
+            .get_running_trades_map()
+            .await
+            .map_err(|e| LiveError::Generic(e.to_string()))?;
+
+        for trade in running_trades {
+            let trade_tsl = registered_trades_map
+                .remove(&trade.id())
+                .and_then(|inner_opt| inner_opt.clone());
+
+            session.register_running_trade(tsl_step_size, trade, trade_tsl)?;
+        }
+
+        if !registered_trades_map.is_empty() {
+            // Trades still on the map are not running
+
+            let dangling_registered_trades: Vec<Uuid> =
+                registered_trades_map.keys().cloned().collect();
+
+            db.running_trades
+                .remove_running_trades(dangling_registered_trades.as_slice())
+                .await
+                .map_err(|e| LiveError::Generic(e.to_string()))?;
+        }
+
+        Ok(session)
     }
 
     pub fn last_trade_time(&self) -> Option<DateTime<Utc>> {
