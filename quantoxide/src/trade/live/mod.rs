@@ -54,17 +54,17 @@ pub enum LiveStatus {
 impl fmt::Display for LiveStatus {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            LiveStatus::NotInitiated => write!(f, "Not initiated"),
-            LiveStatus::Starting => write!(f, "Starting"),
-            LiveStatus::WaitingForSignal(status) => write!(f, "Waiting for signal ({status})"),
-            LiveStatus::WaitingTradeExecutor(status) => {
+            Self::NotInitiated => write!(f, "Not initiated"),
+            Self::Starting => write!(f, "Starting"),
+            Self::WaitingForSignal(status) => write!(f, "Waiting for signal ({status})"),
+            Self::WaitingTradeExecutor(status) => {
                 write!(f, "Waiting trade executor ({status})")
             }
-            LiveStatus::Running => write!(f, "Running"),
-            LiveStatus::Failed(error) => write!(f, "Failed: {error}"),
-            LiveStatus::Restarting => write!(f, "Restarting"),
-            LiveStatus::ShutdownInitiated => write!(f, "Shutdown initiated"),
-            LiveStatus::Shutdown => write!(f, "Shutdown"),
+            Self::Running => write!(f, "Running"),
+            Self::Failed(error) => write!(f, "Failed: {error}"),
+            Self::Restarting => write!(f, "Restarting"),
+            Self::ShutdownInitiated => write!(f, "Shutdown initiated"),
+            Self::Shutdown => write!(f, "Shutdown"),
         }
     }
 }
