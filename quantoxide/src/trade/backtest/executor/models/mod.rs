@@ -1,18 +1,21 @@
 use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
+use uuid::Uuid;
 
 use lnm_sdk::api::rest::models::{
-    BoundedPercentage, Leverage, Margin, Price, Quantity, SATS_PER_BTC, Trade, TradeExecutionType,
-    TradeSide, estimate_liquidation_price, estimate_pl,
+    BoundedPercentage, Leverage, Margin, Price, Quantity, SATS_PER_BTC, Trade, TradeClosed,
+    TradeExecutionType, TradeRunning, TradeSide, estimate_liquidation_price, pl_estimate,
 };
 
-use super::super::super::core::TradeExt;
-
-use super::error::{Result, SimulatedTradeExecutorError};
+use super::{
+    super::super::core::TradeExt,
+    error::{Result, SimulatedTradeExecutorError},
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SimulatedTradeRunning {
+    id: Uuid,
     side: TradeSide,
     entry_time: DateTime<Utc>,
     entry_price: Price,
@@ -90,6 +93,7 @@ impl SimulatedTradeRunning {
             (fee_calc * quantity.into_f64() / liquidation.into_f64()).floor() as u64;
 
         Ok(Arc::new(Self {
+            id: Uuid::new_v4(),
             side,
             entry_time,
             entry_price,
@@ -104,10 +108,7 @@ impl SimulatedTradeRunning {
         }))
     }
 
-    pub fn from_trade_with_new_stoploss(
-        trade: Arc<Self>,
-        new_stoploss: Price,
-    ) -> Result<Arc<Self>> {
+    pub fn from_trade_with_new_stoploss(trade: &Self, new_stoploss: Price) -> Result<Arc<Self>> {
         match trade.side {
             TradeSide::Buy => {
                 if new_stoploss < trade.liquidation {
@@ -140,6 +141,7 @@ impl SimulatedTradeRunning {
         }
 
         Ok(Arc::new(Self {
+            id: trade.id,
             side: trade.side,
             entry_time: trade.entry_time,
             entry_price: trade.entry_price,
@@ -154,10 +156,6 @@ impl SimulatedTradeRunning {
         }))
     }
 
-    pub fn pl(&self, current_price: Price) -> i64 {
-        estimate_pl(self.side, self.quantity, self.entry_price, current_price)
-    }
-
     #[cfg(test)]
     fn closing_fee_est(&self, fee_perc: BoundedPercentage, close_price: Price) -> u64 {
         let fee_calc = SATS_PER_BTC * fee_perc.into_f64() / 100.;
@@ -167,12 +165,16 @@ impl SimulatedTradeRunning {
 
     #[cfg(test)]
     fn net_pl_est(&self, fee_perc: BoundedPercentage, current_price: Price) -> i64 {
-        let pl = self.pl(current_price);
+        let pl = self.pl_estimate(current_price);
         pl - self.opening_fee as i64 - self.closing_fee_est(fee_perc, current_price) as i64
     }
 }
 
 impl Trade for SimulatedTradeRunning {
+    fn id(&self) -> Uuid {
+        self.id
+    }
+
     fn trade_type(&self) -> TradeExecutionType {
         TradeExecutionType::Market
     }
@@ -262,10 +264,17 @@ impl Trade for SimulatedTradeRunning {
     }
 }
 
+impl TradeRunning for SimulatedTradeRunning {
+    fn pl_estimate(&self, market_price: Price) -> i64 {
+        pl_estimate(self.side(), self.quantity(), self.price(), market_price)
+    }
+}
+
 impl TradeExt for SimulatedTradeRunning {}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SimulatedTradeClosed {
+    id: Uuid,
     side: TradeSide,
     entry_time: DateTime<Utc>,
     entry_price: Price,
@@ -294,6 +303,7 @@ impl SimulatedTradeClosed {
             (fee_calc * running.quantity.into_f64() / close_price.into_f64()).floor() as u64;
 
         Arc::new(SimulatedTradeClosed {
+            id: running.id,
             side: running.side,
             entry_time: running.entry_time,
             entry_price: running.entry_price,
@@ -311,10 +321,6 @@ impl SimulatedTradeClosed {
         })
     }
 
-    pub fn pl(&self) -> i64 {
-        estimate_pl(self.side, self.quantity, self.entry_price, self.close_price)
-    }
-
     #[cfg(test)]
     fn net_pl(&self) -> i64 {
         let pl = self.pl();
@@ -323,6 +329,10 @@ impl SimulatedTradeClosed {
 }
 
 impl Trade for SimulatedTradeClosed {
+    fn id(&self) -> Uuid {
+        self.id
+    }
+
     fn trade_type(&self) -> TradeExecutionType {
         TradeExecutionType::Market
     }
@@ -409,6 +419,12 @@ impl Trade for SimulatedTradeClosed {
 
     fn closed(&self) -> bool {
         true
+    }
+}
+
+impl TradeClosed for SimulatedTradeClosed {
+    fn pl(&self) -> i64 {
+        pl_estimate(self.side, self.quantity, self.entry_price, self.close_price)
     }
 }
 
