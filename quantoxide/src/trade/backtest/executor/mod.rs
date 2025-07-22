@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, num::NonZeroU64, sync::Arc};
 
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
@@ -15,7 +15,7 @@ use super::super::{
         PriceTrigger, RiskParams, StoplossMode, TradeExecutor, TradeExt, TradeTrailingStoploss,
         TradingState,
     },
-    error::Result,
+    error::{Result, TradeError},
 };
 
 pub mod error;
@@ -340,6 +340,21 @@ impl TradeExecutor for SimulatedTradeExecutor {
 
         self.create_running(size, leverage, risk_params, trade_tsl)
             .await?;
+
+        Ok(())
+    }
+
+    async fn add_margin(&self, trade_id: Uuid, amount: NonZeroU64) -> Result<()> {
+        let mut state_guard = self.state.lock().await;
+
+        let Some((trade, _)) = state_guard.running.get_mut(&trade_id) else {
+            return Err(TradeError::Generic(format!(
+                "trade {trade_id} is not running"
+            )));
+        };
+
+        let updated_trade = SimulatedTradeRunning::from_trade_with_added_margin(trade, amount)?;
+        *trade = updated_trade;
 
         Ok(())
     }
