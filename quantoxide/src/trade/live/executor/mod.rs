@@ -1,4 +1,5 @@
 use std::{
+    num::NonZeroU64,
     result,
     sync::{Arc, Mutex},
 };
@@ -199,7 +200,7 @@ impl LiveTradeExecutor {
 
         let mut new_trading_session = locked_ready_state.trading_session().to_owned();
 
-        new_trading_session.register_running_trade(self.config.tsl_step_size, trade, trade_tsl)?;
+        new_trading_session.register_running_trade(trade, trade_tsl)?;
 
         locked_ready_state
             .update_trading_session(new_trading_session)
@@ -361,6 +362,40 @@ impl TradeExecutor for LiveTradeExecutor {
 
         self.open_trade(size, leverage, risk_params, trade_tsl)
             .await
+    }
+
+    async fn add_margin(&self, trade_id: Uuid, amount: NonZeroU64) -> Result<()> {
+        let locked_ready_state = self.state_manager.try_lock_ready_state().await?;
+
+        let trading_session = locked_ready_state.trading_session();
+
+        if trading_session.running().get(&trade_id).is_none() {
+            return Err(TradeError::Generic(format!(
+                "trade {trade_id} is not running"
+            )));
+        }
+
+        let updated_trade = match self.api.add_margin(trade_id, amount).await {
+            Ok(trade) => trade,
+            Err(e) => {
+                let new_status_not_ready = LiveTradeExecutorStatusNotReady::Failed(
+                    LiveError::Generic("api error".to_string()),
+                );
+                locked_ready_state.update_status_not_ready(new_status_not_ready);
+
+                return Err(e.into());
+            }
+        };
+
+        let mut new_trading_session = trading_session.to_owned();
+
+        new_trading_session.update_running_trade(updated_trade)?;
+
+        locked_ready_state
+            .update_trading_session(new_trading_session)
+            .await;
+
+        Ok(())
     }
 
     async fn close_trade(&self, trade_id: Uuid) -> Result<()> {
