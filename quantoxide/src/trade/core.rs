@@ -1,5 +1,6 @@
 use std::{
-    collections::BTreeMap,
+    cell::OnceCell,
+    collections::{BTreeMap, HashMap},
     fmt,
     panic::{self, AssertUnwindSafe},
     sync::Arc,
@@ -8,10 +9,11 @@ use std::{
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use futures::FutureExt;
+use uuid::Uuid;
 
 use lnm_sdk::api::rest::models::{
-    BoundedPercentage, Leverage, LnmTrade, LowerBoundedPercentage, Price, Trade, TradeSide,
-    estimate_pl,
+    BoundedPercentage, Leverage, LnmTrade, LowerBoundedPercentage, Price, Trade, TradeClosed,
+    TradeRunning, TradeSide,
 };
 
 use crate::{signal::core::Signal, util::DateTimeExt};
@@ -19,69 +21,109 @@ use crate::{signal::core::Signal, util::DateTimeExt};
 use super::error::{Result, TradeError};
 
 #[derive(Debug, Clone)]
+struct RunningStats {
+    long_len: usize,
+    long_margin: u64,
+    long_quantity: u64,
+    short_len: usize,
+    short_margin: u64,
+    short_quantity: u64,
+    pl: i64,
+    fees: u64,
+}
+
+#[derive(Debug, Clone)]
 pub struct TradingState {
     last_tick_time: DateTime<Utc>,
     balance: u64,
-    market_price: f64,
+    market_price: Price,
     last_trade_time: Option<DateTime<Utc>>,
-    running: Vec<Arc<dyn Trade>>,
-    running_long_len: usize,
-    running_long_margin: u64,
-    running_long_quantity: u64,
-    running_short_len: usize,
-    running_short_margin: u64,
-    running_short_quantity: u64,
-    running_pl: i64,
-    running_fees: u64,
+    running: HashMap<Uuid, (Arc<dyn TradeRunning>, Option<TradeTrailingStoploss>)>,
+    running_stats: OnceCell<RunningStats>,
+    running_sorted: OnceCell<Vec<(Arc<dyn TradeRunning>, Option<TradeTrailingStoploss>)>>,
     closed_len: usize,
     closed_pl: i64,
     closed_fees: u64,
 }
 
 impl TradingState {
-    pub fn new(
+    pub(crate) fn new(
         last_tick_time: DateTime<Utc>,
         balance: u64,
-        market_price: f64,
+        market_price: Price,
         last_trade_time: Option<DateTime<Utc>>,
-        mut running: Vec<Arc<dyn Trade>>,
-        running_long_len: usize,
-        running_long_margin: u64,
-        running_long_quantity: u64,
-        running_short_len: usize,
-        running_short_margin: u64,
-        running_short_quantity: u64,
-        running_pl: i64,
-        running_fees: u64,
+        running: HashMap<Uuid, (Arc<dyn TradeRunning>, Option<TradeTrailingStoploss>)>,
         closed_len: usize,
         closed_pl: i64,
         closed_fees: u64,
-    ) -> Result<Self> {
-        if running.iter().any(|trade| !trade.running()) {
-            return Err(TradeError::Generic(
-                "`running` contain a trade that is not running".to_string(),
-            ));
-        }
-
-        running.sort_by(|a, b| b.creation_ts().cmp(&a.creation_ts()));
-
-        Ok(Self {
+    ) -> Self {
+        Self {
             last_tick_time,
             balance,
             market_price,
             last_trade_time,
             running,
-            running_long_len,
-            running_long_margin,
-            running_long_quantity,
-            running_short_len,
-            running_short_margin,
-            running_short_quantity,
-            running_pl,
-            running_fees,
+            running_stats: OnceCell::new(),
+            running_sorted: OnceCell::new(),
             closed_len,
             closed_pl,
             closed_fees,
+        }
+    }
+
+    fn get_running_stats(&self) -> &RunningStats {
+        self.running_stats.get_or_init(|| {
+            let mut long_len = 0;
+            let mut long_margin = 0;
+            let mut long_quantity = 0;
+            let mut short_len = 0;
+            let mut short_margin = 0;
+            let mut short_quantity = 0;
+            let mut pl = 0;
+            let mut fees = 0;
+
+            for (trade, _) in self.running.values() {
+                match trade.side() {
+                    TradeSide::Buy => {
+                        long_len += 1;
+                        long_margin +=
+                            trade.margin().into_u64() + trade.maintenance_margin().max(0) as u64;
+                        long_quantity += trade.quantity().into_u64();
+                    }
+                    TradeSide::Sell => {
+                        short_len += 1;
+                        short_margin +=
+                            trade.margin().into_u64() + trade.maintenance_margin().max(0) as u64;
+                        short_quantity += trade.quantity().into_u64();
+                    }
+                }
+                pl += trade.pl_estimate(self.market_price);
+                fees += trade.opening_fee();
+            }
+
+            RunningStats {
+                long_len,
+                long_margin,
+                long_quantity,
+                short_len,
+                short_margin,
+                short_quantity,
+                pl,
+                fees,
+            }
+        })
+    }
+
+    fn get_running_sorted(&self) -> &Vec<(Arc<dyn TradeRunning>, Option<TradeTrailingStoploss>)> {
+        self.running_sorted.get_or_init(|| {
+            let mut running_vec = Vec::with_capacity(self.running.len());
+
+            for (trade, tsl) in self.running.values() {
+                running_vec.push((trade.clone(), *tsl));
+            }
+
+            running_vec.sort_by(|a, b| b.0.creation_ts().cmp(&a.0.creation_ts()));
+            running_vec
         })
     }
 
@@ -93,7 +135,7 @@ impl TradingState {
         self.balance
     }
 
-    pub fn market_price(&self) -> f64 {
+    pub fn market_price(&self) -> Price {
         self.market_price
     }
 
@@ -101,54 +143,57 @@ impl TradingState {
         self.last_trade_time
     }
 
-    /// Returns the number of running long trades
+    pub fn running(
+        &self,
+    ) -> &HashMap<Uuid, (Arc<dyn TradeRunning>, Option<TradeTrailingStoploss>)> {
+        &self.running
+    }
+
     pub fn running_long_len(&self) -> usize {
-        self.running_long_len
+        self.get_running_stats().long_len
     }
 
     /// Returns the locked margin for long positions, if available
     pub fn running_long_margin(&self) -> u64 {
-        self.running_long_margin
+        self.get_running_stats().long_margin
     }
 
     pub fn running_long_quantity(&self) -> u64 {
-        self.running_long_quantity
+        self.get_running_stats().long_quantity
     }
 
-    /// Returns the number of running short trades
     pub fn running_short_len(&self) -> usize {
-        self.running_short_len
+        self.get_running_stats().short_len
     }
 
     /// Returns the locked margin for short positions, if available
     pub fn running_short_margin(&self) -> u64 {
-        self.running_short_margin
+        self.get_running_stats().short_margin
     }
 
     pub fn running_short_quantity(&self) -> u64 {
-        self.running_short_quantity
+        self.get_running_stats().short_quantity
     }
 
-    /// Returns the number of running trades
-    pub fn running_len(&self) -> usize {
-        self.running_long_len + self.running_short_len
+    pub fn running_margin(&self) -> u64 {
+        self.running_long_margin() + self.running_short_margin()
+    }
+
+    pub fn running_quantity(&self) -> u64 {
+        self.running_long_quantity() + self.running_short_quantity()
+    }
+
+    pub fn running_pl(&self) -> i64 {
+        self.get_running_stats().pl
+    }
+
+    pub fn running_fees(&self) -> u64 {
+        self.get_running_stats().fees
     }
 
     /// Returns the number of closed trades
     pub fn closed_len(&self) -> usize {
         self.closed_len
-    }
-
-    pub fn running_pl(&self) -> i64 {
-        self.running_pl
-    }
-
-    pub fn running_fees(&self) -> u64 {
-        self.running_fees
-    }
-
-    pub fn running_total_margin(&self) -> u64 {
-        self.running_long_margin + self.running_short_margin
     }
 
     pub fn closed_pl(&self) -> i64 {
@@ -164,15 +209,11 @@ impl TradingState {
     }
 
     pub fn pl(&self) -> i64 {
-        self.running_pl + self.closed_pl
+        self.running_pl() + self.closed_pl
     }
 
-    pub fn fees_estimated(&self) -> u64 {
-        self.running_fees + self.closed_fees
-    }
-
-    pub fn net_pl_estimated(&self) -> i64 {
-        self.pl() - self.fees_estimated() as i64
+    pub fn fees(&self) -> u64 {
+        self.running_fees() + self.closed_fees
     }
 
     pub fn summary(&self) -> String {
@@ -193,21 +234,21 @@ impl TradingState {
 
         result.push_str("running_positions:\n");
         result.push_str("  long:\n");
-        result.push_str(&format!("    trades: {}\n", self.running_long_len));
-        result.push_str(&format!("    margin: {}\n", self.running_long_margin));
-        result.push_str(&format!("    quantity: {}\n", self.running_long_quantity));
+        result.push_str(&format!("    trades: {}\n", self.running_long_len()));
+        result.push_str(&format!("    margin: {}\n", self.running_long_margin()));
+        result.push_str(&format!("    quantity: {}\n", self.running_long_quantity()));
         result.push_str("  short:\n");
-        result.push_str(&format!("    trades: {}\n", self.running_short_len));
-        result.push_str(&format!("    margin: {}\n", self.running_short_margin));
-        result.push_str(&format!("    quantity: {}\n", self.running_short_quantity));
+        result.push_str(&format!("    trades: {}\n", self.running_short_len()));
+        result.push_str(&format!("    margin: {}\n", self.running_short_margin()));
+        result.push_str(&format!(
+            "    quantity: {}\n",
+            self.running_short_quantity()
+        ));
 
         result.push_str("running_metrics:\n");
-        result.push_str(&format!("  pl: {}\n", self.running_pl));
-        result.push_str(&format!("  fees: {}\n", self.running_fees));
-        result.push_str(&format!(
-            "  total_margin: {}\n",
-            self.running_total_margin()
-        ));
+        result.push_str(&format!("  pl: {}\n", self.running_pl()));
+        result.push_str(&format!("  fees: {}\n", self.running_fees()));
+        result.push_str(&format!("  total_margin: {}\n", self.running_margin()));
 
         result.push_str("closed_positions:\n");
         result.push_str(&format!("  trades: {}\n", self.closed_len));
@@ -218,20 +259,23 @@ impl TradingState {
     }
 
     pub fn running_trades_table(&self) -> String {
-        if self.running.is_empty() {
+        let sorted_running = self.get_running_sorted();
+
+        if sorted_running.is_empty() {
             return "No running trades.".to_string();
         }
 
         let mut table = String::new();
 
         table.push_str(&format!(
-            "{:>14} | {:>5} | {:>11} | {:>11} | {:>11} | {:>11} | {:>11} | {:>8} | {:>11} | {:>11} | {:>11}",
+            "{:>14} | {:>5} | {:>11} | {:>11} | {:>11} | {:>11} | {:>5} | {:>11} | {:>8} | {:>11} | {:>11} | {:>11}",
             "creation_time",
             "side",
             "quantity",
             "price",
             "liquidation",
             "stoploss",
+            "TSL",
             "takeprofit",
             "leverage",
             "margin",
@@ -239,9 +283,9 @@ impl TradingState {
             "fees"
         ));
 
-        table.push_str(&format!("\n{}", "-".repeat(145)));
+        table.push_str(&format!("\n{}", "-".repeat(153)));
 
-        for trade in &self.running {
+        for (trade, tsl) in sorted_running {
             let creation_time = trade
                 .creation_ts()
                 .with_timezone(&chrono::Local)
@@ -249,26 +293,23 @@ impl TradingState {
             let stoploss_str = trade
                 .stoploss()
                 .map_or("N/A".to_string(), |sl| format!("{:.1}", sl));
+            let tsl_str = tsl.map_or("N/A".to_string(), |tsl| format!("{:.1}%", tsl.into_f64()));
             let takeprofit_str = trade
                 .takeprofit()
                 .map_or("N/A".to_string(), |sl| format!("{:.1}", sl));
             let total_margin = trade.margin().into_i64() + trade.maintenance_margin().max(0);
-            let pl = estimate_pl(
-                trade.side(),
-                trade.quantity(),
-                trade.price(),
-                Price::clamp_from(self.market_price()),
-            );
+            let pl = trade.pl_estimate(self.market_price);
             let total_fees = trade.opening_fee() + trade.closing_fee();
 
             table.push_str(&format!(
-                "\n{:>14} | {:>5} | {:>11} | {:>11.1} | {:>11.1} | {:>11} | {:>11} | {:>8.2} | {:>11} | {:>11} | {:>11}",
+                "\n{:>14} | {:>5} | {:>11} | {:>11.1} | {:>11.1} | {:>11} | {:>5} | {:>11} | {:>8.2} | {:>11} | {:>11} | {:>11}",
                 creation_time,
                 trade.side(),
                 trade.quantity(),
                 trade.price(),
                 trade.liquidation(),
                 stoploss_str,
+                tsl_str,
                 takeprofit_str,
                 trade.leverage(),
                 total_margin,
@@ -291,9 +332,9 @@ impl fmt::Display for TradingState {
     }
 }
 
-pub struct ClosedTradeHistory<T: Trade>(BTreeMap<DateTime<Utc>, T>);
+pub struct ClosedTradeHistory<T: TradeClosed>(BTreeMap<DateTime<Utc>, T>);
 
-impl<T: Trade> ClosedTradeHistory<T> {
+impl<T: TradeClosed> ClosedTradeHistory<T> {
     pub fn new() -> Self {
         Self(BTreeMap::new())
     }
@@ -346,7 +387,7 @@ impl<T: Trade> ClosedTradeHistory<T> {
                 .with_timezone(&chrono::Local)
                 .format("%y-%m-%d %H:%M");
 
-            let pl = estimate_pl(trade.side(), trade.quantity(), trade.price(), exit_price);
+            let pl = trade.pl();
             let total_fees = trade.opening_fee() + trade.closing_fee();
             let net_pl = pl - total_fees as i64;
 
