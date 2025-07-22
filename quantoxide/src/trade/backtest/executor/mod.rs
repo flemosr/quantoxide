@@ -25,6 +25,7 @@ use error::SimulatedTradeExecutorError;
 use models::{SimulatedTradeClosed, SimulatedTradeRunning};
 
 enum Close {
+    Single(Uuid),
     Side(TradeSide),
     All,
 }
@@ -226,6 +227,7 @@ impl SimulatedTradeExecutor {
 
         for (trade, trade_tsl) in state_guard.running.values() {
             let should_be_closed = match &close {
+                Close::Single(id) if *id == trade.id() => true,
                 Close::Side(side) if *side == trade.side() => true,
                 Close::All => true,
                 _ => false,
@@ -352,21 +354,23 @@ impl TradeExecutor for SimulatedTradeExecutor {
         Ok(())
     }
 
-    async fn close_longs(&self) -> Result<()> {
-        let _ = self.close_running(TradeSide::Buy.into()).await?;
+    async fn close_trade(&self, trade_id: Uuid) -> Result<()> {
+        self.close_running(Close::Single(trade_id)).await?;
+        Ok(())
+    }
 
+    async fn close_longs(&self) -> Result<()> {
+        self.close_running(TradeSide::Buy.into()).await?;
         Ok(())
     }
 
     async fn close_shorts(&self) -> Result<()> {
-        let _ = self.close_running(TradeSide::Sell.into()).await?;
-
+        self.close_running(TradeSide::Sell.into()).await?;
         Ok(())
     }
 
     async fn close_all(&self) -> Result<()> {
-        let _ = self.close_running(Close::All).await?;
-
+        self.close_running(Close::All).await?;
         Ok(())
     }
 
