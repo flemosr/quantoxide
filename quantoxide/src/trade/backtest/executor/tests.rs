@@ -26,7 +26,7 @@ async fn test_simulated_trade_executor_long_profit() -> Result<()> {
     let state = executor.trading_state().await?;
     assert_eq!(state.last_tick_time(), start_time);
     assert_eq!(state.balance(), start_balance);
-    assert_eq!(state.market_price(), market_price);
+    assert_eq!(state.market_price().into_f64(), market_price);
     assert_eq!(state.last_trade_time(), None);
     assert_eq!(state.running_long_len(), 0);
     assert_eq!(state.running_long_margin(), 0);
@@ -46,7 +46,7 @@ async fn test_simulated_trade_executor_long_profit() -> Result<()> {
     let state = executor.trading_state().await?;
     assert_eq!(state.last_tick_time(), time);
     assert_eq!(state.balance(), start_balance);
-    assert_eq!(state.market_price(), market_price);
+    assert_eq!(state.market_price().into_f64(), market_price);
     assert_eq!(state.last_trade_time(), None);
     assert_eq!(state.running_long_len(), 0);
     assert_eq!(state.running_long_margin(), 0);
@@ -81,7 +81,7 @@ async fn test_simulated_trade_executor_long_profit() -> Result<()> {
 
     assert_eq!(state.last_tick_time(), time);
     assert_eq!(state.balance(), expected_balance);
-    assert_eq!(state.market_price(), market_price);
+    assert_eq!(state.market_price().into_f64(), market_price);
     assert_eq!(state.last_trade_time(), Some(exp_trade_time));
     assert_eq!(state.running_long_len(), 1);
     assert!(
@@ -104,7 +104,7 @@ async fn test_simulated_trade_executor_long_profit() -> Result<()> {
     let state = executor.trading_state().await?;
     assert_eq!(state.last_tick_time(), time);
     assert_eq!(state.balance(), expected_balance);
-    assert_eq!(state.market_price(), market_price);
+    assert_eq!(state.market_price().into_f64(), market_price);
     assert_eq!(state.last_trade_time(), Some(exp_trade_time));
     assert_eq!(state.running_long_len(), 1);
     assert!(
@@ -132,7 +132,7 @@ async fn test_simulated_trade_executor_long_profit() -> Result<()> {
 
     assert_eq!(state.last_tick_time(), time);
     assert_eq!(state.balance(), expected_balance);
-    assert_eq!(state.market_price(), market_price);
+    assert_eq!(state.market_price().into_f64(), market_price);
     assert_eq!(state.last_trade_time(), Some(exp_trade_time));
     assert_eq!(state.running_long_len(), 0);
     assert_eq!(state.running_long_margin(), 0);
@@ -172,7 +172,7 @@ async fn test_simulated_trade_executor_long_loss() -> Result<()> {
     let state = executor.trading_state().await?;
     assert_eq!(state.last_tick_time(), start_time);
     assert_eq!(state.balance(), start_balance);
-    assert_eq!(state.market_price(), market_price);
+    assert_eq!(state.market_price().into_f64(), market_price);
     assert_eq!(state.last_trade_time(), None);
     assert_eq!(state.running_long_len(), 0);
     assert_eq!(state.running_long_margin(), 0);
@@ -224,7 +224,7 @@ async fn test_simulated_trade_executor_long_loss() -> Result<()> {
     let state = executor.trading_state().await?;
     assert_eq!(state.last_tick_time(), time);
     assert_eq!(state.balance(), expected_balance);
-    assert_eq!(state.market_price(), market_price);
+    assert_eq!(state.market_price().into_f64(), market_price);
     assert_eq!(state.last_trade_time(), Some(start_time));
     assert_eq!(state.running_long_len(), 1);
     assert!(
@@ -248,7 +248,7 @@ async fn test_simulated_trade_executor_long_loss() -> Result<()> {
 
     assert_eq!(state.last_tick_time(), time);
     assert_eq!(state.balance(), expected_balance);
-    assert_eq!(state.market_price(), market_price);
+    assert_eq!(state.market_price().into_f64(), market_price);
     assert_eq!(state.last_trade_time(), Some(start_time));
     assert_eq!(state.running_long_len(), 0); // Trade should be closed by stoploss
     assert_eq!(state.running_long_margin(), 0);
@@ -286,7 +286,7 @@ async fn test_simulated_trade_executor_short_profit() -> Result<()> {
     let state = executor.trading_state().await?;
     assert_eq!(state.last_tick_time(), start_time);
     assert_eq!(state.balance(), start_balance);
-    assert_eq!(state.market_price(), market_price);
+    assert_eq!(state.market_price().into_f64(), market_price);
     assert_eq!(state.last_trade_time(), None);
     assert_eq!(state.running_long_len(), 0);
     assert_eq!(state.running_long_margin(), 0);
@@ -321,7 +321,7 @@ async fn test_simulated_trade_executor_short_profit() -> Result<()> {
     assert_eq!(state.last_tick_time(), start_time);
     assert_eq!(state.balance(), expected_balance);
     assert_eq!(state.last_trade_time(), Some(start_time));
-    assert_eq!(state.market_price(), market_price);
+    assert_eq!(state.market_price().into_f64(), market_price);
     assert_eq!(state.last_trade_time(), Some(start_time));
     assert_eq!(state.running_long_len(), 0);
     assert_eq!(state.running_long_margin(), 0);
@@ -344,7 +344,7 @@ async fn test_simulated_trade_executor_short_profit() -> Result<()> {
     let state = executor.trading_state().await?;
     assert_eq!(state.last_tick_time(), time);
     assert_eq!(state.balance(), expected_balance);
-    assert_eq!(state.market_price(), market_price);
+    assert_eq!(state.market_price().into_f64(), market_price);
     assert_eq!(state.last_trade_time(), Some(start_time));
     assert_eq!(state.running_short_len(), 1);
     assert!(
@@ -371,7 +371,7 @@ async fn test_simulated_trade_executor_short_profit() -> Result<()> {
 
     assert_eq!(state.last_tick_time(), time);
     assert_eq!(state.balance(), expected_balance);
-    assert_eq!(state.market_price(), market_price);
+    assert_eq!(state.market_price().into_f64(), market_price);
     assert_eq!(state.last_trade_time(), Some(start_time));
     assert_eq!(state.running_short_len(), 0); // Trade should be closed by takeprofit
     assert_eq!(state.running_short_margin(), 0);
@@ -409,7 +409,7 @@ async fn test_simulated_trade_executor_short_loss() -> Result<()> {
     let state = executor.trading_state().await?;
     assert_eq!(state.last_tick_time(), start_time);
     assert_eq!(state.balance(), start_balance);
-    assert_eq!(state.market_price(), market_price);
+    assert_eq!(state.market_price().into_f64(), market_price);
     assert_eq!(state.last_trade_time(), None);
     assert_eq!(state.running_long_len(), 0);
     assert_eq!(state.running_long_margin(), 0);
@@ -461,7 +461,7 @@ async fn test_simulated_trade_executor_short_loss() -> Result<()> {
     let state = executor.trading_state().await?;
     assert_eq!(state.last_tick_time(), time);
     assert_eq!(state.balance(), expected_balance);
-    assert_eq!(state.market_price(), market_price);
+    assert_eq!(state.market_price().into_f64(), market_price);
     assert_eq!(state.last_trade_time(), Some(start_time));
     assert_eq!(state.running_short_len(), 1);
     assert!(
@@ -485,7 +485,7 @@ async fn test_simulated_trade_executor_short_loss() -> Result<()> {
 
     assert_eq!(state.last_tick_time(), time);
     assert_eq!(state.balance(), expected_balance);
-    assert_eq!(state.market_price(), market_price);
+    assert_eq!(state.market_price().into_f64(), market_price);
     assert_eq!(state.last_trade_time(), Some(start_time));
     assert_eq!(state.running_short_len(), 0); // Trade should be closed by stoploss
     assert_eq!(state.running_short_margin(), 0);
@@ -536,7 +536,7 @@ async fn test_simulated_trade_executor_trailing_stoploss_long() {
 
     assert_eq!(state.last_tick_time(), start_time);
     assert_eq!(state.balance(), expected_balance);
-    assert_eq!(state.market_price(), market_price);
+    assert_eq!(state.market_price().into_f64(), market_price);
     assert_eq!(state.running_long_len(), 1);
     assert_eq!(state.running_short_len(), 0);
     assert_eq!(state.closed_len(), 0);
@@ -602,7 +602,7 @@ async fn test_simulated_trade_executor_trailing_stoploss_short() {
 
     assert_eq!(state.last_tick_time(), start_time);
     assert_eq!(state.balance(), expected_balance);
-    assert_eq!(state.market_price(), market_price);
+    assert_eq!(state.market_price().into_f64(), market_price);
     assert_eq!(state.running_long_len(), 0);
     assert_eq!(state.running_short_len(), 1);
     assert_eq!(state.closed_len(), 0);
