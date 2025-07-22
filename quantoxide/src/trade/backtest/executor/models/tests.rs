@@ -9,17 +9,17 @@ fn get_lnm_fee() -> BoundedPercentage {
 #[test]
 fn test_long_liquidation_calculation() {
     let entry_price = Price::try_from(90_000.0).unwrap();
-    let quantity = Quantity::try_from(10).unwrap();
+    let size = Quantity::try_from(10).unwrap().into();
     let leverage = Leverage::try_from(10.0).unwrap();
 
     let trade = SimulatedTradeRunning::new(
         TradeSide::Buy,
+        size,
+        leverage,
         Utc::now(),
         entry_price,
         Price::try_from(85_000.0).unwrap(),
         Price::try_from(95_000.0).unwrap(),
-        quantity,
-        leverage,
         get_lnm_fee(),
     )
     .unwrap();
@@ -32,17 +32,17 @@ fn test_long_liquidation_calculation() {
 #[test]
 fn test_short_liquidation_calculation() {
     let entry_price = Price::try_from(90_000.0).unwrap();
-    let quantity = Quantity::try_from(10).unwrap();
+    let size = Quantity::try_from(10).unwrap().into();
     let leverage = Leverage::try_from(10.0).unwrap();
 
     let trade = SimulatedTradeRunning::new(
         TradeSide::Sell,
+        size,
+        leverage,
         Utc::now(),
         entry_price,
         Price::try_from(95_000.0).unwrap(),
         Price::try_from(85_000.0).unwrap(),
-        quantity,
-        leverage,
         get_lnm_fee(),
     )
     .unwrap();
@@ -55,17 +55,17 @@ fn test_short_liquidation_calculation() {
 #[test]
 fn test_short_liquidation_calculation_max_price() {
     let entry_price = Price::try_from(90_000.0).unwrap();
-    let quantity = Quantity::try_from(10).unwrap();
+    let size = Quantity::try_from(10).unwrap().into();
     let leverage = Leverage::try_from(1).unwrap();
 
     let trade = SimulatedTradeRunning::new(
         TradeSide::Sell,
+        size,
+        leverage,
         Utc::now(),
         entry_price,
         Price::try_from(95_000.0).unwrap(),
         Price::try_from(85_000.0).unwrap(),
-        quantity,
-        leverage,
         get_lnm_fee(),
     )
     .unwrap();
@@ -78,19 +78,19 @@ fn test_short_liquidation_calculation_max_price() {
 #[test]
 fn test_long_stoploss_validation() {
     let entry_price = Price::try_from(90_000.0).unwrap();
-    let quantity = Quantity::try_from(10).unwrap();
+    let size = Quantity::try_from(10).unwrap().into();
     let leverage = Leverage::try_from(10.0).unwrap();
     // From test_long_liquidation_calculation, we know liquidation is at 81,819.0
 
     // Test: Stoploss must be below entry price for long positions
     let result = SimulatedTradeRunning::new(
         TradeSide::Buy,
+        size,
+        leverage,
         Utc::now(),
         entry_price,
         Price::try_from(95_000.0).unwrap(), // Invalid: above entry price
         Price::try_from(100_000.0).unwrap(),
-        quantity,
-        leverage,
         get_lnm_fee(),
     );
     assert!(result.is_err());
@@ -98,12 +98,12 @@ fn test_long_stoploss_validation() {
     // Test: Stoploss cannot be equal to entry price
     let result = SimulatedTradeRunning::new(
         TradeSide::Buy,
+        size,
+        leverage,
         Utc::now(),
         entry_price,
         Price::try_from(90_000.0).unwrap(), // Invalid: equal to entry
         Price::try_from(100_000.0).unwrap(),
-        quantity,
-        leverage,
         get_lnm_fee(),
     );
     assert!(result.is_err());
@@ -111,12 +111,12 @@ fn test_long_stoploss_validation() {
     // Test: Stoploss cannot be below liquidation price
     let result = SimulatedTradeRunning::new(
         TradeSide::Buy,
+        size,
+        leverage,
         Utc::now(),
         entry_price,
         Price::try_from(81_000.0).unwrap(), // Invalid: below liquidation
         Price::try_from(100_000.0).unwrap(),
-        quantity,
-        leverage,
         get_lnm_fee(),
     );
     assert!(result.is_err());
@@ -124,12 +124,12 @@ fn test_long_stoploss_validation() {
     // Test: Valid long stoploss (between liquidation and entry)
     let result = SimulatedTradeRunning::new(
         TradeSide::Buy,
+        size,
+        leverage,
         Utc::now(),
         entry_price,
         Price::try_from(85_000.0).unwrap(), // Valid: above liquidation, below entry
         Price::try_from(100_000.0).unwrap(),
-        quantity,
-        leverage,
         get_lnm_fee(),
     );
     assert!(result.is_ok());
@@ -138,19 +138,19 @@ fn test_long_stoploss_validation() {
 #[test]
 fn test_long_takeprofit_validation() {
     let entry_price = Price::try_from(90_000.0).unwrap();
-    let quantity = Quantity::try_from(10).unwrap();
+    let size = Quantity::try_from(10).unwrap().into();
     let leverage = Leverage::try_from(10.0).unwrap();
     let valid_stoploss = Price::try_from(85_000.0).unwrap();
 
     // Test: Takeprofit must be above entry price for long positions
     let result = SimulatedTradeRunning::new(
         TradeSide::Buy,
+        size,
+        leverage,
         Utc::now(),
         entry_price,
         valid_stoploss,
         Price::try_from(85_000.0).unwrap(), // Invalid: below entry
-        quantity,
-        leverage,
         get_lnm_fee(),
     );
     assert!(result.is_err());
@@ -158,12 +158,12 @@ fn test_long_takeprofit_validation() {
     // Test: Takeprofit cannot be equal to entry price
     let result = SimulatedTradeRunning::new(
         TradeSide::Buy,
+        size,
+        leverage,
         Utc::now(),
         entry_price,
         valid_stoploss,
         Price::try_from(90_000.0).unwrap(), // Invalid: equal to entry
-        quantity,
-        leverage,
         get_lnm_fee(),
     );
     assert!(result.is_err());
@@ -171,12 +171,12 @@ fn test_long_takeprofit_validation() {
     // Test: Valid long takeprofit
     let result = SimulatedTradeRunning::new(
         TradeSide::Buy,
+        size,
+        leverage,
         Utc::now(),
         entry_price,
         valid_stoploss,
         Price::try_from(95_000.0).unwrap(), // Valid: above entry
-        quantity,
-        leverage,
         get_lnm_fee(),
     );
     assert!(result.is_ok());
@@ -185,19 +185,19 @@ fn test_long_takeprofit_validation() {
 #[test]
 fn test_short_stoploss_validation() {
     let entry_price = Price::try_from(90_000.0).unwrap();
-    let quantity = Quantity::try_from(10).unwrap();
+    let size = Quantity::try_from(10).unwrap().into();
     let leverage = Leverage::try_from(10.0).unwrap();
     // From test_short_liquidation_calculation, we know liquidation is at 99,999.0
 
     // Test: Stoploss must be above entry price for short positions
     let result = SimulatedTradeRunning::new(
         TradeSide::Sell,
+        size,
+        leverage,
         Utc::now(),
         entry_price,
         Price::try_from(85_000.0).unwrap(), // Invalid: below entry
         Price::try_from(80_000.0).unwrap(),
-        quantity,
-        leverage,
         get_lnm_fee(),
     );
     assert!(result.is_err());
@@ -205,12 +205,12 @@ fn test_short_stoploss_validation() {
     // Test: Stoploss cannot be equal to entry price
     let result = SimulatedTradeRunning::new(
         TradeSide::Sell,
+        size,
+        leverage,
         Utc::now(),
         entry_price,
         Price::try_from(90_000.0).unwrap(), // Invalid: equal to entry
         Price::try_from(85_000.0).unwrap(),
-        quantity,
-        leverage,
         get_lnm_fee(),
     );
     assert!(result.is_err());
@@ -218,12 +218,12 @@ fn test_short_stoploss_validation() {
     // Test: Stoploss cannot be above liquidation price
     let result = SimulatedTradeRunning::new(
         TradeSide::Sell,
+        size,
+        leverage,
         Utc::now(),
         entry_price,
         Price::try_from(100_500.0).unwrap(), // Invalid: above liquidation
         Price::try_from(85_000.0).unwrap(),
-        quantity,
-        leverage,
         get_lnm_fee(),
     );
     assert!(result.is_err());
@@ -231,12 +231,12 @@ fn test_short_stoploss_validation() {
     // Test: Valid short stoploss (between entry and liquidation)
     let result = SimulatedTradeRunning::new(
         TradeSide::Sell,
+        size,
+        leverage,
         Utc::now(),
         entry_price,
         Price::try_from(95_000.0).unwrap(), // Valid: above entry, below liquidation
         Price::try_from(85_000.0).unwrap(),
-        quantity,
-        leverage,
         get_lnm_fee(),
     );
     assert!(result.is_ok());
@@ -245,7 +245,7 @@ fn test_short_stoploss_validation() {
 #[test]
 fn test_short_takeprofit_validation() {
     let entry_price = Price::try_from(90_000.0).unwrap();
-    let quantity = Quantity::try_from(10).unwrap();
+    let size = Quantity::try_from(10).unwrap().into();
     let leverage = Leverage::try_from(10.0).unwrap();
     // Using valid stoploss that's below liquidation price
     let valid_stoploss = Price::try_from(95_000.0).unwrap();
@@ -253,12 +253,12 @@ fn test_short_takeprofit_validation() {
     // Test: Takeprofit must be below entry price for short positions
     let result = SimulatedTradeRunning::new(
         TradeSide::Sell,
+        size,
+        leverage,
         Utc::now(),
         entry_price,
         valid_stoploss,
         Price::try_from(95_000.0).unwrap(), // Invalid: above entry
-        quantity,
-        leverage,
         get_lnm_fee(),
     );
     assert!(result.is_err());
@@ -266,12 +266,12 @@ fn test_short_takeprofit_validation() {
     // Test: Takeprofit cannot be equal to entry price
     let result = SimulatedTradeRunning::new(
         TradeSide::Sell,
+        size,
+        leverage,
         Utc::now(),
         entry_price,
         valid_stoploss,
         Price::try_from(90_000.0).unwrap(), // Invalid: equal to entry
-        quantity,
-        leverage,
         get_lnm_fee(),
     );
     assert!(result.is_err());
@@ -279,12 +279,12 @@ fn test_short_takeprofit_validation() {
     // Test: Valid short takeprofit
     let result = SimulatedTradeRunning::new(
         TradeSide::Sell,
+        size,
+        leverage,
         Utc::now(),
         entry_price,
         valid_stoploss,
         Price::try_from(85_000.0).unwrap(), // Valid: below entry
-        quantity,
-        leverage,
         get_lnm_fee(),
     );
     assert!(result.is_ok());
@@ -294,18 +294,18 @@ fn test_short_takeprofit_validation() {
 fn test_running_long_pl_calculation() {
     let entry_price = Price::try_from(50_000.0).unwrap();
     let current_price = Price::try_from(55_000.0).unwrap();
-    let quantity = Quantity::try_from(10).unwrap();
+    let size = Quantity::try_from(10).unwrap().into();
     let leverage = Leverage::try_from(5.0).unwrap();
     let fee = get_lnm_fee();
 
     let trade = SimulatedTradeRunning::new(
         TradeSide::Buy,
+        size,
+        leverage,
         Utc::now(),
         entry_price,
         Price::try_from(45_000.0).unwrap(),
         Price::try_from(60_000.0).unwrap(),
-        quantity,
-        leverage,
         fee,
     )
     .unwrap();
@@ -321,18 +321,18 @@ fn test_running_long_pl_calculation() {
 fn test_running_long_pl_loss() {
     let entry_price = Price::try_from(50_000.0).unwrap();
     let current_price = Price::try_from(45_000.0).unwrap();
-    let quantity = Quantity::try_from(10).unwrap();
+    let size = Quantity::try_from(10).unwrap().into();
     let leverage = Leverage::try_from(5.0).unwrap();
     let fee = get_lnm_fee();
 
     let trade = SimulatedTradeRunning::new(
         TradeSide::Buy,
+        size,
+        leverage,
         Utc::now(),
         entry_price,
         Price::try_from(42_000.0).unwrap(),
         Price::try_from(60_000.0).unwrap(),
-        quantity,
-        leverage,
         fee,
     )
     .unwrap();
@@ -348,18 +348,18 @@ fn test_running_long_pl_loss() {
 fn test_running_short_pl_calculation() {
     let entry_price = Price::try_from(50_000.0).unwrap();
     let current_price = Price::try_from(45_000.0).unwrap();
-    let quantity = Quantity::try_from(10).unwrap();
+    let size = Quantity::try_from(10).unwrap().into();
     let leverage = Leverage::try_from(5.0).unwrap();
     let fee = get_lnm_fee();
 
     let trade = SimulatedTradeRunning::new(
         TradeSide::Sell,
+        size,
+        leverage,
         Utc::now(),
         entry_price,
         Price::try_from(55_000.0).unwrap(),
         Price::try_from(45_000.0).unwrap(),
-        quantity,
-        leverage,
         fee,
     )
     .unwrap();
@@ -375,18 +375,18 @@ fn test_running_short_pl_calculation() {
 fn test_running_short_pl_loss() {
     let entry_price = Price::try_from(50_000.0).unwrap();
     let current_price = Price::try_from(55_000.0).unwrap();
-    let quantity = Quantity::try_from(10).unwrap();
+    let size = Quantity::try_from(10).unwrap().into();
     let leverage = Leverage::try_from(5.0).unwrap();
     let fee = get_lnm_fee();
 
     let trade = SimulatedTradeRunning::new(
         TradeSide::Sell,
+        size,
+        leverage,
         Utc::now(),
         entry_price,
         Price::try_from(60_000.0).unwrap(),
         Price::try_from(45_000.0).unwrap(),
-        quantity,
-        leverage,
         fee,
     )
     .unwrap();
@@ -403,17 +403,17 @@ fn test_closed_long_pl_calculation() {
     // Create a closed long trade
     let entry_price = Price::try_from(50_000.0).unwrap();
     let close_price = Price::try_from(55_000.0).unwrap();
-    let quantity = Quantity::try_from(10).unwrap();
+    let size = Quantity::try_from(10).unwrap().into();
     let leverage = Leverage::try_from(5.0).unwrap();
 
     let running_trade = SimulatedTradeRunning::new(
         TradeSide::Buy,
+        size,
+        leverage,
         Utc::now(),
         entry_price,
         Price::try_from(45_000.0).unwrap(),
         Price::try_from(60_000.0).unwrap(),
-        quantity,
-        leverage,
         get_lnm_fee(),
     )
     .unwrap();
@@ -440,17 +440,17 @@ fn test_closed_short_pl_calculation() {
     // Create a closed short trade
     let entry_price = Price::try_from(50_000.0).unwrap();
     let close_price = Price::try_from(45_000.0).unwrap();
-    let quantity = Quantity::try_from(10).unwrap();
+    let size = Quantity::try_from(10).unwrap().into();
     let leverage = Leverage::try_from(5.0).unwrap();
 
     let running_trade = SimulatedTradeRunning::new(
         TradeSide::Sell,
+        size,
+        leverage,
         Utc::now(),
         entry_price,
         Price::try_from(55_000.0).unwrap(),
         Price::try_from(45_000.0).unwrap(),
-        quantity,
-        leverage,
         get_lnm_fee(),
     )
     .unwrap();
@@ -476,17 +476,17 @@ fn test_closed_short_pl_calculation() {
 fn test_edge_case_min_quantity() {
     let entry_price = Price::try_from(50_000.0).unwrap();
     let current_price = Price::try_from(55_000.0).unwrap();
-    let quantity = Quantity::try_from(1).unwrap();
+    let size = Quantity::try_from(1).unwrap().into();
     let leverage = Leverage::try_from(5.0).unwrap();
 
     let trade = SimulatedTradeRunning::new(
         TradeSide::Buy,
+        size,
+        leverage,
         Utc::now(),
         entry_price,
         Price::try_from(45_000.0).unwrap(),
         Price::try_from(60_000.0).unwrap(),
-        quantity,
-        leverage,
         get_lnm_fee(),
     )
     .unwrap();
@@ -499,17 +499,17 @@ fn test_edge_case_max_quantity() {
     // Test with maximum quantity (500_000)
     let entry_price = Price::try_from(50_000.0).unwrap();
     let current_price = Price::try_from(50_500.0).unwrap();
-    let quantity = Quantity::try_from(500_000).unwrap();
+    let size = Quantity::try_from(500_000).unwrap().into();
     let leverage = Leverage::try_from(5.0).unwrap();
 
     let trade = SimulatedTradeRunning::new(
         TradeSide::Buy,
+        size,
+        leverage,
         Utc::now(),
         entry_price,
         Price::try_from(49_000.0).unwrap(),
         Price::try_from(55_000.0).unwrap(),
-        quantity,
-        leverage,
         get_lnm_fee(),
     )
     .unwrap();
@@ -521,17 +521,17 @@ fn test_edge_case_max_quantity() {
 fn test_edge_case_min_leverage() {
     let entry_price = Price::try_from(50_000.0).unwrap();
     let current_price = Price::try_from(55_000.0).unwrap();
-    let quantity = Quantity::try_from(10).unwrap();
+    let size = Quantity::try_from(10).unwrap().into();
     let leverage = Leverage::try_from(1.0).unwrap();
 
     let trade = SimulatedTradeRunning::new(
         TradeSide::Buy,
+        size,
+        leverage,
         Utc::now(),
         entry_price,
         Price::try_from(45_000.0).unwrap(),
         Price::try_from(60_000.0).unwrap(),
-        quantity,
-        leverage,
         get_lnm_fee(),
     )
     .unwrap();
@@ -547,17 +547,17 @@ fn test_edge_case_min_leverage() {
 fn test_edge_case_max_leverage() {
     let entry_price = Price::try_from(50_000.0).unwrap();
     let current_price = Price::try_from(55_000.0).unwrap();
-    let quantity = Quantity::try_from(10).unwrap();
+    let size = Quantity::try_from(10).unwrap().into();
     let leverage = Leverage::try_from(100.0).unwrap();
 
     let trade = SimulatedTradeRunning::new(
         TradeSide::Buy,
+        size,
+        leverage,
         Utc::now(),
         entry_price,
         Price::try_from(49_800.0).unwrap(),
         Price::try_from(60_000.0).unwrap(),
-        quantity,
-        leverage,
         get_lnm_fee(),
     )
     .unwrap();
@@ -571,17 +571,17 @@ fn test_edge_case_max_leverage() {
 fn test_edge_case_small_prices() {
     let entry_price = Price::try_from(1.5).unwrap();
     let current_price = Price::try_from(2.0).unwrap();
-    let quantity = Quantity::try_from(1).unwrap();
+    let size = Quantity::try_from(1).unwrap().into();
     let leverage = Leverage::try_from(1.0).unwrap();
 
     let trade = SimulatedTradeRunning::new(
         TradeSide::Buy,
+        size,
+        leverage,
         Utc::now(),
         entry_price,
         Price::try_from(1.0).unwrap(),
         Price::try_from(2.0).unwrap(),
-        quantity,
-        leverage,
         get_lnm_fee(),
     )
     .unwrap();
@@ -593,18 +593,18 @@ fn test_edge_case_small_prices() {
 fn test_no_price_movement() {
     let entry_price = Price::try_from(50_000.0).unwrap();
     let current_price = entry_price;
-    let quantity = Quantity::try_from(10).unwrap();
+    let size = Quantity::try_from(10).unwrap().into();
     let leverage = Leverage::try_from(5.0).unwrap();
     let fee = get_lnm_fee();
 
     let trade = SimulatedTradeRunning::new(
         TradeSide::Buy,
+        size,
+        leverage,
         Utc::now(),
         entry_price,
         Price::try_from(45_000.0).unwrap(),
         Price::try_from(60_000.0).unwrap(),
-        quantity,
-        leverage,
         fee,
     )
     .unwrap();
