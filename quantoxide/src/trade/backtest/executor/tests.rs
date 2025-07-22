@@ -2,7 +2,7 @@ use super::*;
 
 use chrono::Duration;
 
-use lnm_sdk::api::rest::models::{BoundedPercentage, Leverage, LowerBoundedPercentage};
+use lnm_sdk::api::rest::models::{BoundedPercentage, Leverage, LowerBoundedPercentage, Quantity};
 
 #[tokio::test]
 async fn test_simulated_trade_executor_long_profit() -> Result<()> {
@@ -58,20 +58,20 @@ async fn test_simulated_trade_executor_long_profit() -> Result<()> {
     assert_eq!(state.closed_pl(), 0);
     assert_eq!(state.closed_fees(), 0);
 
-    // Step 3: Open a long trade using 5% of balance;
+    // Step 3: Open a long trade
+    let size = Quantity::try_from(500).unwrap().into(); // $500 quantity
+    let leverage = Leverage::try_from(1).unwrap(); // 1x leverage
     let stoploss_perc = BoundedPercentage::try_from(2.0).unwrap(); // 2% stoploss
     let stoploss_mode = StoplossMode::Fixed;
     let takeprofit_perc = LowerBoundedPercentage::try_from(5.0).unwrap(); // 5% takeprofit
-    let balance_perc = BoundedPercentage::try_from(5.0).unwrap(); // 5% of balance
-    let leverage = Leverage::try_from(1).unwrap(); // 1x leverage
 
     executor
         .open_long(
+            size,
+            leverage,
             stoploss_perc,
             stoploss_mode,
             takeprofit_perc,
-            balance_perc,
-            leverage,
         )
         .await?;
 
@@ -184,20 +184,20 @@ async fn test_simulated_trade_executor_long_loss() -> Result<()> {
     assert_eq!(state.closed_pl(), 0);
     assert_eq!(state.closed_fees(), 0);
 
-    // Step 2: Open a long trade using 5% of balance
+    // Step 2: Open a long trade
+    let size = Quantity::try_from(500).unwrap().into(); // $500 quantity
+    let leverage = Leverage::try_from(1).unwrap(); // 1x leverage
     let stoploss_perc = BoundedPercentage::try_from(2.0).unwrap(); // 2% stoploss
     let stoploss_mode = StoplossMode::Fixed;
     let takeprofit_perc = LowerBoundedPercentage::try_from(5.0).unwrap(); // 5% takeprofit
-    let balance_perc = BoundedPercentage::try_from(5.0).unwrap(); // 5% of balance
-    let leverage = Leverage::try_from(1).unwrap(); // 1x leverage
 
     executor
         .open_long(
+            size,
+            leverage,
             stoploss_perc,
             stoploss_mode,
             takeprofit_perc,
-            balance_perc,
-            leverage,
         )
         .await?;
 
@@ -298,20 +298,20 @@ async fn test_simulated_trade_executor_short_profit() -> Result<()> {
     assert_eq!(state.closed_pl(), 0);
     assert_eq!(state.closed_fees(), 0);
 
-    // Step 2: Open a short trade using 5% of balance
+    // Step 2: Open a short trade
+    let size = Quantity::try_from(500).unwrap().into(); // $500 quantity
+    let leverage = Leverage::try_from(1).unwrap(); // 1x leverage
     let stoploss_perc = BoundedPercentage::try_from(3.0).unwrap(); // 3% stoploss
     let stoploss_mode = StoplossMode::Fixed;
     let takeprofit_perc = BoundedPercentage::try_from(4.0).unwrap(); // 4% takeprofit
-    let balance_perc = BoundedPercentage::try_from(5.0).unwrap(); // 5% of balance
-    let leverage = Leverage::try_from(1).unwrap(); // 1x leverage
 
     executor
         .open_short(
+            size,
+            leverage,
             stoploss_perc,
             stoploss_mode,
             takeprofit_perc,
-            balance_perc,
-            leverage,
         )
         .await?;
 
@@ -422,19 +422,19 @@ async fn test_simulated_trade_executor_short_loss() -> Result<()> {
     assert_eq!(state.closed_fees(), 0);
 
     // Step 2: Open a short trade using 5% of balance
+    let size = Quantity::try_from(500).unwrap().into(); // $500 quantity
+    let leverage = Leverage::try_from(1).unwrap(); // 1x leverage
     let stoploss_perc = BoundedPercentage::try_from(2.0).unwrap(); // 2% stoploss
     let stoploss_mode = StoplossMode::Fixed;
     let takeprofit_perc = BoundedPercentage::try_from(5.0).unwrap(); // 5% takeprofit
-    let balance_perc = BoundedPercentage::try_from(5.0).unwrap(); // 5% of balance
-    let leverage = Leverage::try_from(1).unwrap(); // 1x leverage
 
     executor
         .open_short(
+            size,
+            leverage,
             stoploss_perc,
             stoploss_mode,
             takeprofit_perc,
-            balance_perc,
-            leverage,
         )
         .await?;
 
@@ -522,11 +522,11 @@ async fn test_simulated_trade_executor_trailing_stoploss_long() {
     // Open long position with trailing stop-loss
     executor
         .open_long(
+            Quantity::try_from(500).unwrap().into(), // $500 quantity
+            Leverage::try_from(1).unwrap(),
             BoundedPercentage::try_from(2.0).unwrap(), // 2% trailing stop-loss
             StoplossMode::Trailing,
             LowerBoundedPercentage::try_from(4.0).unwrap(), // 4% take-profit
-            BoundedPercentage::try_from(10.0).unwrap(),     // 10% of balance
-            Leverage::try_from(1).unwrap(),
         )
         .await
         .unwrap();
@@ -588,11 +588,11 @@ async fn test_simulated_trade_executor_trailing_stoploss_short() {
     // Open short position with trailing stop-loss
     executor
         .open_short(
+            Quantity::try_from(500).unwrap().into(), // $500 quantity
+            Leverage::try_from(1).unwrap(),
             BoundedPercentage::try_from(2.0).unwrap(), // 2% trailing stop-loss
             StoplossMode::Trailing,
             BoundedPercentage::try_from(4.0).unwrap(), // 4% take-profit
-            BoundedPercentage::try_from(10.0).unwrap(), // 10% of balance
-            Leverage::try_from(1).unwrap(),
         )
         .await
         .unwrap();
