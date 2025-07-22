@@ -13,7 +13,7 @@ use uuid::Uuid;
 
 use lnm_sdk::api::rest::models::{
     BoundedPercentage, Leverage, LnmTrade, LowerBoundedPercentage, Price, Trade, TradeClosed,
-    TradeRunning, TradeSide,
+    TradeRunning, TradeSide, TradeSize,
 };
 
 use crate::{signal::core::Signal, util::DateTimeExt};
@@ -521,20 +521,20 @@ impl StoplossMode {
 pub trait TradeExecutor: Send + Sync {
     async fn open_long(
         &self,
+        size: TradeSize,
+        leverage: Leverage,
         stoploss_perc: BoundedPercentage,
         stoploss_mode: StoplossMode,
         takeprofit_perc: LowerBoundedPercentage,
-        balance_perc: BoundedPercentage,
-        leverage: Leverage,
     ) -> Result<()>;
 
     async fn open_short(
         &self,
+        size: TradeSize,
+        leverage: Leverage,
         stoploss_perc: BoundedPercentage,
         stoploss_mode: StoplossMode,
         takeprofit_perc: BoundedPercentage,
-        balance_perc: BoundedPercentage,
-        leverage: Leverage,
     ) -> Result<()>;
 
     async fn close_trade(&self, trade_id: Uuid) -> Result<()>;
