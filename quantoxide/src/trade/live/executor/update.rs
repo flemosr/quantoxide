@@ -1,4 +1,4 @@
-use std::{fmt, sync::Arc};
+use std::{fmt, num::NonZeroU64, sync::Arc};
 
 use lnm_sdk::api::{
     ApiContext,
@@ -27,6 +27,10 @@ pub enum LiveTradeExecutorUpdateOrder {
     UpdateTradeStoploss {
         id: Uuid,
         stoploss: Price,
+    },
+    AddMargin {
+        id: Uuid,
+        amount: NonZeroU64,
     },
     CloseTrade {
         id: Uuid,
@@ -57,6 +61,9 @@ impl fmt::Display for LiveTradeExecutorUpdateOrder {
                     "Update Trade Stoploss:\n  id: {}\n  stoploss: {:.1}",
                     id, stoploss
                 )
+            }
+            Self::AddMargin { id, amount } => {
+                write!(f, "Add Margin:\n  id: {}\n  amount: {}", id, amount)
             }
             Self::CloseTrade { id } => {
                 write!(f, "Close Trade:\n  id: {}", id)
