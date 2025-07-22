@@ -461,6 +461,7 @@ impl LiveTradeExecutorLauncher {
     }
 
     fn spawn_sync_processor(
+        recover_trades_on_startup: bool,
         tsl_step_size: BoundedPercentage,
         db: Arc<DbContext>,
         api: WrappedApiContext,
@@ -497,7 +498,14 @@ impl LiveTradeExecutorLauncher {
 
                     restored_trading_session
                 } else {
-                    match LiveTradingSession::new(tsl_step_size, db.as_ref(), &api).await {
+                    match LiveTradingSession::new(
+                        recover_trades_on_startup,
+                        tsl_step_size,
+                        db.as_ref(),
+                        &api,
+                    )
+                    .await
+                    {
                         Ok(new_trading_session) => new_trading_session,
                         Err(e) => {
                             locked_state.update_status_not_ready(
@@ -561,7 +569,8 @@ impl LiveTradeExecutorLauncher {
         }
 
         let handle = Self::spawn_sync_processor(
-            self.config.tsl_step_size,
+            self.config.recover_trades_on_startup(),
+            self.config.trailing_stoploss_step_size(),
             self.db.clone(),
             self.api.clone(),
             self.update_tx.clone(),

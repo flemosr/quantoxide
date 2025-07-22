@@ -31,7 +31,7 @@ pub struct LiveTradingSession {
 
 impl LiveTradingSession {
     pub async fn new(
-        // TODO: we should probably store this as config
+        recover_trades_on_startup: bool,
         tsl_step_size: BoundedPercentage,
         db: &DbContext,
         api: &WrappedApiContext,
@@ -57,11 +57,13 @@ impl LiveTradingSession {
             closed_fees: 0,
         };
 
-        // TODO: running trades recovery should be optional
+        if !recover_trades_on_startup {
+            return Ok(session);
+        }
 
         let running_trades = api.get_trades_running().await?;
 
-        // Recover trades 'trailing stoploss' config from db
+        // Try to recover trades 'trailing stoploss' config from db
 
         let mut registered_trades_map = db
             .running_trades
