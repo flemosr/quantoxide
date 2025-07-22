@@ -6,8 +6,8 @@ use tokio::sync::Mutex;
 use uuid::Uuid;
 
 use lnm_sdk::api::rest::models::{
-    BoundedPercentage, Leverage, LowerBoundedPercentage, Price, Quantity, Trade, TradeClosed,
-    TradeRunning, TradeSide, error::QuantityValidationError,
+    BoundedPercentage, Leverage, LowerBoundedPercentage, Price, Trade, TradeClosed, TradeRunning,
+    TradeSide, TradeSize,
 };
 
 use super::super::{
@@ -15,7 +15,7 @@ use super::super::{
         PriceTrigger, RiskParams, StoplossMode, TradeExecutor, TradeExt, TradeTrailingStoploss,
         TradingState,
     },
-    error::{Result, TradeError},
+    error::Result,
 };
 
 pub mod error;
@@ -256,10 +256,10 @@ impl SimulatedTradeExecutor {
 
     async fn create_running(
         &self,
+        size: TradeSize,
+        leverage: Leverage,
         risk_params: RiskParams,
         trade_tsl: Option<TradeTrailingStoploss>,
-        balance_perc: BoundedPercentage,
-        leverage: Leverage,
     ) -> Result<()> {
         let mut state_guard = self.state.lock().await;
 
@@ -272,26 +272,16 @@ impl SimulatedTradeExecutor {
         let market_price = Price::round(state_guard.market_price)
             .map_err(SimulatedTradeExecutorError::PriceValidation)?;
 
-        let quantity = Quantity::try_from_balance_perc(
-            state_guard.balance.max(0) as u64,
-            market_price,
-            balance_perc,
-        )
-        .map_err(|e| match e {
-            QuantityValidationError::TooLow => TradeError::BalanceTooLow,
-            QuantityValidationError::TooHigh => TradeError::BalanceTooHigh,
-        })?;
-
         let (side, stoploss, takeprofit) = risk_params.into_trade_params(market_price)?;
 
         let trade = SimulatedTradeRunning::new(
             side,
+            size,
+            leverage,
             state_guard.time,
             market_price,
             stoploss,
             takeprofit,
-            quantity,
-            leverage,
             self.fee_perc,
         )?;
 
@@ -314,11 +304,11 @@ impl SimulatedTradeExecutor {
 impl TradeExecutor for SimulatedTradeExecutor {
     async fn open_long(
         &self,
+        size: TradeSize,
+        leverage: Leverage,
         stoploss_perc: BoundedPercentage,
         stoploss_mode: StoplossMode,
         takeprofit_perc: LowerBoundedPercentage,
-        balance_perc: BoundedPercentage,
-        leverage: Leverage,
     ) -> Result<()> {
         let trade_tsl = stoploss_mode.validate_trade_tsl(self.tsl_step_size, stoploss_perc)?;
 
@@ -327,7 +317,7 @@ impl TradeExecutor for SimulatedTradeExecutor {
             takeprofit_perc,
         };
 
-        self.create_running(risk_params, trade_tsl, balance_perc, leverage)
+        self.create_running(size, leverage, risk_params, trade_tsl)
             .await?;
 
         Ok(())
@@ -335,11 +325,11 @@ impl TradeExecutor for SimulatedTradeExecutor {
 
     async fn open_short(
         &self,
+        size: TradeSize,
+        leverage: Leverage,
         stoploss_perc: BoundedPercentage,
         stoploss_mode: StoplossMode,
         takeprofit_perc: BoundedPercentage,
-        balance_perc: BoundedPercentage,
-        leverage: Leverage,
     ) -> Result<()> {
         let trade_tsl = stoploss_mode.validate_trade_tsl(self.tsl_step_size, stoploss_perc)?;
 
@@ -348,7 +338,7 @@ impl TradeExecutor for SimulatedTradeExecutor {
             takeprofit_perc,
         };
 
-        self.create_running(risk_params, trade_tsl, balance_perc, leverage)
+        self.create_running(size, leverage, risk_params, trade_tsl)
             .await?;
 
         Ok(())
