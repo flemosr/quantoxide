@@ -147,6 +147,9 @@ impl SyncProcess {
 
     async fn run_backfill(&self) -> Result<Never> {
         loop {
+            self.status_manager
+                .update(SyncStatusNotSynced::InProgress.into());
+
             let (history_state_tx, history_state_rx) = mpsc::channel::<PriceHistoryState>(100);
 
             self.spawn_history_state_update_handler(history_state_rx);
@@ -162,6 +165,9 @@ impl SyncProcess {
     }
 
     async fn run_live(&self, range: Duration) -> Result<Never> {
+        self.status_manager
+            .update(SyncStatusNotSynced::InProgress.into());
+
         // Start to collect real-time data
 
         let (price_tick_tx, _) = broadcast::channel::<PriceTick>(100);
@@ -208,6 +214,9 @@ impl SyncProcess {
     }
 
     async fn run_full(&self) -> Result<Never> {
+        self.status_manager
+            .update(SyncStatusNotSynced::InProgress.into());
+
         let (history_state_tx, history_state_rx) = mpsc::channel::<PriceHistoryState>(100);
 
         self.spawn_history_state_update_handler(history_state_rx);
@@ -267,9 +276,6 @@ impl SyncProcess {
     }
 
     fn run_mode(&self) -> Pin<Box<dyn Future<Output = Result<Never>> + Send + '_>> {
-        self.status_manager
-            .update(SyncStatusNotSynced::InProgress.into());
-
         match &self.mode {
             SyncMode::Backfill => Box::pin(self.run_backfill()),
             SyncMode::Live { range } => Box::pin(self.run_live(*range)),
