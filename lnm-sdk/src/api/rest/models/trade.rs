@@ -110,7 +110,7 @@ pub fn estimate_liquidation_price(
     Price::clamp_from(liquidation_calc)
 }
 
-pub fn estimate_pl(
+pub fn pl_estimate(
     side: TradeSide,
     quantity: Quantity,
     start_price: Price,
@@ -211,6 +211,7 @@ impl TradeStatus {
 }
 
 pub trait Trade: Send + Sync + fmt::Debug + 'static {
+    fn id(&self) -> Uuid;
     fn trade_type(&self) -> TradeExecutionType;
     fn side(&self) -> TradeSide;
     fn opening_fee(&self) -> u64;
@@ -233,6 +234,14 @@ pub trait Trade: Send + Sync + fmt::Debug + 'static {
     fn running(&self) -> bool;
     fn canceled(&self) -> bool;
     fn closed(&self) -> bool;
+}
+
+pub trait TradeRunning: Trade {
+    fn pl_estimate(&self, market_price: Price) -> i64;
+}
+
+pub trait TradeClosed: Trade {
+    fn pl(&self) -> i64;
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -274,10 +283,6 @@ pub struct LnmTrade {
 }
 
 impl LnmTrade {
-    pub fn id(&self) -> Uuid {
-        self.id
-    }
-
     pub fn uid(&self) -> Uuid {
         self.uid
     }
@@ -286,16 +291,16 @@ impl LnmTrade {
         self.pl
     }
 
-    pub fn estimate_pl(&self, market_price: Price) -> i64 {
-        estimate_pl(self.side(), self.quantity(), self.price(), market_price)
-    }
-
     pub fn sum_carry_fees(&self) -> i64 {
         self.sum_carry_fees
     }
 }
 
 impl Trade for LnmTrade {
+    fn id(&self) -> Uuid {
+        self.id
+    }
+
     fn trade_type(&self) -> TradeExecutionType {
         self.trade_type
     }
@@ -382,6 +387,18 @@ impl Trade for LnmTrade {
 
     fn closed(&self) -> bool {
         self.closed
+    }
+}
+
+impl TradeRunning for LnmTrade {
+    fn pl_estimate(&self, market_price: Price) -> i64 {
+        pl_estimate(self.side(), self.quantity(), self.price(), market_price)
+    }
+}
+
+impl TradeClosed for LnmTrade {
+    fn pl(&self) -> i64 {
+        self.pl
     }
 }
 
