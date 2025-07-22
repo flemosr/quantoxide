@@ -70,6 +70,15 @@ impl From<Margin> for TradeSize {
     }
 }
 
+impl fmt::Display for TradeSize {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            TradeSize::Quantity(quantity) => write!(f, "Quantity({})", quantity),
+            TradeSize::Margin(margin) => write!(f, "Margin({})", margin),
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Copy)]
 pub enum TradeExecutionType {
     #[serde(rename = "m")]
