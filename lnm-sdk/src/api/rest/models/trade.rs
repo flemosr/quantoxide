@@ -1,4 +1,4 @@
-use std::fmt;
+use std::{fmt, result::Result};
 
 use chrono::{
     DateTime, Utc,
@@ -6,6 +6,8 @@ use chrono::{
 };
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+
+use super::error::ValidationError;
 
 use super::{
     Leverage, Margin, Price, Quantity, SATS_PER_BTC, error::FuturesTradeRequestValidationError,
@@ -35,6 +37,25 @@ pub enum TradeSize {
     Quantity(Quantity),
     #[serde(rename = "margin")]
     Margin(Margin),
+}
+
+impl TradeSize {
+    pub fn to_quantity_and_margin(
+        &self,
+        price: Price,
+        leverage: Leverage,
+    ) -> Result<(Quantity, Margin), ValidationError> {
+        match self {
+            TradeSize::Margin(margin) => {
+                let quantity = Quantity::try_calculate(*margin, price, leverage)?;
+                Ok((quantity, *margin))
+            }
+            TradeSize::Quantity(quantity) => {
+                let margin = Margin::try_calculate(*quantity, price, leverage)?;
+                Ok((*quantity, margin))
+            }
+        }
+    }
 }
 
 impl From<Quantity> for TradeSize {
