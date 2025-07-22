@@ -5,6 +5,8 @@ use std::{
 
 use async_trait::async_trait;
 use futures::future;
+use tokio::sync::broadcast;
+use uuid::Uuid;
 
 use lnm_sdk::api::{
     ApiContext,
@@ -13,7 +15,6 @@ use lnm_sdk::api::{
         error::QuantityValidationError,
     },
 };
-use tokio::sync::broadcast;
 
 use crate::{
     db::DbContext,
@@ -254,14 +255,24 @@ impl LiveTradeExecutor {
                 }
             };
 
-            new_trading_session.close_trades(self.config.tsl_step_size, &closed_trades)?;
+            new_trading_session.close_trades(&closed_trades)?;
+
+            let mut closed_ids = Vec::with_capacity(closed_trades.len());
 
             for closed_trade in closed_trades {
+                closed_ids.push(closed_trade.id());
+
                 // Ignore no-receiver errors
                 let _ = self
                     .update_tx
                     .send(LiveTradeExecutorUpdate::ClosedTrade(closed_trade));
             }
+
+            self.db
+                .running_trades
+                .remove_running_trades(closed_ids.as_slice())
+                .await
+                .map_err(|e| LiveError::Generic(e.to_string()))?;
         }
 
         locked_ready_state
@@ -363,6 +374,38 @@ impl TradeExecutor for LiveTradeExecutor {
             .await
     }
 
+    async fn close_trade(&self, trade_id: Uuid) -> Result<()> {
+        let locked_ready_state = self.state_manager.try_lock_ready_state().await?;
+
+        let close_trade = match self.api.close_trade(trade_id).await {
+            Ok(trade) => trade,
+            Err(e) => {
+                let new_status_not_ready = LiveTradeExecutorStatusNotReady::Failed(
+                    LiveError::Generic("api error".to_string()),
+                );
+                locked_ready_state.update_status_not_ready(new_status_not_ready);
+
+                return Err(e.into());
+            }
+        };
+
+        self.db
+            .running_trades
+            .remove_running_trades(&[close_trade.id()])
+            .await
+            .map_err(|e| LiveError::Generic(e.to_string()))?;
+
+        let mut new_trading_session = locked_ready_state.trading_session().to_owned();
+
+        new_trading_session.close_trades(&vec![close_trade])?;
+
+        locked_ready_state
+            .update_trading_session(new_trading_session)
+            .await;
+
+        Ok(())
+    }
+
     async fn close_longs(&self) -> Result<()> {
         self.close_trades(TradeSide::Buy).await
     }
@@ -390,7 +433,7 @@ impl TradeExecutor for LiveTradeExecutor {
                 }
             };
 
-        new_trading_session.close_trades(self.config.tsl_step_size, &closed_trades)?;
+        new_trading_session.close_trades(&closed_trades)?;
 
         for closed_trade in closed_trades {
             // Ignore no-receiver errors
