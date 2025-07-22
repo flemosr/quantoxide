@@ -5,18 +5,18 @@ use thiserror::Error;
 
 use lnm_sdk::api::rest::models::{
     Price, TradeSide,
-    error::{MarginValidationError, PriceValidationError},
+    error::{PriceValidationError, ValidationError},
 };
 
 use crate::db::{error::DbError, models::PriceHistoryEntry};
 
 #[derive(Error, Debug)]
 pub enum SimulatedTradeExecutorError {
-    #[error("[MarginValidation] {0}")]
-    MarginValidation(#[from] MarginValidationError),
-
     #[error("[PriceValidation] {0}")]
     PriceValidation(#[from] PriceValidationError),
+
+    #[error("[Validation] {0}")]
+    ValidationError(#[from] ValidationError),
 
     #[error(
         "Stoploss ({stoploss}) can't be below liquidation price ({liquidation}) for long positions"
