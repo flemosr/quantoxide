@@ -45,6 +45,7 @@ use update::{
 pub struct LiveTradeExecutorConfig {
     tsl_step_size: BoundedPercentage,
     clean_up_trades_on_startup: bool,
+    recover_trades_on_startup: bool,
     clean_up_trades_on_shutdown: bool,
 }
 
@@ -55,6 +56,10 @@ impl LiveTradeExecutorConfig {
 
     pub fn clean_up_trades_on_startup(&self) -> bool {
         self.clean_up_trades_on_startup
+    }
+
+    pub fn recover_trades_on_startup(&self) -> bool {
+        self.recover_trades_on_startup
     }
 
     pub fn clean_up_trades_on_shutdown(&self) -> bool {
@@ -71,6 +76,11 @@ impl LiveTradeExecutorConfig {
         self
     }
 
+    pub fn set_recover_trades_on_startup(mut self, recover_trades_on_startup: bool) -> Self {
+        self.recover_trades_on_startup = recover_trades_on_startup;
+        self
+    }
+
     pub fn set_clean_up_trades_on_shutdown(mut self, clean_up_trades_on_shutdown: bool) -> Self {
         self.clean_up_trades_on_shutdown = clean_up_trades_on_shutdown;
         self
@@ -82,6 +92,7 @@ impl Default for LiveTradeExecutorConfig {
         Self {
             tsl_step_size: BoundedPercentage::MIN,
             clean_up_trades_on_startup: true,
+            recover_trades_on_startup: false,
             clean_up_trades_on_shutdown: true,
         }
     }
@@ -92,6 +103,7 @@ impl From<&LiveConfig> for LiveTradeExecutorConfig {
         Self {
             tsl_step_size: value.tsl_step_size,
             clean_up_trades_on_startup: value.clean_up_trades_on_startup,
+            recover_trades_on_startup: value.recover_trades_on_startup,
             clean_up_trades_on_shutdown: value.clean_up_trades_on_shutdown,
         }
     }

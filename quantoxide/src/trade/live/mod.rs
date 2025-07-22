@@ -462,6 +462,7 @@ pub struct LiveConfig {
     signal_eval_interval: time::Duration,
     tsl_step_size: BoundedPercentage,
     clean_up_trades_on_startup: bool,
+    recover_trades_on_startup: bool,
     clean_up_trades_on_shutdown: bool,
     restart_interval: time::Duration,
     shutdown_timeout: time::Duration,
@@ -480,6 +481,7 @@ impl Default for LiveConfig {
             signal_eval_interval: time::Duration::from_secs(1),
             tsl_step_size: BoundedPercentage::MIN,
             clean_up_trades_on_startup: true,
+            recover_trades_on_startup: false,
             clean_up_trades_on_shutdown: true,
             restart_interval: time::Duration::from_secs(10),
             shutdown_timeout: time::Duration::from_secs(6),
@@ -526,6 +528,10 @@ impl LiveConfig {
 
     pub fn clean_up_trades_on_startup(&self) -> bool {
         self.clean_up_trades_on_startup
+    }
+
+    pub fn recover_trades_on_startup(&self) -> bool {
+        self.recover_trades_on_startup
     }
 
     pub fn clean_up_trades_on_shutdown(&self) -> bool {
@@ -587,6 +593,11 @@ impl LiveConfig {
 
     pub fn set_clean_up_trades_on_startup(mut self, clean_up_trades_on_startup: bool) -> Self {
         self.clean_up_trades_on_startup = clean_up_trades_on_startup;
+        self
+    }
+
+    pub fn set_recover_trades_on_startup(mut self, recover_trades_on_startup: bool) -> Self {
+        self.recover_trades_on_startup = recover_trades_on_startup;
         self
     }
 
