@@ -208,7 +208,7 @@ impl LiveTradingSession {
 
         self.update_running_trades(self.tsl_step_size, updated_trades)?;
 
-        self.close_trades(self.tsl_step_size, &closed_trades)?;
+        self.close_trades(&closed_trades)?;
 
         Ok(closed_trades)
     }
@@ -309,11 +309,7 @@ impl LiveTradingSession {
         Ok(())
     }
 
-    pub fn close_trades(
-        &mut self,
-        tsl_step_size: BoundedPercentage,
-        closed_trades: &Vec<LnmTrade>,
-    ) -> LiveResult<()> {
+    pub fn close_trades(&mut self, closed_trades: &Vec<LnmTrade>) -> LiveResult<()> {
         if closed_trades.is_empty() {
             return Ok(());
         }
@@ -366,7 +362,7 @@ impl LiveTradingSession {
 
             // TODO: Improve error handling here
             new_trigger
-                .update(tsl_step_size, trade.as_ref(), *trade_tsl)
+                .update(self.tsl_step_size, trade.as_ref(), *trade_tsl)
                 .map_err(|e| LiveError::Generic(e.to_string()))?;
             new_running.insert(*id, (trade.clone(), *trade_tsl));
         }
