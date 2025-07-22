@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize, de};
-use std::{convert::TryFrom, fmt, ops::Add};
+use std::{convert::TryFrom, fmt, num::NonZeroU64, ops::Add};
 
 use super::{Leverage, Price, Quantity, SATS_PER_BTC, error::MarginValidationError};
 
@@ -55,6 +55,12 @@ impl From<Margin> for i64 {
 impl From<Margin> for f64 {
     fn from(value: Margin) -> Self {
         value.0 as f64
+    }
+}
+
+impl From<NonZeroU64> for Margin {
+    fn from(value: NonZeroU64) -> Self {
+        Margin(value.get())
     }
 }
 
