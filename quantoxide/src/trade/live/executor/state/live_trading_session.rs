@@ -4,7 +4,7 @@ use chrono::{DateTime, Utc};
 use futures::future;
 use uuid::Uuid;
 
-use lnm_sdk::api::rest::models::{BoundedPercentage, LnmTrade, Price, Trade, TradeSide};
+use lnm_sdk::api::rest::models::{BoundedPercentage, LnmTrade, Price, Trade, TradeRunning};
 
 use crate::{
     db::DbContext,
@@ -385,55 +385,21 @@ impl LiveTradingSession {
 
 impl From<LiveTradingSession> for TradingState {
     fn from(value: LiveTradingSession) -> Self {
-        let mut running: Vec<Arc<dyn Trade>> = Vec::with_capacity(value.running.len());
-        let mut running_long_len: usize = 0;
-        let mut running_long_margin: u64 = 0;
-        let mut running_long_quantity: u64 = 0;
-        let mut running_short_len: usize = 0;
-        let mut running_short_margin: u64 = 0;
-        let mut running_short_quantity: u64 = 0;
-        let mut running_pl: i64 = 0;
-        let mut running_fees: u64 = 0;
-
-        for (trade, _) in value.running.into_values() {
-            match trade.side() {
-                TradeSide::Buy => {
-                    running_long_len += 1;
-                    running_long_margin +=
-                        trade.margin().into_u64() + trade.maintenance_margin().max(0) as u64;
-                    running_long_quantity += trade.quantity().into_u64();
-                }
-                TradeSide::Sell => {
-                    running_short_len += 1;
-                    running_short_margin +=
-                        trade.margin().into_u64() + trade.maintenance_margin().max(0) as u64;
-                    running_short_quantity += trade.quantity().into_u64();
-                }
-            };
-
-            running_pl += trade.estimate_pl(Price::clamp_from(value.last_price));
-            running_fees += trade.opening_fee();
-            running.push(trade.clone());
-        }
+        let running = value
+            .running
+            .iter()
+            .map(|(id, (trade, tsl))| (*id, (trade.clone() as Arc<dyn TradeRunning>, *tsl)))
+            .collect();
 
         TradingState::new(
             Utc::now(),
             value.balance,
-            value.last_price,
+            Price::clamp_from(value.last_price),
             value.last_trade_time,
             running,
-            running_long_len,
-            running_long_margin,
-            running_long_quantity,
-            running_short_len,
-            running_short_margin,
-            running_short_quantity,
-            running_pl,
-            running_fees,
             value.closed_len,
             value.closed_pl,
             value.closed_fees,
         )
-        .expect("`LiveTradingSession` can't contain inconsistent trades")
     }
 }
