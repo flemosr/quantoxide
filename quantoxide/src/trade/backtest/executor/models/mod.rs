@@ -5,7 +5,8 @@ use uuid::Uuid;
 
 use lnm_sdk::api::rest::models::{
     BoundedPercentage, Leverage, Margin, Price, Quantity, SATS_PER_BTC, Trade, TradeClosed,
-    TradeExecutionType, TradeRunning, TradeSide, estimate_liquidation_price, pl_estimate,
+    TradeExecutionType, TradeRunning, TradeSide, TradeSize, estimate_liquidation_price,
+    pl_estimate,
 };
 
 use super::{
@@ -32,14 +33,16 @@ pub struct SimulatedTradeRunning {
 impl SimulatedTradeRunning {
     pub fn new(
         side: TradeSide,
+        size: TradeSize,
+        leverage: Leverage,
         entry_time: DateTime<Utc>,
         entry_price: Price,
         stoploss: Price,
         takeprofit: Price,
-        quantity: Quantity,
-        leverage: Leverage,
         fee_perc: BoundedPercentage,
     ) -> Result<Arc<Self>> {
+        let (quantity, margin) = size.to_quantity_and_margin(entry_price, leverage)?;
+
         let liquidation = estimate_liquidation_price(side, quantity, entry_price, leverage);
 
         match side {
@@ -84,8 +87,6 @@ impl SimulatedTradeRunning {
                 }
             }
         };
-
-        let margin = Margin::try_calculate(quantity, entry_price, leverage)?;
 
         let fee_calc = SATS_PER_BTC * fee_perc.into_f64() / 100.;
         let opening_fee = (fee_calc * quantity.into_f64() / entry_price.into_f64()).floor() as u64;
