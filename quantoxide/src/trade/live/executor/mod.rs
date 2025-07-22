@@ -478,10 +478,7 @@ impl LiveTradeExecutorLauncher {
                 {
                     let mut restored_trading_session = old_trading_session.clone();
 
-                    match restored_trading_session
-                        .reevaluate(tsl_step_size, db.as_ref(), &api)
-                        .await
-                    {
+                    match restored_trading_session.reevaluate(db.as_ref(), &api).await {
                         Ok(closed_trades) => {
                             for closed_trade in closed_trades.into_iter() {
                                 // Ignore no-receiver errors

@@ -18,6 +18,7 @@ use super::super::super::{
 
 #[derive(Debug, Clone)]
 pub struct LiveTradingSession {
+    tsl_step_size: BoundedPercentage,
     last_trade_time: Option<DateTime<Utc>>,
     balance: u64,
     last_evaluation_time: DateTime<Utc>,
@@ -46,6 +47,7 @@ impl LiveTradingSession {
         let user = api.get_user().await?;
 
         let mut session = Self {
+            tsl_step_size,
             last_trade_time: None,
             balance: user.balance(),
             last_evaluation_time: lastest_entry_time,
@@ -108,7 +110,6 @@ impl LiveTradingSession {
 
     pub async fn reevaluate(
         &mut self,
-        tsl_step_size: BoundedPercentage,
         db: &DbContext,
         api: &WrappedApiContext,
     ) -> LiveResult<Vec<LnmTrade>> {
@@ -138,7 +139,12 @@ impl LiveTradingSession {
 
             if let Some(trade_tsl) = trade_tsl_opt {
                 let new_stoploss_opt = trade
-                    .eval_new_stoploss_on_range(tsl_step_size, *trade_tsl, range_min, range_max)
+                    .eval_new_stoploss_on_range(
+                        self.tsl_step_size,
+                        *trade_tsl,
+                        range_min,
+                        range_max,
+                    )
                     .map_err(|e| LiveError::Generic(e.to_string()))?;
 
                 if let Some(new_stoploss) = new_stoploss_opt {
@@ -200,9 +206,9 @@ impl LiveTradingSession {
             closed_trades.extend(new_closed_trades);
         }
 
-        self.update_running_trades(tsl_step_size, updated_trades)?;
+        self.update_running_trades(self.tsl_step_size, updated_trades)?;
 
-        self.close_trades(tsl_step_size, &closed_trades)?;
+        self.close_trades(self.tsl_step_size, &closed_trades)?;
 
         Ok(closed_trades)
     }
