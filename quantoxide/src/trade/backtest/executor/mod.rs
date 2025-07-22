@@ -1,12 +1,13 @@
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use tokio::sync::Mutex;
+use uuid::Uuid;
 
 use lnm_sdk::api::rest::models::{
-    BoundedPercentage, Leverage, LowerBoundedPercentage, Price, Quantity, Trade, TradeSide,
-    error::QuantityValidationError,
+    BoundedPercentage, Leverage, LowerBoundedPercentage, Price, Quantity, Trade, TradeClosed,
+    TradeRunning, TradeSide, error::QuantityValidationError,
 };
 
 use super::super::{
@@ -40,7 +41,7 @@ struct SimulatedTradeExecutorState {
     balance: i64,
     last_trade_time: Option<DateTime<Utc>>,
     trigger: PriceTrigger,
-    running: Vec<(Arc<SimulatedTradeRunning>, Option<TradeTrailingStoploss>)>,
+    running: HashMap<Uuid, (Arc<SimulatedTradeRunning>, Option<TradeTrailingStoploss>)>,
     closed_len: usize,
     closed_pl: i64,
     closed_fees: u64,
@@ -68,7 +69,7 @@ impl SimulatedTradeExecutor {
             balance: start_balance as i64,
             last_trade_time: None,
             trigger: PriceTrigger::new(),
-            running: Vec::new(),
+            running: HashMap::new(),
             closed_len: 0,
             closed_pl: 0,
             closed_fees: 0,
@@ -107,13 +108,8 @@ impl SimulatedTradeExecutor {
         let mut new_closed_pl = state_guard.closed_pl;
         let mut new_closed_fees = state_guard.closed_fees;
 
-        let mut close_trade = |trade: Arc<SimulatedTradeRunning>, close_price: Price| {
-            let trade = SimulatedTradeClosed::from_running(
-                trade.as_ref(),
-                time,
-                close_price,
-                self.fee_perc,
-            );
+        let mut close_trade = |trade: &SimulatedTradeRunning, close_price: Price| {
+            let trade = SimulatedTradeClosed::from_running(trade, time, close_price, self.fee_perc);
 
             new_balance += trade.margin().into_i64() + trade.maintenance_margin()
                 - trade.closing_fee() as i64
@@ -125,9 +121,9 @@ impl SimulatedTradeExecutor {
         };
 
         let mut new_trigger = PriceTrigger::new();
-        let mut remaining_running_trades = Vec::new();
+        let mut remaining_running_trades = HashMap::new();
 
-        for (mut trade, trade_tsl_opt) in state_guard.running.drain(..) {
+        for (trade, trade_tsl_opt) in state_guard.running.values_mut() {
             // Check if price reached stoploss or takeprofit
 
             let (trade_min_opt, trade_max_opt) = match trade.side() {
@@ -137,19 +133,19 @@ impl SimulatedTradeExecutor {
 
             if let Some(trade_min) = trade_min_opt {
                 if market_price <= trade_min.into_f64() {
-                    close_trade(trade, trade_min);
+                    close_trade(trade.as_ref(), trade_min);
                     continue;
                 }
             }
 
             if let Some(trade_max) = trade_max_opt {
                 if market_price >= trade_max.into_f64() {
-                    close_trade(trade, trade_max);
+                    close_trade(trade.as_ref(), trade_max);
                     continue;
                 }
             }
 
-            if let Some(trade_tsl) = trade_tsl_opt {
+            if let Some(trade_tsl) = *trade_tsl_opt {
                 let next_stoploss_update_trigger =
                     trade.next_stoploss_update_trigger(self.tsl_step_size, trade_tsl)?;
 
@@ -173,13 +169,15 @@ impl SimulatedTradeExecutor {
                 };
 
                 if let Some(new_stoploss) = new_stoploss {
-                    trade =
-                        SimulatedTradeRunning::from_trade_with_new_stoploss(trade, new_stoploss)?;
+                    *trade = SimulatedTradeRunning::from_trade_with_new_stoploss(
+                        trade.as_ref(),
+                        new_stoploss,
+                    )?;
                 }
             }
 
-            new_trigger.update(self.tsl_step_size, trade.as_ref(), trade_tsl_opt)?;
-            remaining_running_trades.push((trade, trade_tsl_opt));
+            new_trigger.update(self.tsl_step_size, trade.as_ref(), *trade_tsl_opt)?;
+            remaining_running_trades.insert(trade.id(), (trade.clone(), *trade_tsl_opt));
         }
 
         state_guard.balance = new_balance;
@@ -224,9 +222,9 @@ impl SimulatedTradeExecutor {
         };
 
         let mut new_trigger = PriceTrigger::new();
-        let mut remaining_running_trades = Vec::new();
+        let mut remaining_running_trades = HashMap::new();
 
-        for (trade, trade_tsl) in state_guard.running.drain(..) {
+        for (trade, trade_tsl) in state_guard.running.values() {
             let should_be_closed = match &close {
                 Close::Side(side) if *side == trade.side() => true,
                 Close::All => true,
@@ -234,10 +232,10 @@ impl SimulatedTradeExecutor {
             };
 
             if should_be_closed {
-                close_trade(trade);
+                close_trade(trade.clone());
             } else {
-                new_trigger.update(self.tsl_step_size, trade.as_ref(), trade_tsl)?;
-                remaining_running_trades.push((trade, trade_tsl));
+                new_trigger.update(self.tsl_step_size, trade.as_ref(), *trade_tsl)?;
+                remaining_running_trades.insert(trade.id(), (trade.clone(), *trade_tsl));
             }
         }
 
@@ -304,7 +302,7 @@ impl SimulatedTradeExecutor {
         state_guard
             .trigger
             .update(self.tsl_step_size, trade.as_ref(), trade_tsl)?;
-        state_guard.running.push((trade, trade_tsl));
+        state_guard.running.insert(trade.id(), (trade, trade_tsl));
 
         Ok(())
     }
@@ -375,69 +373,22 @@ impl TradeExecutor for SimulatedTradeExecutor {
     async fn trading_state(&self) -> Result<TradingState> {
         let state_guard = self.state.lock().await;
 
-        let mut running: Vec<Arc<dyn Trade>> = Vec::new();
-        let mut running_long_qtd: usize = 0;
-        let mut running_long_margin: u64 = 0;
-        let mut running_long_quantity: u64 = 0;
-        let mut running_short_qtd: usize = 0;
-        let mut running_short_margin: u64 = 0;
-        let mut running_short_quantity: u64 = 0;
-        let mut running_pl: i64 = 0;
-        let mut running_fees: u64 = 0;
-
-        // Use `Price::round_down` for long trades and `Price::round_up` for
-        // short trades, in order to obtain more conservative prices. It is
-        // expected that prices won't need to be rounded most of the time.
-
-        for (trade, _) in &state_guard.running {
-            let market_price = match trade.side() {
-                TradeSide::Buy => {
-                    running_long_qtd += 1;
-                    running_long_margin +=
-                        trade.margin().into_u64() + trade.maintenance_margin().max(0) as u64;
-                    running_long_quantity += trade.quantity().into_u64();
-
-                    Price::round_down(state_guard.market_price)
-                        .map_err(SimulatedTradeExecutorError::from)?
-                }
-                TradeSide::Sell => {
-                    running_short_qtd += 1;
-                    running_short_margin +=
-                        trade.margin().into_u64() + trade.maintenance_margin().max(0) as u64;
-                    running_short_quantity += trade.quantity().into_u64();
-
-                    Price::round_up(state_guard.market_price)
-                        .map_err(SimulatedTradeExecutorError::from)?
-                }
-            };
-
-            running_pl += trade.pl(market_price);
-            running_fees += trade.opening_fee();
-            running.push(trade.clone());
-        }
+        let running = state_guard
+            .running
+            .iter()
+            .map(|(id, (trade, tsl))| (*id, (trade.clone() as Arc<dyn TradeRunning>, *tsl)))
+            .collect();
 
         let trades_state = TradingState::new(
             state_guard.time,
             state_guard.balance.max(0) as u64,
-            state_guard.market_price,
+            Price::clamp_from(state_guard.market_price),
             state_guard.last_trade_time,
-            // FIXME: Temporary workaround to avoid sending big `Vec`s over
-            // channels.
-            Vec::new(),
-            // running,
-            running_long_qtd,
-            running_long_margin,
-            running_long_quantity,
-            running_short_qtd,
-            running_short_margin,
-            running_short_quantity,
-            running_pl,
-            running_fees,
+            running,
             state_guard.closed_len,
             state_guard.closed_pl,
             state_guard.closed_fees,
-        )
-        .expect("`SimulatedTradeExecutor` can't contain inconsistent trades");
+        );
 
         Ok(trades_state)
     }
