@@ -2,7 +2,7 @@ use std::{fmt, sync::Arc};
 
 use lnm_sdk::api::{
     ApiContext,
-    rest::models::{Leverage, LnmTrade, Price, Quantity, TradeExecution, TradeSide, User},
+    rest::models::{Leverage, LnmTrade, Price, TradeExecution, TradeSide, TradeSize, User},
 };
 use tokio::sync::broadcast;
 use uuid::Uuid;
@@ -19,7 +19,7 @@ use super::{
 pub enum LiveTradeExecutorUpdateOrder {
     CreateNewTrade {
         side: TradeSide,
-        quantity: Quantity,
+        size: TradeSize,
         leverage: Leverage,
         stoploss: Price,
         takeprofit: Price,
@@ -40,15 +40,15 @@ impl fmt::Display for LiveTradeExecutorUpdateOrder {
         match self {
             Self::CreateNewTrade {
                 side,
-                quantity,
+                size,
                 leverage,
                 stoploss,
                 takeprofit,
             } => {
                 write!(
                     f,
-                    "Create New Trade:\n  side: {}\n  quantity: {}\n  leverage: {}\n  stoploss: {:.1}\n  takeprofit: {:.1}",
-                    side, quantity, leverage, stoploss, takeprofit
+                    "Create New Trade:\n  side: {}\n  size: {}\n  leverage: {}\n  stoploss: {:.1}\n  takeprofit: {:.1}",
+                    side, size, leverage, stoploss, takeprofit
                 )
             }
             Self::UpdateTradeStoploss { id, stoploss } => {
@@ -141,14 +141,14 @@ impl WrappedApiContext {
     pub async fn create_new_trade(
         &self,
         side: TradeSide,
-        quantity: Quantity,
+        size: TradeSize,
         leverage: Leverage,
         stoploss: Price,
         takeprofit: Price,
     ) -> LiveResult<LnmTrade> {
         self.send_order_update(LiveTradeExecutorUpdateOrder::CreateNewTrade {
             side,
-            quantity,
+            size,
             leverage,
             stoploss,
             takeprofit,
@@ -159,7 +159,7 @@ impl WrappedApiContext {
             .futures
             .create_new_trade(
                 side,
-                quantity.into(),
+                size,
                 leverage,
                 TradeExecution::Market,
                 Some(stoploss),
