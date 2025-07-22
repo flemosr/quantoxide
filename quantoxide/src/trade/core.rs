@@ -537,6 +537,8 @@ pub trait TradeExecutor: Send + Sync {
         leverage: Leverage,
     ) -> Result<()>;
 
+    async fn close_trade(&self, trade_id: Uuid) -> Result<()>;
+
     async fn close_longs(&self) -> Result<()>;
 
     async fn close_shorts(&self) -> Result<()>;
