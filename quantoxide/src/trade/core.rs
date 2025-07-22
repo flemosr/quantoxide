@@ -2,6 +2,7 @@ use std::{
     cell::OnceCell,
     collections::{BTreeMap, HashMap},
     fmt,
+    num::NonZeroU64,
     panic::{self, AssertUnwindSafe},
     sync::Arc,
 };
@@ -536,6 +537,8 @@ pub trait TradeExecutor: Send + Sync {
         stoploss_mode: StoplossMode,
         takeprofit_perc: BoundedPercentage,
     ) -> Result<()>;
+
+    async fn add_margin(&self, trade_id: Uuid, amount: NonZeroU64) -> Result<()>;
 
     async fn close_trade(&self, trade_id: Uuid) -> Result<()>;
 
