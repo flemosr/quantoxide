@@ -11,8 +11,7 @@ use uuid::Uuid;
 use lnm_sdk::api::{
     ApiContext,
     rest::models::{
-        BoundedPercentage, Leverage, LowerBoundedPercentage, Price, Quantity, Trade, TradeSide,
-        error::QuantityValidationError,
+        BoundedPercentage, Leverage, LowerBoundedPercentage, Price, Trade, TradeSide, TradeSize,
     },
 };
 
@@ -165,10 +164,10 @@ impl LiveTradeExecutor {
 
     async fn open_trade(
         &self,
+        size: TradeSize,
+        leverage: Leverage,
         risk_params: RiskParams,
         trade_tsl: Option<TradeTrailingStoploss>,
-        balance_perc: BoundedPercentage,
-        leverage: Leverage,
     ) -> Result<()> {
         let locked_ready_state = self.state_manager.try_lock_ready_state().await?;
 
@@ -176,19 +175,9 @@ impl LiveTradeExecutor {
 
         let (side, stoploss, takeprofit) = risk_params.into_trade_params(market_price)?;
 
-        let quantity = Quantity::try_from_balance_perc(
-            locked_ready_state.trading_session().balance(),
-            market_price,
-            balance_perc,
-        )
-        .map_err(|e| match e {
-            QuantityValidationError::TooLow => TradeError::BalanceTooLow,
-            QuantityValidationError::TooHigh => TradeError::BalanceTooHigh,
-        })?;
-
         let trade = match self
             .api
-            .create_new_trade(side, quantity, leverage, stoploss, takeprofit)
+            .create_new_trade(side, size, leverage, stoploss, takeprofit)
             .await
         {
             Ok(trade) => trade,
@@ -336,11 +325,11 @@ impl LiveTradeExecutor {
 impl TradeExecutor for LiveTradeExecutor {
     async fn open_long(
         &self,
+        size: TradeSize,
+        leverage: Leverage,
         stoploss_perc: BoundedPercentage,
         stoploss_mode: StoplossMode,
         takeprofit_perc: LowerBoundedPercentage,
-        balance_perc: BoundedPercentage,
-        leverage: Leverage,
     ) -> Result<()> {
         let trade_tsl =
             stoploss_mode.validate_trade_tsl(self.config.tsl_step_size, stoploss_perc)?;
@@ -350,17 +339,17 @@ impl TradeExecutor for LiveTradeExecutor {
             takeprofit_perc,
         };
 
-        self.open_trade(risk_params, trade_tsl, balance_perc, leverage)
+        self.open_trade(size, leverage, risk_params, trade_tsl)
             .await
     }
 
     async fn open_short(
         &self,
+        size: TradeSize,
+        leverage: Leverage,
         stoploss_perc: BoundedPercentage,
         stoploss_mode: StoplossMode,
         takeprofit_perc: BoundedPercentage,
-        balance_perc: BoundedPercentage,
-        leverage: Leverage,
     ) -> Result<()> {
         let trade_tsl =
             stoploss_mode.validate_trade_tsl(self.config.tsl_step_size, stoploss_perc)?;
@@ -370,7 +359,7 @@ impl TradeExecutor for LiveTradeExecutor {
             takeprofit_perc,
         };
 
-        self.open_trade(risk_params, trade_tsl, balance_perc, leverage)
+        self.open_trade(size, leverage, risk_params, trade_tsl)
             .await
     }
 
