@@ -78,7 +78,7 @@ impl LiveTradingSession {
                 .remove(&trade.id())
                 .and_then(|inner_opt| inner_opt.clone());
 
-            session.register_running_trade(tsl_step_size, trade, trade_tsl)?;
+            session.register_running_trade(trade, trade_tsl)?;
         }
 
         if !registered_trades_map.is_empty() {
@@ -206,7 +206,7 @@ impl LiveTradingSession {
             closed_trades.extend(new_closed_trades);
         }
 
-        self.update_running_trades(self.tsl_step_size, updated_trades)?;
+        self.update_running_trades(updated_trades)?;
 
         self.close_trades(&closed_trades)?;
 
@@ -215,7 +215,6 @@ impl LiveTradingSession {
 
     pub fn register_running_trade(
         &mut self,
-        tsl_step_size: BoundedPercentage,
         new_trade: LnmTrade,
         trade_tsl: Option<TradeTrailingStoploss>,
     ) -> LiveResult<()> {
@@ -249,7 +248,7 @@ impl LiveTradingSession {
         .max(0) as u64;
 
         self.trigger
-            .update(tsl_step_size, &new_trade, trade_tsl)
+            .update(self.tsl_step_size, &new_trade, trade_tsl)
             .map_err(|e| LiveError::Generic(e.to_string()))?;
         self.running
             .insert(new_trade.id(), (Arc::new(new_trade), trade_tsl));
@@ -259,7 +258,6 @@ impl LiveTradingSession {
 
     pub fn update_running_trades(
         &mut self,
-        tsl_step_size: BoundedPercentage,
         mut updated_trades: HashMap<Uuid, LnmTrade>,
     ) -> LiveResult<()> {
         if updated_trades.is_empty() {
@@ -283,7 +281,7 @@ impl LiveTradingSession {
 
             // TODO: Improve error handling here
             new_trigger
-                .update(tsl_step_size, running_trade.as_ref(), *trade_tsl)
+                .update(self.tsl_step_size, running_trade.as_ref(), *trade_tsl)
                 .map_err(|e| LiveError::Generic(e.to_string()))?;
 
             new_running.insert(*id, (running_trade, *trade_tsl));
@@ -307,6 +305,12 @@ impl LiveTradingSession {
         self.balance = new_balance.max(0) as u64;
 
         Ok(())
+    }
+
+    pub fn update_running_trade(&mut self, updated_trade: LnmTrade) -> LiveResult<()> {
+        let mut updated_trades_map = HashMap::new();
+        updated_trades_map.insert(updated_trade.id(), updated_trade);
+        self.update_running_trades(updated_trades_map)
     }
 
     pub fn close_trades(&mut self, closed_trades: &Vec<LnmTrade>) -> LiveResult<()> {
