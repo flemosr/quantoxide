@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{num::NonZeroU64, sync::Arc};
 
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
@@ -152,6 +152,33 @@ impl SimulatedTradeRunning {
             quantity: trade.quantity,
             leverage: trade.leverage,
             liquidation: trade.liquidation,
+            opening_fee: trade.opening_fee,
+            closing_fee_reserved: trade.closing_fee_reserved,
+        }))
+    }
+
+    pub fn from_trade_with_added_margin(trade: &Self, amount: NonZeroU64) -> Result<Arc<Self>> {
+        let new_margin = trade.margin() + amount.into();
+        let new_leverage = Leverage::try_calculate(
+            trade.quantity(),
+            new_margin,
+            trade.entry_price().expect("not none"),
+        )
+        .map_err(|e| SimulatedTradeExecutorError::Generic(e.to_string()))?;
+        let new_liquidation =
+            estimate_liquidation_price(trade.side, trade.quantity, trade.entry_price, new_leverage);
+
+        Ok(Arc::new(Self {
+            id: trade.id,
+            side: trade.side,
+            entry_time: trade.entry_time,
+            entry_price: trade.entry_price,
+            stoploss: trade.stoploss,
+            takeprofit: trade.takeprofit,
+            margin: new_margin,
+            quantity: trade.quantity,
+            leverage: new_leverage,
+            liquidation: new_liquidation,
             opening_fee: trade.opening_fee,
             closing_fee_reserved: trade.closing_fee_reserved,
         }))
