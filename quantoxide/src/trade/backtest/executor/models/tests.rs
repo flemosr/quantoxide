@@ -418,12 +418,7 @@ fn test_closed_long_pl_calculation() {
     )
     .unwrap();
 
-    let closed_trade = SimulatedTradeClosed::from_running(
-        running_trade.as_ref(),
-        Utc::now(),
-        close_price,
-        get_lnm_fee(),
-    );
+    let closed_trade = running_trade.to_closed(Utc::now(), close_price, get_lnm_fee());
 
     let expected_pl = 1818;
 
@@ -455,12 +450,7 @@ fn test_closed_short_pl_calculation() {
     )
     .unwrap();
 
-    let closed_trade = SimulatedTradeClosed::from_running(
-        running_trade.as_ref(),
-        Utc::now(),
-        close_price,
-        get_lnm_fee(),
-    );
+    let closed_trade = running_trade.to_closed(Utc::now(), close_price, get_lnm_fee());
 
     let expected_pl = 2222;
 

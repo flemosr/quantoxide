@@ -111,80 +111,80 @@ impl SimulatedTradeRunning {
         }))
     }
 
-    pub fn from_trade_with_new_stoploss(trade: &Self, new_stoploss: Price) -> Result<Arc<Self>> {
-        match trade.side {
+    pub fn with_new_stoploss(&self, new_stoploss: Price) -> Result<Arc<Self>> {
+        match self.side {
             TradeSide::Buy => {
-                if new_stoploss < trade.liquidation {
+                if new_stoploss < self.liquidation {
                     return Err(SimulatedTradeExecutorError::StoplossBelowLiquidationLong {
                         stoploss: new_stoploss,
-                        liquidation: trade.liquidation,
+                        liquidation: self.liquidation,
                     });
                 }
-                if new_stoploss >= trade.takeprofit {
+                if new_stoploss >= self.takeprofit {
                     return Err(SimulatedTradeExecutorError::Generic(format!(
                         "For long position, stoploss ({}) must be below takeprofit ({})",
-                        new_stoploss, trade.takeprofit
+                        new_stoploss, self.takeprofit
                     )));
                 }
             }
             TradeSide::Sell => {
-                if new_stoploss > trade.liquidation {
+                if new_stoploss > self.liquidation {
                     return Err(SimulatedTradeExecutorError::StoplossAboveLiquidationShort {
                         stoploss: new_stoploss,
-                        liquidation: trade.liquidation,
+                        liquidation: self.liquidation,
                     });
                 }
-                if new_stoploss <= trade.takeprofit {
+                if new_stoploss <= self.takeprofit {
                     return Err(SimulatedTradeExecutorError::Generic(format!(
                         "For short position, stoploss ({}) must be above takeprofit ({})",
-                        new_stoploss, trade.takeprofit
+                        new_stoploss, self.takeprofit
                     )));
                 }
             }
         }
 
         Ok(Arc::new(Self {
-            id: trade.id,
-            side: trade.side,
-            entry_time: trade.entry_time,
-            entry_price: trade.entry_price,
-            price: trade.price,
+            id: self.id,
+            side: self.side,
+            entry_time: self.entry_time,
+            entry_price: self.entry_price,
+            price: self.price,
             stoploss: new_stoploss,
-            takeprofit: trade.takeprofit,
-            margin: trade.margin,
-            quantity: trade.quantity,
-            leverage: trade.leverage,
-            liquidation: trade.liquidation,
-            opening_fee: trade.opening_fee,
-            closing_fee_reserved: trade.closing_fee_reserved,
+            takeprofit: self.takeprofit,
+            margin: self.margin,
+            quantity: self.quantity,
+            leverage: self.leverage,
+            liquidation: self.liquidation,
+            opening_fee: self.opening_fee,
+            closing_fee_reserved: self.closing_fee_reserved,
         }))
     }
 
-    pub fn from_trade_with_added_margin(trade: &Self, amount: NonZeroU64) -> Result<Arc<Self>> {
-        let new_margin = trade.margin() + amount.into();
+    pub fn with_added_margin(&self, amount: NonZeroU64) -> Result<Arc<Self>> {
+        let new_margin = self.margin() + amount.into();
         let new_leverage = Leverage::try_calculate(
-            trade.quantity(),
+            self.quantity(),
             new_margin,
-            trade.entry_price().expect("not none"),
+            self.entry_price().expect("not none"),
         )
         .map_err(|e| SimulatedTradeExecutorError::Generic(e.to_string()))?;
         let new_liquidation =
-            estimate_liquidation_price(trade.side, trade.quantity, trade.price, new_leverage);
+            estimate_liquidation_price(self.side, self.quantity, self.price, new_leverage);
 
         Ok(Arc::new(Self {
-            id: trade.id,
-            side: trade.side,
-            entry_time: trade.entry_time,
-            entry_price: trade.entry_price,
-            price: trade.price,
-            stoploss: trade.stoploss,
-            takeprofit: trade.takeprofit,
+            id: self.id,
+            side: self.side,
+            entry_time: self.entry_time,
+            entry_price: self.entry_price,
+            price: self.price,
+            stoploss: self.stoploss,
+            takeprofit: self.takeprofit,
             margin: new_margin,
-            quantity: trade.quantity,
+            quantity: self.quantity,
             leverage: new_leverage,
             liquidation: new_liquidation,
-            opening_fee: trade.opening_fee,
-            closing_fee_reserved: trade.closing_fee_reserved,
+            opening_fee: self.opening_fee,
+            closing_fee_reserved: self.closing_fee_reserved,
         }))
     }
 
@@ -199,6 +199,36 @@ impl SimulatedTradeRunning {
     fn net_pl_est(&self, fee_perc: BoundedPercentage, current_price: Price) -> i64 {
         let pl = self.pl_estimate(current_price);
         pl - self.opening_fee as i64 - self.closing_fee_est(fee_perc, current_price) as i64
+    }
+
+    pub fn to_closed(
+        &self,
+        close_time: DateTime<Utc>,
+        close_price: Price,
+        fee_perc: BoundedPercentage,
+    ) -> Arc<SimulatedTradeClosed> {
+        let fee_calc = SATS_PER_BTC * fee_perc.into_f64() / 100.;
+        let closing_fee =
+            (fee_calc * self.quantity.into_f64() / close_price.into_f64()).floor() as u64;
+
+        Arc::new(SimulatedTradeClosed {
+            id: self.id,
+            side: self.side,
+            entry_time: self.entry_time,
+            entry_price: self.entry_price,
+            price: self.price,
+            liquidation: self.liquidation,
+            stoploss: self.stoploss,
+            takeprofit: self.takeprofit,
+            margin: self.margin,
+            quantity: self.quantity,
+            leverage: self.leverage,
+            close_time,
+            close_price,
+            opening_fee: self.opening_fee,
+            closing_fee_reserved: self.closing_fee_reserved,
+            closing_fee,
+        })
     }
 }
 
@@ -325,36 +355,6 @@ pub struct SimulatedTradeClosed {
 }
 
 impl SimulatedTradeClosed {
-    pub fn from_running(
-        running: &SimulatedTradeRunning,
-        close_time: DateTime<Utc>,
-        close_price: Price,
-        fee_perc: BoundedPercentage,
-    ) -> Arc<Self> {
-        let fee_calc = SATS_PER_BTC * fee_perc.into_f64() / 100.;
-        let closing_fee =
-            (fee_calc * running.quantity.into_f64() / close_price.into_f64()).floor() as u64;
-
-        Arc::new(SimulatedTradeClosed {
-            id: running.id,
-            side: running.side,
-            entry_time: running.entry_time,
-            entry_price: running.entry_price,
-            price: running.price,
-            liquidation: running.liquidation,
-            stoploss: running.stoploss,
-            takeprofit: running.takeprofit,
-            margin: running.margin,
-            quantity: running.quantity,
-            leverage: running.leverage,
-            close_time,
-            close_price,
-            opening_fee: running.opening_fee,
-            closing_fee_reserved: running.closing_fee_reserved,
-            closing_fee,
-        })
-    }
-
     #[cfg(test)]
     fn net_pl(&self) -> i64 {
         let pl = self.pl();

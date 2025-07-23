@@ -22,7 +22,7 @@ pub mod error;
 mod models;
 
 use error::SimulatedTradeExecutorError;
-use models::{SimulatedTradeClosed, SimulatedTradeRunning};
+use models::SimulatedTradeRunning;
 
 enum Close {
     Single(Uuid),
@@ -110,15 +110,15 @@ impl SimulatedTradeExecutor {
         let mut new_closed_fees = state_guard.closed_fees;
 
         let mut close_trade = |trade: &SimulatedTradeRunning, close_price: Price| {
-            let trade = SimulatedTradeClosed::from_running(trade, time, close_price, self.fee_perc);
+            let closed_trade = trade.to_closed(time, close_price, self.fee_perc);
 
-            new_balance += trade.margin().into_i64() + trade.maintenance_margin()
-                - trade.closing_fee() as i64
-                + trade.pl();
+            new_balance += closed_trade.margin().into_i64() + closed_trade.maintenance_margin()
+                - closed_trade.closing_fee() as i64
+                + closed_trade.pl();
 
             new_closed_len += 1;
-            new_closed_pl += trade.pl();
-            new_closed_fees += trade.opening_fee() + trade.closing_fee();
+            new_closed_pl += closed_trade.pl();
+            new_closed_fees += closed_trade.opening_fee() + closed_trade.closing_fee();
         };
 
         let mut new_trigger = PriceTrigger::new();
@@ -170,10 +170,7 @@ impl SimulatedTradeExecutor {
                 };
 
                 if let Some(new_stoploss) = new_stoploss {
-                    *trade = SimulatedTradeRunning::from_trade_with_new_stoploss(
-                        trade.as_ref(),
-                        new_stoploss,
-                    )?;
+                    *trade = trade.with_new_stoploss(new_stoploss)?;
                 }
             }
 
@@ -206,20 +203,15 @@ impl SimulatedTradeExecutor {
         let mut new_closed_fees = state_guard.closed_fees;
 
         let mut close_trade = |trade: Arc<SimulatedTradeRunning>| {
-            let trade = SimulatedTradeClosed::from_running(
-                trade.as_ref(),
-                time,
-                market_price,
-                self.fee_perc,
-            );
+            let closed_trade = trade.to_closed(time, market_price, self.fee_perc);
 
-            new_balance += trade.margin().into_i64() + trade.maintenance_margin()
-                - trade.closing_fee() as i64
-                + trade.pl();
+            new_balance += closed_trade.margin().into_i64() + closed_trade.maintenance_margin()
+                - closed_trade.closing_fee() as i64
+                + closed_trade.pl();
 
             new_closed_len += 1;
-            new_closed_pl += trade.pl();
-            new_closed_fees += trade.opening_fee() + trade.closing_fee();
+            new_closed_pl += closed_trade.pl();
+            new_closed_fees += closed_trade.opening_fee() + closed_trade.closing_fee();
         };
 
         let mut new_trigger = PriceTrigger::new();
@@ -353,8 +345,7 @@ impl TradeExecutor for SimulatedTradeExecutor {
             )));
         };
 
-        let updated_trade = SimulatedTradeRunning::from_trade_with_added_margin(trade, amount)?;
-        *trade = updated_trade;
+        *trade = trade.with_added_margin(amount)?;
 
         Ok(())
     }
