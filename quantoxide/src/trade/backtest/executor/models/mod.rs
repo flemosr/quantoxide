@@ -5,8 +5,7 @@ use uuid::Uuid;
 
 use lnm_sdk::api::rest::models::{
     BoundedPercentage, Leverage, Margin, Price, Quantity, SATS_PER_BTC, Trade, TradeClosed,
-    TradeExecutionType, TradeRunning, TradeSide, TradeSize, estimate_liquidation_price,
-    pl_estimate,
+    TradeExecutionType, TradeRunning, TradeSide, TradeSize, trade_util,
 };
 
 use super::{
@@ -44,7 +43,8 @@ impl SimulatedTradeRunning {
     ) -> Result<Arc<Self>> {
         let (quantity, margin) = size.to_quantity_and_margin(entry_price, leverage)?;
 
-        let liquidation = estimate_liquidation_price(side, quantity, entry_price, leverage);
+        let liquidation =
+            trade_util::estimate_liquidation_price(side, quantity, entry_price, leverage);
 
         match side {
             TradeSide::Buy => {
@@ -328,7 +328,7 @@ impl Trade for SimulatedTradeRunning {
 
 impl TradeRunning for SimulatedTradeRunning {
     fn pl_estimate(&self, market_price: Price) -> i64 {
-        pl_estimate(self.side(), self.quantity(), self.price(), market_price)
+        trade_util::pl_estimate(self.side(), self.quantity(), self.price(), market_price)
     }
 }
 
@@ -458,7 +458,7 @@ impl Trade for SimulatedTradeClosed {
 
 impl TradeClosed for SimulatedTradeClosed {
     fn pl(&self) -> i64 {
-        pl_estimate(self.side(), self.quantity(), self.price(), self.close_price)
+        trade_util::pl_estimate(self.side(), self.quantity(), self.price(), self.close_price)
     }
 }
 
