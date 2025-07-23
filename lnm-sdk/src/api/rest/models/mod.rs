@@ -6,10 +6,10 @@ mod margin;
 mod price;
 mod price_history;
 mod quantity;
+mod serde_util;
 mod ticker;
 mod trade;
 mod user;
-mod utils;
 
 pub use leverage::Leverage;
 pub use margin::Margin;

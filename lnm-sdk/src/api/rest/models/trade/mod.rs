@@ -8,10 +8,8 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use super::error::ValidationError;
-
 use super::{
-    Leverage, Margin, Price, Quantity, SATS_PER_BTC, error::FuturesTradeRequestValidationError,
-    utils,
+    Leverage, Margin, Price, Quantity, error::FuturesTradeRequestValidationError, serde_util,
 };
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Copy)]

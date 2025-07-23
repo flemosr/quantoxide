@@ -6,7 +6,7 @@ use super::{
         BoundedPercentageValidationError, LowerBoundedPercentageValidationError,
         PriceValidationError,
     },
-    utils,
+    serde_util,
 };
 
 /// Represents a percentage value that is constrained within a specific range.
@@ -269,7 +269,7 @@ impl Serialize for Price {
     where
         S: serde::Serializer,
     {
-        utils::float_without_decimal::serialize(&self.0, serializer)
+        serde_util::float_without_decimal::serialize(&self.0, serializer)
     }
 }
 

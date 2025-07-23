@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize, de};
 use std::{cmp::Ordering, convert::TryFrom, fmt};
 
-use super::{Margin, Price, Quantity, SATS_PER_BTC, error::LeverageValidationError, utils};
+use super::{Margin, Price, Quantity, SATS_PER_BTC, error::LeverageValidationError, serde_util};
 
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 pub struct Leverage(f64);
@@ -75,7 +75,7 @@ impl Serialize for Leverage {
     where
         S: serde::Serializer,
     {
-        utils::float_without_decimal::serialize(&self.0, serializer)
+        serde_util::float_without_decimal::serialize(&self.0, serializer)
     }
 }
 
