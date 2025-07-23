@@ -540,6 +540,8 @@ pub trait TradeExecutor: Send + Sync {
 
     async fn add_margin(&self, trade_id: Uuid, amount: NonZeroU64) -> Result<()>;
 
+    async fn cash_in(&self, trade_id: Uuid, amount: NonZeroU64) -> Result<()>;
+
     async fn close_trade(&self, trade_id: Uuid) -> Result<()>;
 
     async fn close_longs(&self) -> Result<()>;
