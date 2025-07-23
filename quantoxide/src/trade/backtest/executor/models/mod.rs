@@ -162,14 +162,18 @@ impl SimulatedTradeRunning {
 
     pub fn with_added_margin(&self, amount: NonZeroU64) -> Result<Arc<Self>> {
         let new_margin = self.margin() + amount.into();
-        let new_leverage = Leverage::try_calculate(
-            self.quantity(),
-            new_margin,
-            self.entry_price().expect("not none"),
-        )
-        .map_err(|e| SimulatedTradeExecutorError::Generic(e.to_string()))?;
-        let new_liquidation =
-            estimate_liquidation_price(self.side, self.quantity, self.price, new_leverage);
+        let new_leverage = Leverage::try_calculate(self.quantity(), new_margin, self.price())
+            .map_err(|e| {
+                SimulatedTradeExecutorError::Generic(format!(
+                    "added margin would result in invalid leverage: {e}"
+                ))
+            })?;
+        let new_liquidation = trade_util::estimate_liquidation_price(
+            self.side,
+            self.quantity,
+            self.price,
+            new_leverage,
+        );
 
         Ok(Arc::new(Self {
             id: self.id,
