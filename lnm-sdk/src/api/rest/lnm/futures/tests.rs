@@ -405,6 +405,7 @@ async fn test_add_margin(repo: &LnmFuturesRepository, trade: LnmTrade) -> LnmTra
 
     assert_eq!(updated_trade.id(), trade.id());
     assert_eq!(updated_trade.margin(), target_margin);
+    assert!(updated_trade.leverage() < trade.leverage());
 
     updated_trade
 }
