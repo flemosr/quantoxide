@@ -20,6 +20,7 @@ pub struct SimulatedTradeRunning {
     side: TradeSide,
     entry_time: DateTime<Utc>,
     entry_price: Price,
+    price: Price,
     stoploss: Price,
     takeprofit: Price,
     margin: Margin,
@@ -98,6 +99,7 @@ impl SimulatedTradeRunning {
             side,
             entry_time,
             entry_price,
+            price: entry_price,
             stoploss,
             takeprofit,
             margin,
@@ -146,6 +148,7 @@ impl SimulatedTradeRunning {
             side: trade.side,
             entry_time: trade.entry_time,
             entry_price: trade.entry_price,
+            price: trade.price,
             stoploss: new_stoploss,
             takeprofit: trade.takeprofit,
             margin: trade.margin,
@@ -166,13 +169,14 @@ impl SimulatedTradeRunning {
         )
         .map_err(|e| SimulatedTradeExecutorError::Generic(e.to_string()))?;
         let new_liquidation =
-            estimate_liquidation_price(trade.side, trade.quantity, trade.entry_price, new_leverage);
+            estimate_liquidation_price(trade.side, trade.quantity, trade.price, new_leverage);
 
         Ok(Arc::new(Self {
             id: trade.id,
             side: trade.side,
             entry_time: trade.entry_time,
             entry_price: trade.entry_price,
+            price: trade.price,
             stoploss: trade.stoploss,
             takeprofit: trade.takeprofit,
             margin: new_margin,
@@ -236,7 +240,7 @@ impl Trade for SimulatedTradeRunning {
     }
 
     fn price(&self) -> Price {
-        self.entry_price
+        self.price
     }
 
     fn liquidation(&self) -> Price {
@@ -306,6 +310,7 @@ pub struct SimulatedTradeClosed {
     side: TradeSide,
     entry_time: DateTime<Utc>,
     entry_price: Price,
+    price: Price,
     liquidation: Price,
     stoploss: Price,
     takeprofit: Price,
@@ -335,6 +340,7 @@ impl SimulatedTradeClosed {
             side: running.side,
             entry_time: running.entry_time,
             entry_price: running.entry_price,
+            price: running.price,
             liquidation: running.liquidation,
             stoploss: running.stoploss,
             takeprofit: running.takeprofit,
@@ -394,7 +400,7 @@ impl Trade for SimulatedTradeClosed {
     }
 
     fn price(&self) -> Price {
-        self.entry_price
+        self.price
     }
 
     fn liquidation(&self) -> Price {
@@ -452,7 +458,7 @@ impl Trade for SimulatedTradeClosed {
 
 impl TradeClosed for SimulatedTradeClosed {
     fn pl(&self) -> i64 {
-        pl_estimate(self.side, self.quantity, self.entry_price, self.close_price)
+        pl_estimate(self.side(), self.quantity(), self.price(), self.close_price)
     }
 }
 
