@@ -339,13 +339,39 @@ impl TradeExecutor for SimulatedTradeExecutor {
     async fn add_margin(&self, trade_id: Uuid, amount: NonZeroU64) -> Result<()> {
         let mut state_guard = self.state.lock().await;
 
+        if state_guard.balance < amount.get() as i64 {
+            return Err(TradeError::Generic("not enough balance".to_string()));
+        }
+
         let Some((trade, _)) = state_guard.running.get_mut(&trade_id) else {
             return Err(TradeError::Generic(format!(
                 "trade {trade_id} is not running"
             )));
         };
 
-        *trade = trade.with_added_margin(amount)?;
+        let updated_trade = trade.with_added_margin(amount)?;
+
+        *trade = updated_trade;
+        state_guard.balance -= amount.get() as i64;
+
+        Ok(())
+    }
+
+    async fn cash_in(&self, trade_id: Uuid, amount: NonZeroU64) -> Result<()> {
+        let mut state_guard = self.state.lock().await;
+
+        let market_price = Price::clamp_from(state_guard.market_price);
+
+        let Some((trade, _)) = state_guard.running.get_mut(&trade_id) else {
+            return Err(TradeError::Generic(format!(
+                "trade {trade_id} is not running"
+            )));
+        };
+
+        let updated_trade = trade.with_cash_in(market_price, amount)?;
+
+        *trade = updated_trade;
+        state_guard.balance += amount.get() as i64;
 
         Ok(())
     }
