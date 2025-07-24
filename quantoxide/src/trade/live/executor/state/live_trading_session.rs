@@ -270,9 +270,21 @@ impl LiveTradingSession {
 
         for (id, (curr_trade, trade_tsl)) in &self.running {
             let running_trade = if let Some(updated_trade) = updated_trades.remove(id) {
-                new_balance += curr_trade.margin().into_i64() + curr_trade.maintenance_margin()
+                // Only the trade margin is expected to change on 'add-margin' operations.
+                let margin_diff = curr_trade.margin().into_i64() + curr_trade.maintenance_margin()
                     - updated_trade.margin().into_i64()
                     - updated_trade.maintenance_margin();
+
+                // If the trade price was changed and there was a positive PL corresponding to the
+                // change from the old price to the new price, assume a 'cash-in' operation took
+                // place and incorporate the PL to the balance.
+                let pl_diff = if curr_trade.price() != updated_trade.price() {
+                    curr_trade.pl_estimate(updated_trade.price()).max(0)
+                } else {
+                    0
+                };
+
+                new_balance += margin_diff + pl_diff;
 
                 Arc::new(updated_trade)
             } else {
