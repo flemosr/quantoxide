@@ -26,7 +26,7 @@ impl Quantity {
         price: Price,
         leverage: Leverage,
     ) -> Result<Self, QuantityValidationError> {
-        let qtd = margin.into_u64() as f64 * leverage.into_f64() / SATS_PER_BTC * price.into_f64();
+        let qtd = margin.into_u64() as f64 * leverage.into_f64() * price.into_f64() / SATS_PER_BTC;
         Self::try_from(qtd.floor() as u64)
     }
 
@@ -137,27 +137,51 @@ mod tests {
         let leverage = Leverage::try_from(1.0).unwrap();
 
         let quantity = Quantity::try_calculate(margin, price, leverage).unwrap();
-        assert_eq!(quantity.into_u64(), 1);
+        assert_eq!(quantity, Quantity::MIN);
 
         let margin = Margin::try_from(700).unwrap();
         let price = Price::try_from(100_000).unwrap();
         let leverage = Leverage::try_from(2.0).unwrap();
 
         let quantity = Quantity::try_calculate(margin, price, leverage).unwrap();
-        assert_eq!(quantity.into_u64(), 1);
+        assert_eq!(quantity, Quantity::MIN);
 
         let margin = Margin::try_from(10).unwrap();
         let price = Price::try_from(100_000).unwrap();
         let leverage = Leverage::try_from(100.0).unwrap();
 
         let quantity = Quantity::try_calculate(margin, price, leverage).unwrap();
-        assert_eq!(quantity.into_u64(), 1);
+        assert_eq!(quantity, Quantity::MIN);
 
-        let margin = Margin::try_from(17).unwrap();
+        let margin = Margin::try_from(5_000_000).unwrap();
         let price = Price::try_from(100_000).unwrap();
         let leverage = Leverage::try_from(100.0).unwrap();
 
         let quantity = Quantity::try_calculate(margin, price, leverage).unwrap();
-        assert_eq!(quantity.into_u64(), 1);
+        assert_eq!(quantity, Quantity::MAX);
+
+        let margin = Margin::try_from(9).unwrap();
+        let price = Price::try_from(100_000).unwrap();
+        let leverage = Leverage::try_from(100.0).unwrap();
+
+        let quantity_validation_error = Quantity::try_calculate(margin, price, leverage)
+            .err()
+            .unwrap();
+        assert!(matches!(
+            quantity_validation_error,
+            QuantityValidationError::TooLow
+        ));
+
+        let margin = Margin::try_from(5_001_000).unwrap();
+        let price = Price::try_from(100_000).unwrap();
+        let leverage = Leverage::try_from(100.0).unwrap();
+
+        let quantity_validation_error = Quantity::try_calculate(margin, price, leverage)
+            .err()
+            .unwrap();
+        assert!(matches!(
+            quantity_validation_error,
+            QuantityValidationError::TooHigh
+        ));
     }
 }
