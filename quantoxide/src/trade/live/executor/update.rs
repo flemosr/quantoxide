@@ -32,6 +32,10 @@ pub enum LiveTradeExecutorUpdateOrder {
         id: Uuid,
         amount: NonZeroU64,
     },
+    CashIn {
+        id: Uuid,
+        amount: NonZeroU64,
+    },
     CloseTrade {
         id: Uuid,
     },
@@ -64,6 +68,9 @@ impl fmt::Display for LiveTradeExecutorUpdateOrder {
             }
             Self::AddMargin { id, amount } => {
                 write!(f, "Add Margin:\n  id: {}\n  amount: {}", id, amount)
+            }
+            Self::CashIn { id, amount } => {
+                write!(f, "Cash In:\n  id: {}\n  amount: {}", id, amount)
             }
             Self::CloseTrade { id } => {
                 write!(f, "Close Trade:\n  id: {}", id)
