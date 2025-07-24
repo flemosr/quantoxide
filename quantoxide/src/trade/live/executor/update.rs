@@ -205,6 +205,17 @@ impl WrappedApiContext {
             .map_err(LiveError::RestApi)
     }
 
+    pub async fn cash_in(&self, id: Uuid, amount: NonZeroU64) -> LiveResult<LnmTrade> {
+        self.send_order_update(LiveTradeExecutorUpdateOrder::CashIn { id, amount });
+
+        self.api
+            .rest
+            .futures
+            .cash_in(id, amount)
+            .await
+            .map_err(LiveError::RestApi)
+    }
+
     pub async fn close_trade(&self, id: Uuid) -> LiveResult<LnmTrade> {
         self.send_order_update(LiveTradeExecutorUpdateOrder::CloseTrade { id });
 
