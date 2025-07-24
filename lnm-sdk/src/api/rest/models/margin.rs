@@ -21,14 +21,10 @@ impl Margin {
         self.into()
     }
 
-    pub fn try_calculate(
-        quantity: Quantity,
-        price: Price,
-        leverage: Leverage,
-    ) -> Result<Self, MarginValidationError> {
+    pub fn calculate(quantity: Quantity, price: Price, leverage: Leverage) -> Self {
         let margin =
             quantity.into_f64() * (SATS_PER_BTC / (price.into_f64() * leverage.into_f64()));
-        Self::try_from(margin.ceil() as u64)
+        Self::try_from(margin.ceil() as u64).expect("must result in valid `Margin`")
     }
 }
 
@@ -119,19 +115,27 @@ mod tests {
         let price = Price::try_from(95000).unwrap();
         let leverage = Leverage::try_from(1.0).unwrap();
 
-        let margin = Margin::try_calculate(quantity, price, leverage).unwrap();
+        let margin = Margin::calculate(quantity, price, leverage);
         assert_eq!(margin.into_u64(), 5264);
 
         let leverage = Leverage::try_from(2.0).unwrap();
-        let margin = Margin::try_calculate(quantity, price, leverage).unwrap();
+        let margin = Margin::calculate(quantity, price, leverage);
         assert_eq!(margin.into_u64(), 2632);
 
         let leverage = Leverage::try_from(50.0).unwrap();
-        let margin = Margin::try_calculate(quantity, price, leverage).unwrap();
+        let margin = Margin::calculate(quantity, price, leverage);
         assert_eq!(margin.into_u64(), 106);
 
         let leverage = Leverage::try_from(100.0).unwrap();
-        let margin = Margin::try_calculate(quantity, price, leverage).unwrap();
+        let margin = Margin::calculate(quantity, price, leverage);
         assert_eq!(margin.into_u64(), 53);
+
+        // Edge case: Min margin
+        let margin = Margin::calculate(Quantity::MIN, Price::MAX, Leverage::MAX);
+        assert_eq!(margin, Margin::MIN);
+
+        // Edge case: Max reachable margin
+        let margin = Margin::calculate(Quantity::MAX, Price::MIN, Leverage::MIN);
+        assert_eq!(margin.into_u64(), 50_000_000_000_000);
     }
 }

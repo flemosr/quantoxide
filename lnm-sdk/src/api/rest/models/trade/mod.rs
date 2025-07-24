@@ -51,7 +51,7 @@ impl TradeSize {
                 Ok((quantity, *margin))
             }
             TradeSize::Quantity(quantity) => {
-                let margin = Margin::try_calculate(*quantity, price, leverage)?;
+                let margin = Margin::calculate(*quantity, price, leverage);
                 Ok((*quantity, margin))
             }
         }

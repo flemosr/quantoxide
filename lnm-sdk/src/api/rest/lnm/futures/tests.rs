@@ -142,7 +142,7 @@ async fn test_create_new_trade_margin_limit(
     let discount = BoundedPercentage::try_from(30).unwrap();
     let out_of_mkt_price = ticker.ask_price().apply_discount(discount).unwrap();
     let implied_qtd = Quantity::try_from(1).unwrap();
-    let margin = Margin::try_calculate(implied_qtd, out_of_mkt_price, leverage).unwrap();
+    let margin = Margin::calculate(implied_qtd, out_of_mkt_price, leverage);
     let discount = BoundedPercentage::try_from(5).unwrap();
     let stoploss = Some(out_of_mkt_price.apply_discount(discount).unwrap());
     let takeprofit = None;
@@ -190,7 +190,7 @@ async fn test_create_new_trade_margin_market(
     let side = TradeSide::Buy;
     let leverage = Leverage::try_from(1).unwrap();
     let implied_qtd = Quantity::try_from(1).unwrap();
-    let margin = Margin::try_calculate(implied_qtd, est_min_price, leverage).unwrap();
+    let margin = Margin::calculate(implied_qtd, est_min_price, leverage);
     let est_price = ticker.ask_price();
     let range = BoundedPercentage::try_from(10).unwrap();
     let stoploss = Some(est_price.apply_discount(range).unwrap());
@@ -393,8 +393,7 @@ async fn test_add_margin(repo: &LnmFuturesRepository, trade: LnmTrade) -> LnmTra
     assert!(trade.leverage().into_f64() > 1.6);
 
     let target_leverage = Leverage::try_from(1.5).unwrap();
-    let target_margin =
-        Margin::try_calculate(trade.quantity(), trade.price(), target_leverage).unwrap();
+    let target_margin = Margin::calculate(trade.quantity(), trade.price(), target_leverage);
     let amount = target_margin.into_u64() - trade.margin().into_u64();
     let amount = amount.try_into().unwrap();
 
@@ -414,8 +413,7 @@ async fn test_cash_in(repo: &LnmFuturesRepository, trade: LnmTrade) -> LnmTrade 
     assert!(trade.leverage().into_f64() < 1.9);
 
     let target_leverage = Leverage::try_from(2).unwrap();
-    let target_margin =
-        Margin::try_calculate(trade.quantity(), trade.price(), target_leverage).unwrap();
+    let target_margin = Margin::calculate(trade.quantity(), trade.price(), target_leverage);
     let amount = trade.margin().into_u64() - target_margin.into_u64() + trade.pl().max(0) as u64;
     let amount = amount.try_into().unwrap();
 
