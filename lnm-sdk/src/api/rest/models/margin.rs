@@ -1,7 +1,8 @@
-use serde::{Deserialize, Serialize, de};
 use std::{convert::TryFrom, fmt, num::NonZeroU64, ops::Add};
 
-use super::{Leverage, Price, Quantity, SATS_PER_BTC, error::MarginValidationError};
+use serde::{Deserialize, Serialize, de};
+
+use super::{Leverage, Price, Quantity, SATS_PER_BTC, TradeSide, error::MarginValidationError};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Margin(u64);
@@ -25,6 +26,49 @@ impl Margin {
         let margin =
             quantity.into_f64() * (SATS_PER_BTC / (price.into_f64() * leverage.into_f64()));
         Self::try_from(margin.ceil() as u64).expect("must result in valid `Margin`")
+    }
+
+    pub fn estimate_from_liquidation_price(
+        side: TradeSide,
+        quantity: Quantity,
+        entry_price: Price,
+        liquidation_price: Price,
+    ) -> Result<Self, &'static str> {
+        match side {
+            TradeSide::Buy if liquidation_price >= entry_price => {
+                return Err("For buy positions, liquidation price must be lower than entry price");
+            }
+            TradeSide::Sell if liquidation_price <= entry_price => {
+                return Err(
+                    "For sell positions, liquidation price must be higher than entry price",
+                );
+            }
+            _ => {}
+        }
+
+        // Calculate 'a' and 'b' from `trade_utils::estimate_liquidation_price`
+
+        let a = 1.0 / entry_price.into_f64();
+
+        let b = match side {
+            TradeSide::Buy => {
+                // liquidation_price = 1.0 / (a + b)
+                1.0 / liquidation_price.into_f64() - a
+            }
+            TradeSide::Sell => {
+                // liquidation_price = 1.0 / (a - b)
+                a - 1.0 / liquidation_price.into_f64()
+            }
+        };
+
+        assert!(b > 0.0, "'b' must be positive from validations above");
+
+        let floored_margin = b * SATS_PER_BTC * quantity.into_f64();
+
+        let margin =
+            Margin::try_from(floored_margin.ceil() as u64).expect("must be valid `Margin`");
+
+        Ok(margin)
     }
 }
 
@@ -107,6 +151,8 @@ impl<'de> Deserialize<'de> for Margin {
 
 #[cfg(test)]
 mod tests {
+    use super::super::trade_util;
+
     use super::*;
 
     #[test]
@@ -137,5 +183,64 @@ mod tests {
         // Edge case: Max reachable margin
         let margin = Margin::calculate(Quantity::MAX, Price::MIN, Leverage::MIN);
         assert_eq!(margin.into_u64(), 50_000_000_000_000);
+    }
+
+    #[test]
+    fn test_margin_from_liquidation_price_calculation() {
+        // Test case 1: Buy side with low leverage
+
+        let side = TradeSide::Buy;
+        let quantity = Quantity::try_from(1_000).unwrap();
+        let entry_price = Price::try_from(100_000).unwrap();
+        let leverage = Leverage::MIN;
+
+        let liquidation_price =
+            trade_util::estimate_liquidation_price(side, quantity, entry_price, leverage);
+        let margin =
+            Margin::estimate_from_liquidation_price(side, quantity, entry_price, liquidation_price)
+                .expect("should calculate valid margin");
+        let expected_margin = Margin::calculate(quantity, entry_price, leverage);
+
+        assert!(
+            (margin.into_i64() - expected_margin.into_i64()).abs() <= 999,
+            "Margin difference too large: calculated {} vs expected {}",
+            margin.into_u64(),
+            expected_margin.into_u64()
+        );
+
+        // Test case 2: Buy side with high leverage
+
+        let leverage = Leverage::MAX;
+        let liquidation_price =
+            trade_util::estimate_liquidation_price(side, quantity, entry_price, leverage);
+        let margin =
+            Margin::estimate_from_liquidation_price(side, quantity, entry_price, liquidation_price)
+                .expect("should calculate valid margin");
+        let expected_margin = Margin::calculate(quantity, entry_price, leverage);
+
+        assert!(
+            (margin.into_i64() - expected_margin.into_i64()).abs() <= 999,
+            "Margin difference too large: calculated {} vs expected {}",
+            margin.into_u64(),
+            expected_margin.into_u64()
+        );
+
+        // Test case 3: Sell side with low leverage
+
+        let side = TradeSide::Sell;
+        let leverage = Leverage::MIN;
+        let liquidation_price =
+            trade_util::estimate_liquidation_price(side, quantity, entry_price, leverage);
+        let margin =
+            Margin::estimate_from_liquidation_price(side, quantity, entry_price, liquidation_price)
+                .expect("should calculate valid margin");
+        let expected_margin = Margin::calculate(quantity, entry_price, leverage);
+
+        assert!(
+            (margin.into_i64() - expected_margin.into_i64()).abs() <= 999,
+            "Margin difference too large: calculated {} vs expected {}",
+            margin.into_u64(),
+            expected_margin.into_u64()
+        );
     }
 }
