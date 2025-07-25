@@ -34,17 +34,17 @@ impl Margin {
     pub fn est_from_liquidation_price(
         side: TradeSide,
         quantity: Quantity,
-        entry_price: Price,
-        liquidation_price: Price,
+        price: Price,
+        liquidation: Price,
     ) -> Result<Self, TradeValidationError> {
         match side {
-            TradeSide::Buy if liquidation_price >= entry_price => {
+            TradeSide::Buy if liquidation >= price => {
                 return Err(TradeValidationError::Generic(
                     "For buy positions, liquidation price must be lower than entry price"
                         .to_string(),
                 ));
             }
-            TradeSide::Sell if liquidation_price <= entry_price => {
+            TradeSide::Sell if liquidation <= price => {
                 return Err(TradeValidationError::Generic(
                     "For sell positions, liquidation price must be higher than entry price"
                         .to_string(),
@@ -55,16 +55,16 @@ impl Margin {
 
         // Calculate 'a' and 'b' from `trade_utils::estimate_liquidation_price`
 
-        let a = 1.0 / entry_price.into_f64();
+        let a = 1.0 / price.into_f64();
 
         let b = match side {
             TradeSide::Buy => {
                 // liquidation_price = 1.0 / (a + b)
-                1.0 / liquidation_price.into_f64() - a
+                1.0 / liquidation.into_f64() - a
             }
             TradeSide::Sell => {
                 // liquidation_price = 1.0 / (a - b)
-                a - 1.0 / liquidation_price.into_f64()
+                a - 1.0 / liquidation.into_f64()
             }
         };
 
