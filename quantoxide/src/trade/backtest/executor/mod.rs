@@ -170,7 +170,7 @@ impl SimulatedTradeExecutor {
                 };
 
                 if let Some(new_stoploss) = new_stoploss {
-                    *trade = trade.with_new_stoploss(new_stoploss)?;
+                    *trade = trade.with_new_stoploss(new_stoploss, market_price)?;
                 }
             }
 

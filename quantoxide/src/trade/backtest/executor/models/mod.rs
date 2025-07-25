@@ -5,7 +5,8 @@ use uuid::Uuid;
 
 use lnm_sdk::api::rest::models::{
     BoundedPercentage, Leverage, Margin, Price, Quantity, SATS_PER_BTC, Trade, TradeClosed,
-    TradeExecutionType, TradeRunning, TradeSide, TradeSize, trade_util,
+    TradeExecutionType, TradeRunning, TradeSide, TradeSize, error::TradeValidationError,
+    trade_util,
 };
 
 use super::{
@@ -41,58 +42,17 @@ impl SimulatedTradeRunning {
         takeprofit: Price,
         fee_perc: BoundedPercentage,
     ) -> Result<Arc<Self>> {
-        let (quantity, margin) = size.to_quantity_and_margin(entry_price, leverage)?;
-
-        let liquidation =
-            trade_util::estimate_liquidation_price(side, quantity, entry_price, leverage);
-
-        match side {
-            TradeSide::Buy => {
-                if stoploss < liquidation {
-                    return Err(SimulatedTradeExecutorError::StoplossBelowLiquidationLong {
-                        stoploss,
-                        liquidation,
-                    });
-                }
-                if stoploss >= entry_price {
-                    return Err(SimulatedTradeExecutorError::StoplossAboveEntryForLong {
-                        stoploss,
-                        entry_price,
-                    });
-                }
-                if takeprofit <= entry_price {
-                    return Err(SimulatedTradeExecutorError::TakeprofitBelowEntryForLong {
-                        takeprofit,
-                        entry_price,
-                    });
-                }
-            }
-            TradeSide::Sell => {
-                if stoploss > liquidation {
-                    return Err(SimulatedTradeExecutorError::StoplossAboveLiquidationShort {
-                        stoploss,
-                        liquidation,
-                    });
-                }
-                if stoploss <= entry_price {
-                    return Err(SimulatedTradeExecutorError::StoplossBelowEntryForShort {
-                        stoploss,
-                        entry_price,
-                    });
-                }
-                if takeprofit >= entry_price {
-                    return Err(SimulatedTradeExecutorError::TakeprofitAboveEntryForShort {
-                        takeprofit,
-                        entry_price,
-                    });
-                }
-            }
-        };
-
-        let fee_calc = SATS_PER_BTC * fee_perc.into_f64() / 100.;
-        let opening_fee = (fee_calc * quantity.into_f64() / entry_price.into_f64()).floor() as u64;
-        let closing_fee_reserved =
-            (fee_calc * quantity.into_f64() / liquidation.into_f64()).floor() as u64;
+        let (quantity, margin, liquidation, opening_fee, closing_fee_reserved) =
+            trade_util::evaluate_open_trade_params(
+                side,
+                size,
+                leverage,
+                entry_price,
+                stoploss,
+                takeprofit,
+                fee_perc,
+            )
+            .map_err(SimulatedTradeExecutorError::TradeValidation)?;
 
         Ok(Arc::new(Self {
             id: Uuid::new_v4(),
@@ -111,34 +71,52 @@ impl SimulatedTradeRunning {
         }))
     }
 
-    pub fn with_new_stoploss(&self, new_stoploss: Price) -> Result<Arc<Self>> {
+    pub fn with_new_stoploss(&self, market_price: Price, new_stoploss: Price) -> Result<Arc<Self>> {
         match self.side {
             TradeSide::Buy => {
                 if new_stoploss < self.liquidation {
-                    return Err(SimulatedTradeExecutorError::StoplossBelowLiquidationLong {
+                    return Err(TradeValidationError::StoplossBelowLiquidationLong {
                         stoploss: new_stoploss,
                         liquidation: self.liquidation,
-                    });
+                    }
+                    .into());
                 }
                 if new_stoploss >= self.takeprofit {
-                    return Err(SimulatedTradeExecutorError::Generic(format!(
+                    return Err(TradeValidationError::Generic(format!(
                         "For long position, stoploss ({}) must be below takeprofit ({})",
                         new_stoploss, self.takeprofit
-                    )));
+                    ))
+                    .into());
+                }
+                if new_stoploss < market_price {
+                    return Err(TradeValidationError::Generic(format!(
+                        "For long position, stoploss ({}) must be below market price ({})",
+                        new_stoploss, self.takeprofit
+                    ))
+                    .into());
                 }
             }
             TradeSide::Sell => {
                 if new_stoploss > self.liquidation {
-                    return Err(SimulatedTradeExecutorError::StoplossAboveLiquidationShort {
+                    return Err(TradeValidationError::StoplossAboveLiquidationShort {
                         stoploss: new_stoploss,
                         liquidation: self.liquidation,
-                    });
+                    }
+                    .into());
                 }
                 if new_stoploss <= self.takeprofit {
-                    return Err(SimulatedTradeExecutorError::Generic(format!(
+                    return Err(TradeValidationError::Generic(format!(
                         "For short position, stoploss ({}) must be above takeprofit ({})",
                         new_stoploss, self.takeprofit
-                    )));
+                    ))
+                    .into());
+                }
+                if new_stoploss >= market_price {
+                    return Err(TradeValidationError::Generic(format!(
+                        "For short position, stoploss ({}) must be above market price ({})",
+                        new_stoploss, self.takeprofit
+                    ))
+                    .into());
                 }
             }
         }
