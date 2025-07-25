@@ -491,6 +491,14 @@ impl TradeExecutor for LiveTradeExecutor {
     async fn close_trade(&self, trade_id: Uuid) -> Result<()> {
         let locked_ready_state = self.state_manager.try_lock_ready_state().await?;
 
+        let trading_session = locked_ready_state.trading_session();
+
+        if trading_session.running().get(&trade_id).is_none() {
+            return Err(TradeError::Generic(format!(
+                "trade {trade_id} is not running"
+            )));
+        };
+
         let close_trade = match self.api.close_trade(trade_id).await {
             Ok(trade) => trade,
             Err(e) => {
