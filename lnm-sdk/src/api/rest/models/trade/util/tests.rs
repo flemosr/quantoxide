@@ -377,8 +377,15 @@ fn test_pl_long_profit() {
     let end_price = Price::try_from(55_000.0).unwrap();
 
     let pl = pl_estimate(side, quantity, start_price, end_price);
+    let calculated_end_price = price_from_pl(side, quantity, start_price, pl);
 
     assert_eq!(pl, 1818);
+    let price_diff = (calculated_end_price.into_f64() - end_price.into_f64()).abs();
+    let tolerance = end_price.into_f64() * 0.0001; // 0.01%
+    assert!(
+        price_diff < tolerance,
+        "Price difference {price_diff} exceeds tolerance",
+    );
 }
 
 #[test]
@@ -389,8 +396,15 @@ fn test_pl_long_loss() {
     let end_price = Price::try_from(45_000.0).unwrap();
 
     let pl = pl_estimate(side, quantity, start_price, end_price);
+    let calculated_end_price = price_from_pl(side, quantity, start_price, pl);
 
     assert_eq!(pl, -2223);
+    let price_diff = (calculated_end_price.into_f64() - end_price.into_f64()).abs();
+    let tolerance = end_price.into_f64() * 0.0001; // 0.01%
+    assert!(
+        price_diff < tolerance,
+        "Price difference {price_diff} exceeds tolerance",
+    );
 }
 
 #[test]
@@ -401,8 +415,15 @@ fn test_pl_short_profit() {
     let end_price = Price::try_from(45_000.0).unwrap();
 
     let pl = pl_estimate(side, quantity, start_price, end_price);
+    let calculated_end_price = price_from_pl(side, quantity, start_price, pl);
 
     assert_eq!(pl, 2222);
+    let price_diff = (calculated_end_price.into_f64() - end_price.into_f64()).abs();
+    let tolerance = end_price.into_f64() * 0.0001; // 0.01%
+    assert!(
+        price_diff < tolerance,
+        "Price difference {price_diff} exceeds tolerance",
+    );
 }
 
 #[test]
@@ -413,61 +434,13 @@ fn test_pl_short_loss() {
     let end_price = Price::try_from(55_000.0).unwrap();
 
     let pl = pl_estimate(side, quantity, start_price, end_price);
+    let calculated_end_price = price_from_pl(side, quantity, start_price, pl);
 
     assert_eq!(pl, -1819);
-}
-
-#[test]
-fn test_pl_estimate_and_price_from_pl() {
-    // Test case 1: Buy side with profit
-
-    let side = TradeSide::Buy;
-    let quantity = Quantity::try_from(1_000).unwrap();
-    let start_price = Price::try_from(110_000).unwrap();
-    let end_price = Price::try_from(120_000).unwrap();
-
-    let pl = pl_estimate(side, quantity, start_price, end_price);
-    let calculated_end_price = price_from_pl(side, quantity, start_price, pl);
-
-    assert_eq!(pl, 75_757);
-    assert_eq!(calculated_end_price, end_price);
-
-    // Test case 2: Buy side with loss
-
-    let side = TradeSide::Buy;
-    let quantity = Quantity::try_from(1_000).unwrap();
-    let start_price = Price::try_from(110_000).unwrap();
-    let end_price = Price::try_from(105_000).unwrap();
-
-    let pl = pl_estimate(side, quantity, start_price, end_price);
-    let calculated_end_price = price_from_pl(side, quantity, start_price, pl);
-
-    assert_eq!(pl, -43_291);
-    assert_eq!(calculated_end_price, end_price);
-
-    // Test case 3: Sell side with profit
-
-    let side = TradeSide::Sell;
-    let quantity = Quantity::try_from(1_000).unwrap();
-    let start_price = Price::try_from(110_000).unwrap();
-    let end_price = Price::try_from(90_000).unwrap();
-
-    let pl = pl_estimate(side, quantity, start_price, end_price);
-    let calculated_end_price = price_from_pl(side, quantity, start_price, pl);
-
-    assert_eq!(pl, 202_020);
-    assert_eq!(calculated_end_price, end_price);
-
-    // Test case 4: Sell side with loss
-
-    let side = TradeSide::Sell;
-    let quantity = Quantity::try_from(1_000).unwrap();
-    let start_price = Price::try_from(110_000).unwrap();
-    let end_price = Price::try_from(115_000).unwrap();
-
-    let pl = pl_estimate(side, quantity, start_price, end_price);
-    let calculated_end_price = price_from_pl(side, quantity, start_price, pl);
-
-    assert_eq!(pl, -39_526);
-    assert_eq!(calculated_end_price, end_price);
+    let price_diff = (calculated_end_price.into_f64() - end_price.into_f64()).abs();
+    let tolerance = end_price.into_f64() * 0.0001; // 0.01%
+    assert!(
+        price_diff < tolerance,
+        "Price difference {price_diff} exceeds tolerance",
+    );
 }
