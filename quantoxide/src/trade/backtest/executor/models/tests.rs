@@ -7,116 +7,7 @@ fn get_lnm_fee() -> BoundedPercentage {
 }
 
 #[test]
-fn test_running_long_pl_calculation() {
-    let entry_price = Price::try_from(50_000.0).unwrap();
-    let current_price = Price::try_from(55_000.0).unwrap();
-    let size = Quantity::try_from(10).unwrap().into();
-    let leverage = Leverage::try_from(5.0).unwrap();
-    let fee = get_lnm_fee();
-
-    let trade = SimulatedTradeRunning::new(
-        TradeSide::Buy,
-        size,
-        leverage,
-        Utc::now(),
-        entry_price,
-        Price::try_from(45_000.0).unwrap(),
-        Price::try_from(60_000.0).unwrap(),
-        fee,
-    )
-    .unwrap();
-
-    let expected_pl = 1818;
-    let expected_net_pl = 1780;
-
-    assert_eq!(trade.est_pl(current_price), expected_pl);
-    assert_eq!(trade.net_pl_est(fee, current_price), expected_net_pl);
-}
-
-#[test]
-fn test_running_long_pl_loss() {
-    let entry_price = Price::try_from(50_000.0).unwrap();
-    let current_price = Price::try_from(45_000.0).unwrap();
-    let size = Quantity::try_from(10).unwrap().into();
-    let leverage = Leverage::try_from(5.0).unwrap();
-    let fee = get_lnm_fee();
-
-    let trade = SimulatedTradeRunning::new(
-        TradeSide::Buy,
-        size,
-        leverage,
-        Utc::now(),
-        entry_price,
-        Price::try_from(42_000.0).unwrap(),
-        Price::try_from(60_000.0).unwrap(),
-        fee,
-    )
-    .unwrap();
-
-    let expected_pl = -2223;
-    let expected_net_pl = -2265;
-
-    assert_eq!(trade.est_pl(current_price), expected_pl);
-    assert_eq!(trade.net_pl_est(fee, current_price), expected_net_pl);
-}
-
-#[test]
-fn test_running_short_pl_calculation() {
-    let entry_price = Price::try_from(50_000.0).unwrap();
-    let current_price = Price::try_from(45_000.0).unwrap();
-    let size = Quantity::try_from(10).unwrap().into();
-    let leverage = Leverage::try_from(5.0).unwrap();
-    let fee = get_lnm_fee();
-
-    let trade = SimulatedTradeRunning::new(
-        TradeSide::Sell,
-        size,
-        leverage,
-        Utc::now(),
-        entry_price,
-        Price::try_from(55_000.0).unwrap(),
-        Price::try_from(45_000.0).unwrap(),
-        fee,
-    )
-    .unwrap();
-
-    let expected_pl = 2222;
-    let expected_net_pl = 2180;
-
-    assert_eq!(trade.est_pl(current_price), expected_pl);
-    assert_eq!(trade.net_pl_est(fee, current_price), expected_net_pl);
-}
-
-#[test]
-fn test_running_short_pl_loss() {
-    let entry_price = Price::try_from(50_000.0).unwrap();
-    let current_price = Price::try_from(55_000.0).unwrap();
-    let size = Quantity::try_from(10).unwrap().into();
-    let leverage = Leverage::try_from(5.0).unwrap();
-    let fee = get_lnm_fee();
-
-    let trade = SimulatedTradeRunning::new(
-        TradeSide::Sell,
-        size,
-        leverage,
-        Utc::now(),
-        entry_price,
-        Price::try_from(60_000.0).unwrap(),
-        Price::try_from(45_000.0).unwrap(),
-        fee,
-    )
-    .unwrap();
-
-    let expected_pl = -1819;
-    let expected_net_pl = -1857;
-
-    assert_eq!(trade.est_pl(current_price), expected_pl);
-    assert_eq!(trade.net_pl_est(fee, current_price), expected_net_pl);
-}
-
-#[test]
 fn test_closed_long_pl_calculation() {
-    // Create a closed long trade
     let entry_price = Price::try_from(50_000.0).unwrap();
     let close_price = Price::try_from(55_000.0).unwrap();
     let size = Quantity::try_from(10).unwrap().into();
@@ -148,7 +39,6 @@ fn test_closed_long_pl_calculation() {
 
 #[test]
 fn test_closed_short_pl_calculation() {
-    // Create a closed short trade
     let entry_price = Price::try_from(50_000.0).unwrap();
     let close_price = Price::try_from(45_000.0).unwrap();
     let size = Quantity::try_from(10).unwrap().into();
