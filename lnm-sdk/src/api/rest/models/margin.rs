@@ -2,7 +2,10 @@ use std::{convert::TryFrom, fmt, num::NonZeroU64, ops::Add};
 
 use serde::{Deserialize, Serialize, de};
 
-use super::{Leverage, Price, Quantity, SATS_PER_BTC, TradeSide, error::MarginValidationError};
+use super::{
+    Leverage, Price, Quantity, SATS_PER_BTC, TradeSide,
+    error::{MarginValidationError, TradeValidationError},
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Margin(u64);
@@ -28,20 +31,24 @@ impl Margin {
         Self::try_from(margin.ceil() as u64).expect("must result in valid `Margin`")
     }
 
-    pub fn estimate_from_liquidation_price(
+    pub fn est_from_liquidation_price(
         side: TradeSide,
         quantity: Quantity,
         entry_price: Price,
         liquidation_price: Price,
-    ) -> Result<Self, &'static str> {
+    ) -> Result<Self, TradeValidationError> {
         match side {
             TradeSide::Buy if liquidation_price >= entry_price => {
-                return Err("For buy positions, liquidation price must be lower than entry price");
+                return Err(TradeValidationError::Generic(
+                    "For buy positions, liquidation price must be lower than entry price"
+                        .to_string(),
+                ));
             }
             TradeSide::Sell if liquidation_price <= entry_price => {
-                return Err(
-                    "For sell positions, liquidation price must be higher than entry price",
-                );
+                return Err(TradeValidationError::Generic(
+                    "For sell positions, liquidation price must be higher than entry price"
+                        .to_string(),
+                ));
             }
             _ => {}
         }
@@ -197,7 +204,7 @@ mod tests {
         let liquidation_price =
             trade_util::estimate_liquidation_price(side, quantity, entry_price, leverage);
         let margin =
-            Margin::estimate_from_liquidation_price(side, quantity, entry_price, liquidation_price)
+            Margin::est_from_liquidation_price(side, quantity, entry_price, liquidation_price)
                 .expect("should calculate valid margin");
         let expected_margin = Margin::calculate(quantity, entry_price, leverage);
 
@@ -214,7 +221,7 @@ mod tests {
         let liquidation_price =
             trade_util::estimate_liquidation_price(side, quantity, entry_price, leverage);
         let margin =
-            Margin::estimate_from_liquidation_price(side, quantity, entry_price, liquidation_price)
+            Margin::est_from_liquidation_price(side, quantity, entry_price, liquidation_price)
                 .expect("should calculate valid margin");
         let expected_margin = Margin::calculate(quantity, entry_price, leverage);
 
@@ -232,7 +239,7 @@ mod tests {
         let liquidation_price =
             trade_util::estimate_liquidation_price(side, quantity, entry_price, leverage);
         let margin =
-            Margin::estimate_from_liquidation_price(side, quantity, entry_price, liquidation_price)
+            Margin::est_from_liquidation_price(side, quantity, entry_price, liquidation_price)
                 .expect("should calculate valid margin");
         let expected_margin = Margin::calculate(quantity, entry_price, leverage);
 
