@@ -484,6 +484,25 @@ fn test_pl_edge_case_small_prices() {
 }
 
 #[test]
+fn test_pl_edge_case_big_prices() {
+    let side = TradeSide::Buy;
+    let quantity = Quantity::MAX;
+    let start_price = Price::try_from(95_000_000).unwrap();
+    let end_price = Price::try_from(100_000_000.).unwrap();
+
+    let pl = pl_estimate(side, quantity, start_price, end_price);
+    let calculated_end_price = price_from_pl(side, quantity, start_price, pl);
+
+    assert_eq!(pl, 26_315);
+    let price_diff = (calculated_end_price.into_f64() - end_price.into_f64()).abs();
+    let tolerance = end_price.into_f64() * 0.0005; // 0.05%
+    assert!(
+        price_diff < tolerance,
+        "Price difference {price_diff} exceeds tolerance",
+    );
+}
+
+#[test]
 fn test_pl_edge_case_min_quantity() {
     let side = TradeSide::Buy;
     let quantity = Quantity::try_from(1).unwrap();
