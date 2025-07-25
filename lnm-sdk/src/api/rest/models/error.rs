@@ -88,6 +88,38 @@ pub enum FuturesTradeRequestValidationError {
 
 #[derive(Debug, Error)]
 pub enum TradeValidationError {
+    #[error(
+        "Stoploss ({stoploss}) can't be below liquidation price ({liquidation}) for long positions"
+    )]
+    StoplossBelowLiquidationLong { stoploss: Price, liquidation: Price },
+
+    #[error("Stoploss ({stoploss}) can't be above entry price ({entry_price}) for long positions")]
+    StoplossAboveEntryForLong { stoploss: Price, entry_price: Price },
+
+    #[error(
+        "Takeprofit ({takeprofit}) can't be below entry price ({entry_price}) for long positions"
+    )]
+    TakeprofitBelowEntryForLong {
+        takeprofit: Price,
+        entry_price: Price,
+    },
+
+    #[error(
+        "Stoploss ({stoploss}) can't be above liquidation price ({liquidation}) for short positions"
+    )]
+    StoplossAboveLiquidationShort { stoploss: Price, liquidation: Price },
+
+    #[error("Stoploss ({stoploss}) can't be below entry price ({entry_price}) for short positions")]
+    StoplossBelowEntryForShort { stoploss: Price, entry_price: Price },
+
+    #[error(
+        "Takeprofit ({takeprofit}) can't be above entry price ({entry_price}) for short positions"
+    )]
+    TakeprofitAboveEntryForShort {
+        takeprofit: Price,
+        entry_price: Price,
+    },
+
     #[error("[Generic] {0}")]
     Generic(String),
 }
