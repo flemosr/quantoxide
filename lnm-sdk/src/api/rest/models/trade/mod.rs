@@ -1,4 +1,7 @@
-use std::{fmt, result::Result};
+use std::{
+    fmt::{self},
+    result::Result,
+};
 
 use chrono::{
     DateTime, Utc,
@@ -218,7 +221,92 @@ pub trait Trade: Send + Sync + fmt::Debug + 'static {
 }
 
 pub trait TradeRunning: Trade {
-    fn pl_estimate(&self, market_price: Price) -> i64;
+    fn est_pl(&self, market_price: Price) -> i64;
+
+    fn est_max_additional_margin(&self) -> u64 {
+        if self.leverage() == Leverage::MIN {
+            return 0;
+        }
+
+        let max_margin = Margin::calculate(self.quantity(), self.price(), Leverage::MIN);
+
+        let max_add_margin = max_margin
+            .into_u64()
+            .saturating_sub(self.margin().into_u64());
+
+        return max_add_margin;
+    }
+
+    fn est_max_cash_in(&self, market_price: Price) -> u64 {
+        let extractable_pl = self.est_pl(market_price).max(0) as u64;
+
+        let min_margin = Margin::calculate(self.quantity(), self.price(), Leverage::MAX);
+
+        let max_cash_in = self
+            .margin()
+            .into_u64()
+            .saturating_sub(min_margin.into_u64())
+            + extractable_pl;
+
+        return max_cash_in;
+    }
+
+    fn est_collateral_delta_for_liquidation(
+        &self,
+        target_liquidation: Price,
+        market_price: Price,
+    ) -> Result<i64, ValidationError> {
+        if target_liquidation == self.liquidation() {
+            return Ok(0);
+        }
+
+        let decreasing_leverage = match self.side() {
+            TradeSide::Buy => {
+                if target_liquidation > market_price {
+                    return Err(ValidationError::Generic(
+                        "liquidation must be below market price for long trade".to_string(),
+                    ));
+                }
+
+                target_liquidation < self.liquidation()
+            }
+            TradeSide::Sell => {
+                if target_liquidation < market_price {
+                    return Err(ValidationError::Generic(
+                        "liquidation must be above market price for short trade".to_string(),
+                    ));
+                }
+
+                target_liquidation > self.liquidation()
+            }
+        };
+
+        let target_trade_price = if decreasing_leverage {
+            // Add margin, price should remain unchanged
+            self.price()
+        } else {
+            // Cash-in, price will be changed to market price before
+            // margin is changed.
+            market_price
+        };
+
+        let target_margin = Margin::est_from_liquidation_price(
+            self.side(),
+            self.quantity(),
+            target_trade_price,
+            target_liquidation,
+        )?;
+
+        let mut colateral_diff = target_margin.into_i64() - self.margin().into_i64();
+
+        if colateral_diff < 0 {
+            // When executing a cash-in, all PL (if positive) needs to be
+            // extracted before the margin is changed.
+            colateral_diff -= self.est_pl(market_price).max(0);
+        }
+
+        Ok(colateral_diff)
+    }
 }
 
 pub trait TradeClosed: Trade {
@@ -372,7 +460,7 @@ impl Trade for LnmTrade {
 }
 
 impl TradeRunning for LnmTrade {
-    fn pl_estimate(&self, market_price: Price) -> i64 {
+    fn est_pl(&self, market_price: Price) -> i64 {
         util::pl_estimate(self.side(), self.quantity(), self.price(), market_price)
     }
 }
