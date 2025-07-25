@@ -279,7 +279,7 @@ impl LiveTradingSession {
                 // change from the old price to the new price, assume a 'cash-in' operation took
                 // place and incorporate the PL to the balance.
                 let pl_diff = if curr_trade.price() != updated_trade.price() {
-                    curr_trade.pl_estimate(updated_trade.price()).max(0)
+                    curr_trade.est_pl(updated_trade.price()).max(0)
                 } else {
                     0
                 };

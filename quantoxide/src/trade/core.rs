@@ -98,7 +98,7 @@ impl TradingState {
                         short_quantity += trade.quantity().into_u64();
                     }
                 }
-                pl += trade.pl_estimate(self.market_price);
+                pl += trade.est_pl(self.market_price);
                 fees += trade.opening_fee();
             }
 
@@ -299,7 +299,7 @@ impl TradingState {
                 .takeprofit()
                 .map_or("N/A".to_string(), |sl| format!("{:.1}", sl));
             let total_margin = trade.margin().into_i64() + trade.maintenance_margin().max(0);
-            let pl = trade.pl_estimate(self.market_price);
+            let pl = trade.est_pl(self.market_price);
             let total_fees = trade.opening_fee() + trade.closing_fee();
 
             table.push_str(&format!(

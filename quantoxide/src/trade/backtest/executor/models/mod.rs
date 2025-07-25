@@ -194,7 +194,7 @@ impl SimulatedTradeRunning {
 
     pub fn with_cash_in(&self, market_price: Price, amount: NonZeroU64) -> Result<Arc<Self>> {
         let amount = amount.get() as u64;
-        let current_pl = self.pl_estimate(market_price);
+        let current_pl = self.est_pl(market_price);
 
         let (new_price, remaining_amount) = if current_pl > 0 {
             if amount < current_pl as u64 {
@@ -274,7 +274,7 @@ impl SimulatedTradeRunning {
 
     #[cfg(test)]
     fn net_pl_est(&self, fee_perc: BoundedPercentage, current_price: Price) -> i64 {
-        let pl = self.pl_estimate(current_price);
+        let pl = self.est_pl(current_price);
         pl - self.opening_fee as i64 - self.closing_fee_est(fee_perc, current_price) as i64
     }
 
@@ -404,7 +404,7 @@ impl Trade for SimulatedTradeRunning {
 }
 
 impl TradeRunning for SimulatedTradeRunning {
-    fn pl_estimate(&self, market_price: Price) -> i64 {
+    fn est_pl(&self, market_price: Price) -> i64 {
         trade_util::pl_estimate(self.side(), self.quantity(), self.price(), market_price)
     }
 }

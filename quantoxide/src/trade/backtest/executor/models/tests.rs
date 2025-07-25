@@ -313,7 +313,7 @@ fn test_running_long_pl_calculation() {
     let expected_pl = 1818;
     let expected_net_pl = 1780;
 
-    assert_eq!(trade.pl_estimate(current_price), expected_pl);
+    assert_eq!(trade.est_pl(current_price), expected_pl);
     assert_eq!(trade.net_pl_est(fee, current_price), expected_net_pl);
 }
 
@@ -340,7 +340,7 @@ fn test_running_long_pl_loss() {
     let expected_pl = -2223;
     let expected_net_pl = -2265;
 
-    assert_eq!(trade.pl_estimate(current_price), expected_pl);
+    assert_eq!(trade.est_pl(current_price), expected_pl);
     assert_eq!(trade.net_pl_est(fee, current_price), expected_net_pl);
 }
 
@@ -367,7 +367,7 @@ fn test_running_short_pl_calculation() {
     let expected_pl = 2222;
     let expected_net_pl = 2180;
 
-    assert_eq!(trade.pl_estimate(current_price), expected_pl);
+    assert_eq!(trade.est_pl(current_price), expected_pl);
     assert_eq!(trade.net_pl_est(fee, current_price), expected_net_pl);
 }
 
@@ -394,7 +394,7 @@ fn test_running_short_pl_loss() {
     let expected_pl = -1819;
     let expected_net_pl = -1857;
 
-    assert_eq!(trade.pl_estimate(current_price), expected_pl);
+    assert_eq!(trade.est_pl(current_price), expected_pl);
     assert_eq!(trade.net_pl_est(fee, current_price), expected_net_pl);
 }
 
@@ -423,7 +423,7 @@ fn test_closed_long_pl_calculation() {
     let expected_pl = 1818;
 
     assert_eq!(closed_trade.pl(), expected_pl);
-    assert_eq!(closed_trade.pl(), running_trade.pl_estimate(close_price));
+    assert_eq!(closed_trade.pl(), running_trade.est_pl(close_price));
     assert_eq!(
         closed_trade.net_pl(),
         expected_pl - closed_trade.opening_fee as i64 - closed_trade.closing_fee as i64
@@ -455,7 +455,7 @@ fn test_closed_short_pl_calculation() {
     let expected_pl = 2222;
 
     assert_eq!(closed_trade.pl(), expected_pl);
-    assert_eq!(closed_trade.pl(), running_trade.pl_estimate(close_price));
+    assert_eq!(closed_trade.pl(), running_trade.est_pl(close_price));
     assert_eq!(
         closed_trade.net_pl(),
         expected_pl - closed_trade.opening_fee as i64 - closed_trade.closing_fee as i64
@@ -481,7 +481,7 @@ fn test_edge_case_min_quantity() {
     )
     .unwrap();
 
-    assert_eq!(trade.pl_estimate(current_price), 181);
+    assert_eq!(trade.est_pl(current_price), 181);
 }
 
 #[test]
@@ -504,7 +504,7 @@ fn test_edge_case_max_quantity() {
     )
     .unwrap();
 
-    assert_eq!(trade.pl_estimate(current_price), 9900990);
+    assert_eq!(trade.est_pl(current_price), 9900990);
 }
 
 #[test]
@@ -530,7 +530,7 @@ fn test_edge_case_min_leverage() {
     // for testing that our trade construction works with min leverage
     // PL should be the same as other tests with same price movement
 
-    assert_eq!(trade.pl_estimate(current_price), 1818);
+    assert_eq!(trade.est_pl(current_price), 1818);
 }
 
 #[test]
@@ -554,7 +554,7 @@ fn test_edge_case_max_leverage() {
 
     // Again, leverage doesn't directly affect PL calculation
 
-    assert_eq!(trade.pl_estimate(current_price), 1818);
+    assert_eq!(trade.est_pl(current_price), 1818);
 }
 
 #[test]
@@ -576,7 +576,7 @@ fn test_edge_case_small_prices() {
     )
     .unwrap();
 
-    assert_eq!(trade.pl_estimate(current_price), 16_666_666);
+    assert_eq!(trade.est_pl(current_price), 16_666_666);
 }
 
 #[test]
@@ -599,7 +599,7 @@ fn test_no_price_movement() {
     )
     .unwrap();
 
-    assert_eq!(trade.pl_estimate(current_price), 0);
+    assert_eq!(trade.est_pl(current_price), 0);
     assert_eq!(trade.net_pl_est(fee, current_price), -40);
 }
 
@@ -744,7 +744,7 @@ fn test_cash_in_from_profitable_long_trade() {
     .unwrap();
 
     let market_price = Price::try_from(100_000).unwrap();
-    let initial_pl = original_trade.pl_estimate(market_price);
+    let initial_pl = original_trade.est_pl(market_price);
     assert_eq!(initial_pl, 50_001);
 
     // Case 1: Cash in partial profit
@@ -757,7 +757,7 @@ fn test_cash_in_from_profitable_long_trade() {
     // After cashing in 10_001, the new entry price should be adjusted
     // so that remaining PL is aprox 40_000 at the current price
 
-    assert!((updated_trade.pl_estimate(market_price) - 40_000 as i64).abs() < 5);
+    assert!((updated_trade.est_pl(market_price) - 40_000 as i64).abs() < 5);
     assert_eq!(updated_trade.margin(), original_trade.margin());
 
     let expected_leverage = Leverage::try_calculate(
@@ -790,7 +790,7 @@ fn test_cash_in_from_profitable_long_trade() {
         .unwrap();
 
     assert_eq!(updated_trade.price, market_price);
-    assert_eq!(updated_trade.pl_estimate(market_price), 0);
+    assert_eq!(updated_trade.est_pl(market_price), 0);
     assert_eq!(updated_trade.margin(), original_trade.margin());
 
     let expected_leverage = Leverage::try_calculate(
@@ -825,7 +825,7 @@ fn test_cash_in_from_profitable_long_trade() {
         original_trade.margin().into_u64() + initial_pl as u64 - cash_in_amount.get() as u64;
 
     assert_eq!(updated_trade.price, market_price);
-    assert_eq!(updated_trade.pl_estimate(market_price), 0);
+    assert_eq!(updated_trade.est_pl(market_price), 0);
     assert_eq!(updated_trade.margin().into_u64(), expected_remaining_margin);
 
     let expected_leverage = Leverage::try_calculate(
@@ -873,7 +873,7 @@ fn test_cash_in_from_losing_long_trade() {
     .unwrap();
 
     let market_price = Price::try_from(45_000.0).unwrap();
-    let current_pl = original_trade.pl_estimate(market_price);
+    let current_pl = original_trade.est_pl(market_price);
     assert!(current_pl < 0);
 
     let original_margin = original_trade.margin();
@@ -913,7 +913,7 @@ fn test_cash_in_from_losing_long_trade() {
     assert_eq!(updated_trade.liquidation(), expected_liquidation);
 
     // PL estimate should remain the same relative to market price
-    assert_eq!(updated_trade.pl_estimate(market_price), current_pl);
+    assert_eq!(updated_trade.est_pl(market_price), current_pl);
 }
 
 #[test]
@@ -942,7 +942,7 @@ fn test_cash_in_from_profitable_short_trade() {
     let market_price = Price::try_from(45_000.0).unwrap();
 
     // Verify initial PL
-    let initial_pl = original_trade.pl_estimate(market_price);
+    let initial_pl = original_trade.est_pl(market_price);
     assert_eq!(initial_pl, 222_222);
 
     // Case 1: Cash in partial profit
@@ -955,7 +955,7 @@ fn test_cash_in_from_profitable_short_trade() {
     // After cashing in 22_222, the new entry price should be adjusted
     // so that remaining PL is aprox 200_000 at the current price
 
-    assert!((updated_trade.pl_estimate(market_price) - 200_000 as i64).abs() < 5);
+    assert!((updated_trade.est_pl(market_price) - 200_000 as i64).abs() < 5);
     assert_eq!(updated_trade.margin(), original_trade.margin()); // Margin should remain unchanged
 
     let expected_leverage = Leverage::try_calculate(
@@ -988,7 +988,7 @@ fn test_cash_in_from_profitable_short_trade() {
         .unwrap();
 
     assert_eq!(updated_trade.price, market_price);
-    assert_eq!(updated_trade.pl_estimate(market_price), 0);
+    assert_eq!(updated_trade.est_pl(market_price), 0);
     assert_eq!(updated_trade.margin(), original_trade.margin()); // Margin should remain unchanged
 
     let expected_leverage = Leverage::try_calculate(
@@ -1023,7 +1023,7 @@ fn test_cash_in_from_profitable_short_trade() {
         original_trade.margin().into_u64() + initial_pl as u64 - cash_in_amount.get() as u64;
 
     assert_eq!(updated_trade.price, market_price);
-    assert_eq!(updated_trade.pl_estimate(market_price), 0);
+    assert_eq!(updated_trade.est_pl(market_price), 0);
     assert_eq!(updated_trade.margin().into_u64(), expected_remaining_margin);
 
     let expected_leverage = Leverage::try_calculate(
@@ -1072,7 +1072,7 @@ fn test_cash_in_from_losing_short_trade() {
 
     // Market price rises to 55,000 (losing position for short)
     let market_price = Price::try_from(55_000.0).unwrap();
-    let current_pl = original_trade.pl_estimate(market_price);
+    let current_pl = original_trade.est_pl(market_price);
     assert!(current_pl < 0);
 
     let original_margin = original_trade.margin();
@@ -1113,5 +1113,5 @@ fn test_cash_in_from_losing_short_trade() {
     assert_eq!(updated_trade.liquidation(), expected_liquidation);
 
     // PL estimate should remain the same relative to market price
-    assert_eq!(updated_trade.pl_estimate(market_price), current_pl);
+    assert_eq!(updated_trade.est_pl(market_price), current_pl);
 }
