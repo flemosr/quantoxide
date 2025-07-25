@@ -370,6 +370,54 @@ fn test_short_takeprofit_validation() {
 }
 
 #[test]
+fn test_pl_long_profit() {
+    let side = TradeSide::Buy;
+    let quantity = Quantity::try_from(10).unwrap();
+    let start_price = Price::try_from(50_000.0).unwrap();
+    let end_price = Price::try_from(55_000.0).unwrap();
+
+    let pl = pl_estimate(side, quantity, start_price, end_price);
+
+    assert_eq!(pl, 1818);
+}
+
+#[test]
+fn test_pl_long_loss() {
+    let side = TradeSide::Buy;
+    let quantity = Quantity::try_from(10).unwrap();
+    let start_price = Price::try_from(50_000.0).unwrap();
+    let end_price = Price::try_from(45_000.0).unwrap();
+
+    let pl = pl_estimate(side, quantity, start_price, end_price);
+
+    assert_eq!(pl, -2223);
+}
+
+#[test]
+fn test_pl_short_profit() {
+    let side = TradeSide::Sell;
+    let quantity = Quantity::try_from(10).unwrap();
+    let start_price = Price::try_from(50_000.0).unwrap();
+    let end_price = Price::try_from(45_000.0).unwrap();
+
+    let pl = pl_estimate(side, quantity, start_price, end_price);
+
+    assert_eq!(pl, 2222);
+}
+
+#[test]
+fn test_pl_short_loss() {
+    let side = TradeSide::Sell;
+    let quantity = Quantity::try_from(10).unwrap();
+    let start_price = Price::try_from(50_000.0).unwrap();
+    let end_price = Price::try_from(55_000.0).unwrap();
+
+    let pl = pl_estimate(side, quantity, start_price, end_price);
+
+    assert_eq!(pl, -1819);
+}
+
+#[test]
 fn test_pl_estimate_and_price_from_pl() {
     // Test case 1: Buy side with profit
 
