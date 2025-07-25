@@ -214,9 +214,18 @@ impl LiveTradeExecutor {
             )
             .map_err(TradeError::TradeValidation)?;
 
+        let trading_session = locked_ready_state.trading_session();
+
         let balance_diff = margin.into_u64() + opening_fee + closing_fee_reserved;
-        if balance_diff > locked_ready_state.trading_session().balance() {
+        if balance_diff > trading_session.balance() {
             return Err(TradeError::BalanceTooLow);
+        }
+
+        let max_running_qtd = self.config.max_running_qtd();
+        if trading_session.running().len() == max_running_qtd {
+            return Err(TradeError::Generic(format!(
+                "can't open trade, max_running_qtd {max_running_qtd} already reached"
+            )));
         }
 
         let trade = match self
