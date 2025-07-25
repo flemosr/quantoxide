@@ -12,8 +12,8 @@ use uuid::Uuid;
 use lnm_sdk::api::{
     ApiContext,
     rest::models::{
-        BoundedPercentage, Leverage, LowerBoundedPercentage, Price, Trade, TradeSide, TradeSize,
-        trade_util,
+        BoundedPercentage, Leverage, LowerBoundedPercentage, Price, Trade, TradeRunning, TradeSide,
+        TradeSize, trade_util,
     },
 };
 
@@ -400,15 +400,27 @@ impl TradeExecutor for LiveTradeExecutor {
 
         let trading_session = locked_ready_state.trading_session();
 
-        if trading_session.running().get(&trade_id).is_none() {
+        if trading_session.running().get(&trade_id).is_none() {}
+
+        let Some((current_trade, _)) = trading_session.running().get(&trade_id) else {
             return Err(TradeError::Generic(format!(
                 "trade {trade_id} is not running"
             )));
+        };
+
+        let max_additional_margin = current_trade.est_max_additional_margin();
+        if amount.get() > max_additional_margin {
+            return Err(TradeError::Generic(format!(
+                "amount {amount} exceeds max_additional_margin {max_additional_margin} for trade {trade_id}"
+            )));
         }
 
-        // TODO: Extra checks to detect consumer error
-        // + balance
-        // + trade max additional margin
+        let balance = trading_session.balance();
+        if amount.get() >= balance {
+            return Err(TradeError::Generic(format!(
+                "amount {amount} exceeds current balance {balance}"
+            )));
+        }
 
         let updated_trade = match self.api.add_margin(trade_id, amount).await {
             Ok(trade) => trade,
