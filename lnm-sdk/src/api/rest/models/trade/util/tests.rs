@@ -539,3 +539,41 @@ fn test_pl_edge_case_max_quantity() {
         "Price difference {price_diff} exceeds tolerance",
     );
 }
+
+#[test]
+fn test_added_margin_long_position() {
+    let side = TradeSide::Buy;
+    let quantity = Quantity::try_from(1_000).unwrap();
+    let price = Price::try_from(50_000.0).unwrap();
+    let original_leverage = Leverage::try_from(50.).unwrap();
+    let original_margin = Margin::calculate(quantity, price, original_leverage);
+    let additional_margin = NonZeroU64::new(50_000).unwrap();
+
+    let (new_margin, new_leverage, new_liquidation) =
+        evaluate_added_margin(side, quantity, price, original_margin, additional_margin).unwrap();
+
+    assert_eq!(new_margin, original_margin + additional_margin.into());
+    assert!(new_leverage < original_leverage);
+
+    let original_liquidation = estimate_liquidation_price(side, quantity, price, original_leverage);
+    assert!(new_liquidation < original_liquidation);
+}
+
+#[test]
+fn test_added_margin_short_position() {
+    let side = TradeSide::Sell;
+    let quantity = Quantity::try_from(1_000).unwrap();
+    let price = Price::try_from(50_000.0).unwrap();
+    let original_leverage = Leverage::try_from(50.).unwrap();
+    let original_margin = Margin::calculate(quantity, price, original_leverage);
+    let additional_margin = NonZeroU64::new(50_000).unwrap();
+
+    let (new_margin, new_leverage, new_liquidation) =
+        evaluate_added_margin(side, quantity, price, original_margin, additional_margin).unwrap();
+
+    assert_eq!(new_margin, original_margin + additional_margin.into());
+    assert!(new_leverage < original_leverage);
+
+    let original_liquidation = estimate_liquidation_price(side, quantity, price, original_leverage);
+    assert!(new_liquidation > original_liquidation);
+}

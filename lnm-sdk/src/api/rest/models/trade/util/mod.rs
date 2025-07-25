@@ -1,3 +1,5 @@
+use std::num::NonZeroU64;
+
 use super::{
     super::{
         BoundedPercentage, Leverage, Margin, Price, Quantity, SATS_PER_BTC, TradeSize,
@@ -139,6 +141,26 @@ pub fn price_from_pl(side: TradeSide, quantity: Quantity, start_price: Price, pl
     };
 
     Price::clamp_from(SATS_PER_BTC / inverse_end_price)
+}
+
+pub fn evaluate_added_margin(
+    side: TradeSide,
+    quantity: Quantity,
+    price: Price,
+    current_margin: Margin,
+    added_amount: NonZeroU64,
+) -> Result<(Margin, Leverage, Price), TradeValidationError> {
+    let new_margin = current_margin + added_amount.into();
+
+    let new_leverage = Leverage::try_calculate(quantity, new_margin, price).map_err(|e| {
+        TradeValidationError::Generic(format!(
+            "added margin would result in invalid leverage: {e}"
+        ))
+    })?;
+
+    let new_liquidation = estimate_liquidation_price(side, quantity, price, new_leverage);
+
+    Ok((new_margin, new_leverage, new_liquidation))
 }
 
 #[cfg(test)]
