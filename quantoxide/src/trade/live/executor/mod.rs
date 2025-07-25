@@ -13,6 +13,7 @@ use lnm_sdk::api::{
     ApiContext,
     rest::models::{
         BoundedPercentage, Leverage, LowerBoundedPercentage, Price, Trade, TradeSide, TradeSize,
+        trade_util,
     },
 };
 
@@ -188,6 +189,23 @@ impl LiveTradeExecutor {
         let market_price = self.get_estimated_market_price().await?;
 
         let (side, stoploss, takeprofit) = risk_params.into_trade_params(market_price)?;
+
+        let (_, margin, _, opening_fee, closing_fee_reserved) =
+            trade_util::evaluate_open_trade_params(
+                side,
+                size,
+                leverage,
+                market_price,
+                stoploss,
+                takeprofit,
+                self.config.estimated_fee_perc,
+            )
+            .map_err(TradeError::TradeValidation)?;
+
+        let balance_diff = margin.into_u64() + opening_fee + closing_fee_reserved;
+        if balance_diff > locked_ready_state.trading_session().balance() {
+            return Err(TradeError::BalanceTooLow);
+        }
 
         let trade = match self
             .api
