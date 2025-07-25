@@ -165,60 +165,16 @@ impl SimulatedTradeRunning {
     }
 
     pub fn with_cash_in(&self, market_price: Price, amount: NonZeroU64) -> Result<Arc<Self>> {
-        let amount = amount.get() as u64;
-        let current_pl = self.est_pl(market_price);
-
-        let (new_price, remaining_amount) = if current_pl > 0 {
-            if amount < current_pl as u64 {
-                // PL should be partially cashed-in. Calculate price that would
-                // correspond to the PL that will be extracted.
-                let new_price = trade_util::price_from_pl(
-                    self.side(),
-                    self.quantity(),
-                    self.entry_price().expect("must have `entry_price`"),
-                    amount as i64,
-                );
-                (new_price, 0)
-            } else {
-                // Whole PL should be cashed-in. Adjust trade price to market price
-                (market_price, amount - current_pl as u64)
-            }
-        } else {
-            // No PL to be cashed-in. Trade price shouldn't change
-            (self.price, amount)
-        };
-
-        let new_margin = if remaining_amount == 0 {
-            // Only PL will be cashed-in. Margin shouldn't change
-            self.margin()
-        } else {
-            Margin::try_from(self.margin().into_u64().saturating_sub(remaining_amount)).map_err(
-                |e| {
-                    SimulatedTradeExecutorError::Generic(format!(
-                        "cash-in would result in invalid margin: {e}"
-                    ))
-                },
-            )?
-        };
-
-        let new_leverage = Leverage::try_calculate(self.quantity(), new_margin, new_price)
-            .map_err(|e| {
-                SimulatedTradeExecutorError::Generic(format!(
-                    "cash-in would result in invalid leverage: {e}"
-                ))
-            })?;
-        let new_liquidation = trade_util::estimate_liquidation_price(
-            self.side,
-            self.quantity,
-            new_price,
-            new_leverage,
-        );
-
-        // TODO: Make stoploss optional with this case in mind
-        let new_stoploss = match self.side {
-            TradeSide::Buy => new_liquidation.max(self.stoploss),
-            TradeSide::Sell => new_liquidation.min(self.stoploss),
-        };
+        let (new_price, new_margin, new_leverage, new_liquidation, new_stoploss) =
+            trade_util::evaluate_cash_in(
+                self.side,
+                self.quantity,
+                self.margin,
+                self.price,
+                Some(self.stoploss),
+                market_price,
+                amount,
+            )?;
 
         Ok(Arc::new(Self {
             id: self.id,
@@ -226,7 +182,8 @@ impl SimulatedTradeRunning {
             entry_time: self.entry_time,
             entry_price: self.entry_price,
             price: new_price,
-            stoploss: new_stoploss,
+            // TODO: Fix once `stoploss` is optional
+            stoploss: new_stoploss.unwrap_or(new_liquidation),
             takeprofit: self.takeprofit,
             margin: new_margin,
             quantity: self.quantity,
