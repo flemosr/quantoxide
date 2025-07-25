@@ -381,7 +381,7 @@ fn test_pl_long_profit() {
 
     assert_eq!(pl, 1818);
     let price_diff = (calculated_end_price.into_f64() - end_price.into_f64()).abs();
-    let tolerance = end_price.into_f64() * 0.0005; // 0.05%
+    let tolerance = end_price.into_f64() * 0.00005; // 0.005%
     assert!(
         price_diff < tolerance,
         "Price difference {price_diff} exceeds tolerance",
@@ -400,7 +400,7 @@ fn test_pl_long_loss() {
 
     assert_eq!(pl, -2223);
     let price_diff = (calculated_end_price.into_f64() - end_price.into_f64()).abs();
-    let tolerance = end_price.into_f64() * 0.0005; // 0.05%
+    let tolerance = end_price.into_f64() * 0.00005; // 0.005%
     assert!(
         price_diff < tolerance,
         "Price difference {price_diff} exceeds tolerance",
@@ -419,7 +419,7 @@ fn test_pl_short_profit() {
 
     assert_eq!(pl, 2222);
     let price_diff = (calculated_end_price.into_f64() - end_price.into_f64()).abs();
-    let tolerance = end_price.into_f64() * 0.0005; // 0.05%
+    let tolerance = end_price.into_f64() * 0.00005; // 0.005%
     assert!(
         price_diff < tolerance,
         "Price difference {price_diff} exceeds tolerance",
@@ -438,7 +438,7 @@ fn test_pl_short_loss() {
 
     assert_eq!(pl, -1819);
     let price_diff = (calculated_end_price.into_f64() - end_price.into_f64()).abs();
-    let tolerance = end_price.into_f64() * 0.0005; // 0.05%
+    let tolerance = end_price.into_f64() * 0.00005; // 0.005%
     assert!(
         price_diff < tolerance,
         "Price difference {price_diff} exceeds tolerance",
@@ -457,7 +457,7 @@ fn test_pl_no_price_movement() {
 
     assert_eq!(pl, 0);
     let price_diff = (calculated_end_price.into_f64() - end_price.into_f64()).abs();
-    let tolerance = end_price.into_f64() * 0.0005; // 0.05%
+    let tolerance = end_price.into_f64() * 0.00005; // 0.005%
     assert!(
         price_diff < tolerance,
         "Price difference {price_diff} exceeds tolerance",
@@ -476,7 +476,7 @@ fn test_pl_edge_case_small_prices() {
 
     assert_eq!(pl, 33_333_333);
     let price_diff = (calculated_end_price.into_f64() - end_price.into_f64()).abs();
-    let tolerance = end_price.into_f64() * 0.0005; // 0.05%
+    let tolerance = end_price.into_f64() * 0.00005; // 0.005%
     assert!(
         price_diff < tolerance,
         "Price difference {price_diff} exceeds tolerance",
@@ -495,7 +495,7 @@ fn test_pl_edge_case_big_prices() {
 
     assert_eq!(pl, 26_315);
     let price_diff = (calculated_end_price.into_f64() - end_price.into_f64()).abs();
-    let tolerance = end_price.into_f64() * 0.0005; // 0.05%
+    let tolerance = end_price.into_f64() * 0.00005; // 0.005%
     assert!(
         price_diff < tolerance,
         "Price difference {price_diff} exceeds tolerance",
@@ -514,7 +514,7 @@ fn test_pl_edge_case_min_quantity() {
 
     assert_eq!(pl, 181);
     let price_diff = (calculated_end_price.into_f64() - end_price.into_f64()).abs();
-    let tolerance = end_price.into_f64() * 0.0005; // 0.05%
+    let tolerance = end_price.into_f64() * 0.0005; // 0.05%, higher tolerance needed
     assert!(
         price_diff < tolerance,
         "Price difference {price_diff} exceeds tolerance",
@@ -533,7 +533,7 @@ fn test_pl_edge_case_max_quantity() {
 
     assert_eq!(pl, 9900990);
     let price_diff = (calculated_end_price.into_f64() - end_price.into_f64()).abs();
-    let tolerance = end_price.into_f64() * 0.0005; // 0.05%
+    let tolerance = end_price.into_f64() * 0.00005; // 0.005%
     assert!(
         price_diff < tolerance,
         "Price difference {price_diff} exceeds tolerance",
