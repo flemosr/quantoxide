@@ -1,5 +1,8 @@
 use super::{
-    super::{Leverage, Price, Quantity, SATS_PER_BTC},
+    super::{
+        BoundedPercentage, Leverage, Margin, Price, Quantity, SATS_PER_BTC, TradeSize,
+        error::TradeValidationError,
+    },
     TradeSide,
 };
 
@@ -33,6 +36,78 @@ pub fn estimate_liquidation_price(
     };
 
     Price::clamp_from(liquidation_calc)
+}
+
+pub fn evaluate_open_trade_params(
+    side: TradeSide,
+    size: TradeSize,
+    leverage: Leverage,
+    entry_price: Price,
+    stoploss: Price,
+    takeprofit: Price,
+    fee_perc: BoundedPercentage,
+) -> Result<(Quantity, Margin, Price, u64, u64), TradeValidationError> {
+    let (quantity, margin) = size
+        .to_quantity_and_margin(entry_price, leverage)
+        .map_err(|e| TradeValidationError::Generic(e.to_string()))?;
+
+    let liquidation = estimate_liquidation_price(side, quantity, entry_price, leverage);
+
+    match side {
+        TradeSide::Buy => {
+            if stoploss < liquidation {
+                return Err(TradeValidationError::StoplossBelowLiquidationLong {
+                    stoploss,
+                    liquidation,
+                });
+            }
+            if stoploss >= entry_price {
+                return Err(TradeValidationError::StoplossAboveEntryForLong {
+                    stoploss,
+                    entry_price,
+                });
+            }
+            if takeprofit <= entry_price {
+                return Err(TradeValidationError::TakeprofitBelowEntryForLong {
+                    takeprofit,
+                    entry_price,
+                });
+            }
+        }
+        TradeSide::Sell => {
+            if stoploss > liquidation {
+                return Err(TradeValidationError::StoplossAboveLiquidationShort {
+                    stoploss,
+                    liquidation,
+                });
+            }
+            if stoploss <= entry_price {
+                return Err(TradeValidationError::StoplossBelowEntryForShort {
+                    stoploss,
+                    entry_price,
+                });
+            }
+            if takeprofit >= entry_price {
+                return Err(TradeValidationError::TakeprofitAboveEntryForShort {
+                    takeprofit,
+                    entry_price,
+                });
+            }
+        }
+    };
+
+    let fee_calc = SATS_PER_BTC * fee_perc.into_f64() / 100.;
+    let opening_fee = (fee_calc * quantity.into_f64() / entry_price.into_f64()).floor() as u64;
+    let closing_fee_reserved =
+        (fee_calc * quantity.into_f64() / liquidation.into_f64()).floor() as u64;
+
+    Ok((
+        quantity,
+        margin,
+        liquidation,
+        opening_fee,
+        closing_fee_reserved,
+    ))
 }
 
 pub fn pl_estimate(
