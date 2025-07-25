@@ -450,14 +450,20 @@ impl TradeExecutor for LiveTradeExecutor {
 
         let trading_session = locked_ready_state.trading_session();
 
-        if trading_session.running().get(&trade_id).is_none() {
+        let Some((current_trade, _)) = trading_session.running().get(&trade_id) else {
             return Err(TradeError::Generic(format!(
                 "trade {trade_id} is not running"
             )));
-        }
+        };
 
-        // TODO: Extra checks to detect consumer error
-        // + trade max cash in
+        let market_price = self.get_estimated_market_price().await?;
+
+        let max_cash_in = current_trade.est_max_cash_in(market_price);
+        if amount.get() > max_cash_in {
+            return Err(TradeError::Generic(format!(
+                "amount {amount} exceeds max_cash_in {max_cash_in} for trade {trade_id}"
+            )));
+        }
 
         let updated_trade = match self.api.cash_in(trade_id, amount).await {
             Ok(trade) => trade,
