@@ -87,6 +87,12 @@ pub enum FuturesTradeRequestValidationError {
 }
 
 #[derive(Debug, Error)]
+pub enum TradeValidationError {
+    #[error("[Generic] {0}")]
+    Generic(String),
+}
+
+#[derive(Debug, Error)]
 pub enum ValidationError {
     #[error("[PriceValidation] {0}")]
     PriceValidation(#[from] PriceValidationError),
@@ -102,4 +108,10 @@ pub enum ValidationError {
 
     #[error("[FuturesTradeRequestValidation] {0}")]
     FuturesTradeRequestValidation(#[from] FuturesTradeRequestValidationError),
+
+    #[error("[TradeValidation] {0}")]
+    TradeValidation(#[from] TradeValidationError),
+
+    #[error("[Generic] {0}")]
+    Generic(String),
 }
