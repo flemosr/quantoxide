@@ -148,9 +148,9 @@ pub fn evaluate_added_margin(
     quantity: Quantity,
     price: Price,
     current_margin: Margin,
-    added_amount: NonZeroU64,
+    amount: NonZeroU64,
 ) -> Result<(Margin, Leverage, Price), TradeValidationError> {
-    let new_margin = current_margin + added_amount.into();
+    let new_margin = current_margin + amount.into();
 
     let new_leverage = Leverage::try_calculate(quantity, new_margin, price).map_err(|e| {
         TradeValidationError::Generic(format!(
