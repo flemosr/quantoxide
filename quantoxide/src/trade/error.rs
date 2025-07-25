@@ -2,7 +2,7 @@ use std::result;
 
 use thiserror::Error;
 
-use lnm_sdk::api::rest::models::error::PriceValidationError;
+use lnm_sdk::api::rest::models::error::{PriceValidationError, TradeValidationError};
 
 use super::{
     backtest::error::{BacktestError, SimulatedTradeExecutorError},
@@ -11,15 +11,22 @@ use super::{
 
 #[derive(Error, Debug)]
 pub enum TradeError {
+    // Consumer errors
+    //
+    #[error("RiskParamsConversion error {0}")]
+    RiskParamsConversion(PriceValidationError),
+
+    #[error("TradeValidation error {0}")]
+    TradeValidation(TradeValidationError),
+
     #[error("Balance is too low error")]
     BalanceTooLow,
 
     #[error("Balance is too high error")]
     BalanceTooHigh,
 
-    #[error("RiskParamsConversion error {0}")]
-    RiskParamsConversion(PriceValidationError),
-
+    // Other errors
+    //
     #[error("[Backtest] {0}")]
     Backtest(#[from] BacktestError),
 
