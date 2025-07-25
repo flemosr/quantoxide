@@ -50,6 +50,7 @@ pub struct LiveTradeExecutorConfig {
     recover_trades_on_startup: bool,
     clean_up_trades_on_shutdown: bool,
     estimated_fee_perc: BoundedPercentage,
+    max_running_qtd: usize,
 }
 
 impl LiveTradeExecutorConfig {
@@ -71,6 +72,10 @@ impl LiveTradeExecutorConfig {
 
     pub fn estimated_fee_perc(&self) -> BoundedPercentage {
         self.estimated_fee_perc
+    }
+
+    pub fn max_running_qtd(&self) -> usize {
+        self.max_running_qtd
     }
 
     pub fn set_trailing_stoploss_step_size(mut self, tsl_step_size: BoundedPercentage) -> Self {
@@ -97,6 +102,11 @@ impl LiveTradeExecutorConfig {
         self.estimated_fee_perc = estimated_fee_perc;
         self
     }
+
+    pub fn set_max_running_qtd(mut self, max_running_qtd: usize) -> Self {
+        self.max_running_qtd = max_running_qtd;
+        self
+    }
 }
 
 impl Default for LiveTradeExecutorConfig {
@@ -108,6 +118,7 @@ impl Default for LiveTradeExecutorConfig {
             clean_up_trades_on_shutdown: true,
             estimated_fee_perc: BoundedPercentage::try_from(0.1)
                 .expect("must be valid `BoundedPercentage`"),
+            max_running_qtd: 50,
         }
     }
 }
@@ -120,6 +131,7 @@ impl From<&LiveConfig> for LiveTradeExecutorConfig {
             recover_trades_on_startup: value.recover_trades_on_startup,
             clean_up_trades_on_shutdown: value.clean_up_trades_on_shutdown,
             estimated_fee_perc: value.estimated_fee_perc,
+            max_running_qtd: value.max_running_qtd,
         }
     }
 }
