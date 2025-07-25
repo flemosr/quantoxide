@@ -163,5 +163,64 @@ pub fn evaluate_added_margin(
     Ok((new_margin, new_leverage, new_liquidation))
 }
 
+pub fn evaluate_cash_in(
+    side: TradeSide,
+    quantity: Quantity,
+    margin: Margin,
+    price: Price,
+    stoploss: Option<Price>,
+    market_price: Price,
+    amount: NonZeroU64,
+) -> Result<(Price, Margin, Leverage, Price, Option<Price>), TradeValidationError> {
+    let amount = amount.get() as u64;
+    let current_pl = pl_estimate(side, quantity, price, market_price);
+
+    let (new_price, remaining_amount) = if current_pl > 0 {
+        if amount < current_pl as u64 {
+            // PL should be partially cashed-in. Calculate price that would
+            // correspond to the PL that will be extracted.
+            let new_price = price_from_pl(side, quantity, price, amount as i64);
+            (new_price, 0)
+        } else {
+            // Whole PL should be cashed-in. Adjust trade price to market price
+            (market_price, amount - current_pl as u64)
+        }
+    } else {
+        // No PL to be cashed-in. Trade price shouldn't change
+        (price, amount)
+    };
+
+    let new_margin = if remaining_amount == 0 {
+        // Only PL will be cashed-in. Margin shouldn't change
+        margin
+    } else {
+        Margin::try_from(margin.into_u64().saturating_sub(remaining_amount)).map_err(|e| {
+            TradeValidationError::Generic(format!("cash-in would result in invalid margin: {e}"))
+        })?
+    };
+
+    let new_leverage = Leverage::try_calculate(quantity, new_margin, new_price).map_err(|e| {
+        TradeValidationError::Generic(format!("cash-in would result in invalid leverage: {e}"))
+    })?;
+    let new_liquidation = estimate_liquidation_price(side, quantity, new_price, new_leverage);
+
+    let new_stoploss = stoploss.and_then(|sl| {
+        let valid = match side {
+            TradeSide::Buy => new_liquidation <= sl,
+            TradeSide::Sell => new_liquidation >= sl,
+        };
+
+        if valid { Some(sl) } else { None }
+    });
+
+    Ok((
+        new_price,
+        new_margin,
+        new_leverage,
+        new_liquidation,
+        new_stoploss,
+    ))
+}
+
 #[cfg(test)]
 mod tests;

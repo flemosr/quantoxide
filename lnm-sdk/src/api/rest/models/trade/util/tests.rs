@@ -577,3 +577,361 @@ fn test_added_margin_short_position() {
     let original_liquidation = estimate_liquidation_price(side, quantity, price, original_leverage);
     assert!(new_liquidation > original_liquidation);
 }
+
+#[test]
+fn test_cash_in_from_long_profit() {
+    let side = TradeSide::Buy;
+    let quantity = Quantity::try_from(1_000).unwrap();
+    let original_price = Price::try_from(100_000.0).unwrap();
+    let original_leverage = Leverage::try_from(10.).unwrap();
+    let original_margin = Margin::calculate(quantity, original_price, original_leverage);
+
+    let original_liquidation =
+        estimate_liquidation_price(side, quantity, original_price, original_leverage);
+    assert_eq!(original_liquidation.into_f64(), 90_909.0);
+
+    let original_stoploss = Some(Price::try_from(95_000.0).unwrap());
+    assert!(original_stoploss.unwrap() > original_liquidation);
+    assert!(original_stoploss.unwrap() < original_price);
+
+    let market_price = Price::try_from(110_000).unwrap();
+
+    let original_pl = pl_estimate(side, quantity, original_price, market_price);
+    assert_eq!(original_pl, 90_909);
+
+    // Case 1: Cash in partial profit
+
+    let cash_in_amount = NonZeroU64::new(40_000).unwrap();
+    assert!(cash_in_amount.get() < original_pl as u64);
+
+    let (new_price, new_margin, new_leverage, new_liquidation, new_stoploss) = evaluate_cash_in(
+        side,
+        quantity,
+        original_margin,
+        original_price,
+        original_stoploss,
+        market_price,
+        cash_in_amount,
+    )
+    .unwrap();
+
+    assert!(new_price > original_price);
+    assert_eq!(new_price.into_f64(), 104_166.5);
+
+    // New price should be adjusted so that remaining PL is aprox `cash_in_amount` at `market_price`
+
+    let expected_updated_pl = original_pl - cash_in_amount.get() as i64;
+    let updated_pl = pl_estimate(side, quantity, new_price, market_price);
+    assert!((updated_pl - expected_updated_pl).abs() < 5);
+
+    assert_eq!(new_margin, original_margin);
+
+    assert_eq!(new_leverage.into_f64(), 9.600015360024576);
+
+    assert!(new_liquidation > original_liquidation);
+    assert_eq!(new_liquidation.into_f64(), 94339.5);
+
+    // Stoploss still above liquidation, should remain unchanged
+    assert_eq!(new_stoploss, original_stoploss);
+
+    // Case 2: Cash in all profit
+
+    let cash_in_amount = NonZeroU64::new(90_909).unwrap();
+    assert_eq!(cash_in_amount.get() as i64, original_pl);
+
+    let (new_price, new_margin, new_leverage, new_liquidation, new_stoploss) = evaluate_cash_in(
+        side,
+        quantity,
+        original_margin,
+        original_price,
+        original_stoploss,
+        market_price,
+        cash_in_amount,
+    )
+    .unwrap();
+
+    assert!(new_price > original_price);
+    assert_eq!(new_price, market_price);
+
+    let expected_updated_pl = 0;
+    let updated_pl = pl_estimate(side, quantity, new_price, market_price);
+    assert!((updated_pl - expected_updated_pl).abs() < 5);
+
+    assert_eq!(new_margin, original_margin);
+
+    assert_eq!(new_leverage.into_f64(), 9.090909090909092);
+
+    assert!(new_liquidation > original_liquidation);
+    assert_eq!(new_liquidation.into_f64(), 99099.0);
+
+    // Stoploss was below new liquidation
+    assert!(new_stoploss.is_none());
+
+    // Case 3: Cash in more than profit
+
+    let cash_in_amount = NonZeroU64::new(150_000).unwrap();
+    assert!(cash_in_amount.get() as i64 > original_pl);
+
+    let (new_price, new_margin, new_leverage, new_liquidation, new_stoploss) = evaluate_cash_in(
+        side,
+        quantity,
+        original_margin,
+        original_price,
+        original_stoploss,
+        market_price,
+        cash_in_amount,
+    )
+    .unwrap();
+
+    assert!(new_price > original_price);
+    assert_eq!(new_price, market_price);
+
+    let expected_updated_pl = 0;
+    let updated_pl = pl_estimate(side, quantity, new_price, market_price);
+    assert!((updated_pl - expected_updated_pl).abs() < 5);
+
+    let expected_new_margin =
+        original_margin.into_u64() + original_pl as u64 - cash_in_amount.get();
+    assert_eq!(new_margin.into_u64(), expected_new_margin);
+
+    assert!(new_leverage > original_leverage);
+    assert_eq!(new_leverage.into_f64(), 22.22227160504801);
+
+    assert!(new_liquidation > original_liquidation);
+    assert_eq!(new_liquidation.into_f64(), 105_263.0);
+
+    // Stoploss was below new liquidation
+    assert!(new_stoploss.is_none());
+}
+
+#[test]
+fn test_cash_in_from_long_loss() {
+    let side = TradeSide::Buy;
+    let quantity = Quantity::try_from(1_000).unwrap();
+    let original_price = Price::try_from(100_000.0).unwrap();
+    let original_leverage = Leverage::try_from(10.).unwrap();
+    let original_margin = Margin::calculate(quantity, original_price, original_leverage);
+
+    let original_liquidation =
+        estimate_liquidation_price(side, quantity, original_price, original_leverage);
+    assert_eq!(original_liquidation.into_f64(), 90_909.0);
+
+    let original_stoploss = Some(Price::try_from(95_000.0).unwrap());
+    assert!(original_stoploss.unwrap() > original_liquidation);
+    assert!(original_stoploss.unwrap() < original_price);
+
+    let market_price = Price::try_from(98_000.0).unwrap();
+
+    let original_pl = pl_estimate(side, quantity, original_price, market_price);
+    assert_eq!(original_pl, -20_409);
+
+    let cash_in_amount = NonZeroU64::new(40_000).unwrap();
+    assert!(cash_in_amount.get() < original_pl as u64);
+
+    let (new_price, new_margin, new_leverage, new_liquidation, new_stoploss) = evaluate_cash_in(
+        side,
+        quantity,
+        original_margin,
+        original_price,
+        original_stoploss,
+        market_price,
+        cash_in_amount,
+    )
+    .unwrap();
+
+    assert_eq!(new_price, original_price);
+
+    let updated_pl = pl_estimate(side, quantity, new_price, market_price);
+    assert_eq!(updated_pl, original_pl);
+
+    let expected_margin = original_margin.into_u64() - cash_in_amount.get();
+    assert_eq!(new_margin.into_u64(), expected_margin);
+
+    assert!(new_leverage > original_leverage);
+    assert_eq!(new_leverage.into_f64(), 16.666666666666668);
+
+    assert!(new_liquidation > original_liquidation);
+    assert_eq!(new_liquidation.into_f64(), 94339.5);
+
+    // Stoploss still above liquidation, should remain unchanged
+    assert_eq!(new_stoploss, original_stoploss);
+}
+
+#[test]
+fn test_cash_in_from_short_profit() {
+    let side = TradeSide::Sell;
+    let quantity = Quantity::try_from(1_000).unwrap();
+    let original_price = Price::try_from(100_000.0).unwrap();
+    let original_leverage = Leverage::try_from(10.).unwrap();
+    let original_margin = Margin::calculate(quantity, original_price, original_leverage);
+
+    let original_liquidation =
+        estimate_liquidation_price(side, quantity, original_price, original_leverage);
+    assert_eq!(original_liquidation.into_f64(), 111_111.0);
+
+    let original_stoploss = Some(Price::try_from(105_000.0).unwrap());
+    assert!(original_stoploss.unwrap() < original_liquidation);
+    assert!(original_stoploss.unwrap() > original_price);
+
+    let market_price = Price::try_from(92_000).unwrap();
+
+    let original_pl = pl_estimate(side, quantity, original_price, market_price);
+    assert_eq!(original_pl, 86_956);
+
+    // Case 1: Cash in partial profit
+
+    let cash_in_amount = NonZeroU64::new(30_000).unwrap();
+    assert!(cash_in_amount.get() < original_pl as u64);
+
+    let (new_price, new_margin, new_leverage, new_liquidation, new_stoploss) = evaluate_cash_in(
+        side,
+        quantity,
+        original_margin,
+        original_price,
+        original_stoploss,
+        market_price,
+        cash_in_amount,
+    )
+    .unwrap();
+
+    assert!(new_price < original_price);
+    assert_eq!(new_price.into_f64(), 97_087.5);
+
+    // New price should be adjusted so that remaining PL is aprox `cash_in_amount` at `market_price`
+
+    let expected_updated_pl = original_pl - cash_in_amount.get() as i64;
+    let updated_pl = pl_estimate(side, quantity, new_price, market_price);
+    assert!((updated_pl - expected_updated_pl).abs() < 5);
+
+    assert_eq!(new_margin, original_margin);
+
+    assert_eq!(new_leverage.into_f64(), 10.299987125016093);
+
+    assert!(new_liquidation < original_liquidation);
+    assert_eq!(new_liquidation.into_f64(), 107_527.0);
+
+    // Stoploss still below liquidation, should remain unchanged
+    assert_eq!(new_stoploss, original_stoploss);
+
+    // Case 2: Cash in all profit
+
+    let cash_in_amount = NonZeroU64::new(86_956).unwrap();
+    assert_eq!(cash_in_amount.get() as i64, original_pl);
+
+    let (new_price, new_margin, new_leverage, new_liquidation, new_stoploss) = evaluate_cash_in(
+        side,
+        quantity,
+        original_margin,
+        original_price,
+        original_stoploss,
+        market_price,
+        cash_in_amount,
+    )
+    .unwrap();
+
+    assert!(new_price < original_price);
+    assert_eq!(new_price, market_price);
+
+    let expected_updated_pl = 0;
+    let updated_pl = pl_estimate(side, quantity, new_price, market_price);
+    assert!((updated_pl - expected_updated_pl).abs() < 5);
+
+    assert_eq!(new_margin, original_margin);
+
+    assert_eq!(new_leverage.into_f64(), 10.869565217391305);
+
+    assert!(new_liquidation < original_liquidation);
+    assert_eq!(new_liquidation.into_f64(), 101_321.5);
+
+    // Stoploss was above new liquidation
+    assert!(new_stoploss.is_none());
+
+    // Case 3: Cash in more than profit
+
+    let cash_in_amount = NonZeroU64::new(150_000).unwrap();
+    assert!(cash_in_amount.get() as i64 > original_pl);
+
+    let (new_price, new_margin, new_leverage, new_liquidation, new_stoploss) = evaluate_cash_in(
+        side,
+        quantity,
+        original_margin,
+        original_price,
+        original_stoploss,
+        market_price,
+        cash_in_amount,
+    )
+    .unwrap();
+
+    // assert!(new_price > original_price);
+    assert_eq!(new_price, market_price);
+
+    let expected_updated_pl = 0;
+    let updated_pl = pl_estimate(side, quantity, new_price, market_price);
+    assert!((updated_pl - expected_updated_pl).abs() < 5);
+
+    let expected_new_margin =
+        original_margin.into_u64() + original_pl as u64 - cash_in_amount.get();
+    assert_eq!(new_margin.into_u64(), expected_new_margin);
+
+    assert!(new_leverage > original_leverage);
+    assert_eq!(new_leverage.into_f64(), 29.412179936657928);
+
+    assert!(new_liquidation < original_liquidation);
+    assert_eq!(new_liquidation.into_f64(), 95_238.0);
+
+    // Stoploss was above new liquidation
+    assert!(new_stoploss.is_none());
+}
+
+#[test]
+fn test_cash_in_from_short_loss() {
+    let side = TradeSide::Sell;
+    let quantity = Quantity::try_from(1_000).unwrap();
+    let original_price = Price::try_from(100_000.0).unwrap();
+    let original_leverage = Leverage::try_from(10.).unwrap();
+    let original_margin = Margin::calculate(quantity, original_price, original_leverage);
+
+    let original_liquidation =
+        estimate_liquidation_price(side, quantity, original_price, original_leverage);
+    assert_eq!(original_liquidation.into_f64(), 111_111.0);
+
+    let original_stoploss = Some(Price::try_from(105_000.0).unwrap());
+    assert!(original_stoploss.unwrap() < original_liquidation);
+    assert!(original_stoploss.unwrap() > original_price);
+
+    let market_price = Price::try_from(102_000).unwrap();
+
+    let original_pl = pl_estimate(side, quantity, original_price, market_price);
+    assert_eq!(original_pl, -19_608);
+
+    let cash_in_amount = NonZeroU64::new(40_000).unwrap();
+    assert!(cash_in_amount.get() < original_pl as u64);
+
+    let (new_price, new_margin, new_leverage, new_liquidation, new_stoploss) = evaluate_cash_in(
+        side,
+        quantity,
+        original_margin,
+        original_price,
+        original_stoploss,
+        market_price,
+        cash_in_amount,
+    )
+    .unwrap();
+
+    assert_eq!(new_price, original_price);
+
+    let updated_pl = pl_estimate(side, quantity, new_price, market_price);
+    assert_eq!(updated_pl, original_pl);
+
+    let expected_margin = original_margin.into_u64() - cash_in_amount.get();
+    assert_eq!(new_margin.into_u64(), expected_margin);
+
+    assert!(new_leverage > original_leverage);
+    assert_eq!(new_leverage.into_f64(), 16.666666666666668);
+
+    assert!(new_liquidation < original_liquidation);
+    assert_eq!(new_liquidation.into_f64(), 106_383.0);
+
+    // Stoploss still below liquidation, should remain unchanged
+    assert_eq!(new_stoploss, original_stoploss);
+}
