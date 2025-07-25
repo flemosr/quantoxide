@@ -467,6 +467,3 @@ impl TradeClosed for SimulatedTradeClosed {
         trade_util::pl_estimate(self.side(), self.quantity(), self.price(), self.close_price)
     }
 }
-
-#[cfg(test)]
-mod tests;
