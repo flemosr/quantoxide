@@ -464,6 +464,7 @@ pub struct LiveConfig {
     clean_up_trades_on_startup: bool,
     recover_trades_on_startup: bool,
     clean_up_trades_on_shutdown: bool,
+    estimated_fee_perc: BoundedPercentage,
     restart_interval: time::Duration,
     shutdown_timeout: time::Duration,
 }
@@ -483,6 +484,8 @@ impl Default for LiveConfig {
             clean_up_trades_on_startup: true,
             recover_trades_on_startup: false,
             clean_up_trades_on_shutdown: true,
+            estimated_fee_perc: BoundedPercentage::try_from(0.1)
+                .expect("must be valid `BoundedPercentage`"),
             restart_interval: time::Duration::from_secs(10),
             shutdown_timeout: time::Duration::from_secs(6),
         }
@@ -536,6 +539,10 @@ impl LiveConfig {
 
     pub fn clean_up_trades_on_shutdown(&self) -> bool {
         self.clean_up_trades_on_shutdown
+    }
+
+    pub fn estimated_fee_perc(&self) -> BoundedPercentage {
+        self.estimated_fee_perc
     }
 
     pub fn restart_interval(&self) -> time::Duration {
@@ -603,6 +610,11 @@ impl LiveConfig {
 
     pub fn set_clean_up_trades_on_shutdown(mut self, clean_up_trades_on_shutdown: bool) -> Self {
         self.clean_up_trades_on_shutdown = clean_up_trades_on_shutdown;
+        self
+    }
+
+    pub fn set_estimated_fee_perc(mut self, estimated_fee_perc: BoundedPercentage) -> Self {
+        self.estimated_fee_perc = estimated_fee_perc;
         self
     }
 
