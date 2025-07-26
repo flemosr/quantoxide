@@ -305,5 +305,15 @@ pub fn evaluate_collateral_delta_for_liquidation(
     Ok(colateral_diff)
 }
 
+pub fn evaluate_closing_fee(
+    fee_perc: BoundedPercentage,
+    quantity: Quantity,
+    close_price: Price,
+) -> u64 {
+    let fee_calc = SATS_PER_BTC * fee_perc.into_f64() / 100.;
+    let closing_fee = (fee_calc * quantity.into_f64() / close_price.into_f64()).floor() as u64;
+    closing_fee
+}
+
 #[cfg(test)]
 mod tests;
