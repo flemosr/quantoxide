@@ -616,6 +616,7 @@ fn test_cash_in_from_long_profit() {
     .unwrap();
 
     assert!(new_price > original_price);
+    assert!(new_price < market_price);
     assert_eq!(new_price.into_f64(), 104_166.5);
 
     // New price should be adjusted so that remaining PL is aprox `cash_in_amount` at `market_price`
@@ -795,6 +796,7 @@ fn test_cash_in_from_short_profit() {
     .unwrap();
 
     assert!(new_price < original_price);
+    assert!(new_price > market_price);
     assert_eq!(new_price.into_f64(), 97_087.5);
 
     // New price should be adjusted so that remaining PL is aprox `cash_in_amount` at `market_price`
@@ -934,4 +936,288 @@ fn test_cash_in_from_short_loss() {
 
     // Stoploss still below liquidation, should remain unchanged
     assert_eq!(new_stoploss, original_stoploss);
+}
+
+#[test]
+fn test_collateral_delta_estimation_long_profit_leverage_up() {
+    let side = TradeSide::Buy;
+    let quantity = Quantity::try_from(1_000).unwrap();
+    let original_price = Price::try_from(100_000.0).unwrap();
+    let original_leverage = Leverage::try_from(10.0).unwrap();
+    let original_margin = Margin::calculate(quantity, original_price, original_leverage);
+
+    let market_price = Price::try_from(110_000.0).unwrap();
+
+    let original_pl = pl_estimate(side, quantity, original_price, market_price);
+    assert_eq!(original_pl, 90_909);
+
+    let original_liquidation =
+        estimate_liquidation_price(side, quantity, original_price, original_leverage);
+    assert_eq!(original_liquidation.into_f64(), 90909.0);
+
+    // Case 1: Cash-in less than PL
+
+    let target_liquidation = Price::try_from(95_000.0).unwrap();
+    assert!(target_liquidation > original_liquidation);
+
+    let collateral_delta = evaluate_collateral_delta_for_liquidation(
+        side,
+        quantity,
+        original_margin,
+        original_price,
+        original_liquidation,
+        target_liquidation,
+        market_price,
+    )
+    .unwrap();
+
+    assert_eq!(collateral_delta, -47_368);
+    assert!(collateral_delta.abs() < original_pl);
+
+    let cash_in_amount = NonZeroU64::new(collateral_delta.abs() as u64).unwrap();
+
+    let (_, _, _, new_liquidation, _) = evaluate_cash_in(
+        side,
+        quantity,
+        original_margin,
+        original_price,
+        None,
+        market_price,
+        cash_in_amount,
+    )
+    .unwrap();
+
+    assert_eq!(new_liquidation, target_liquidation);
+
+    // Case 2: Cash-in more than PL
+
+    let target_liquidation = Price::try_from(105_000.0).unwrap();
+    assert!(target_liquidation > original_liquidation);
+
+    let collateral_delta = evaluate_collateral_delta_for_liquidation(
+        side,
+        quantity,
+        original_margin,
+        original_price,
+        original_liquidation,
+        target_liquidation,
+        market_price,
+    )
+    .unwrap();
+
+    assert_eq!(collateral_delta, -147_618);
+    assert!(collateral_delta.abs() > original_pl);
+
+    let cash_in_amount = NonZeroU64::new(collateral_delta.abs() as u64).unwrap();
+
+    let (_, _, _, new_liquidation, _) = evaluate_cash_in(
+        side,
+        quantity,
+        original_margin,
+        original_price,
+        None,
+        market_price,
+        cash_in_amount,
+    )
+    .unwrap();
+
+    let liquidation_diff = (new_liquidation.into_f64() - target_liquidation.into_f64()).abs();
+    assert!(
+        liquidation_diff < 1.0,
+        "Estimated liquidation distant from target by {liquidation_diff}",
+    );
+}
+
+#[test]
+fn test_collateral_delta_estimation_long_profit_leverage_down() {
+    let side = TradeSide::Buy;
+    let quantity = Quantity::try_from(1_000).unwrap();
+    let original_price = Price::try_from(100_000.0).unwrap();
+    let original_leverage = Leverage::try_from(10.0).unwrap();
+    let original_margin = Margin::calculate(quantity, original_price, original_leverage);
+
+    let market_price = Price::try_from(110_000.0).unwrap();
+
+    let original_pl = pl_estimate(side, quantity, original_price, market_price);
+
+    assert_eq!(original_pl, 90_909);
+
+    let original_liquidation =
+        estimate_liquidation_price(side, quantity, original_price, original_leverage);
+    assert_eq!(original_liquidation.into_f64(), 90909.0);
+
+    let target_liquidation = Price::try_from(85_000.0).unwrap();
+    assert!(target_liquidation < original_liquidation);
+
+    let collateral_delta = evaluate_collateral_delta_for_liquidation(
+        side,
+        quantity,
+        original_margin,
+        original_price,
+        original_liquidation,
+        target_liquidation,
+        market_price,
+    )
+    .unwrap();
+
+    assert_eq!(collateral_delta, 76_471);
+
+    let add_margin_amount = NonZeroU64::new(collateral_delta as u64).unwrap();
+
+    let (_, _, new_liquidation) = evaluate_added_margin(
+        side,
+        quantity,
+        original_price,
+        original_margin,
+        add_margin_amount,
+    )
+    .unwrap();
+
+    let liquidation_diff = (new_liquidation.into_f64() - target_liquidation.into_f64()).abs();
+    assert!(
+        liquidation_diff < 1.0,
+        "Estimated liquidation distant from target by {liquidation_diff}",
+    );
+}
+
+#[test]
+fn test_collateral_delta_estimation_short_profit_leverage_up() {
+    let side = TradeSide::Sell;
+    let quantity = Quantity::try_from(1_000).unwrap();
+    let original_price = Price::try_from(100_000.0).unwrap();
+    let original_leverage = Leverage::try_from(10.0).unwrap();
+    let original_margin = Margin::calculate(quantity, original_price, original_leverage);
+
+    let market_price = Price::try_from(90_000.0).unwrap();
+
+    let original_pl = pl_estimate(side, quantity, original_price, market_price);
+    assert_eq!(original_pl, 111_111);
+
+    let original_liquidation =
+        estimate_liquidation_price(side, quantity, original_price, original_leverage);
+    assert_eq!(original_liquidation.into_f64(), 111_111.0);
+
+    // Case 1: Cash-in less than PL
+
+    let target_liquidation = Price::try_from(105_000.0).unwrap();
+    assert!(target_liquidation < original_liquidation);
+
+    let collateral_delta = evaluate_collateral_delta_for_liquidation(
+        side,
+        quantity,
+        original_margin,
+        original_price,
+        original_liquidation,
+        target_liquidation,
+        market_price,
+    )
+    .unwrap();
+
+    assert_eq!(collateral_delta, -52_380);
+    assert!(collateral_delta.abs() < original_pl);
+
+    let cash_in_amount = NonZeroU64::new(collateral_delta.abs() as u64).unwrap();
+
+    let (_, _, _, new_liquidation, _) = evaluate_cash_in(
+        side,
+        quantity,
+        original_margin,
+        original_price,
+        None,
+        market_price,
+        cash_in_amount,
+    )
+    .unwrap();
+
+    assert_eq!(new_liquidation, target_liquidation);
+
+    // Case 2: Cash-in more than PL
+
+    let target_liquidation = Price::try_from(95_000.0).unwrap();
+    assert!(target_liquidation < original_liquidation);
+
+    let collateral_delta = evaluate_collateral_delta_for_liquidation(
+        side,
+        quantity,
+        original_margin,
+        original_price,
+        original_liquidation,
+        target_liquidation,
+        market_price,
+    )
+    .unwrap();
+
+    assert_eq!(collateral_delta, -152_631);
+    assert!(collateral_delta.abs() > original_pl);
+
+    let cash_in_amount = NonZeroU64::new(collateral_delta.abs() as u64).unwrap();
+
+    let (_, _, _, new_liquidation, _) = evaluate_cash_in(
+        side,
+        quantity,
+        original_margin,
+        original_price,
+        None,
+        market_price,
+        cash_in_amount,
+    )
+    .unwrap();
+
+    let liquidation_diff = (new_liquidation.into_f64() - target_liquidation.into_f64()).abs();
+    assert!(
+        liquidation_diff < 1.0,
+        "Estimated liquidation distant from target by {liquidation_diff}",
+    );
+}
+
+#[test]
+fn test_collateral_delta_estimation_short_profit_leverage_down() {
+    let side = TradeSide::Sell;
+    let quantity = Quantity::try_from(1_000).unwrap();
+    let original_price = Price::try_from(100_000.0).unwrap();
+    let original_leverage = Leverage::try_from(10.0).unwrap();
+    let original_margin = Margin::calculate(quantity, original_price, original_leverage);
+
+    let market_price = Price::try_from(90_000.0).unwrap();
+
+    let original_pl = pl_estimate(side, quantity, original_price, market_price);
+
+    assert_eq!(original_pl, 111_111);
+
+    let original_liquidation =
+        estimate_liquidation_price(side, quantity, original_price, original_leverage);
+    assert_eq!(original_liquidation.into_f64(), 111_111.0);
+
+    let target_liquidation = Price::try_from(121_000.0).unwrap();
+    assert!(target_liquidation > original_liquidation);
+
+    let collateral_delta = evaluate_collateral_delta_for_liquidation(
+        side,
+        quantity,
+        original_margin,
+        original_price,
+        original_liquidation,
+        target_liquidation,
+        market_price,
+    )
+    .unwrap();
+
+    assert_eq!(collateral_delta, 73_554);
+
+    let add_margin_amount = NonZeroU64::new(collateral_delta as u64).unwrap();
+
+    let (_, _, new_liquidation) = evaluate_added_margin(
+        side,
+        quantity,
+        original_price,
+        original_margin,
+        add_margin_amount,
+    )
+    .unwrap();
+
+    let liquidation_diff = (new_liquidation.into_f64() - target_liquidation.into_f64()).abs();
+    assert!(
+        liquidation_diff < 1.0,
+        "Estimated liquidation distant from target by {liquidation_diff}",
+    );
 }

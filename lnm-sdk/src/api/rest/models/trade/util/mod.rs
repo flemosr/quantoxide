@@ -222,5 +222,30 @@ pub fn evaluate_cash_in(
     ))
 }
 
+pub fn evaluate_collateral_delta_for_liquidation(
+    side: TradeSide,
+    quantity: Quantity,
+    margin: Margin,
+    price: Price,
+    liquidation: Price,
+    target_liquidation: Price,
+    market_price: Price,
+) -> Result<i64, TradeValidationError> {
+    if target_liquidation == liquidation {
+        return Ok(0);
+    }
+
+    // Margin needed for `target_liquidation`, at the current `market_price`
+    let target_collateral =
+        Margin::est_from_liquidation_price(side, quantity, market_price, target_liquidation)?;
+
+    let pl = pl_estimate(side, quantity, price, market_price);
+
+    // target collateral - current collateral
+    let colateral_diff = target_collateral.into_i64() - margin.into_i64() - pl;
+
+    Ok(colateral_diff)
+}
+
 #[cfg(test)]
 mod tests;
