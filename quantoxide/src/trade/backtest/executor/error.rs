@@ -1,5 +1,3 @@
-use std::result;
-
 use chrono::{DateTime, Utc};
 use thiserror::Error;
 
@@ -49,5 +47,3 @@ pub enum SimulatedTradeExecutorError {
     #[error("Generic error, {0}")]
     Generic(String),
 }
-
-pub type Result<T> = result::Result<T, SimulatedTradeExecutorError>;
