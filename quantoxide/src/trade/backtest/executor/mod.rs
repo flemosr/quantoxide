@@ -195,7 +195,7 @@ impl SimulatedTradeExecutor {
 
         let time = state_guard.time;
         let market_price = Price::round(state_guard.market_price)
-            .map_err(SimulatedTradeExecutorError::PriceValidation)?;
+            .map_err(SimulatedTradeExecutorError::InvalidMarketPrice)?;
 
         let mut new_balance = state_guard.balance as i64;
         let mut new_closed_len = state_guard.closed_len;
@@ -256,7 +256,7 @@ impl SimulatedTradeExecutor {
         let mut state_guard = self.state.lock().await;
 
         let market_price = Price::round(state_guard.market_price)
-            .map_err(SimulatedTradeExecutorError::PriceValidation)?;
+            .map_err(SimulatedTradeExecutorError::InvalidMarketPrice)?;
 
         let (side, stoploss, takeprofit) = risk_params.into_trade_params(market_price)?;
 

@@ -1,23 +1,14 @@
 use chrono::{DateTime, Utc};
 use thiserror::Error;
 
-use lnm_sdk::api::rest::models::{
-    TradeSide,
-    error::{PriceValidationError, TradeValidationError, ValidationError},
-};
+use lnm_sdk::api::rest::models::{TradeSide, error::PriceValidationError};
 
 use crate::db::{error::DbError, models::PriceHistoryEntry};
 
 #[derive(Error, Debug)]
 pub enum SimulatedTradeExecutorError {
-    #[error("[PriceValidation] {0}")]
-    PriceValidation(#[from] PriceValidationError),
-
-    #[error("TradeValidation error {0}")]
-    TradeValidation(#[from] TradeValidationError),
-
-    #[error("[Validation] {0}")]
-    ValidationError(#[from] ValidationError),
+    #[error("[InvalidMarketPrice] {0}")]
+    InvalidMarketPrice(PriceValidationError),
 
     #[error("Invalid time sequence: new time {new_time} is not after current time {current_time}")]
     TimeSequenceViolation {
