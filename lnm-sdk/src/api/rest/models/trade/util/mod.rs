@@ -143,6 +143,64 @@ pub fn price_from_pl(side: TradeSide, quantity: Quantity, start_price: Price, pl
     Price::clamp_from(SATS_PER_BTC / inverse_end_price)
 }
 
+pub fn evaluate_new_stoploss(
+    side: TradeSide,
+    liquidation: Price,
+    takeprofit: Option<Price>,
+    market_price: Price,
+    new_stoploss: Price,
+) -> Result<(), TradeValidationError> {
+    match side {
+        TradeSide::Buy => {
+            if new_stoploss < liquidation {
+                return Err(TradeValidationError::StoplossBelowLiquidationLong {
+                    stoploss: new_stoploss,
+                    liquidation,
+                });
+            }
+            if let Some(takeprofit) = takeprofit {
+                if new_stoploss >= takeprofit {
+                    return Err(TradeValidationError::Generic(format!(
+                        "For long position, stoploss ({}) must be below takeprofit ({})",
+                        new_stoploss, takeprofit
+                    )));
+                }
+            }
+
+            if new_stoploss < market_price {
+                return Err(TradeValidationError::Generic(format!(
+                    "For long position, stoploss ({}) must be below market price ({})",
+                    new_stoploss, market_price
+                )));
+            }
+        }
+        TradeSide::Sell => {
+            if new_stoploss > liquidation {
+                return Err(TradeValidationError::StoplossAboveLiquidationShort {
+                    stoploss: new_stoploss,
+                    liquidation,
+                });
+            }
+            if let Some(takeprofit) = takeprofit {
+                if new_stoploss <= takeprofit {
+                    return Err(TradeValidationError::Generic(format!(
+                        "For short position, stoploss ({}) must be above takeprofit ({})",
+                        new_stoploss, takeprofit
+                    )));
+                }
+            }
+            if new_stoploss >= market_price {
+                return Err(TradeValidationError::Generic(format!(
+                    "For short position, stoploss ({}) must be above market price ({})",
+                    new_stoploss, market_price
+                )));
+            }
+        }
+    }
+
+    Ok(())
+}
+
 pub fn evaluate_added_margin(
     side: TradeSide,
     quantity: Quantity,
