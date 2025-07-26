@@ -4,8 +4,8 @@ use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
 use lnm_sdk::api::rest::models::{
-    BoundedPercentage, Leverage, Margin, Price, Quantity, SATS_PER_BTC, Trade, TradeClosed,
-    TradeExecutionType, TradeRunning, TradeSide, TradeSize, trade_util,
+    BoundedPercentage, Leverage, Margin, Price, Quantity, Trade, TradeClosed, TradeExecutionType,
+    TradeRunning, TradeSide, TradeSize, trade_util,
 };
 
 use super::super::super::{
@@ -157,13 +157,11 @@ impl SimulatedTradeRunning {
 
     pub fn to_closed(
         &self,
+        fee_perc: BoundedPercentage,
         close_time: DateTime<Utc>,
         close_price: Price,
-        fee_perc: BoundedPercentage,
     ) -> Arc<SimulatedTradeClosed> {
-        let fee_calc = SATS_PER_BTC * fee_perc.into_f64() / 100.;
-        let closing_fee =
-            (fee_calc * self.quantity.into_f64() / close_price.into_f64()).floor() as u64;
+        let closing_fee = trade_util::evaluate_closing_fee(fee_perc, self.quantity, close_price);
 
         Arc::new(SimulatedTradeClosed {
             id: self.id,

@@ -110,7 +110,7 @@ impl SimulatedTradeExecutor {
         let mut new_closed_fees = state_guard.closed_fees;
 
         let mut close_trade = |trade: &SimulatedTradeRunning, close_price: Price| {
-            let closed_trade = trade.to_closed(time, close_price, self.fee_perc);
+            let closed_trade = trade.to_closed(self.fee_perc, time, close_price);
 
             new_balance += closed_trade.margin().into_i64() + closed_trade.maintenance_margin()
                 - closed_trade.closing_fee() as i64
@@ -203,7 +203,7 @@ impl SimulatedTradeExecutor {
         let mut new_closed_fees = state_guard.closed_fees;
 
         let mut close_trade = |trade: Arc<SimulatedTradeRunning>| {
-            let closed_trade = trade.to_closed(time, market_price, self.fee_perc);
+            let closed_trade = trade.to_closed(self.fee_perc, time, market_price);
 
             new_balance += closed_trade.margin().into_i64() + closed_trade.maintenance_margin()
                 - closed_trade.closing_fee() as i64
