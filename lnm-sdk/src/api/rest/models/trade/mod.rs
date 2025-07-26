@@ -10,6 +10,8 @@ use chrono::{
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::api::rest::models::error::TradeValidationError;
+
 use super::error::ValidationError;
 use super::{
     Leverage, Margin, Price, Quantity, error::FuturesTradeRequestValidationError, serde_util,
@@ -255,57 +257,16 @@ pub trait TradeRunning: Trade {
         &self,
         target_liquidation: Price,
         market_price: Price,
-    ) -> Result<i64, ValidationError> {
-        if target_liquidation == self.liquidation() {
-            return Ok(0);
-        }
-
-        let decreasing_leverage = match self.side() {
-            TradeSide::Buy => {
-                if target_liquidation > market_price {
-                    return Err(ValidationError::Generic(
-                        "liquidation must be below market price for long trade".to_string(),
-                    ));
-                }
-
-                target_liquidation < self.liquidation()
-            }
-            TradeSide::Sell => {
-                if target_liquidation < market_price {
-                    return Err(ValidationError::Generic(
-                        "liquidation must be above market price for short trade".to_string(),
-                    ));
-                }
-
-                target_liquidation > self.liquidation()
-            }
-        };
-
-        let target_trade_price = if decreasing_leverage {
-            // Add margin, price should remain unchanged
-            self.price()
-        } else {
-            // Cash-in, price will be changed to market price before
-            // margin is changed.
-            market_price
-        };
-
-        let target_margin = Margin::est_from_liquidation_price(
+    ) -> Result<i64, TradeValidationError> {
+        util::evaluate_collateral_delta_for_liquidation(
             self.side(),
             self.quantity(),
-            target_trade_price,
+            self.margin(),
+            self.price(),
+            self.liquidation(),
             target_liquidation,
-        )?;
-
-        let mut colateral_diff = target_margin.into_i64() - self.margin().into_i64();
-
-        if colateral_diff < 0 {
-            // When executing a cash-in, all PL (if positive) needs to be
-            // extracted before the margin is changed.
-            colateral_diff -= self.est_pl(market_price).max(0);
-        }
-
-        Ok(colateral_diff)
+            market_price,
+        )
     }
 }
 
