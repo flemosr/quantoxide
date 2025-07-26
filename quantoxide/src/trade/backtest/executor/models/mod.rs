@@ -5,30 +5,29 @@ use uuid::Uuid;
 
 use lnm_sdk::api::rest::models::{
     BoundedPercentage, Leverage, Margin, Price, Quantity, SATS_PER_BTC, Trade, TradeClosed,
-    TradeExecutionType, TradeRunning, TradeSide, TradeSize, error::TradeValidationError,
-    trade_util,
+    TradeExecutionType, TradeRunning, TradeSide, TradeSize, trade_util,
 };
 
-use super::{
-    super::super::core::TradeExt,
-    error::{Result, SimulatedTradeExecutorError},
+use super::super::super::{
+    core::TradeExt,
+    error::{Result, TradeError},
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SimulatedTradeRunning {
     id: Uuid,
     side: TradeSide,
-    entry_time: DateTime<Utc>,
-    entry_price: Price,
-    price: Price,
-    stoploss: Price,
-    takeprofit: Price,
-    margin: Margin,
-    quantity: Quantity,
-    leverage: Leverage,
-    liquidation: Price,
     opening_fee: u64,
     closing_fee_reserved: u64,
+    quantity: Quantity,
+    margin: Margin,
+    leverage: Leverage,
+    price: Price,
+    liquidation: Price,
+    stoploss: Price,
+    takeprofit: Price,
+    entry_time: DateTime<Utc>,
+    entry_price: Price,
 }
 
 impl SimulatedTradeRunning {
@@ -52,74 +51,34 @@ impl SimulatedTradeRunning {
                 takeprofit,
                 fee_perc,
             )
-            .map_err(SimulatedTradeExecutorError::TradeValidation)?;
+            .map_err(TradeError::TradeValidation)?;
 
         Ok(Arc::new(Self {
             id: Uuid::new_v4(),
             side,
-            entry_time,
-            entry_price,
-            price: entry_price,
-            stoploss,
-            takeprofit,
-            margin,
-            quantity,
-            leverage,
-            liquidation,
             opening_fee,
             closing_fee_reserved,
+            quantity,
+            margin,
+            leverage,
+            price: entry_price,
+            liquidation,
+            stoploss,
+            takeprofit,
+            entry_time,
+            entry_price: entry_price,
         }))
     }
 
     pub fn with_new_stoploss(&self, market_price: Price, new_stoploss: Price) -> Result<Arc<Self>> {
-        match self.side {
-            TradeSide::Buy => {
-                if new_stoploss < self.liquidation {
-                    return Err(TradeValidationError::StoplossBelowLiquidationLong {
-                        stoploss: new_stoploss,
-                        liquidation: self.liquidation,
-                    }
-                    .into());
-                }
-                if new_stoploss >= self.takeprofit {
-                    return Err(TradeValidationError::Generic(format!(
-                        "For long position, stoploss ({}) must be below takeprofit ({})",
-                        new_stoploss, self.takeprofit
-                    ))
-                    .into());
-                }
-                if new_stoploss < market_price {
-                    return Err(TradeValidationError::Generic(format!(
-                        "For long position, stoploss ({}) must be below market price ({})",
-                        new_stoploss, self.takeprofit
-                    ))
-                    .into());
-                }
-            }
-            TradeSide::Sell => {
-                if new_stoploss > self.liquidation {
-                    return Err(TradeValidationError::StoplossAboveLiquidationShort {
-                        stoploss: new_stoploss,
-                        liquidation: self.liquidation,
-                    }
-                    .into());
-                }
-                if new_stoploss <= self.takeprofit {
-                    return Err(TradeValidationError::Generic(format!(
-                        "For short position, stoploss ({}) must be above takeprofit ({})",
-                        new_stoploss, self.takeprofit
-                    ))
-                    .into());
-                }
-                if new_stoploss >= market_price {
-                    return Err(TradeValidationError::Generic(format!(
-                        "For short position, stoploss ({}) must be above market price ({})",
-                        new_stoploss, self.takeprofit
-                    ))
-                    .into());
-                }
-            }
-        }
+        trade_util::evaluate_new_stoploss(
+            self.side,
+            self.liquidation,
+            Some(self.takeprofit),
+            market_price,
+            new_stoploss,
+        )
+        .map_err(TradeError::TradeValidation)?;
 
         Ok(Arc::new(Self {
             id: self.id,
@@ -145,7 +104,8 @@ impl SimulatedTradeRunning {
             self.price,
             self.margin,
             amount,
-        )?;
+        )
+        .map_err(TradeError::TradeValidation)?;
 
         Ok(Arc::new(Self {
             id: self.id,
@@ -174,7 +134,8 @@ impl SimulatedTradeRunning {
                 Some(self.stoploss),
                 market_price,
                 amount,
-            )?;
+            )
+            .map_err(TradeError::TradeValidation)?;
 
         Ok(Arc::new(Self {
             id: self.id,
@@ -192,19 +153,6 @@ impl SimulatedTradeRunning {
             opening_fee: self.opening_fee,
             closing_fee_reserved: self.closing_fee_reserved,
         }))
-    }
-
-    #[cfg(test)]
-    fn closing_fee_est(&self, fee_perc: BoundedPercentage, close_price: Price) -> u64 {
-        let fee_calc = SATS_PER_BTC * fee_perc.into_f64() / 100.;
-
-        (fee_calc * self.quantity.into_f64() / close_price.into_f64()).floor() as u64
-    }
-
-    #[cfg(test)]
-    fn net_pl_est(&self, fee_perc: BoundedPercentage, current_price: Price) -> i64 {
-        let pl = self.est_pl(current_price);
-        pl - self.opening_fee as i64 - self.closing_fee_est(fee_perc, current_price) as i64
     }
 
     pub fn to_closed(
@@ -358,14 +306,6 @@ pub struct SimulatedTradeClosed {
     opening_fee: u64,
     closing_fee_reserved: u64,
     closing_fee: u64,
-}
-
-impl SimulatedTradeClosed {
-    #[cfg(test)]
-    fn net_pl(&self) -> i64 {
-        let pl = self.pl();
-        pl - self.opening_fee as i64 - self.closing_fee as i64
-    }
 }
 
 impl Trade for SimulatedTradeClosed {
