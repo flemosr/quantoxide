@@ -78,7 +78,8 @@ impl LiveTradingSession {
                 .remove(&trade.id())
                 .and_then(|inner_opt| inner_opt.clone());
 
-            session.register_running_trade(trade, trade_tsl)?;
+            // Balance obtained via API is up-to-date
+            session.register_running_trade(trade, trade_tsl, false)?;
         }
 
         if !registered_trades_map.is_empty() {
@@ -217,6 +218,7 @@ impl LiveTradingSession {
         &mut self,
         new_trade: LnmTrade,
         trade_tsl: Option<TradeTrailingStoploss>,
+        update_balance: bool,
     ) -> LiveResult<()> {
         if !new_trade.running() {
             return Err(LiveError::Generic(format!(
@@ -239,13 +241,13 @@ impl LiveTradingSession {
             self.last_trade_time = Some(new_trade.creation_ts());
         }
 
-        self.balance = {
-            self.balance as i64
-                - new_trade.margin().into_i64()
-                - new_trade.maintenance_margin()
-                - new_trade.opening_fee() as i64
+        if update_balance {
+            self.balance = self
+                .balance
+                .saturating_sub(new_trade.margin().into_u64())
+                .saturating_sub(new_trade.maintenance_margin() as u64)
+                .saturating_sub(new_trade.opening_fee());
         }
-        .max(0) as u64;
 
         self.trigger
             .update(self.tsl_step_size, &new_trade, trade_tsl)

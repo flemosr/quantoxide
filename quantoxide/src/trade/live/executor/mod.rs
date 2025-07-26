@@ -252,7 +252,7 @@ impl LiveTradeExecutor {
 
         let mut new_trading_session = locked_ready_state.trading_session().to_owned();
 
-        new_trading_session.register_running_trade(trade, trade_tsl)?;
+        new_trading_session.register_running_trade(trade, trade_tsl, true)?;
 
         locked_ready_state
             .update_trading_session(new_trading_session)
