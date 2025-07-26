@@ -255,12 +255,6 @@ impl SimulatedTradeExecutor {
     ) -> Result<()> {
         let mut state_guard = self.state.lock().await;
 
-        if state_guard.running.len() >= self.max_running_qtd {
-            return Err(SimulatedTradeExecutorError::MaxRunningTradesReached {
-                max_qtd: self.max_running_qtd,
-            })?;
-        }
-
         let market_price = Price::round(state_guard.market_price)
             .map_err(SimulatedTradeExecutorError::PriceValidation)?;
 
@@ -277,11 +271,22 @@ impl SimulatedTradeExecutor {
             self.fee_perc,
         )?;
 
+        let balance_delta = trade.margin().into_i64() + trade.maintenance_margin();
+        if balance_delta > state_guard.balance {
+            return Err(TradeError::BalanceTooLow);
+        }
+
+        if state_guard.running.len() >= self.max_running_qtd {
+            return Err(SimulatedTradeExecutorError::MaxRunningTradesReached {
+                max_qtd: self.max_running_qtd,
+            })?;
+        }
+
         state_guard.balance -= trade.margin().into_i64()
             + trade.maintenance_margin() as i64
             + trade.opening_fee() as i64;
 
-        state_guard.last_trade_time = Some(state_guard.time);
+        state_guard.last_trade_time = trade.market_filled_ts();
 
         state_guard
             .trigger
