@@ -413,28 +413,39 @@ impl<T: TradeClosed> ClosedTradeHistory<T> {
 
 pub enum RiskParams {
     Long {
-        stoploss_perc: BoundedPercentage,
-        takeprofit_perc: LowerBoundedPercentage,
+        stoploss_perc: Option<BoundedPercentage>,
+        takeprofit_perc: Option<LowerBoundedPercentage>,
     },
     Short {
-        stoploss_perc: BoundedPercentage,
-        takeprofit_perc: BoundedPercentage,
+        stoploss_perc: Option<BoundedPercentage>,
+        takeprofit_perc: Option<BoundedPercentage>,
     },
 }
 
 impl RiskParams {
-    pub fn into_trade_params(self, market_price: Price) -> Result<(TradeSide, Price, Price)> {
+    pub fn into_trade_params(
+        self,
+        market_price: Price,
+    ) -> Result<(TradeSide, Option<Price>, Option<Price>)> {
         match self {
             Self::Long {
                 stoploss_perc,
                 takeprofit_perc,
             } => {
-                let stoploss = market_price
-                    .apply_discount(stoploss_perc)
-                    .map_err(TradeError::RiskParamsConversion)?;
-                let takeprofit = market_price
-                    .apply_gain(takeprofit_perc.into())
-                    .map_err(TradeError::RiskParamsConversion)?;
+                let stoploss = stoploss_perc
+                    .map(|sl| {
+                        market_price
+                            .apply_discount(sl)
+                            .map_err(TradeError::RiskParamsConversion)
+                    })
+                    .transpose()?;
+                let takeprofit = takeprofit_perc
+                    .map(|tp| {
+                        market_price
+                            .apply_gain(tp.into())
+                            .map_err(TradeError::RiskParamsConversion)
+                    })
+                    .transpose()?;
 
                 Ok((TradeSide::Buy, stoploss, takeprofit))
             }
@@ -442,12 +453,20 @@ impl RiskParams {
                 stoploss_perc,
                 takeprofit_perc,
             } => {
-                let stoploss = market_price
-                    .apply_gain(stoploss_perc.into())
-                    .map_err(TradeError::RiskParamsConversion)?;
-                let takeprofit = market_price
-                    .apply_discount(takeprofit_perc)
-                    .map_err(TradeError::RiskParamsConversion)?;
+                let stoploss = stoploss_perc
+                    .map(|sl| {
+                        market_price
+                            .apply_gain(sl.into())
+                            .map_err(TradeError::RiskParamsConversion)
+                    })
+                    .transpose()?;
+                let takeprofit = takeprofit_perc
+                    .map(|tp| {
+                        market_price
+                            .apply_discount(tp)
+                            .map_err(TradeError::RiskParamsConversion)
+                    })
+                    .transpose()?;
 
                 Ok((TradeSide::Sell, stoploss, takeprofit))
             }
