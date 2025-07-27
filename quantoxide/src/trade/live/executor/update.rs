@@ -167,8 +167,8 @@ impl WrappedApiContext {
         side: TradeSide,
         size: TradeSize,
         leverage: Leverage,
-        stoploss: Price,
-        takeprofit: Price,
+        stoploss: Option<Price>,
+        takeprofit: Option<Price>,
     ) -> LiveResult<LnmTrade> {
         self.send_order_update(LiveTradeExecutorUpdateOrder::CreateNewTrade {
             side,
@@ -186,8 +186,8 @@ impl WrappedApiContext {
                 size,
                 leverage,
                 TradeExecution::Market,
-                Some(stoploss),
-                Some(takeprofit),
+                stoploss,
+                takeprofit,
             )
             .await
             .map_err(LiveError::RestApi)
