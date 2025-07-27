@@ -45,8 +45,8 @@ pub fn evaluate_open_trade_params(
     size: TradeSize,
     leverage: Leverage,
     entry_price: Price,
-    stoploss: Price,
-    takeprofit: Price,
+    stoploss: Option<Price>,
+    takeprofit: Option<Price>,
     fee_perc: BoundedPercentage,
 ) -> Result<(Quantity, Margin, Price, u64, u64), TradeValidationError> {
     let (quantity, margin) = size
@@ -57,43 +57,51 @@ pub fn evaluate_open_trade_params(
 
     match side {
         TradeSide::Buy => {
-            if stoploss < liquidation {
-                return Err(TradeValidationError::StoplossBelowLiquidationLong {
-                    stoploss,
-                    liquidation,
-                });
+            if let Some(stoploss) = stoploss {
+                if stoploss < liquidation {
+                    return Err(TradeValidationError::StoplossBelowLiquidationLong {
+                        stoploss,
+                        liquidation,
+                    });
+                }
+                if stoploss >= entry_price {
+                    return Err(TradeValidationError::StoplossAboveEntryForLong {
+                        stoploss,
+                        entry_price,
+                    });
+                }
             }
-            if stoploss >= entry_price {
-                return Err(TradeValidationError::StoplossAboveEntryForLong {
-                    stoploss,
-                    entry_price,
-                });
-            }
-            if takeprofit <= entry_price {
-                return Err(TradeValidationError::TakeprofitBelowEntryForLong {
-                    takeprofit,
-                    entry_price,
-                });
+            if let Some(takeprofit) = takeprofit {
+                if takeprofit <= entry_price {
+                    return Err(TradeValidationError::TakeprofitBelowEntryForLong {
+                        takeprofit,
+                        entry_price,
+                    });
+                }
             }
         }
         TradeSide::Sell => {
-            if stoploss > liquidation {
-                return Err(TradeValidationError::StoplossAboveLiquidationShort {
-                    stoploss,
-                    liquidation,
-                });
+            if let Some(stoploss) = stoploss {
+                if stoploss > liquidation {
+                    return Err(TradeValidationError::StoplossAboveLiquidationShort {
+                        stoploss,
+                        liquidation,
+                    });
+                }
+                if stoploss <= entry_price {
+                    return Err(TradeValidationError::StoplossBelowEntryForShort {
+                        stoploss,
+                        entry_price,
+                    });
+                }
             }
-            if stoploss <= entry_price {
-                return Err(TradeValidationError::StoplossBelowEntryForShort {
-                    stoploss,
-                    entry_price,
-                });
-            }
-            if takeprofit >= entry_price {
-                return Err(TradeValidationError::TakeprofitAboveEntryForShort {
-                    takeprofit,
-                    entry_price,
-                });
+            if let Some(takeprofit) = takeprofit {
+                if takeprofit >= entry_price {
+                    return Err(TradeValidationError::TakeprofitAboveEntryForShort {
+                        takeprofit,
+                        entry_price,
+                    });
+                }
             }
         }
     };
