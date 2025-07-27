@@ -166,6 +166,12 @@ pub fn evaluate_new_stoploss(
                     liquidation,
                 });
             }
+            if new_stoploss >= market_price {
+                return Err(TradeValidationError::Generic(format!(
+                    "For long position, stoploss ({}) must be below market price ({})",
+                    new_stoploss, market_price
+                )));
+            }
             if let Some(takeprofit) = takeprofit {
                 if new_stoploss >= takeprofit {
                     return Err(TradeValidationError::Generic(format!(
@@ -173,13 +179,6 @@ pub fn evaluate_new_stoploss(
                         new_stoploss, takeprofit
                     )));
                 }
-            }
-
-            if new_stoploss < market_price {
-                return Err(TradeValidationError::Generic(format!(
-                    "For long position, stoploss ({}) must be below market price ({})",
-                    new_stoploss, market_price
-                )));
             }
         }
         TradeSide::Sell => {
@@ -189,6 +188,12 @@ pub fn evaluate_new_stoploss(
                     liquidation,
                 });
             }
+            if new_stoploss <= market_price {
+                return Err(TradeValidationError::Generic(format!(
+                    "For short position, stoploss ({}) must be above market price ({})",
+                    new_stoploss, market_price
+                )));
+            }
             if let Some(takeprofit) = takeprofit {
                 if new_stoploss <= takeprofit {
                     return Err(TradeValidationError::Generic(format!(
@@ -196,12 +201,6 @@ pub fn evaluate_new_stoploss(
                         new_stoploss, takeprofit
                     )));
                 }
-            }
-            if new_stoploss >= market_price {
-                return Err(TradeValidationError::Generic(format!(
-                    "For short position, stoploss ({}) must be above market price ({})",
-                    new_stoploss, market_price
-                )));
             }
         }
     }
