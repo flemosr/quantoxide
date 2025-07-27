@@ -170,7 +170,7 @@ impl SimulatedTradeExecutor {
                 };
 
                 if let Some(new_stoploss) = new_stoploss {
-                    *trade = trade.with_new_stoploss(new_stoploss, market_price)?;
+                    *trade = trade.with_new_stoploss(market_price, new_stoploss)?;
                 }
             }
 
@@ -303,15 +303,21 @@ impl TradeExecutor for SimulatedTradeExecutor {
         &self,
         size: TradeSize,
         leverage: Leverage,
-        stoploss_perc: BoundedPercentage,
-        stoploss_mode: StoplossMode,
-        takeprofit_perc: LowerBoundedPercentage,
+        stoploss: Option<(BoundedPercentage, StoplossMode)>,
+        takeprofit: Option<LowerBoundedPercentage>,
     ) -> Result<()> {
-        let trade_tsl = stoploss_mode.validate_trade_tsl(self.tsl_step_size, stoploss_perc)?;
+        let (stoploss_perc, trade_tsl) = match stoploss {
+            Some((stoploss_perc, stoploss_mode)) => {
+                let trade_tsl =
+                    stoploss_mode.validate_trade_tsl(self.tsl_step_size, stoploss_perc)?;
+                (Some(stoploss_perc), trade_tsl)
+            }
+            None => (None, None),
+        };
 
         let risk_params = RiskParams::Long {
             stoploss_perc,
-            takeprofit_perc,
+            takeprofit_perc: takeprofit,
         };
 
         self.create_running(size, leverage, risk_params, trade_tsl)
@@ -324,15 +330,21 @@ impl TradeExecutor for SimulatedTradeExecutor {
         &self,
         size: TradeSize,
         leverage: Leverage,
-        stoploss_perc: BoundedPercentage,
-        stoploss_mode: StoplossMode,
-        takeprofit_perc: BoundedPercentage,
+        stoploss: Option<(BoundedPercentage, StoplossMode)>,
+        takeprofit: Option<BoundedPercentage>,
     ) -> Result<()> {
-        let trade_tsl = stoploss_mode.validate_trade_tsl(self.tsl_step_size, stoploss_perc)?;
+        let (stoploss_perc, trade_tsl) = match stoploss {
+            Some((stoploss_perc, stoploss_mode)) => {
+                let trade_tsl =
+                    stoploss_mode.validate_trade_tsl(self.tsl_step_size, stoploss_perc)?;
+                (Some(stoploss_perc), trade_tsl)
+            }
+            None => (None, None),
+        };
 
         let risk_params = RiskParams::Short {
             stoploss_perc,
-            takeprofit_perc,
+            takeprofit_perc: takeprofit,
         };
 
         self.create_running(size, leverage, risk_params, trade_tsl)
