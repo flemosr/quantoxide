@@ -21,8 +21,8 @@ pub enum LiveTradeExecutorUpdateOrder {
         side: TradeSide,
         size: TradeSize,
         leverage: Leverage,
-        stoploss: Price,
-        takeprofit: Price,
+        stoploss: Option<Price>,
+        takeprofit: Option<Price>,
     },
     UpdateTradeStoploss {
         id: Uuid,
@@ -53,10 +53,20 @@ impl fmt::Display for LiveTradeExecutorUpdateOrder {
                 stoploss,
                 takeprofit,
             } => {
+                let fmt_price_opt = |price_opt: &Option<Price>| {
+                    price_opt
+                        .map(|price| format!("{:.1}", price))
+                        .unwrap_or_else(|| "N/A".to_string())
+                };
+
                 write!(
                     f,
-                    "Create New Trade:\n  side: {}\n  size: {}\n  leverage: {}\n  stoploss: {:.1}\n  takeprofit: {:.1}",
-                    side, size, leverage, stoploss, takeprofit
+                    "Create New Trade:\n  side: {}\n  size: {}\n  leverage: {}\n  stoploss: {}\n  takeprofit: {}",
+                    side,
+                    size,
+                    leverage,
+                    fmt_price_opt(stoploss),
+                    fmt_price_opt(takeprofit)
                 )
             }
             Self::UpdateTradeStoploss { id, stoploss } => {
