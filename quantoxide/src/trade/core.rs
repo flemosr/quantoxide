@@ -543,18 +543,16 @@ pub trait TradeExecutor: Send + Sync {
         &self,
         size: TradeSize,
         leverage: Leverage,
-        stoploss_perc: BoundedPercentage,
-        stoploss_mode: StoplossMode,
-        takeprofit_perc: LowerBoundedPercentage,
+        stoploss: Option<(BoundedPercentage, StoplossMode)>,
+        takeprofit: Option<LowerBoundedPercentage>,
     ) -> Result<()>;
 
     async fn open_short(
         &self,
         size: TradeSize,
         leverage: Leverage,
-        stoploss_perc: BoundedPercentage,
-        stoploss_mode: StoplossMode,
-        takeprofit_perc: BoundedPercentage,
+        stoploss: Option<(BoundedPercentage, StoplossMode)>,
+        takeprofit: Option<BoundedPercentage>,
     ) -> Result<()>;
 
     async fn add_margin(&self, trade_id: Uuid, amount: NonZeroU64) -> Result<()>;
