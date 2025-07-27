@@ -24,8 +24,8 @@ pub struct SimulatedTradeRunning {
     leverage: Leverage,
     price: Price,
     liquidation: Price,
-    stoploss: Price,
-    takeprofit: Price,
+    stoploss: Option<Price>,
+    takeprofit: Option<Price>,
     entry_time: DateTime<Utc>,
     entry_price: Price,
 }
@@ -37,8 +37,8 @@ impl SimulatedTradeRunning {
         leverage: Leverage,
         entry_time: DateTime<Utc>,
         entry_price: Price,
-        stoploss: Price,
-        takeprofit: Price,
+        stoploss: Option<Price>,
+        takeprofit: Option<Price>,
         fee_perc: BoundedPercentage,
     ) -> Result<Arc<Self>> {
         let (quantity, margin, liquidation, opening_fee, closing_fee_reserved) =
@@ -74,7 +74,7 @@ impl SimulatedTradeRunning {
         trade_util::evaluate_new_stoploss(
             self.side,
             self.liquidation,
-            Some(self.takeprofit),
+            self.takeprofit,
             market_price,
             new_stoploss,
         )
@@ -86,7 +86,7 @@ impl SimulatedTradeRunning {
             entry_time: self.entry_time,
             entry_price: self.entry_price,
             price: self.price,
-            stoploss: new_stoploss,
+            stoploss: Some(new_stoploss),
             takeprofit: self.takeprofit,
             margin: self.margin,
             quantity: self.quantity,
@@ -131,7 +131,7 @@ impl SimulatedTradeRunning {
                 self.quantity,
                 self.margin,
                 self.price,
-                Some(self.stoploss),
+                self.stoploss,
                 market_price,
                 amount,
             )
@@ -143,8 +143,7 @@ impl SimulatedTradeRunning {
             entry_time: self.entry_time,
             entry_price: self.entry_price,
             price: new_price,
-            // TODO: Fix once `stoploss` is optional
-            stoploss: new_stoploss.unwrap_or(new_liquidation),
+            stoploss: new_stoploss,
             takeprofit: self.takeprofit,
             margin: new_margin,
             quantity: self.quantity,
@@ -230,11 +229,11 @@ impl Trade for SimulatedTradeRunning {
     }
 
     fn stoploss(&self) -> Option<Price> {
-        Some(self.stoploss)
+        self.stoploss
     }
 
     fn takeprofit(&self) -> Option<Price> {
-        Some(self.takeprofit)
+        self.takeprofit
     }
 
     fn exit_price(&self) -> Option<Price> {
@@ -294,8 +293,8 @@ pub struct SimulatedTradeClosed {
     entry_price: Price,
     price: Price,
     liquidation: Price,
-    stoploss: Price,
-    takeprofit: Price,
+    stoploss: Option<Price>,
+    takeprofit: Option<Price>,
     margin: Margin,
     quantity: Quantity,
     leverage: Leverage,
@@ -352,11 +351,11 @@ impl Trade for SimulatedTradeClosed {
     }
 
     fn stoploss(&self) -> Option<Price> {
-        Some(self.stoploss)
+        self.stoploss
     }
 
     fn takeprofit(&self) -> Option<Price> {
-        Some(self.takeprofit)
+        self.takeprofit
     }
 
     fn exit_price(&self) -> Option<Price> {
