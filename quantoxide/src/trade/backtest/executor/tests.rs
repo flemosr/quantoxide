@@ -61,18 +61,13 @@ async fn test_simulated_trade_executor_long_profit() -> Result<()> {
     // Step 3: Open a long trade
     let size = Quantity::try_from(500).unwrap().into(); // $500 quantity
     let leverage = Leverage::try_from(1).unwrap(); // 1x leverage
-    let stoploss_perc = BoundedPercentage::try_from(2.0).unwrap(); // 2% stoploss
+    let stoploss_perc = BoundedPercentage::try_from(2.0).unwrap();
     let stoploss_mode = StoplossMode::Fixed;
-    let takeprofit_perc = LowerBoundedPercentage::try_from(5.0).unwrap(); // 5% takeprofit
+    let stoploss = Some((stoploss_perc, stoploss_mode)); // 2% fixed stoploss
+    let takeprofit = Some(LowerBoundedPercentage::try_from(5.0).unwrap()); // 5% takeprofit
 
     executor
-        .open_long(
-            size,
-            leverage,
-            stoploss_perc,
-            stoploss_mode,
-            takeprofit_perc,
-        )
+        .open_long(size, leverage, stoploss, takeprofit)
         .await?;
 
     let state = executor.trading_state().await?;
@@ -187,18 +182,13 @@ async fn test_simulated_trade_executor_long_loss() -> Result<()> {
     // Step 2: Open a long trade
     let size = Quantity::try_from(500).unwrap().into(); // $500 quantity
     let leverage = Leverage::try_from(1).unwrap(); // 1x leverage
-    let stoploss_perc = BoundedPercentage::try_from(2.0).unwrap(); // 2% stoploss
+    let stoploss_perc = BoundedPercentage::try_from(2.0).unwrap();
     let stoploss_mode = StoplossMode::Fixed;
-    let takeprofit_perc = LowerBoundedPercentage::try_from(5.0).unwrap(); // 5% takeprofit
+    let stoploss = Some((stoploss_perc, stoploss_mode)); // 2% fixed stoploss
+    let takeprofit = Some(LowerBoundedPercentage::try_from(5.0).unwrap()); // 5% takeprofit
 
     executor
-        .open_long(
-            size,
-            leverage,
-            stoploss_perc,
-            stoploss_mode,
-            takeprofit_perc,
-        )
+        .open_long(size, leverage, stoploss, takeprofit)
         .await?;
 
     let state = executor.trading_state().await?;
@@ -301,18 +291,13 @@ async fn test_simulated_trade_executor_short_profit() -> Result<()> {
     // Step 2: Open a short trade
     let size = Quantity::try_from(500).unwrap().into(); // $500 quantity
     let leverage = Leverage::try_from(1).unwrap(); // 1x leverage
-    let stoploss_perc = BoundedPercentage::try_from(3.0).unwrap(); // 3% stoploss
+    let stoploss_perc = BoundedPercentage::try_from(3.0).unwrap();
     let stoploss_mode = StoplossMode::Fixed;
-    let takeprofit_perc = BoundedPercentage::try_from(4.0).unwrap(); // 4% takeprofit
+    let stoploss = Some((stoploss_perc, stoploss_mode)); // 3% fixed stoploss
+    let takeprofit = Some(BoundedPercentage::try_from(4.0).unwrap()); // 4% takeprofit
 
     executor
-        .open_short(
-            size,
-            leverage,
-            stoploss_perc,
-            stoploss_mode,
-            takeprofit_perc,
-        )
+        .open_short(size, leverage, stoploss, takeprofit)
         .await?;
 
     let state = executor.trading_state().await?;
@@ -424,18 +409,13 @@ async fn test_simulated_trade_executor_short_loss() -> Result<()> {
     // Step 2: Open a short trade using 5% of balance
     let size = Quantity::try_from(500).unwrap().into(); // $500 quantity
     let leverage = Leverage::try_from(1).unwrap(); // 1x leverage
-    let stoploss_perc = BoundedPercentage::try_from(2.0).unwrap(); // 2% stoploss
+    let stoploss_perc = BoundedPercentage::try_from(2.0).unwrap();
     let stoploss_mode = StoplossMode::Fixed;
-    let takeprofit_perc = BoundedPercentage::try_from(5.0).unwrap(); // 5% takeprofit
+    let stoploss = Some((stoploss_perc, stoploss_mode)); // 2% fixed stoploss
+    let takeprofit = Some(BoundedPercentage::try_from(5.0).unwrap()); // 5% takeprofit
 
     executor
-        .open_short(
-            size,
-            leverage,
-            stoploss_perc,
-            stoploss_mode,
-            takeprofit_perc,
-        )
+        .open_short(size, leverage, stoploss, takeprofit)
         .await?;
 
     let state = executor.trading_state().await?;
@@ -519,27 +499,34 @@ async fn test_simulated_trade_executor_trailing_stoploss_long() {
         start_balance,
     );
 
+    let size = Quantity::try_from(500).unwrap().into(); // $500 quantity
+    let leverage = Leverage::try_from(1).unwrap();
+    let stoploss_perc = BoundedPercentage::try_from(2.0).unwrap();
+    let stoploss_mode = StoplossMode::Trailing;
+    let stoploss = Some((stoploss_perc, stoploss_mode)); // 2% trailing stop-loss
+    let takeprofit = Some(LowerBoundedPercentage::try_from(4.0).unwrap()); // 4% take-profit
+
     // Open long position with trailing stop-loss
     executor
-        .open_long(
-            Quantity::try_from(500).unwrap().into(), // $500 quantity
-            Leverage::try_from(1).unwrap(),
-            BoundedPercentage::try_from(2.0).unwrap(), // 2% trailing stop-loss
-            StoplossMode::Trailing,
-            LowerBoundedPercentage::try_from(4.0).unwrap(), // 4% take-profit
-        )
+        .open_long(size, leverage, stoploss, takeprofit)
         .await
         .unwrap();
 
     let state = executor.trading_state().await.unwrap();
-    let expected_balance = start_balance - state.running_long_margin() - state.running_fees();
+    let Some((_, (trade, tsl))) = state.running().iter().next() else {
+        panic!("must have trade");
+    };
 
     assert_eq!(state.last_tick_time(), start_time);
+    let expected_balance = start_balance - state.running_long_margin() - state.running_fees();
     assert_eq!(state.balance(), expected_balance);
     assert_eq!(state.market_price().into_f64(), market_price);
     assert_eq!(state.running_long_len(), 1);
     assert_eq!(state.running_short_len(), 0);
     assert_eq!(state.closed_len(), 0);
+    assert_eq!(trade.stoploss().unwrap().into_f64(), 98_000.0);
+    assert_eq!(tsl.unwrap().into_f64(), stoploss_perc.into_f64());
+    assert_eq!(trade.takeprofit().unwrap().into_f64(), 104_000.0);
 
     // Price increases to 102_000 (2% increase)
     // Trailing stoploss should move from 98_000 to 99_960 (2% below 102_000)
@@ -547,7 +534,14 @@ async fn test_simulated_trade_executor_trailing_stoploss_long() {
     executor.tick_update(time, 102_000.0).await.unwrap();
 
     let state = executor.trading_state().await.unwrap();
+    let Some((_, (trade, tsl))) = state.running().iter().next() else {
+        panic!("must have trade");
+    };
+
     assert_eq!(state.running_long_len(), 1); // Position still open
+    assert_eq!(trade.stoploss().unwrap().into_f64(), 99_960.0);
+    assert_eq!(tsl.unwrap().into_f64(), stoploss_perc.into_f64());
+    assert_eq!(trade.takeprofit().unwrap().into_f64(), 104_000.0);
 
     // Price drops to 99_960.5
     // Should still be above new stop-loss (99_960)
@@ -555,7 +549,14 @@ async fn test_simulated_trade_executor_trailing_stoploss_long() {
     executor.tick_update(time, 99_960.5).await.unwrap();
 
     let state = executor.trading_state().await.unwrap();
+    let Some((_, (trade, tsl))) = state.running().iter().next() else {
+        panic!("must have trade");
+    };
+
     assert_eq!(state.running_long_len(), 1); // Position still open
+    assert_eq!(trade.stoploss().unwrap().into_f64(), 99_960.0);
+    assert_eq!(tsl.unwrap().into_f64(), stoploss_perc.into_f64());
+    assert_eq!(trade.takeprofit().unwrap().into_f64(), 104_000.0);
 
     // Price drops to 99_960
     // Should trigger the trailing stop-loss (99_960)
@@ -585,27 +586,34 @@ async fn test_simulated_trade_executor_trailing_stoploss_short() {
         start_balance,
     );
 
+    let size = Quantity::try_from(500).unwrap().into(); // $500 quantity
+    let leverage = Leverage::try_from(1).unwrap();
+    let stoploss_perc = BoundedPercentage::try_from(2.0).unwrap();
+    let stoploss_mode = StoplossMode::Trailing;
+    let stoploss = Some((stoploss_perc, stoploss_mode)); // 2% trailing stop-loss
+    let takeprofit = Some(BoundedPercentage::try_from(4.0).unwrap()); // 4% take-profit
+
     // Open short position with trailing stop-loss
     executor
-        .open_short(
-            Quantity::try_from(500).unwrap().into(), // $500 quantity
-            Leverage::try_from(1).unwrap(),
-            BoundedPercentage::try_from(2.0).unwrap(), // 2% trailing stop-loss
-            StoplossMode::Trailing,
-            BoundedPercentage::try_from(4.0).unwrap(), // 4% take-profit
-        )
+        .open_short(size, leverage, stoploss, takeprofit)
         .await
         .unwrap();
 
     let state = executor.trading_state().await.unwrap();
-    let expected_balance = start_balance - state.running_short_margin() - state.running_fees();
+    let Some((_, (trade, tsl))) = state.running().iter().next() else {
+        panic!("must have trade");
+    };
 
     assert_eq!(state.last_tick_time(), start_time);
+    let expected_balance = start_balance - state.running_short_margin() - state.running_fees();
     assert_eq!(state.balance(), expected_balance);
     assert_eq!(state.market_price().into_f64(), market_price);
     assert_eq!(state.running_long_len(), 0);
     assert_eq!(state.running_short_len(), 1);
     assert_eq!(state.closed_len(), 0);
+    assert_eq!(trade.stoploss().unwrap().into_f64(), 102_000.0);
+    assert_eq!(tsl.unwrap().into_f64(), stoploss_perc.into_f64());
+    assert_eq!(trade.takeprofit().unwrap().into_f64(), 96_000.0);
 
     // Price decreases to 98_000 (2% decrease)
     // Trailing stoploss should move from 102_000 to 99_960 (2% above 98_000)
@@ -613,7 +621,14 @@ async fn test_simulated_trade_executor_trailing_stoploss_short() {
     executor.tick_update(time, 98_000.0).await.unwrap();
 
     let state = executor.trading_state().await.unwrap();
+    let Some((_, (trade, tsl))) = state.running().iter().next() else {
+        panic!("must have trade");
+    };
+
     assert_eq!(state.running_short_len(), 1); // Position still open
+    assert_eq!(trade.stoploss().unwrap().into_f64(), 99_960.0);
+    assert_eq!(tsl.unwrap().into_f64(), stoploss_perc.into_f64());
+    assert_eq!(trade.takeprofit().unwrap().into_f64(), 96_000.0);
 
     // Price increases to 99_959.5
     // Should still be below new stop-loss (99_960)
@@ -621,7 +636,14 @@ async fn test_simulated_trade_executor_trailing_stoploss_short() {
     executor.tick_update(time, 99_959.5).await.unwrap();
 
     let state = executor.trading_state().await.unwrap();
+    let Some((_, (trade, tsl))) = state.running().iter().next() else {
+        panic!("must have trade");
+    };
+
     assert_eq!(state.running_short_len(), 1); // Position still open
+    assert_eq!(trade.stoploss().unwrap().into_f64(), 99_960.0);
+    assert_eq!(tsl.unwrap().into_f64(), stoploss_perc.into_f64());
+    assert_eq!(trade.takeprofit().unwrap().into_f64(), 96_000.0);
 
     // Price increases to 99_960
     // Should trigger the trailing stop-loss (99_960)
