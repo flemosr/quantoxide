@@ -274,7 +274,7 @@ impl LiveTradingSession {
             let running_trade = if let Some(updated_trade) = updated_trades.remove(id) {
                 let collateral_delta = curr_trade.margin().into_i64()
                     + curr_trade.maintenance_margin()
-                    - curr_trade.est_pl(updated_trade.price())
+                    + curr_trade.est_pl(updated_trade.price())
                     - updated_trade.margin().into_i64()
                     - updated_trade.maintenance_margin();
 
