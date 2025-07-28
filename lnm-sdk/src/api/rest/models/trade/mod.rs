@@ -223,7 +223,7 @@ pub trait Trade: Send + Sync + fmt::Debug + 'static {
 }
 
 pub trait TradeRunning: Trade {
-    fn est_pl(&self, market_price: Price) -> i64;
+    fn est_pl(&self, market_price: Price) -> f64;
 
     fn est_max_additional_margin(&self) -> u64 {
         if self.leverage() == Leverage::MIN {
@@ -240,7 +240,7 @@ pub trait TradeRunning: Trade {
     }
 
     fn est_max_cash_in(&self, market_price: Price) -> u64 {
-        let extractable_pl = self.est_pl(market_price).max(0) as u64;
+        let extractable_pl = self.est_pl(market_price).max(0.) as u64;
 
         let min_margin = Margin::calculate(self.quantity(), self.price(), Leverage::MAX);
 
@@ -421,8 +421,8 @@ impl Trade for LnmTrade {
 }
 
 impl TradeRunning for LnmTrade {
-    fn est_pl(&self, market_price: Price) -> i64 {
-        util::pl_estimate(self.side(), self.quantity(), self.price(), market_price)
+    fn est_pl(&self, market_price: Price) -> f64 {
+        util::estimate_pl(self.side(), self.quantity(), self.price(), market_price)
     }
 }
 
