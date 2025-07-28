@@ -12,8 +12,7 @@ use uuid::Uuid;
 use lnm_sdk::api::{
     ApiContext,
     rest::models::{
-        BoundedPercentage, Leverage, LowerBoundedPercentage, Price, Trade, TradeRunning, TradeSide,
-        TradeSize, trade_util,
+        BoundedPercentage, Leverage, Price, Trade, TradeRunning, TradeSide, TradeSize, trade_util,
     },
 };
 
@@ -25,7 +24,7 @@ use crate::{
 
 use super::{
     super::{
-        core::{RiskParams, StoplossMode, TradeExecutor, TradeTrailingStoploss, TradingState},
+        core::{Stoploss, TradeExecutor, TradingState},
         error::{Result, TradeError},
     },
     LiveConfig,
@@ -191,16 +190,24 @@ impl LiveTradeExecutor {
 
     async fn open_trade(
         &self,
+        side: TradeSide,
         size: TradeSize,
         leverage: Leverage,
-        risk_params: RiskParams,
-        trade_tsl: Option<TradeTrailingStoploss>,
+        stoploss: Option<Stoploss>,
+        takeprofit: Option<Price>,
     ) -> Result<()> {
         let locked_ready_state = self.state_manager.try_lock_ready_state().await?;
 
         let market_price = self.get_estimated_market_price().await?;
 
-        let (side, stoploss, takeprofit) = risk_params.into_trade_params(market_price)?;
+        let (stoploss_price, trade_tsl) = match stoploss {
+            Some(stoploss) => {
+                let (stoploss_price, tsl) =
+                    stoploss.evaluate(self.config.tsl_step_size, market_price)?;
+                (Some(stoploss_price), tsl)
+            }
+            None => (None, None),
+        };
 
         let (_, margin, _, opening_fee, closing_fee_reserved) =
             trade_util::evaluate_open_trade_params(
@@ -208,7 +215,7 @@ impl LiveTradeExecutor {
                 size,
                 leverage,
                 market_price,
-                stoploss,
+                stoploss_price,
                 takeprofit,
                 self.config.estimated_fee_perc,
             )
@@ -230,7 +237,7 @@ impl LiveTradeExecutor {
 
         let trade = match self
             .api
-            .create_new_trade(side, size, leverage, stoploss, takeprofit)
+            .create_new_trade(side, size, leverage, stoploss_price, takeprofit)
             .await
         {
             Ok(trade) => trade,
@@ -380,24 +387,10 @@ impl TradeExecutor for LiveTradeExecutor {
         &self,
         size: TradeSize,
         leverage: Leverage,
-        stoploss: Option<(BoundedPercentage, StoplossMode)>,
-        takeprofit: Option<LowerBoundedPercentage>,
+        stoploss: Option<Stoploss>,
+        takeprofit: Option<Price>,
     ) -> Result<()> {
-        let (stoploss_perc, trade_tsl) = match stoploss {
-            Some((stoploss_perc, stoploss_mode)) => {
-                let trade_tsl =
-                    stoploss_mode.validate_trade_tsl(self.config.tsl_step_size, stoploss_perc)?;
-                (Some(stoploss_perc), trade_tsl)
-            }
-            None => (None, None),
-        };
-
-        let risk_params = RiskParams::Long {
-            stoploss_perc,
-            takeprofit_perc: takeprofit,
-        };
-
-        self.open_trade(size, leverage, risk_params, trade_tsl)
+        self.open_trade(TradeSide::Buy, size, leverage, stoploss, takeprofit)
             .await
     }
 
@@ -405,24 +398,10 @@ impl TradeExecutor for LiveTradeExecutor {
         &self,
         size: TradeSize,
         leverage: Leverage,
-        stoploss: Option<(BoundedPercentage, StoplossMode)>,
-        takeprofit: Option<BoundedPercentage>,
+        stoploss: Option<Stoploss>,
+        takeprofit: Option<Price>,
     ) -> Result<()> {
-        let (stoploss_perc, trade_tsl) = match stoploss {
-            Some((stoploss_perc, stoploss_mode)) => {
-                let trade_tsl =
-                    stoploss_mode.validate_trade_tsl(self.config.tsl_step_size, stoploss_perc)?;
-                (Some(stoploss_perc), trade_tsl)
-            }
-            None => (None, None),
-        };
-
-        let risk_params = RiskParams::Short {
-            stoploss_perc,
-            takeprofit_perc: takeprofit,
-        };
-
-        self.open_trade(size, leverage, risk_params, trade_tsl)
+        self.open_trade(TradeSide::Sell, size, leverage, stoploss, takeprofit)
             .await
     }
 
