@@ -120,12 +120,12 @@ pub fn evaluate_open_trade_params(
     ))
 }
 
-pub fn pl_estimate(
+pub fn estimate_pl(
     side: TradeSide,
     quantity: Quantity,
     start_price: Price,
     end_price: Price,
-) -> i64 {
+) -> f64 {
     let start_price = start_price.into_f64();
     let end_price = end_price.into_f64();
 
@@ -134,14 +134,19 @@ pub fn pl_estimate(
         TradeSide::Sell => SATS_PER_BTC / end_price - SATS_PER_BTC / start_price,
     };
 
-    (quantity.into_f64() * inverse_price_delta).floor() as i64
+    quantity.into_f64() * inverse_price_delta
 }
 
-pub fn price_from_pl(side: TradeSide, quantity: Quantity, start_price: Price, pl: i64) -> Price {
+pub fn estimate_price_from_pl(
+    side: TradeSide,
+    quantity: Quantity,
+    start_price: Price,
+    pl: f64,
+) -> Price {
     let start_price = start_price.into_f64();
     let quantity = quantity.into_f64();
 
-    let inverse_price_delta = (pl as f64) / quantity;
+    let inverse_price_delta = pl / quantity;
 
     let inverse_end_price = match side {
         TradeSide::Buy => (SATS_PER_BTC / start_price) - inverse_price_delta,
@@ -238,13 +243,13 @@ pub fn evaluate_cash_in(
     amount: NonZeroU64,
 ) -> Result<(Price, Margin, Leverage, Price, Option<Price>), TradeValidationError> {
     let amount = amount.get() as u64;
-    let current_pl = pl_estimate(side, quantity, price, market_price);
+    let current_pl = estimate_pl(side, quantity, price, market_price);
 
-    let (new_price, remaining_amount) = if current_pl > 0 {
+    let (new_price, remaining_amount) = if current_pl > 0. {
         if amount < current_pl as u64 {
             // PL should be partially cashed-in. Calculate price that would
             // correspond to the PL that will be extracted.
-            let new_price = price_from_pl(side, quantity, price, amount as i64);
+            let new_price = estimate_price_from_pl(side, quantity, price, amount as f64);
             (new_price, 0)
         } else {
             // Whole PL should be cashed-in. Adjust trade price to market price
@@ -304,10 +309,10 @@ pub fn evaluate_collateral_delta_for_liquidation(
     let target_collateral =
         Margin::est_from_liquidation_price(side, quantity, market_price, target_liquidation)?;
 
-    let pl = pl_estimate(side, quantity, price, market_price);
+    let pl = estimate_pl(side, quantity, price, market_price);
 
     // target collateral - current collateral
-    let colateral_diff = target_collateral.into_i64() - margin.into_i64() - pl;
+    let colateral_diff = target_collateral.into_i64() - margin.into_i64() - pl.round() as i64;
 
     Ok(colateral_diff)
 }
