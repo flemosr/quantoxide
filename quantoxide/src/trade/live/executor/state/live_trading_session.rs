@@ -274,7 +274,9 @@ impl LiveTradingSession {
             let running_trade = if let Some(updated_trade) = updated_trades.remove(id) {
                 let collateral_delta = curr_trade.margin().into_i64()
                     + curr_trade.maintenance_margin()
-                    + curr_trade.est_pl(updated_trade.price())
+                    // As of Jul 28 2025, using `.round` here seems to match
+                    // LNM's behavior.
+                    + curr_trade.est_pl(updated_trade.price()).round() as i64
                     - updated_trade.margin().into_i64()
                     - updated_trade.maintenance_margin();
 
