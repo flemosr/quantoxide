@@ -257,7 +257,8 @@ impl SimulatedTradeExecutor {
 
         let (stoploss_price, trade_tsl) = match stoploss {
             Some(stoploss) => {
-                let (stoploss_price, tsl) = stoploss.evaluate(self.tsl_step_size, market_price)?;
+                let (stoploss_price, tsl) =
+                    stoploss.evaluate(self.tsl_step_size, side, market_price)?;
                 (Some(stoploss_price), tsl)
             }
             None => (None, None),

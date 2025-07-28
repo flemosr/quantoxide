@@ -203,7 +203,7 @@ impl LiveTradeExecutor {
         let (stoploss_price, trade_tsl) = match stoploss {
             Some(stoploss) => {
                 let (stoploss_price, tsl) =
-                    stoploss.evaluate(self.config.tsl_step_size, market_price)?;
+                    stoploss.evaluate(self.config.tsl_step_size, side, market_price)?;
                 (Some(stoploss_price), tsl)
             }
             None => (None, None),

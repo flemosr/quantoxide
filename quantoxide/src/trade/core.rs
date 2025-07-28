@@ -421,6 +421,7 @@ impl Stoploss {
     pub(crate) fn evaluate(
         &self,
         tsl_step_size: BoundedPercentage,
+        side: TradeSide,
         market_price: Price,
     ) -> Result<(Price, Option<TradeTrailingStoploss>)> {
         match self {
@@ -432,9 +433,14 @@ impl Stoploss {
                     ));
                 }
 
-                let initial_stoploss_price = market_price
-                    .apply_discount(*tsl)
-                    .map_err(|e| TradeError::Generic(e.to_string()))?;
+                let initial_stoploss_price = match side {
+                    TradeSide::Buy => market_price
+                        .apply_discount(*tsl)
+                        .map_err(|e| TradeError::Generic(e.to_string()))?,
+                    TradeSide::Sell => market_price
+                        .apply_gain((*tsl).into())
+                        .map_err(|e| TradeError::Generic(e.to_string()))?,
+                };
 
                 Ok((initial_stoploss_price, Some(TradeTrailingStoploss(*tsl))))
             }
