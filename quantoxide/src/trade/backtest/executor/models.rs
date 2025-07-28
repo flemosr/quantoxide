@@ -278,8 +278,8 @@ impl Trade for SimulatedTradeRunning {
 }
 
 impl TradeRunning for SimulatedTradeRunning {
-    fn est_pl(&self, market_price: Price) -> i64 {
-        trade_util::pl_estimate(self.side(), self.quantity(), self.price(), market_price)
+    fn est_pl(&self, market_price: Price) -> f64 {
+        trade_util::estimate_pl(self.side(), self.quantity(), self.price(), market_price)
     }
 }
 
@@ -401,6 +401,7 @@ impl Trade for SimulatedTradeClosed {
 
 impl TradeClosed for SimulatedTradeClosed {
     fn pl(&self) -> i64 {
-        trade_util::pl_estimate(self.side(), self.quantity(), self.price(), self.close_price)
+        trade_util::estimate_pl(self.side(), self.quantity(), self.price(), self.close_price)
+            .floor() as i64
     }
 }
