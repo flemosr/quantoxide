@@ -411,89 +411,61 @@ impl<T: TradeClosed> ClosedTradeHistory<T> {
     }
 }
 
-pub enum RiskParams {
-    Long {
-        stoploss_perc: Option<BoundedPercentage>,
-        takeprofit_perc: Option<LowerBoundedPercentage>,
-    },
-    Short {
-        stoploss_perc: Option<BoundedPercentage>,
-        takeprofit_perc: Option<BoundedPercentage>,
-    },
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Stoploss {
+    Fixed(Price),
+    Trailing(BoundedPercentage),
 }
 
-impl RiskParams {
-    pub fn into_trade_params(
-        self,
+impl Stoploss {
+    pub(crate) fn evaluate(
+        &self,
+        tsl_step_size: BoundedPercentage,
         market_price: Price,
-    ) -> Result<(TradeSide, Option<Price>, Option<Price>)> {
+    ) -> Result<(Price, Option<TradeTrailingStoploss>)> {
         match self {
-            Self::Long {
-                stoploss_perc,
-                takeprofit_perc,
-            } => {
-                let stoploss = stoploss_perc
-                    .map(|sl| {
-                        market_price
-                            .apply_discount(sl)
-                            .map_err(TradeError::RiskParamsConversion)
-                    })
-                    .transpose()?;
-                let takeprofit = takeprofit_perc
-                    .map(|tp| {
-                        market_price
-                            .apply_gain(tp.into())
-                            .map_err(TradeError::RiskParamsConversion)
-                    })
-                    .transpose()?;
+            Self::Fixed(price) => Ok((*price, None)),
+            Self::Trailing(tsl) => {
+                if tsl_step_size > *tsl {
+                    return Err(TradeError::Generic(
+                        "`stoploss_perc` must be gt than `tsl_step_size`".to_string(),
+                    ));
+                }
 
-                Ok((TradeSide::Buy, stoploss, takeprofit))
-            }
-            Self::Short {
-                stoploss_perc,
-                takeprofit_perc,
-            } => {
-                let stoploss = stoploss_perc
-                    .map(|sl| {
-                        market_price
-                            .apply_gain(sl.into())
-                            .map_err(TradeError::RiskParamsConversion)
-                    })
-                    .transpose()?;
-                let takeprofit = takeprofit_perc
-                    .map(|tp| {
-                        market_price
-                            .apply_discount(tp)
-                            .map_err(TradeError::RiskParamsConversion)
-                    })
-                    .transpose()?;
+                let initial_stoploss_price = market_price
+                    .apply_discount(*tsl)
+                    .map_err(|e| TradeError::Generic(e.to_string()))?;
 
-                Ok((TradeSide::Sell, stoploss, takeprofit))
+                Ok((initial_stoploss_price, Some(TradeTrailingStoploss(*tsl))))
             }
         }
     }
+
+    pub fn fixed(stoploss_price: Price) -> Self {
+        Self::Fixed(stoploss_price)
+    }
+
+    pub fn trailing(stoploss_perc: BoundedPercentage) -> Self {
+        Self::Trailing(stoploss_perc)
+    }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum StoplossMode {
-    Fixed,
-    Trailing,
+impl From<Price> for Stoploss {
+    fn from(value: Price) -> Self {
+        Self::Fixed(value)
+    }
+}
+
+impl From<BoundedPercentage> for Stoploss {
+    fn from(value: BoundedPercentage) -> Self {
+        Self::Trailing(value)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 pub struct TradeTrailingStoploss(BoundedPercentage);
 
 impl TradeTrailingStoploss {
-    pub fn new(tsl_step_size: BoundedPercentage, stoploss_perc: BoundedPercentage) -> Result<Self> {
-        if tsl_step_size > stoploss_perc {
-            return Err(TradeError::Generic(
-                "`stoploss_perc` must be gt than `tsl_step_size`".to_string(),
-            ));
-        }
-
-        Ok(Self(stoploss_perc))
-    }
-
     pub fn prev_validated(tsl: BoundedPercentage) -> Self {
         Self(tsl)
     }
@@ -518,22 +490,6 @@ impl From<TradeTrailingStoploss> for BoundedPercentage {
 impl From<TradeTrailingStoploss> for LowerBoundedPercentage {
     fn from(value: TradeTrailingStoploss) -> Self {
         value.0.into()
-    }
-}
-
-impl StoplossMode {
-    pub(crate) fn validate_trade_tsl(
-        self,
-        tsl_step_size: BoundedPercentage,
-        trade_sl: BoundedPercentage,
-    ) -> Result<Option<TradeTrailingStoploss>> {
-        match self {
-            Self::Fixed => Ok(None),
-            Self::Trailing => {
-                let trade_tsl = TradeTrailingStoploss::new(tsl_step_size, trade_sl)?;
-                Ok(Some(trade_tsl))
-            }
-        }
     }
 }
 
