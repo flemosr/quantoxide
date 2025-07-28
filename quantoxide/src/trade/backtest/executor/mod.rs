@@ -6,15 +6,11 @@ use tokio::sync::Mutex;
 use uuid::Uuid;
 
 use lnm_sdk::api::rest::models::{
-    BoundedPercentage, Leverage, LowerBoundedPercentage, Price, Trade, TradeClosed, TradeRunning,
-    TradeSide, TradeSize,
+    BoundedPercentage, Leverage, Price, Trade, TradeClosed, TradeRunning, TradeSide, TradeSize,
 };
 
 use super::super::{
-    core::{
-        PriceTrigger, RiskParams, StoplossMode, TradeExecutor, TradeExt, TradeTrailingStoploss,
-        TradingState,
-    },
+    core::{PriceTrigger, Stoploss, TradeExecutor, TradeExt, TradeTrailingStoploss, TradingState},
     error::{Result, TradeError},
 };
 
@@ -248,17 +244,24 @@ impl SimulatedTradeExecutor {
 
     async fn create_running(
         &self,
+        side: TradeSide,
         size: TradeSize,
         leverage: Leverage,
-        risk_params: RiskParams,
-        trade_tsl: Option<TradeTrailingStoploss>,
+        stoploss: Option<Stoploss>,
+        takeprofit: Option<Price>,
     ) -> Result<()> {
         let mut state_guard = self.state.lock().await;
 
         let market_price = Price::round(state_guard.market_price)
             .map_err(SimulatedTradeExecutorError::InvalidMarketPrice)?;
 
-        let (side, stoploss, takeprofit) = risk_params.into_trade_params(market_price)?;
+        let (stoploss_price, trade_tsl) = match stoploss {
+            Some(stoploss) => {
+                let (stoploss_price, tsl) = stoploss.evaluate(self.tsl_step_size, market_price)?;
+                (Some(stoploss_price), tsl)
+            }
+            None => (None, None),
+        };
 
         let trade = SimulatedTradeRunning::new(
             side,
@@ -266,7 +269,7 @@ impl SimulatedTradeExecutor {
             leverage,
             state_guard.time,
             market_price,
-            stoploss,
+            stoploss_price,
             takeprofit,
             self.fee_perc,
         )?;
@@ -303,54 +306,22 @@ impl TradeExecutor for SimulatedTradeExecutor {
         &self,
         size: TradeSize,
         leverage: Leverage,
-        stoploss: Option<(BoundedPercentage, StoplossMode)>,
-        takeprofit: Option<LowerBoundedPercentage>,
+        stoploss: Option<Stoploss>,
+        takeprofit: Option<Price>,
     ) -> Result<()> {
-        let (stoploss_perc, trade_tsl) = match stoploss {
-            Some((stoploss_perc, stoploss_mode)) => {
-                let trade_tsl =
-                    stoploss_mode.validate_trade_tsl(self.tsl_step_size, stoploss_perc)?;
-                (Some(stoploss_perc), trade_tsl)
-            }
-            None => (None, None),
-        };
-
-        let risk_params = RiskParams::Long {
-            stoploss_perc,
-            takeprofit_perc: takeprofit,
-        };
-
-        self.create_running(size, leverage, risk_params, trade_tsl)
-            .await?;
-
-        Ok(())
+        self.create_running(TradeSide::Buy, size, leverage, stoploss, takeprofit)
+            .await
     }
 
     async fn open_short(
         &self,
         size: TradeSize,
         leverage: Leverage,
-        stoploss: Option<(BoundedPercentage, StoplossMode)>,
-        takeprofit: Option<BoundedPercentage>,
+        stoploss: Option<Stoploss>,
+        takeprofit: Option<Price>,
     ) -> Result<()> {
-        let (stoploss_perc, trade_tsl) = match stoploss {
-            Some((stoploss_perc, stoploss_mode)) => {
-                let trade_tsl =
-                    stoploss_mode.validate_trade_tsl(self.tsl_step_size, stoploss_perc)?;
-                (Some(stoploss_perc), trade_tsl)
-            }
-            None => (None, None),
-        };
-
-        let risk_params = RiskParams::Short {
-            stoploss_perc,
-            takeprofit_perc: takeprofit,
-        };
-
-        self.create_running(size, leverage, risk_params, trade_tsl)
-            .await?;
-
-        Ok(())
+        self.create_running(TradeSide::Sell, size, leverage, stoploss, takeprofit)
+            .await
     }
 
     async fn add_margin(&self, trade_id: Uuid, amount: NonZeroU64) -> Result<()> {
