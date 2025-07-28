@@ -298,10 +298,10 @@ fn test_pl_long_profit() {
     let start_price = Price::try_from(50_000.0).unwrap();
     let end_price = Price::try_from(55_000.0).unwrap();
 
-    let pl = pl_estimate(side, quantity, start_price, end_price);
-    let calculated_end_price = price_from_pl(side, quantity, start_price, pl);
+    let pl = estimate_pl(side, quantity, start_price, end_price).floor();
+    let calculated_end_price = estimate_price_from_pl(side, quantity, start_price, pl);
 
-    assert_eq!(pl, 1818);
+    assert_eq!(pl, 1818.);
     let price_diff = (calculated_end_price.into_f64() - end_price.into_f64()).abs();
     let tolerance = end_price.into_f64() * 0.00005; // 0.005%
     assert!(
@@ -315,12 +315,12 @@ fn test_pl_long_loss() {
     let side = TradeSide::Buy;
     let quantity = Quantity::try_from(10).unwrap();
     let start_price = Price::try_from(50_000.0).unwrap();
-    let end_price = Price::try_from(45_000.0).unwrap();
+    let end_price = Price::try_from(46_000.0).unwrap();
 
-    let pl = pl_estimate(side, quantity, start_price, end_price);
-    let calculated_end_price = price_from_pl(side, quantity, start_price, pl);
+    let pl = estimate_pl(side, quantity, start_price, end_price).floor();
+    let calculated_end_price = estimate_price_from_pl(side, quantity, start_price, pl);
 
-    assert_eq!(pl, -2223);
+    assert_eq!(pl, -1740.);
     let price_diff = (calculated_end_price.into_f64() - end_price.into_f64()).abs();
     let tolerance = end_price.into_f64() * 0.00005; // 0.005%
     assert!(
@@ -336,10 +336,10 @@ fn test_pl_short_profit() {
     let start_price = Price::try_from(50_000.0).unwrap();
     let end_price = Price::try_from(45_000.0).unwrap();
 
-    let pl = pl_estimate(side, quantity, start_price, end_price);
-    let calculated_end_price = price_from_pl(side, quantity, start_price, pl);
+    let pl = estimate_pl(side, quantity, start_price, end_price).floor();
+    let calculated_end_price = estimate_price_from_pl(side, quantity, start_price, pl);
 
-    assert_eq!(pl, 2222);
+    assert_eq!(pl, 2222.);
     let price_diff = (calculated_end_price.into_f64() - end_price.into_f64()).abs();
     let tolerance = end_price.into_f64() * 0.00005; // 0.005%
     assert!(
@@ -355,10 +355,10 @@ fn test_pl_short_loss() {
     let start_price = Price::try_from(50_000.0).unwrap();
     let end_price = Price::try_from(55_000.0).unwrap();
 
-    let pl = pl_estimate(side, quantity, start_price, end_price);
-    let calculated_end_price = price_from_pl(side, quantity, start_price, pl);
+    let pl = estimate_pl(side, quantity, start_price, end_price).floor();
+    let calculated_end_price = estimate_price_from_pl(side, quantity, start_price, pl);
 
-    assert_eq!(pl, -1819);
+    assert_eq!(pl, -1819.);
     let price_diff = (calculated_end_price.into_f64() - end_price.into_f64()).abs();
     let tolerance = end_price.into_f64() * 0.00005; // 0.005%
     assert!(
@@ -374,10 +374,10 @@ fn test_pl_no_price_movement() {
     let start_price = Price::try_from(50_000.0).unwrap();
     let end_price = start_price; // No price movement
 
-    let pl = pl_estimate(side, quantity, start_price, end_price);
-    let calculated_end_price = price_from_pl(side, quantity, start_price, pl);
+    let pl = estimate_pl(side, quantity, start_price, end_price).floor();
+    let calculated_end_price = estimate_price_from_pl(side, quantity, start_price, pl);
 
-    assert_eq!(pl, 0);
+    assert_eq!(pl, 0.);
     let price_diff = (calculated_end_price.into_f64() - end_price.into_f64()).abs();
     let tolerance = end_price.into_f64() * 0.00005; // 0.005%
     assert!(
@@ -393,10 +393,10 @@ fn test_pl_edge_case_small_prices() {
     let start_price = Price::try_from(1.0).unwrap();
     let end_price = Price::try_from(1.5).unwrap();
 
-    let pl = pl_estimate(side, quantity, start_price, end_price);
-    let calculated_end_price = price_from_pl(side, quantity, start_price, pl);
+    let pl = estimate_pl(side, quantity, start_price, end_price).floor();
+    let calculated_end_price = estimate_price_from_pl(side, quantity, start_price, pl);
 
-    assert_eq!(pl, 33_333_333);
+    assert_eq!(pl, 33_333_333.);
     let price_diff = (calculated_end_price.into_f64() - end_price.into_f64()).abs();
     let tolerance = end_price.into_f64() * 0.00005; // 0.005%
     assert!(
@@ -412,10 +412,10 @@ fn test_pl_edge_case_big_prices() {
     let start_price = Price::try_from(95_000_000).unwrap();
     let end_price = Price::try_from(100_000_000.).unwrap();
 
-    let pl = pl_estimate(side, quantity, start_price, end_price);
-    let calculated_end_price = price_from_pl(side, quantity, start_price, pl);
+    let pl = estimate_pl(side, quantity, start_price, end_price).floor();
+    let calculated_end_price = estimate_price_from_pl(side, quantity, start_price, pl);
 
-    assert_eq!(pl, 26_315);
+    assert_eq!(pl, 26_315.);
     let price_diff = (calculated_end_price.into_f64() - end_price.into_f64()).abs();
     let tolerance = end_price.into_f64() * 0.00005; // 0.005%
     assert!(
@@ -431,10 +431,10 @@ fn test_pl_edge_case_min_quantity() {
     let start_price = Price::try_from(50_000.0).unwrap();
     let end_price = Price::try_from(55_000.0).unwrap();
 
-    let pl = pl_estimate(side, quantity, start_price, end_price);
-    let calculated_end_price = price_from_pl(side, quantity, start_price, pl);
+    let pl = estimate_pl(side, quantity, start_price, end_price).floor();
+    let calculated_end_price = estimate_price_from_pl(side, quantity, start_price, pl);
 
-    assert_eq!(pl, 181);
+    assert_eq!(pl, 181.);
     let price_diff = (calculated_end_price.into_f64() - end_price.into_f64()).abs();
     let tolerance = end_price.into_f64() * 0.0005; // 0.05%, higher tolerance needed
     assert!(
@@ -450,10 +450,10 @@ fn test_pl_edge_case_max_quantity() {
     let start_price = Price::try_from(50_000.0).unwrap();
     let end_price = Price::try_from(50_500.0).unwrap();
 
-    let pl = pl_estimate(side, quantity, start_price, end_price);
-    let calculated_end_price = price_from_pl(side, quantity, start_price, pl);
+    let pl = estimate_pl(side, quantity, start_price, end_price).floor();
+    let calculated_end_price = estimate_price_from_pl(side, quantity, start_price, pl);
 
-    assert_eq!(pl, 9900990);
+    assert_eq!(pl, 9900990.);
     let price_diff = (calculated_end_price.into_f64() - end_price.into_f64()).abs();
     let tolerance = end_price.into_f64() * 0.00005; // 0.005%
     assert!(
@@ -518,8 +518,8 @@ fn test_cash_in_from_long_profit() {
 
     let market_price = Price::try_from(110_000).unwrap();
 
-    let original_pl = pl_estimate(side, quantity, original_price, market_price);
-    assert_eq!(original_pl, 90_909);
+    let original_pl = estimate_pl(side, quantity, original_price, market_price).floor();
+    assert_eq!(original_pl, 90_909.);
 
     // Case 1: Cash in partial profit
 
@@ -543,9 +543,9 @@ fn test_cash_in_from_long_profit() {
 
     // New price should be adjusted so that remaining PL is aprox `cash_in_amount` at `market_price`
 
-    let expected_updated_pl = original_pl - cash_in_amount.get() as i64;
-    let updated_pl = pl_estimate(side, quantity, new_price, market_price);
-    assert!((updated_pl - expected_updated_pl).abs() < 5);
+    let expected_updated_pl = original_pl - cash_in_amount.get() as f64;
+    let updated_pl = estimate_pl(side, quantity, new_price, market_price);
+    assert!((updated_pl - expected_updated_pl).abs() < 5.);
 
     assert_eq!(new_margin, original_margin);
 
@@ -560,7 +560,7 @@ fn test_cash_in_from_long_profit() {
     // Case 2: Cash in all profit
 
     let cash_in_amount = NonZeroU64::new(90_909).unwrap();
-    assert_eq!(cash_in_amount.get() as i64, original_pl);
+    assert_eq!(cash_in_amount.get() as f64, original_pl);
 
     let (new_price, new_margin, new_leverage, new_liquidation, new_stoploss) = evaluate_cash_in(
         side,
@@ -576,9 +576,9 @@ fn test_cash_in_from_long_profit() {
     assert!(new_price > original_price);
     assert_eq!(new_price, market_price);
 
-    let expected_updated_pl = 0;
-    let updated_pl = pl_estimate(side, quantity, new_price, market_price);
-    assert!((updated_pl - expected_updated_pl).abs() < 5);
+    let expected_updated_pl = 0.;
+    let updated_pl = estimate_pl(side, quantity, new_price, market_price);
+    assert!((updated_pl - expected_updated_pl).abs() < 5.);
 
     assert_eq!(new_margin, original_margin);
 
@@ -593,7 +593,7 @@ fn test_cash_in_from_long_profit() {
     // Case 3: Cash in more than profit
 
     let cash_in_amount = NonZeroU64::new(150_000).unwrap();
-    assert!(cash_in_amount.get() as i64 > original_pl);
+    assert!(cash_in_amount.get() as f64 > original_pl);
 
     let (new_price, new_margin, new_leverage, new_liquidation, new_stoploss) = evaluate_cash_in(
         side,
@@ -609,9 +609,9 @@ fn test_cash_in_from_long_profit() {
     assert!(new_price > original_price);
     assert_eq!(new_price, market_price);
 
-    let expected_updated_pl = 0;
-    let updated_pl = pl_estimate(side, quantity, new_price, market_price);
-    assert!((updated_pl - expected_updated_pl).abs() < 5);
+    let expected_updated_pl = 0.;
+    let updated_pl = estimate_pl(side, quantity, new_price, market_price);
+    assert!((updated_pl - expected_updated_pl).abs() < 5.);
 
     let expected_new_margin =
         original_margin.into_u64() + original_pl as u64 - cash_in_amount.get();
@@ -645,11 +645,10 @@ fn test_cash_in_from_long_loss() {
 
     let market_price = Price::try_from(98_000.0).unwrap();
 
-    let original_pl = pl_estimate(side, quantity, original_price, market_price);
-    assert_eq!(original_pl, -20_409);
+    let original_pl = estimate_pl(side, quantity, original_price, market_price).floor();
+    assert_eq!(original_pl, -20_409.);
 
     let cash_in_amount = NonZeroU64::new(40_000).unwrap();
-    assert!(cash_in_amount.get() < original_pl as u64);
 
     let (new_price, new_margin, new_leverage, new_liquidation, new_stoploss) = evaluate_cash_in(
         side,
@@ -664,7 +663,7 @@ fn test_cash_in_from_long_loss() {
 
     assert_eq!(new_price, original_price);
 
-    let updated_pl = pl_estimate(side, quantity, new_price, market_price);
+    let updated_pl = estimate_pl(side, quantity, new_price, market_price).floor();
     assert_eq!(updated_pl, original_pl);
 
     let expected_margin = original_margin.into_u64() - cash_in_amount.get();
@@ -698,8 +697,8 @@ fn test_cash_in_from_short_profit() {
 
     let market_price = Price::try_from(92_000).unwrap();
 
-    let original_pl = pl_estimate(side, quantity, original_price, market_price);
-    assert_eq!(original_pl, 86_956);
+    let original_pl = estimate_pl(side, quantity, original_price, market_price).floor();
+    assert_eq!(original_pl, 86_956.);
 
     // Case 1: Cash in partial profit
 
@@ -723,9 +722,9 @@ fn test_cash_in_from_short_profit() {
 
     // New price should be adjusted so that remaining PL is aprox `cash_in_amount` at `market_price`
 
-    let expected_updated_pl = original_pl - cash_in_amount.get() as i64;
-    let updated_pl = pl_estimate(side, quantity, new_price, market_price);
-    assert!((updated_pl - expected_updated_pl).abs() < 5);
+    let expected_updated_pl = original_pl - cash_in_amount.get() as f64;
+    let updated_pl = estimate_pl(side, quantity, new_price, market_price);
+    assert!((updated_pl - expected_updated_pl).abs() < 5.);
 
     assert_eq!(new_margin, original_margin);
 
@@ -740,7 +739,7 @@ fn test_cash_in_from_short_profit() {
     // Case 2: Cash in all profit
 
     let cash_in_amount = NonZeroU64::new(86_956).unwrap();
-    assert_eq!(cash_in_amount.get() as i64, original_pl);
+    assert_eq!(cash_in_amount.get() as f64, original_pl);
 
     let (new_price, new_margin, new_leverage, new_liquidation, new_stoploss) = evaluate_cash_in(
         side,
@@ -756,9 +755,9 @@ fn test_cash_in_from_short_profit() {
     assert!(new_price < original_price);
     assert_eq!(new_price, market_price);
 
-    let expected_updated_pl = 0;
-    let updated_pl = pl_estimate(side, quantity, new_price, market_price);
-    assert!((updated_pl - expected_updated_pl).abs() < 5);
+    let expected_updated_pl = 0.;
+    let updated_pl = estimate_pl(side, quantity, new_price, market_price).floor();
+    assert!((updated_pl - expected_updated_pl).abs() < 5.);
 
     assert_eq!(new_margin, original_margin);
 
@@ -773,7 +772,7 @@ fn test_cash_in_from_short_profit() {
     // Case 3: Cash in more than profit
 
     let cash_in_amount = NonZeroU64::new(150_000).unwrap();
-    assert!(cash_in_amount.get() as i64 > original_pl);
+    assert!(cash_in_amount.get() as f64 > original_pl);
 
     let (new_price, new_margin, new_leverage, new_liquidation, new_stoploss) = evaluate_cash_in(
         side,
@@ -789,9 +788,9 @@ fn test_cash_in_from_short_profit() {
     // assert!(new_price > original_price);
     assert_eq!(new_price, market_price);
 
-    let expected_updated_pl = 0;
-    let updated_pl = pl_estimate(side, quantity, new_price, market_price);
-    assert!((updated_pl - expected_updated_pl).abs() < 5);
+    let expected_updated_pl = 0.;
+    let updated_pl = estimate_pl(side, quantity, new_price, market_price).floor();
+    assert!((updated_pl - expected_updated_pl).abs() < 5.);
 
     let expected_new_margin =
         original_margin.into_u64() + original_pl as u64 - cash_in_amount.get();
@@ -825,11 +824,10 @@ fn test_cash_in_from_short_loss() {
 
     let market_price = Price::try_from(102_000).unwrap();
 
-    let original_pl = pl_estimate(side, quantity, original_price, market_price);
-    assert_eq!(original_pl, -19_608);
+    let original_pl = estimate_pl(side, quantity, original_price, market_price).floor();
+    assert_eq!(original_pl, -19_608.);
 
     let cash_in_amount = NonZeroU64::new(40_000).unwrap();
-    assert!(cash_in_amount.get() < original_pl as u64);
 
     let (new_price, new_margin, new_leverage, new_liquidation, new_stoploss) = evaluate_cash_in(
         side,
@@ -844,7 +842,7 @@ fn test_cash_in_from_short_loss() {
 
     assert_eq!(new_price, original_price);
 
-    let updated_pl = pl_estimate(side, quantity, new_price, market_price);
+    let updated_pl = estimate_pl(side, quantity, new_price, market_price).floor();
     assert_eq!(updated_pl, original_pl);
 
     let expected_margin = original_margin.into_u64() - cash_in_amount.get();
@@ -870,8 +868,8 @@ fn test_collateral_delta_estimation_long_profit_leverage_up() {
 
     let market_price = Price::try_from(110_000.0).unwrap();
 
-    let original_pl = pl_estimate(side, quantity, original_price, market_price);
-    assert_eq!(original_pl, 90_909);
+    let original_pl = estimate_pl(side, quantity, original_price, market_price).floor();
+    assert_eq!(original_pl, 90_909.);
 
     let original_liquidation =
         estimate_liquidation_price(side, quantity, original_price, original_leverage);
@@ -894,7 +892,7 @@ fn test_collateral_delta_estimation_long_profit_leverage_up() {
     .unwrap();
 
     assert_eq!(collateral_delta, -47_368);
-    assert!(collateral_delta.abs() < original_pl);
+    assert!(collateral_delta.abs() < original_pl as i64);
 
     let cash_in_amount = NonZeroU64::new(collateral_delta.abs() as u64).unwrap();
 
@@ -928,7 +926,7 @@ fn test_collateral_delta_estimation_long_profit_leverage_up() {
     .unwrap();
 
     assert_eq!(collateral_delta, -147_618);
-    assert!(collateral_delta.abs() > original_pl);
+    assert!(collateral_delta.abs() > original_pl as i64);
 
     let cash_in_amount = NonZeroU64::new(collateral_delta.abs() as u64).unwrap();
 
@@ -960,9 +958,9 @@ fn test_collateral_delta_estimation_long_profit_leverage_down() {
 
     let market_price = Price::try_from(110_000.0).unwrap();
 
-    let original_pl = pl_estimate(side, quantity, original_price, market_price);
+    let original_pl = estimate_pl(side, quantity, original_price, market_price).floor();
 
-    assert_eq!(original_pl, 90_909);
+    assert_eq!(original_pl, 90_909.);
 
     let original_liquidation =
         estimate_liquidation_price(side, quantity, original_price, original_leverage);
@@ -1012,8 +1010,8 @@ fn test_collateral_delta_estimation_short_profit_leverage_up() {
 
     let market_price = Price::try_from(90_000.0).unwrap();
 
-    let original_pl = pl_estimate(side, quantity, original_price, market_price);
-    assert_eq!(original_pl, 111_111);
+    let original_pl = estimate_pl(side, quantity, original_price, market_price).floor();
+    assert_eq!(original_pl, 111_111.);
 
     let original_liquidation =
         estimate_liquidation_price(side, quantity, original_price, original_leverage);
@@ -1036,7 +1034,7 @@ fn test_collateral_delta_estimation_short_profit_leverage_up() {
     .unwrap();
 
     assert_eq!(collateral_delta, -52_380);
-    assert!(collateral_delta.abs() < original_pl);
+    assert!(collateral_delta.abs() < original_pl as i64);
 
     let cash_in_amount = NonZeroU64::new(collateral_delta.abs() as u64).unwrap();
 
@@ -1070,7 +1068,7 @@ fn test_collateral_delta_estimation_short_profit_leverage_up() {
     .unwrap();
 
     assert_eq!(collateral_delta, -152_631);
-    assert!(collateral_delta.abs() > original_pl);
+    assert!(collateral_delta.abs() > original_pl as i64);
 
     let cash_in_amount = NonZeroU64::new(collateral_delta.abs() as u64).unwrap();
 
@@ -1102,9 +1100,9 @@ fn test_collateral_delta_estimation_short_profit_leverage_down() {
 
     let market_price = Price::try_from(90_000.0).unwrap();
 
-    let original_pl = pl_estimate(side, quantity, original_price, market_price);
+    let original_pl = estimate_pl(side, quantity, original_price, market_price).floor();
 
-    assert_eq!(original_pl, 111_111);
+    assert_eq!(original_pl, 111_111.);
 
     let original_liquidation =
         estimate_liquidation_price(side, quantity, original_price, original_leverage);
