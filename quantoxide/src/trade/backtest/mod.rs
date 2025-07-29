@@ -17,7 +17,7 @@ use crate::{
     util::{AbortOnDropHandle, DateTimeExt},
 };
 
-use super::core::{Operator, TradeExecutor, TradingState, WrappedOperator};
+use super::core::{SignalOperator, TradeExecutor, TradingState, WrappedSignalOperator};
 
 pub mod error;
 mod executor;
@@ -266,7 +266,7 @@ pub struct BacktestEngine {
     config: BacktestConfig,
     db: Arc<DbContext>,
     evaluators: Vec<ConfiguredSignalEvaluator>,
-    operator: WrappedOperator,
+    operator: WrappedSignalOperator,
     start_time: DateTime<Utc>,
     start_balance: u64,
     end_time: DateTime<Utc>,
@@ -279,7 +279,7 @@ impl BacktestEngine {
         config: BacktestConfig,
         db: Arc<DbContext>,
         evaluators: Vec<ConfiguredSignalEvaluator>,
-        operator: Box<dyn Operator>,
+        operator: Box<dyn SignalOperator>,
         start_time: DateTime<Utc>,
         start_balance: u64,
         end_time: DateTime<Utc>,

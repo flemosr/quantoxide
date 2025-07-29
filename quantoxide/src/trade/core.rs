@@ -8,7 +8,7 @@ use std::{
 };
 
 use async_trait::async_trait;
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Duration, Utc};
 use futures::FutureExt;
 use uuid::Uuid;
 
@@ -17,7 +17,7 @@ use lnm_sdk::api::rest::models::{
     TradeRunning, TradeSide, TradeSize,
 };
 
-use crate::{signal::core::Signal, util::DateTimeExt};
+use crate::{db::models::PriceHistoryEntryLOCF, signal::core::Signal, util::DateTimeExt};
 
 use super::error::{Result, TradeError};
 
@@ -533,7 +533,7 @@ pub trait TradeExecutor: Send + Sync {
 }
 
 #[async_trait]
-pub trait Operator: Send + Sync {
+pub trait SignalOperator: Send + Sync {
     fn set_trade_executor(
         &mut self,
         trade_executor: Arc<dyn TradeExecutor>,
@@ -545,9 +545,9 @@ pub trait Operator: Send + Sync {
     ) -> std::result::Result<(), Box<dyn std::error::Error>>;
 }
 
-pub(crate) struct WrappedOperator(Box<dyn Operator>);
+pub(crate) struct WrappedSignalOperator(Box<dyn SignalOperator>);
 
-impl WrappedOperator {
+impl WrappedSignalOperator {
     pub fn set_trade_executor(&mut self, trade_executor: Arc<dyn TradeExecutor>) -> Result<()> {
         panic::catch_unwind(AssertUnwindSafe(|| {
             self.0.set_trade_executor(trade_executor)
@@ -564,18 +564,83 @@ impl WrappedOperator {
     pub async fn process_signal(&self, signal: &Signal) -> Result<()> {
         FutureExt::catch_unwind(AssertUnwindSafe(self.0.process_signal(signal)))
             .await
-            .map_err(|_| TradeError::Generic(format!("`Operator::consume_signal` panicked")))?
+            .map_err(|_| TradeError::Generic(format!("`Operator::process_signal` panicked")))?
             .map_err(|e| {
                 TradeError::Generic(format!(
-                    "`Operator::consume_signal`  error {}",
+                    "`Operator::process_signal` error {}",
                     e.to_string()
                 ))
             })
     }
 }
 
-impl From<Box<dyn Operator>> for WrappedOperator {
-    fn from(value: Box<dyn Operator>) -> Self {
+impl From<Box<dyn SignalOperator>> for WrappedSignalOperator {
+    fn from(value: Box<dyn SignalOperator>) -> Self {
+        Self(value)
+    }
+}
+
+#[async_trait]
+pub trait RawOperator: Send + Sync {
+    fn set_trade_executor(
+        &mut self,
+        trade_executor: Arc<dyn TradeExecutor>,
+    ) -> std::result::Result<(), Box<dyn std::error::Error>>;
+
+    fn iteration_interval(&self) -> Duration;
+
+    fn context_window_secs(&self) -> usize;
+
+    async fn iterate(
+        &self,
+        context: &[PriceHistoryEntryLOCF],
+    ) -> std::result::Result<(), Box<dyn std::error::Error>>;
+}
+
+pub(crate) struct WrappedRawOperator(Box<dyn RawOperator>);
+
+impl WrappedRawOperator {
+    pub fn set_trade_executor(&mut self, trade_executor: Arc<dyn TradeExecutor>) -> Result<()> {
+        panic::catch_unwind(AssertUnwindSafe(|| {
+            self.0.set_trade_executor(trade_executor)
+        }))
+        .map_err(|_| TradeError::Generic(format!("`RawOperator::set_trade_executor` panicked")))?
+        .map_err(|e| {
+            TradeError::Generic(format!(
+                "`RawOperator::set_trade_executor` error {}",
+                e.to_string()
+            ))
+        })
+    }
+
+    pub fn iteration_interval(&self) -> Result<Duration> {
+        let window = panic::catch_unwind(AssertUnwindSafe(|| self.0.iteration_interval()))
+            .map_err(|_| {
+                TradeError::Generic(format!("`RawOperator::iteration_interval` panicked"))
+            })?;
+        Ok(window)
+    }
+
+    pub fn context_window_secs(&self) -> Result<usize> {
+        let window = panic::catch_unwind(AssertUnwindSafe(|| self.0.context_window_secs()))
+            .map_err(|_| {
+                TradeError::Generic(format!("`RawOperator::context_window_secs` panicked"))
+            })?;
+        Ok(window)
+    }
+
+    pub async fn iterate(&self, entries: &[PriceHistoryEntryLOCF]) -> Result<()> {
+        FutureExt::catch_unwind(AssertUnwindSafe(self.0.iterate(entries)))
+            .await
+            .map_err(|_| TradeError::Generic(format!("`RawOperator::iterate` panicked")))?
+            .map_err(|e| {
+                TradeError::Generic(format!("`RawOperator::iterate`  error {}", e.to_string()))
+            })
+    }
+}
+
+impl From<Box<dyn RawOperator>> for WrappedRawOperator {
+    fn from(value: Box<dyn RawOperator>) -> Self {
         Self(value)
     }
 }
