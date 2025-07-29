@@ -1,10 +1,11 @@
 use std::{
     fmt,
+    pin::Pin,
     sync::{Arc, Mutex, MutexGuard},
 };
 
 use async_trait::async_trait;
-use chrono::Duration;
+use chrono::{Duration, Utc};
 use tokio::{sync::broadcast, time};
 
 use lnm_sdk::api::{
@@ -21,12 +22,16 @@ use crate::{
             LiveSignalUpdate,
         },
     },
-    sync::{SyncController, SyncEngine, SyncMode},
+    sync::{
+        SyncController, SyncEngine, SyncMode, SyncReader, SyncStatus, SyncStatusNotSynced,
+        SyncUpdate,
+    },
+    trade::core::{RawOperator, TradeExecutor, WrappedRawOperator},
     tui::{Result as TuiResult, TuiControllerShutdown, TuiError},
-    util::{AbortOnDropHandle, Never},
+    util::{AbortOnDropHandle, DateTimeExt, Never},
 };
 
-use super::core::{Operator, TradingState, WrappedOperator};
+use super::core::{SignalOperator, TradingState, WrappedSignalOperator};
 
 pub mod error;
 pub mod executor;
@@ -42,6 +47,7 @@ use executor::{
 pub enum LiveStatus {
     NotInitiated,
     Starting,
+    WaitingForSync(Arc<SyncStatusNotSynced>),
     WaitingForSignal(Arc<LiveSignalStatusNotRunning>),
     WaitingTradeExecutor(Arc<LiveTradeExecutorStatusNotReady>),
     Running,
@@ -56,6 +62,7 @@ impl fmt::Display for LiveStatus {
         match self {
             Self::NotInitiated => write!(f, "Not initiated"),
             Self::Starting => write!(f, "Starting"),
+            Self::WaitingForSync(status) => write!(f, "Waiting for sync ({status})"),
             Self::WaitingForSignal(status) => write!(f, "Waiting for signal ({status})"),
             Self::WaitingTradeExecutor(status) => {
                 write!(f, "Waiting trade executor ({status})")
@@ -179,6 +186,32 @@ impl LiveReader for LiveStatusManager {
     }
 }
 
+enum OperatorRunning {
+    Signal {
+        signal_controller: Arc<LiveSignalController>,
+        signal_operator: WrappedSignalOperator,
+    },
+    Raw {
+        db: Arc<DbContext>,
+        sync_reader: Arc<dyn SyncReader>,
+        raw_operator: WrappedRawOperator,
+    },
+}
+
+impl OperatorRunning {
+    fn signal_controller(&self) -> Option<Arc<LiveSignalController>> {
+        if let OperatorRunning::Signal {
+            signal_operator: _,
+            signal_controller,
+        } = self
+        {
+            Some(signal_controller.clone())
+        } else {
+            None
+        }
+    }
+}
+
 struct LiveProcessConfig {
     restart_interval: time::Duration,
 }
@@ -193,9 +226,8 @@ impl From<&LiveConfig> for LiveProcessConfig {
 
 struct LiveProcess {
     config: LiveProcessConfig,
-    operator: WrappedOperator,
     shutdown_tx: broadcast::Sender<()>,
-    signal_controller: Arc<LiveSignalController>,
+    operator: OperatorRunning,
     trade_executor: Arc<LiveTradeExecutor>,
     status_manager: Arc<LiveStatusManager>,
     update_tx: LiveTransmiter,
@@ -204,26 +236,123 @@ struct LiveProcess {
 impl LiveProcess {
     pub fn new(
         config: &LiveConfig,
-        operator: WrappedOperator,
         shutdown_tx: broadcast::Sender<()>,
-        signal_controller: Arc<LiveSignalController>,
+        operator: OperatorRunning,
         trade_executor: Arc<LiveTradeExecutor>,
         status_manager: Arc<LiveStatusManager>,
         update_tx: LiveTransmiter,
     ) -> Self {
         Self {
             config: config.into(),
-            operator,
             shutdown_tx,
-            signal_controller,
+            operator,
             trade_executor,
             status_manager,
             update_tx,
         }
     }
 
-    async fn handle_signals(&self) -> Result<Never> {
-        while let Ok(signal_update) = self.signal_controller.update_receiver().recv().await {
+    async fn handle_raw_entries(
+        &self,
+        db: &DbContext,
+        sync_reader: &dyn SyncReader,
+        raw_operator: &WrappedRawOperator,
+    ) -> Result<Never> {
+        let mut last_eval = Utc::now();
+
+        loop {
+            let iteration_interval = raw_operator
+                .iteration_interval()
+                .map_err(|e| LiveError::Generic(e.to_string()))?;
+
+            let now = {
+                let target_exec = (last_eval + iteration_interval).ceil_sec();
+                let now = Utc::now();
+
+                if now >= target_exec {
+                    return Err(LiveError::Generic(
+                        "evaluation time incompatible with eval interval".to_string(),
+                    ));
+                }
+
+                let wait_duration = (target_exec - now).to_std().expect("valid duration");
+                time::sleep(wait_duration).await;
+                last_eval = target_exec;
+
+                target_exec
+            };
+
+            if !matches!(sync_reader.status_snapshot(), SyncStatus::Synced) {
+                while let Ok(sync_update) = sync_reader.update_receiver().recv().await {
+                    match sync_update {
+                        SyncUpdate::Status(sync_status) => match sync_status {
+                            SyncStatus::NotSynced(sync_status_not_synced) => {
+                                self.status_manager.update(
+                                    LiveStatus::WaitingForSync(sync_status_not_synced).into(),
+                                );
+                            }
+                            SyncStatus::Synced => break,
+                            SyncStatus::ShutdownInitiated | SyncStatus::Shutdown => {
+                                // Non-recoverable error
+                                return Err(LiveError::Generic(
+                                    "sync process was shutdown".to_string(),
+                                ));
+                            }
+                        },
+                        SyncUpdate::PriceTick(_) => break,
+                        SyncUpdate::PriceHistoryState(_) => {}
+                    }
+                }
+
+                last_eval = Utc::now();
+                continue;
+            }
+
+            self.status_manager
+                .update_if_not_running(LiveStatus::Running);
+
+            let ctx_window = raw_operator
+                .context_window_secs()
+                .map_err(|e| LiveError::Generic(e.to_string()))?;
+
+            if ctx_window == 0 {
+                raw_operator
+                    .iterate(&[])
+                    .await
+                    .map_err(|e| LiveError::Generic(e.to_string()))?;
+
+                continue;
+            }
+
+            let ctx_entries = db
+                .price_ticks
+                .compute_locf_entries_for_range(now, ctx_window)
+                .await
+                .map_err(|_| LiveError::Generic("db error".to_string()))?;
+
+            if ctx_entries.len() < ctx_window {
+                return Err(LiveError::Generic("not enough context".to_string()));
+            }
+            let last_ctx_entry = ctx_entries
+                .last()
+                .ok_or(LiveError::Generic("empty context".to_string()))?;
+            if now != last_ctx_entry.time {
+                return Err(LiveError::Generic("invalid context".to_string()));
+            }
+
+            raw_operator
+                .iterate(ctx_entries.as_slice())
+                .await
+                .map_err(|e| LiveError::Generic(e.to_string()))?;
+        }
+    }
+
+    async fn handle_signals(
+        &self,
+        signal_controller: &LiveSignalController,
+        signal_operator: &WrappedSignalOperator,
+    ) -> Result<Never> {
+        while let Ok(signal_update) = signal_controller.update_receiver().recv().await {
             match signal_update {
                 LiveSignalUpdate::Status(signal_status) => match signal_status {
                     LiveSignalStatus::NotRunning(signal_status_not_running) => {
@@ -253,7 +382,7 @@ impl LiveProcess {
                     // Send Signal update
                     let _ = self.update_tx.send(new_signal.clone().into());
 
-                    self.operator
+                    signal_operator
                         .process_signal(&new_signal)
                         .await
                         .map_err(|e| LiveError::Generic(e.to_string()))?;
@@ -266,6 +395,20 @@ impl LiveProcess {
         ))
     }
 
+    fn run_operator(&self) -> Pin<Box<dyn Future<Output = Result<Never>> + Send + '_>> {
+        match &self.operator {
+            OperatorRunning::Raw {
+                db,
+                sync_reader,
+                raw_operator,
+            } => Box::pin(self.handle_raw_entries(db, sync_reader.as_ref(), raw_operator)),
+            OperatorRunning::Signal {
+                signal_controller,
+                signal_operator,
+            } => Box::pin(self.handle_signals(signal_controller, signal_operator)),
+        }
+    }
+
     pub fn spawn_recovery_loop(self) -> AbortOnDropHandle<()> {
         tokio::spawn(async move {
             loop {
@@ -274,8 +417,8 @@ impl LiveProcess {
                 let mut shutdown_rx = self.shutdown_tx.subscribe();
 
                 tokio::select! {
-                    handle_signals_res = self.handle_signals() => {
-                        let Err(e) = handle_signals_res;
+                    run_operator_res = self.run_operator() => {
+                        let Err(e) = run_operator_res;
                         self.status_manager.update(LiveStatus::Failed(e));
                     }
                     shutdown_res = shutdown_rx.recv() => {
@@ -327,7 +470,7 @@ impl From<&LiveConfig> for LiveControllerConfig {
 pub struct LiveController {
     config: LiveControllerConfig,
     sync_controller: Arc<SyncController>,
-    signal_controller: Arc<LiveSignalController>,
+    signal_controller: Option<Arc<LiveSignalController>>,
     _executor_updates_handle: AbortOnDropHandle<()>,
     process_handle: Mutex<Option<AbortOnDropHandle<()>>>,
     shutdown_tx: broadcast::Sender<()>,
@@ -339,7 +482,7 @@ impl LiveController {
     fn new(
         config: &LiveConfig,
         sync_controller: Arc<SyncController>,
-        signal_controller: Arc<LiveSignalController>,
+        signal_controller: Option<Arc<LiveSignalController>>,
         _executor_updates_handle: AbortOnDropHandle<()>,
         process_handle: AbortOnDropHandle<()>,
         shutdown_tx: broadcast::Sender<()>,
@@ -420,11 +563,14 @@ impl LiveController {
             .await
             .map_err(|e| LiveError::Generic(e.to_string()));
 
-        let signal_shutdown_res = self
-            .signal_controller
-            .shutdown()
-            .await
-            .map_err(|e| LiveError::Generic(e.to_string()));
+        let signal_shutdown_res = if let Some(signal_controller) = &self.signal_controller {
+            signal_controller
+                .shutdown()
+                .await
+                .map_err(|e| LiveError::Generic(e.to_string()))
+        } else {
+            Ok(())
+        };
 
         let sync_shutdown_res = self
             .sync_controller
@@ -640,12 +786,79 @@ impl LiveConfig {
     }
 }
 
+enum OperatorPending {
+    Signal {
+        signal_engine: LiveSignalEngine,
+        signal_operator: WrappedSignalOperator,
+    },
+    Raw {
+        db: Arc<DbContext>,
+        sync_reader: Arc<dyn SyncReader>,
+        raw_operator: WrappedRawOperator,
+    },
+}
+
+impl OperatorPending {
+    fn signal(signal_engine: LiveSignalEngine, signal_operator: WrappedSignalOperator) -> Self {
+        Self::Signal {
+            signal_engine,
+            signal_operator,
+        }
+    }
+
+    fn raw(
+        db: Arc<DbContext>,
+        sync_reader: Arc<dyn SyncReader>,
+        raw_operator: WrappedRawOperator,
+    ) -> Self {
+        Self::Raw {
+            db,
+            sync_reader,
+            raw_operator,
+        }
+    }
+
+    fn start(self, trade_executor: Arc<dyn TradeExecutor>) -> Result<OperatorRunning> {
+        match self {
+            OperatorPending::Signal {
+                signal_engine,
+                signal_operator: mut operator,
+            } => {
+                operator
+                    .set_trade_executor(trade_executor)
+                    .map_err(|e| LiveError::Generic(e.to_string()))?;
+
+                let signal_controller = signal_engine.start();
+
+                Ok(OperatorRunning::Signal {
+                    signal_operator: operator,
+                    signal_controller,
+                })
+            }
+            OperatorPending::Raw {
+                db,
+                sync_reader,
+                mut raw_operator,
+            } => {
+                raw_operator
+                    .set_trade_executor(trade_executor)
+                    .map_err(|e| LiveError::Generic(e.to_string()))?;
+
+                Ok(OperatorRunning::Raw {
+                    db,
+                    sync_reader,
+                    raw_operator,
+                })
+            }
+        }
+    }
+}
+
 pub struct LiveEngine {
     config: LiveConfig,
     sync_engine: SyncEngine,
-    signal_engine: LiveSignalEngine,
     trade_executor_launcher: LiveTradeExecutorLauncher,
-    operator: WrappedOperator,
+    operator_pending: OperatorPending,
     status_manager: Arc<LiveStatusManager>,
     update_tx: LiveTransmiter,
 }
@@ -687,20 +900,18 @@ impl LiveEngine {
         .into()
     }
 
-    pub fn new(
+    pub fn with_signal_operator(
         config: LiveConfig,
         db: Arc<DbContext>,
         api: Arc<ApiContext>,
         evaluators: Vec<ConfiguredSignalEvaluator>,
-        operator: Box<dyn Operator>,
+        operator: Box<dyn SignalOperator>,
     ) -> Result<Self> {
         if evaluators.is_empty() {
             return Err(LiveError::Generic(
                 "At least one evaluator must be provided".to_string(),
             ));
         }
-
-        let operator = WrappedOperator::from(operator);
 
         let sync_mode = if config.sync_mode_full() {
             SyncMode::Full
@@ -726,6 +937,8 @@ impl LiveEngine {
         )
         .map_err(|e| LiveError::Generic(e.to_string()))?;
 
+        let operator_pending = OperatorPending::signal(signal_engine, operator.into());
+
         let trade_executor_launcher =
             LiveTradeExecutorLauncher::new(&config, db, api, sync_engine.update_receiver())?;
 
@@ -736,9 +949,49 @@ impl LiveEngine {
         Ok(Self {
             config,
             sync_engine,
-            signal_engine,
             trade_executor_launcher,
-            operator,
+            operator_pending,
+            status_manager,
+            update_tx,
+        })
+    }
+
+    pub fn with_raw_operator(
+        config: LiveConfig,
+        db: Arc<DbContext>,
+        api: Arc<ApiContext>,
+        operator: Box<dyn RawOperator>,
+    ) -> Result<Self> {
+        let operator = WrappedRawOperator::from(operator);
+
+        let sync_mode = if config.sync_mode_full() {
+            SyncMode::Full
+        } else {
+            let context_window_secs = operator
+                .context_window_secs()
+                .map_err(|e| LiveError::Generic(e.to_string()))?;
+
+            SyncMode::Live {
+                range: Duration::seconds(context_window_secs as i64),
+            }
+        };
+
+        let sync_engine = SyncEngine::new(&config, db.clone(), api.clone(), sync_mode);
+
+        let operator_pending = OperatorPending::raw(db.clone(), sync_engine.reader(), operator);
+
+        let trade_executor_launcher =
+            LiveTradeExecutorLauncher::new(&config, db, api, sync_engine.update_receiver())?;
+
+        let (update_tx, _) = broadcast::channel::<LiveUpdate>(100);
+
+        let status_manager = LiveStatusManager::new(update_tx.clone());
+
+        Ok(Self {
+            config,
+            sync_engine,
+            trade_executor_launcher,
+            operator_pending,
             status_manager,
             update_tx,
         })
@@ -756,7 +1009,7 @@ impl LiveEngine {
         self.status_manager.status_snapshot()
     }
 
-    pub async fn start(mut self) -> Result<Arc<LiveController>> {
+    pub async fn start(self) -> Result<Arc<LiveController>> {
         let executor_rx = self.trade_executor_launcher.update_receiver();
 
         let trade_executor = self
@@ -771,27 +1024,19 @@ impl LiveEngine {
             executor_rx,
         );
 
-        self.operator
-            .set_trade_executor(trade_executor.clone())
-            .map_err(|e| {
-                LiveError::Generic(format!(
-                    "couldn't set the live trades manager {}",
-                    e.to_string()
-                ))
-            })?;
-
         let sync_controller = self.sync_engine.start();
 
-        let signal_controller = self.signal_engine.start();
+        let operator_running = self.operator_pending.start(trade_executor.clone())?;
 
         // Internal channel for shutdown signal
         let (shutdown_tx, _) = broadcast::channel::<()>(1);
 
+        let signal_controller_opt = operator_running.signal_controller();
+
         let process_handle = LiveProcess::new(
             &self.config,
-            self.operator,
             shutdown_tx.clone(),
-            signal_controller.clone(),
+            operator_running,
             trade_executor.clone(),
             self.status_manager.clone(),
             self.update_tx,
@@ -801,7 +1046,7 @@ impl LiveEngine {
         let controller = LiveController::new(
             &self.config,
             sync_controller,
-            signal_controller,
+            signal_controller_opt,
             _executor_updates_handle,
             process_handle,
             shutdown_tx,
