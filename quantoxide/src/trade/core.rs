@@ -587,7 +587,7 @@ pub trait RawOperator: Send + Sync {
         trade_executor: Arc<dyn TradeExecutor>,
     ) -> std::result::Result<(), Box<dyn std::error::Error>>;
 
-    fn iteration_interval(&self) -> Duration;
+    fn iteration_interval_secs(&self) -> usize;
 
     fn context_window_secs(&self) -> usize;
 
@@ -614,11 +614,11 @@ impl WrappedRawOperator {
     }
 
     pub fn iteration_interval(&self) -> Result<Duration> {
-        let window = panic::catch_unwind(AssertUnwindSafe(|| self.0.iteration_interval()))
-            .map_err(|_| {
-                TradeError::Generic(format!("`RawOperator::iteration_interval` panicked"))
-            })?;
-        Ok(window)
+        let interval_secs =
+            panic::catch_unwind(AssertUnwindSafe(|| self.0.iteration_interval_secs())).map_err(
+                |_| TradeError::Generic(format!("`RawOperator::iteration_interval_secs` panicked")),
+            )?;
+        Ok(Duration::seconds(interval_secs as i64))
     }
 
     pub fn context_window_secs(&self) -> Result<usize> {
