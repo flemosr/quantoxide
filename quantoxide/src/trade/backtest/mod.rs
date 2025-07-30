@@ -349,11 +349,10 @@ pub struct BacktestEngine {
 }
 
 impl BacktestEngine {
-    pub async fn with_signal_operator(
+    async fn new(
         config: BacktestConfig,
         db: Arc<DbContext>,
-        evaluators: Vec<ConfiguredSignalEvaluator>,
-        signal_operator: Box<dyn SignalOperator>,
+        operator: Operator,
         start_time: DateTime<Utc>,
         start_balance: u64,
         end_time: DateTime<Utc>,
@@ -371,13 +370,7 @@ impl BacktestEngine {
             ));
         }
 
-        let max_ctx_window = evaluators
-            .iter()
-            .map(|evaluator| evaluator.context_window_secs())
-            .max()
-            .ok_or(BacktestError::Generic(
-                "At least one evaluator must be provided".to_string(),
-            ))?;
+        let max_ctx_window = operator.max_ctx_window_secs()?;
 
         if config.buffer_size < max_ctx_window {
             return Err(BacktestError::Generic(format!(
@@ -385,8 +378,6 @@ impl BacktestEngine {
                 config.buffer_size, max_ctx_window
             )));
         }
-
-        let operator = Operator::signal(evaluators, signal_operator.into());
 
         let price_history_state = PriceHistoryState::evaluate(&db)
             .await
@@ -417,6 +408,20 @@ impl BacktestEngine {
         })
     }
 
+    pub async fn with_signal_operator(
+        config: BacktestConfig,
+        db: Arc<DbContext>,
+        evaluators: Vec<ConfiguredSignalEvaluator>,
+        signal_operator: Box<dyn SignalOperator>,
+        start_time: DateTime<Utc>,
+        start_balance: u64,
+        end_time: DateTime<Utc>,
+    ) -> Result<Self> {
+        let operator = Operator::signal(evaluators, signal_operator.into());
+
+        Self::new(config, db, operator, start_time, start_balance, end_time).await
+    }
+
     pub async fn with_raw_operator(
         config: BacktestConfig,
         db: Arc<DbContext>,
@@ -425,61 +430,9 @@ impl BacktestEngine {
         start_balance: u64,
         end_time: DateTime<Utc>,
     ) -> Result<Self> {
-        if !start_time.is_round() || !end_time.is_round() {
-            return Err(BacktestError::Generic(
-                "Start and end times must be rounded to seconds".to_string(),
-            ));
-        }
+        let operator = Operator::raw(raw_operator.into());
 
-        // Validate duration is at least 1 day
-        if end_time - start_time < chrono::Duration::days(1) {
-            return Err(BacktestError::Generic(
-                "Backtest duration must be at least 1 day".to_string(),
-            ));
-        }
-
-        let raw_operator = WrappedRawOperator::from(raw_operator);
-
-        let ctx_window = raw_operator
-            .context_window_secs()
-            .map_err(|e| BacktestError::Generic(e.to_string()))?;
-
-        if config.buffer_size < ctx_window {
-            return Err(BacktestError::Generic(format!(
-                "buffer size {} is incompatible with ctx window {}",
-                config.buffer_size, ctx_window
-            )));
-        }
-
-        let operator = Operator::raw(raw_operator);
-
-        let price_history_state = PriceHistoryState::evaluate(&db)
-            .await
-            .map_err(|e| BacktestError::Generic(e.to_string()))?;
-
-        if !price_history_state
-            .is_range_available(start_time, end_time)
-            .map_err(|e| BacktestError::Generic(e.to_string()))?
-        {
-            return Err(BacktestError::Generic(format!(
-                "range ({start_time} to {end_time}) is not available in price history ({price_history_state})"
-            )));
-        }
-
-        let (update_tx, _) = broadcast::channel::<BacktestUpdate>(100);
-
-        let status_manager = BacktestStatusManager::new(update_tx.clone());
-
-        Ok(Self {
-            config,
-            db,
-            operator,
-            start_time,
-            start_balance,
-            end_time,
-            status_manager,
-            update_tx,
-        })
+        Self::new(config, db, operator, start_time, start_balance, end_time).await
     }
 
     pub fn start_time(&self) -> DateTime<Utc> {
