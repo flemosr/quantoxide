@@ -133,12 +133,14 @@ impl LiveSignalReader for LiveSignalStatusManager {
 
 #[derive(Clone, Debug)]
 struct LiveSignalProcessConfig {
+    sync_update_timeout: time::Duration,
     restart_interval: time::Duration,
 }
 
 impl From<&LiveSignalConfig> for LiveSignalProcessConfig {
     fn from(value: &LiveSignalConfig) -> Self {
         Self {
+            sync_update_timeout: value.sync_update_timeout,
             restart_interval: value.restart_interval,
         }
     }
@@ -413,6 +415,7 @@ impl LiveSignalController {
 
 #[derive(Clone, Debug)]
 pub struct LiveSignalConfig {
+    sync_update_timeout: time::Duration,
     restart_interval: time::Duration,
     shutdown_timeout: time::Duration,
 }
@@ -420,6 +423,7 @@ pub struct LiveSignalConfig {
 impl Default for LiveSignalConfig {
     fn default() -> Self {
         Self {
+            sync_update_timeout: time::Duration::from_secs(5),
             restart_interval: time::Duration::from_secs(10),
             shutdown_timeout: time::Duration::from_secs(6),
         }
@@ -427,12 +431,21 @@ impl Default for LiveSignalConfig {
 }
 
 impl LiveSignalConfig {
+    pub fn sync_update_timeout(&self) -> time::Duration {
+        self.sync_update_timeout
+    }
+
     pub fn restart_interval(&self) -> time::Duration {
         self.restart_interval
     }
 
     pub fn shutdown_timeout(&self) -> time::Duration {
         self.shutdown_timeout
+    }
+
+    pub fn set_sync_update_timeout(mut self, secs: u64) -> Self {
+        self.sync_update_timeout = time::Duration::from_secs(secs);
+        self
     }
 
     pub fn set_restart_interval(mut self, secs: u64) -> Self {
@@ -449,6 +462,7 @@ impl LiveSignalConfig {
 impl From<&LiveConfig> for LiveSignalConfig {
     fn from(value: &LiveConfig) -> Self {
         Self {
+            sync_update_timeout: value.sync_update_timeout(),
             restart_interval: value.restart_interval(),
             shutdown_timeout: value.shutdown_timeout(),
         }
