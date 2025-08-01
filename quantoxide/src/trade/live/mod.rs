@@ -26,12 +26,14 @@ use crate::{
         SyncController, SyncEngine, SyncMode, SyncReader, SyncStatus, SyncStatusNotSynced,
         SyncUpdate,
     },
-    trade::core::{RawOperator, TradeExecutor, WrappedRawOperator},
     tui::{Result as TuiResult, TuiControllerShutdown, TuiError},
     util::{AbortOnDropHandle, DateTimeExt, Never},
 };
 
-use super::core::{SignalOperator, TradingState, WrappedSignalOperator};
+use super::core::{
+    RawOperator, SignalOperator, TradeExecutor, TradingState, WrappedRawOperator,
+    WrappedSignalOperator,
+};
 
 pub mod error;
 pub mod executor;
