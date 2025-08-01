@@ -215,12 +215,14 @@ impl OperatorRunning {
 }
 
 struct LiveProcessConfig {
+    sync_update_timeout: time::Duration,
     restart_interval: time::Duration,
 }
 
 impl From<&LiveConfig> for LiveProcessConfig {
     fn from(value: &LiveConfig) -> Self {
         Self {
+            sync_update_timeout: value.sync_update_timeout,
             restart_interval: value.restart_interval,
         }
     }
@@ -285,24 +287,43 @@ impl LiveProcess {
             };
 
             if !matches!(sync_reader.status_snapshot(), SyncStatus::Synced) {
-                while let Ok(sync_update) = sync_reader.update_receiver().recv().await {
-                    match sync_update {
-                        SyncUpdate::Status(sync_status) => match sync_status {
-                            SyncStatus::NotSynced(sync_status_not_synced) => {
-                                self.status_manager.update(
-                                    LiveStatus::WaitingForSync(sync_status_not_synced).into(),
-                                );
+                let mut sync_rx = sync_reader.update_receiver();
+                loop {
+                    tokio::select! {
+                        sync_update_result = sync_rx.recv() => {
+                            match sync_update_result {
+                                Ok(sync_update) => {
+                                    match sync_update {
+                                        SyncUpdate::Status(sync_status) => match sync_status {
+                                            SyncStatus::NotSynced(sync_status_not_synced) => {
+                                                self.status_manager.update(
+                                                    LiveStatus::WaitingForSync(
+                                                        sync_status_not_synced
+                                                    ).into(),
+                                                );
+                                            }
+                                            SyncStatus::Synced => break,
+                                            SyncStatus::ShutdownInitiated | SyncStatus::Shutdown => {
+                                                // Non-recoverable error
+                                                return Err(LiveError::Generic(
+                                                    "sync process was shutdown".to_string(),
+                                                ));
+                                            }
+                                        },
+                                        SyncUpdate::PriceTick(_) => break,
+                                        SyncUpdate::PriceHistoryState(_) => {}
+                                    }
+                                }
+                                Err(e) => {
+                                    return Err(LiveError::Generic(format!("sync_rx error {:?}", e)));
+                                }
                             }
-                            SyncStatus::Synced => break,
-                            SyncStatus::ShutdownInitiated | SyncStatus::Shutdown => {
-                                // Non-recoverable error
-                                return Err(LiveError::Generic(
-                                    "sync process was shutdown".to_string(),
-                                ));
+                        }
+                        _ = time::sleep(self.config.sync_update_timeout) => {
+                            if matches!(sync_reader.status_snapshot(), SyncStatus::Synced) {
+                                break;
                             }
-                        },
-                        SyncUpdate::PriceTick(_) => break,
-                        SyncUpdate::PriceHistoryState(_) => {}
+                        }
                     }
                 }
 
