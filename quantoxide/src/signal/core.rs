@@ -1,7 +1,7 @@
-use std::{fmt, panic::AssertUnwindSafe};
+use std::{fmt, num::NonZeroU64, panic::AssertUnwindSafe};
 
 use async_trait::async_trait;
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Duration, Utc};
 use futures::FutureExt;
 
 use crate::{db::models::PriceHistoryEntryLOCF, util::DateTimeExt};
@@ -89,21 +89,37 @@ impl SignalActionEvaluator for Box<dyn SignalActionEvaluator> {
 
 pub struct SignalEvaluator<T: SignalActionEvaluator> {
     name: SignalName,
+    evaluation_interval: Duration,
     context_window_secs: usize,
     action_evaluator: T,
 }
 
 impl<T: SignalActionEvaluator> SignalEvaluator<T> {
-    pub fn new(name: SignalName, context_window_secs: usize, action_evaluator: T) -> Self {
-        Self {
+    pub fn new(
+        name: SignalName,
+        evaluation_interval_secs: impl TryInto<NonZeroU64>,
+        context_window_secs: usize,
+        action_evaluator: T,
+    ) -> Result<Self> {
+        let evaluation_interval_secs: NonZeroU64 =
+            evaluation_interval_secs.try_into().map_err(|_| {
+                SignalError::Generic("`evaluation_interval_secs` must be gte 1".to_string())
+            })?;
+
+        Ok(Self {
             name,
+            evaluation_interval: Duration::seconds(evaluation_interval_secs.get() as i64),
             context_window_secs,
             action_evaluator,
-        }
+        })
     }
 
     pub fn name(&self) -> &SignalName {
         &self.name
+    }
+
+    pub fn evaluation_interval(&self) -> Duration {
+        self.evaluation_interval
     }
 
     pub fn context_window_secs(&self) -> usize {
@@ -128,17 +144,19 @@ pub type ConfiguredSignalEvaluator = SignalEvaluator<Box<dyn SignalActionEvaluat
 impl SignalEvaluator<Box<dyn SignalActionEvaluator>> {
     pub fn new_boxed<E>(
         name: SignalName,
+        evaluation_interval_secs: impl TryInto<NonZeroU64>,
         context_window_secs: usize,
         action_evaluator: E,
-    ) -> ConfiguredSignalEvaluator
+    ) -> Result<ConfiguredSignalEvaluator>
     where
         E: SignalActionEvaluator + 'static,
     {
-        Self {
+        Self::new(
             name,
+            evaluation_interval_secs,
             context_window_secs,
-            action_evaluator: Box::new(action_evaluator),
-        }
+            Box::new(action_evaluator),
+        )
     }
 }
 
