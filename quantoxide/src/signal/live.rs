@@ -1,9 +1,10 @@
 use std::{
     fmt,
     sync::{Arc, Mutex, MutexGuard},
+    usize,
 };
 
-use chrono::Utc;
+use chrono::{DateTime, Duration, Utc};
 use tokio::{sync::broadcast, time};
 
 use crate::{
@@ -175,27 +176,34 @@ impl LiveSignalProcess {
     }
 
     async fn run(&self) -> Result<Never> {
-        let mut last_eval = Utc::now();
+        let mut min_evaluation_interval = Duration::MAX;
+        let mut max_ctx_window = usize::MIN;
+        let mut evaluators = Vec::with_capacity(self.evaluators.len());
+
+        let now = Utc::now().ceil_sec();
+        for evaluator in self.evaluators.iter() {
+            if evaluator.evaluation_interval() < min_evaluation_interval {
+                min_evaluation_interval = evaluator.evaluation_interval();
+            }
+            if evaluator.context_window_secs() > max_ctx_window {
+                max_ctx_window = evaluator.context_window_secs();
+            }
+
+            evaluators.push((now, evaluator));
+        }
+
+        let mut next_eval = now + min_evaluation_interval;
 
         loop {
-            let now = {
-                let target_exec = (last_eval + self.config.eval_interval).ceil_sec();
-                let now = Utc::now();
-
-                if now >= target_exec {
-                    return Err(SignalError::Generic(
-                        "evaluation time incompatible with eval interval".to_string(),
-                    ));
-                }
-
-                let wait_duration = (target_exec - now).to_std().expect("valid duration");
+            let mut now = Utc::now();
+            if now < next_eval {
+                let wait_duration = (next_eval - now).to_std().expect("valid duration");
                 time::sleep(wait_duration).await;
-                last_eval = target_exec;
-
-                target_exec
-            };
+                now = next_eval;
+            }
 
             if !matches!(self.sync_reader.status_snapshot(), SyncStatus::Synced) {
+                // TODO: Impl a timeout to re-evaluate `SyncStatus` via `status_snapshot`
                 while let Ok(sync_update) = self.sync_reader.update_receiver().recv().await {
                     match sync_update {
                         SyncUpdate::Status(sync_status) => match sync_status {
@@ -220,16 +228,8 @@ impl LiveSignalProcess {
                     }
                 }
 
-                last_eval = Utc::now();
-                continue;
+                now = Utc::now().ceil_sec();
             }
-
-            let max_ctx_window = self
-                .evaluators
-                .iter()
-                .map(|evaluator| evaluator.context_window_secs())
-                .max()
-                .expect("evaluators can't be empty");
 
             let all_ctx_entries = self
                 .db
@@ -245,13 +245,21 @@ impl LiveSignalProcess {
                 return Err(SignalError::Generic("invalid context".to_string()));
             }
 
-            for evaluator in self.evaluators.iter() {
-                let ctx_size = evaluator.context_window_secs();
-                if all_ctx_entries.len() < ctx_size {
-                    return Err(SignalError::Generic(
-                        "evaluator with inconsistent window size".to_string(),
-                    ));
+            next_eval = DateTime::<Utc>::MAX_UTC;
+
+            for (last_eval, evaluator) in evaluators.iter_mut() {
+                if now < *last_eval + evaluator.evaluation_interval() {
+                    continue;
                 }
+
+                *last_eval = now;
+
+                let evaluator_next_eval = now + evaluator.evaluation_interval();
+                if evaluator_next_eval < next_eval {
+                    next_eval = evaluator_next_eval;
+                }
+
+                let ctx_size = evaluator.context_window_secs();
 
                 let start_idx = all_ctx_entries.len() - ctx_size;
                 let signal_ctx_entries = &all_ctx_entries[start_idx..];
