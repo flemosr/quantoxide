@@ -605,7 +605,6 @@ pub struct LiveConfig {
     sync_mode_full: bool,
     sync_history_reach: Duration,
     re_sync_history_interval: time::Duration,
-    signal_eval_interval: time::Duration,
     tsl_step_size: BoundedPercentage,
     clean_up_trades_on_startup: bool,
     recover_trades_on_startup: bool,
@@ -626,7 +625,6 @@ impl Default for LiveConfig {
             sync_mode_full: false,
             sync_history_reach: Duration::hours(24 * 7 * 4),
             re_sync_history_interval: time::Duration::from_secs(300),
-            signal_eval_interval: time::Duration::from_secs(1),
             tsl_step_size: BoundedPercentage::MIN,
             clean_up_trades_on_startup: true,
             recover_trades_on_startup: false,
@@ -667,10 +665,6 @@ impl LiveConfig {
 
     pub fn re_sync_history_interval(&self) -> time::Duration {
         self.re_sync_history_interval
-    }
-
-    pub fn signal_eval_interval(&self) -> time::Duration {
-        self.signal_eval_interval
     }
 
     pub fn trailing_stoploss_step_size(&self) -> BoundedPercentage {
@@ -737,11 +731,6 @@ impl LiveConfig {
 
     pub fn set_re_sync_history_interval(mut self, secs: u64) -> Self {
         self.re_sync_history_interval = time::Duration::from_secs(secs);
-        self
-    }
-
-    pub fn set_signal_eval_interval(mut self, secs: u64) -> Self {
-        self.signal_eval_interval = time::Duration::from_secs(secs);
         self
     }
 
