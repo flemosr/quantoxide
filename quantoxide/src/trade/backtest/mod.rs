@@ -267,27 +267,35 @@ impl BacktestConfig {
 
 enum Operator {
     Signal {
-        evaluators: Vec<ConfiguredSignalEvaluator>,
+        evaluators: Vec<(DateTime<Utc>, ConfiguredSignalEvaluator)>,
         signal_operator: WrappedSignalOperator,
     },
     Raw {
+        last_eval: DateTime<Utc>,
         raw_operator: WrappedRawOperator,
     },
 }
 
 impl Operator {
     fn signal(
+        start_time: DateTime<Utc>,
         evaluators: Vec<ConfiguredSignalEvaluator>,
         signal_operator: WrappedSignalOperator,
     ) -> Self {
         Self::Signal {
-            evaluators,
+            evaluators: evaluators
+                .into_iter()
+                .map(|evaluator| (start_time, evaluator))
+                .collect(),
             signal_operator,
         }
     }
 
-    fn raw(raw_operator: WrappedRawOperator) -> Self {
-        Self::Raw { raw_operator }
+    fn raw(start_time: DateTime<Utc>, raw_operator: WrappedRawOperator) -> Self {
+        Self::Raw {
+            last_eval: start_time,
+            raw_operator,
+        }
     }
 
     fn set_executor(&mut self, trade_executor: Arc<dyn TradeExecutor>) -> Result<()> {
@@ -302,7 +310,10 @@ impl Operator {
 
                 Ok(())
             }
-            Operator::Raw { raw_operator } => {
+            Operator::Raw {
+                last_eval: _,
+                raw_operator,
+            } => {
                 raw_operator
                     .set_trade_executor(trade_executor)
                     .map_err(|e| BacktestError::Generic(e.to_string()))?;
@@ -320,13 +331,16 @@ impl Operator {
             } => {
                 let max_ctx_window = evaluators
                     .iter()
-                    .map(|evaluator| evaluator.context_window_secs())
+                    .map(|(_, evaluator)| evaluator.context_window_secs())
                     .max()
                     .expect("evaluators can't be empty");
 
                 Ok(max_ctx_window)
             }
-            Operator::Raw { raw_operator } => {
+            Operator::Raw {
+                last_eval: _,
+                raw_operator,
+            } => {
                 let ctx_window = raw_operator
                     .context_window_secs()
                     .map_err(|e| BacktestError::Generic(e.to_string()))?;
@@ -417,7 +431,7 @@ impl BacktestEngine {
         start_balance: u64,
         end_time: DateTime<Utc>,
     ) -> Result<Self> {
-        let operator = Operator::signal(evaluators, signal_operator.into());
+        let operator = Operator::signal(start_time, evaluators, signal_operator.into());
 
         Self::new(config, db, operator, start_time, start_balance, end_time).await
     }
@@ -430,7 +444,7 @@ impl BacktestEngine {
         start_balance: u64,
         end_time: DateTime<Utc>,
     ) -> Result<Self> {
-        let operator = Operator::raw(raw_operator.into());
+        let operator = Operator::raw(start_time, raw_operator.into());
 
         Self::new(config, db, operator, start_time, start_balance, end_time).await
     }
@@ -545,12 +559,18 @@ impl BacktestEngine {
                 break;
             }
 
-            match &operator {
+            match &mut operator {
                 Operator::Signal {
                     evaluators,
                     signal_operator,
                 } => {
-                    for evaluator in evaluators {
+                    for (last_eval, evaluator) in evaluators {
+                        if time_cursor < *last_eval + evaluator.evaluation_interval() {
+                            continue;
+                        }
+
+                        *last_eval = time_cursor;
+
                         let ctx_window_size = evaluator.context_window_secs();
 
                         let ctx_entries = &locf_buffer
@@ -566,7 +586,20 @@ impl BacktestEngine {
                             .map_err(|e| BacktestError::Generic(e.to_string()))?;
                     }
                 }
-                Operator::Raw { raw_operator } => {
+                Operator::Raw {
+                    last_eval,
+                    raw_operator,
+                } => {
+                    let iteration_interval = raw_operator
+                        .iteration_interval()
+                        .map_err(|e| BacktestError::Generic(e.to_string()))?;
+
+                    if time_cursor < *last_eval + iteration_interval {
+                        continue;
+                    }
+
+                    *last_eval = time_cursor;
+
                     let ctx_window_size = raw_operator
                         .context_window_secs()
                         .map_err(|e| BacktestError::Generic(e.to_string()))?;
