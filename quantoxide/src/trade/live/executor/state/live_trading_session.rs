@@ -269,18 +269,21 @@ impl LiveTradingSession {
         let mut new_running = HashMap::new();
         let mut new_trigger = PriceTrigger::NotSet;
         let mut new_balance = self.balance as i64;
+        let mut new_closed_pl = self.closed_pl;
 
         for (id, (curr_trade, trade_tsl)) in &self.running {
             let running_trade = if let Some(updated_trade) = updated_trades.remove(id) {
-                let collateral_delta = curr_trade.margin().into_i64()
-                    + curr_trade.maintenance_margin()
-                    // As of Jul 28 2025, using `.round` here seems to match
-                    // LNM's behavior.
-                    + curr_trade.est_pl(updated_trade.price()).round() as i64
-                    - updated_trade.margin().into_i64()
-                    - updated_trade.maintenance_margin();
+                // As of Jul 28 2025, using `.round` here seems to match
+                // LNM's behavior.
+                let cashed_in_pl = curr_trade.est_pl(updated_trade.price()).round() as i64;
+
+                let collateral_delta =
+                    curr_trade.margin().into_i64() + curr_trade.maintenance_margin() + cashed_in_pl
+                        - updated_trade.margin().into_i64()
+                        - updated_trade.maintenance_margin();
 
                 new_balance += collateral_delta;
+                new_closed_pl += cashed_in_pl;
 
                 Arc::new(updated_trade)
             } else {
@@ -311,6 +314,7 @@ impl LiveTradingSession {
         self.trigger = new_trigger;
         self.running = new_running;
         self.balance = new_balance.max(0) as u64;
+        self.closed_pl = new_closed_pl;
 
         Ok(())
     }
