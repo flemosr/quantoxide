@@ -594,23 +594,21 @@ impl BacktestEngine {
                         .iteration_interval()
                         .map_err(|e| BacktestError::Generic(e.to_string()))?;
 
-                    if time_cursor < *last_eval + iteration_interval {
-                        continue;
+                    if time_cursor >= *last_eval + iteration_interval {
+                        *last_eval = time_cursor;
+
+                        let ctx_window_size = raw_operator
+                            .context_window_secs()
+                            .map_err(|e| BacktestError::Generic(e.to_string()))?;
+
+                        let ctx_entries = &locf_buffer
+                            [locf_buffer_cursor_idx + 1 - ctx_window_size..=locf_buffer_cursor_idx];
+
+                        raw_operator
+                            .iterate(ctx_entries)
+                            .await
+                            .map_err(|e| BacktestError::Generic(e.to_string()))?;
                     }
-
-                    *last_eval = time_cursor;
-
-                    let ctx_window_size = raw_operator
-                        .context_window_secs()
-                        .map_err(|e| BacktestError::Generic(e.to_string()))?;
-
-                    let ctx_entries = &locf_buffer
-                        [locf_buffer_cursor_idx + 1 - ctx_window_size..=locf_buffer_cursor_idx];
-
-                    raw_operator
-                        .iterate(ctx_entries)
-                        .await
-                        .map_err(|e| BacktestError::Generic(e.to_string()))?;
                 }
             }
 
