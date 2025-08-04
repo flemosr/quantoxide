@@ -359,8 +359,12 @@ impl TradeExecutor for SimulatedTradeExecutor {
 
         let updated_trade = trade.with_cash_in(market_price, amount)?;
 
+        let cashed_in_pl = trade.est_pl(updated_trade.price()).round() as i64;
+
         *trade = updated_trade;
+
         state_guard.balance += amount.get() as i64;
+        state_guard.closed_pl += cashed_in_pl;
 
         Ok(())
     }
