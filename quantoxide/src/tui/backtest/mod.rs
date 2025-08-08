@@ -3,6 +3,7 @@ use std::{
     time::Duration,
 };
 
+use async_trait::async_trait;
 use chrono::Utc;
 use tokio::{
     sync::{OnceCell, broadcast::error::RecvError, mpsc},
@@ -19,7 +20,7 @@ use crate::{
 
 use super::{
     config::TuiConfig,
-    core::{self, TuiControllerShutdown},
+    core::{self, LogInTui, TuiControllerShutdown},
     error::{Result, TuiError},
     status::{TuiStatus, TuiStatusManager, TuiStatusStopped},
     terminal::TuiTerminal,
@@ -54,7 +55,7 @@ pub struct BacktestTui {
 }
 
 impl BacktestTui {
-    pub async fn launch(config: TuiConfig, log_file_path: Option<&str>) -> Result<Self> {
+    pub async fn launch(config: TuiConfig, log_file_path: Option<&str>) -> Result<Arc<Self>> {
         let log_file = core::open_log_file(log_file_path)?;
 
         let (ui_tx, ui_rx) = mpsc::channel::<BacktestUiMessage>(100);
@@ -89,7 +90,7 @@ impl BacktestTui {
             sync_controller.clone(),
         );
 
-        Ok(Self {
+        Ok(Arc::new(Self {
             event_check_interval: config.event_check_interval(),
             shutdown_timeout: config.shutdown_timeout(),
             status_manager,
@@ -100,22 +101,11 @@ impl BacktestTui {
             backtest_controller: sync_controller,
             backtest_update_listener_handle: OnceCell::new(),
             tui_view,
-        })
+        }))
     }
 
     pub fn status(&self) -> TuiStatus {
         self.status_manager.status()
-    }
-
-    pub async fn log(&self, log_entry: impl Into<String>) -> Result<()> {
-        self.status_manager.require_running()?;
-
-        // An error here would be an edge case
-
-        self.ui_tx
-            .send(BacktestUiMessage::LogEntry(log_entry.into()))
-            .await
-            .map_err(|_| TuiError::Generic("TUI is not running".to_string()))
     }
 
     fn spawn_backtest_update_listener(
@@ -263,7 +253,7 @@ impl BacktestTui {
         .await
     }
 
-    pub async fn until_stopped(self) -> Arc<TuiStatusStopped> {
+    pub async fn until_stopped(&self) -> Arc<TuiStatusStopped> {
         loop {
             if let TuiStatus::Stopped(status_stopped) = self.status() {
                 return status_stopped;
@@ -271,6 +261,20 @@ impl BacktestTui {
 
             time::sleep(self.event_check_interval).await;
         }
+    }
+}
+
+#[async_trait]
+impl LogInTui for BacktestTui {
+    async fn log(&self, log_entry: String) -> Result<()> {
+        self.status_manager.require_running()?;
+
+        // An error here would be an edge case
+
+        self.ui_tx
+            .send(BacktestUiMessage::LogEntry(log_entry.into()))
+            .await
+            .map_err(|_| TuiError::Generic("TUI is not running".to_string()))
     }
 }
 
