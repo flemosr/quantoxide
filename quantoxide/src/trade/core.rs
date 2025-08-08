@@ -1,6 +1,6 @@
 use std::{
     cell::OnceCell,
-    collections::{BTreeMap, HashMap},
+    collections::BTreeMap,
     fmt,
     num::NonZeroU64,
     panic::{self, AssertUnwindSafe},
@@ -39,9 +39,8 @@ pub struct TradingState {
     balance: u64,
     market_price: Price,
     last_trade_time: Option<DateTime<Utc>>,
-    running: HashMap<Uuid, (Arc<dyn TradeRunning>, Option<TradeTrailingStoploss>)>,
+    running: BTreeMap<DateTime<Utc>, (Arc<dyn TradeRunning>, Option<TradeTrailingStoploss>)>,
     running_stats: OnceCell<RunningStats>,
-    running_sorted: OnceCell<Vec<(Arc<dyn TradeRunning>, Option<TradeTrailingStoploss>)>>,
     closed_len: usize,
     closed_pl: i64,
     closed_fees: u64,
@@ -53,7 +52,7 @@ impl TradingState {
         balance: u64,
         market_price: Price,
         last_trade_time: Option<DateTime<Utc>>,
-        running: HashMap<Uuid, (Arc<dyn TradeRunning>, Option<TradeTrailingStoploss>)>,
+        running: BTreeMap<DateTime<Utc>, (Arc<dyn TradeRunning>, Option<TradeTrailingStoploss>)>,
         closed_len: usize,
         closed_pl: i64,
         closed_fees: u64,
@@ -65,7 +64,6 @@ impl TradingState {
             last_trade_time,
             running,
             running_stats: OnceCell::new(),
-            running_sorted: OnceCell::new(),
             closed_len,
             closed_pl,
             closed_fees,
@@ -115,19 +113,6 @@ impl TradingState {
         })
     }
 
-    fn get_running_sorted(&self) -> &Vec<(Arc<dyn TradeRunning>, Option<TradeTrailingStoploss>)> {
-        self.running_sorted.get_or_init(|| {
-            let mut running_vec = Vec::with_capacity(self.running.len());
-
-            for (trade, tsl) in self.running.values() {
-                running_vec.push((trade.clone(), *tsl));
-            }
-
-            running_vec.sort_by(|a, b| b.0.creation_ts().cmp(&a.0.creation_ts()));
-            running_vec
-        })
-    }
-
     pub fn last_tick_time(&self) -> DateTime<Utc> {
         self.last_tick_time
     }
@@ -146,7 +131,7 @@ impl TradingState {
 
     pub fn running(
         &self,
-    ) -> &HashMap<Uuid, (Arc<dyn TradeRunning>, Option<TradeTrailingStoploss>)> {
+    ) -> &BTreeMap<DateTime<Utc>, (Arc<dyn TradeRunning>, Option<TradeTrailingStoploss>)> {
         &self.running
     }
 
@@ -260,9 +245,7 @@ impl TradingState {
     }
 
     pub fn running_trades_table(&self) -> String {
-        let sorted_running = self.get_running_sorted();
-
-        if sorted_running.is_empty() {
+        if self.running().is_empty() {
             return "No running trades.".to_string();
         }
 
@@ -286,7 +269,7 @@ impl TradingState {
 
         table.push_str(&format!("\n{}", "-".repeat(153)));
 
-        for (trade, tsl) in sorted_running {
+        for (trade, tsl) in self.running().values().rev() {
             let creation_time = trade
                 .creation_ts()
                 .with_timezone(&chrono::Local)
