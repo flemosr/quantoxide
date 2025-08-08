@@ -399,8 +399,13 @@ impl From<LiveTradingSession> for TradingState {
     fn from(value: LiveTradingSession) -> Self {
         let running = value
             .running
-            .iter()
-            .map(|(id, (trade, tsl))| (*id, (trade.clone() as Arc<dyn TradeRunning>, *tsl)))
+            .values()
+            .map(|(trade, tsl)| {
+                (
+                    trade.creation_ts(),
+                    (trade.clone() as Arc<dyn TradeRunning>, *tsl),
+                )
+            })
             .collect();
 
         TradingState::new(
