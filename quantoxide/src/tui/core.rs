@@ -255,3 +255,8 @@ where
     })
     .into()
 }
+
+#[async_trait]
+pub trait LogInTui: Send + Sync {
+    async fn log(&self, log_entry: String) -> Result<()>;
+}
