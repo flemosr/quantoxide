@@ -642,17 +642,22 @@ impl BacktestEngine {
             // Update `SimulatedTradeExecutor` with all the price ticks with time lte
             // the new `time_cursor`.
             while let Some(next_price_tick) = price_ticks.get(price_ticks_cursor_idx) {
-                if next_price_tick.time <= time_cursor {
-                    trades_executor
-                        .tick_update(next_price_tick.time, next_price_tick.value)
-                        .await
-                        .map_err(|e| BacktestError::Generic(e.to_string()))?;
-
-                    price_ticks_cursor_idx += 1;
-                } else {
+                if next_price_tick.time > time_cursor {
                     break;
                 }
+
+                trades_executor
+                    .tick_update(next_price_tick.time, next_price_tick.value)
+                    .await
+                    .map_err(|e| BacktestError::Generic(e.to_string()))?;
+
+                price_ticks_cursor_idx += 1;
             }
+
+            trades_executor
+                .time_update(time_cursor)
+                .await
+                .map_err(|e| BacktestError::Generic(e.to_string()))?;
         }
 
         trades_executor
