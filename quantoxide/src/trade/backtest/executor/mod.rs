@@ -34,6 +34,7 @@ impl From<TradeSide> for Close {
 
 struct SimulatedTradeExecutorState {
     time: DateTime<Utc>,
+    last_tick_time: DateTime<Utc>,
     market_price: f64,
     balance: i64,
     last_trade_time: Option<DateTime<Utc>>,
@@ -62,6 +63,7 @@ impl SimulatedTradeExecutor {
     ) -> Self {
         let initial_state = SimulatedTradeExecutorState {
             time: start_time,
+            last_tick_time: start_time,
             market_price,
             balance: start_balance as i64,
             last_trade_time: None,
@@ -80,10 +82,10 @@ impl SimulatedTradeExecutor {
         }
     }
 
-    pub async fn tick_update(&self, time: DateTime<Utc>, market_price: f64) -> Result<()> {
+    pub async fn time_update(&self, time: DateTime<Utc>) -> Result<()> {
         let mut state_guard = self.state.lock().await;
 
-        if time <= state_guard.time {
+        if time < state_guard.time {
             return Err(SimulatedTradeExecutorError::TimeSequenceViolation {
                 new_time: time,
                 current_time: state_guard.time,
@@ -91,9 +93,24 @@ impl SimulatedTradeExecutor {
         }
 
         state_guard.time = time;
-        state_guard.market_price = market_price;
+        Ok(())
+    }
 
-        if !state_guard.trigger.was_reached(market_price) {
+    pub async fn tick_update(&self, time: DateTime<Utc>, price: f64) -> Result<()> {
+        let mut state_guard = self.state.lock().await;
+
+        if time <= state_guard.last_tick_time || time < state_guard.time {
+            return Err(SimulatedTradeExecutorError::TimeSequenceViolation {
+                new_time: time,
+                current_time: state_guard.time,
+            })?;
+        }
+
+        state_guard.time = time;
+        state_guard.last_tick_time = time;
+        state_guard.market_price = price;
+
+        if !state_guard.trigger.was_reached(price) {
             return Ok(());
         }
 
@@ -129,14 +146,14 @@ impl SimulatedTradeExecutor {
             };
 
             if let Some(trade_min) = trade_min_opt {
-                if market_price <= trade_min.into_f64() {
+                if price <= trade_min.into_f64() {
                     close_trade(trade.as_ref(), trade_min);
                     continue;
                 }
             }
 
             if let Some(trade_max) = trade_max_opt {
-                if market_price >= trade_max.into_f64() {
+                if price >= trade_max.into_f64() {
                     close_trade(trade.as_ref(), trade_max);
                     continue;
                 }
@@ -146,7 +163,7 @@ impl SimulatedTradeExecutor {
                 let next_stoploss_update_trigger =
                     trade.next_stoploss_update_trigger(self.tsl_step_size, trade_tsl)?;
 
-                let market_price = Price::round(market_price)
+                let market_price = Price::round(price)
                     .map_err(|e| SimulatedTradeExecutorError::Generic(e.to_string()))?;
 
                 let new_stoploss = match trade.side() {
