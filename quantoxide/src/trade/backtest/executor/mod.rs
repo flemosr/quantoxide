@@ -394,12 +394,17 @@ impl TradeExecutor for SimulatedTradeExecutor {
 
         let running = state_guard
             .running
-            .iter()
-            .map(|(id, (trade, tsl))| (*id, (trade.clone() as Arc<dyn TradeRunning>, *tsl)))
+            .values()
+            .map(|(trade, tsl)| {
+                (
+                    trade.creation_ts(),
+                    (trade.clone() as Arc<dyn TradeRunning>, *tsl),
+                )
+            })
             .collect();
 
         let trades_state = TradingState::new(
-            state_guard.time,
+            state_guard.last_tick_time,
             state_guard.balance.max(0) as u64,
             Price::clamp_from(state_guard.market_price),
             state_guard.last_trade_time,
