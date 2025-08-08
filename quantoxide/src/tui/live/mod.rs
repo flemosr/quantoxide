@@ -3,6 +3,7 @@ use std::{
     time::Duration,
 };
 
+use async_trait::async_trait;
 use tokio::{
     sync::{OnceCell, broadcast::error::RecvError, mpsc},
     time,
@@ -18,7 +19,7 @@ use crate::{
 
 use super::{
     config::TuiConfig,
-    core::{self, TuiControllerShutdown},
+    core::{self, LogInTui, TuiControllerShutdown},
     error::{Result, TuiError},
     status::{TuiStatus, TuiStatusManager, TuiStatusStopped},
     terminal::TuiTerminal,
@@ -53,7 +54,7 @@ pub struct LiveTui {
 }
 
 impl LiveTui {
-    pub async fn launch(config: TuiConfig, log_file_path: Option<&str>) -> Result<Self> {
+    pub async fn launch(config: TuiConfig, log_file_path: Option<&str>) -> Result<Arc<Self>> {
         let log_file = core::open_log_file(log_file_path)?;
 
         let (ui_tx, ui_rx) = mpsc::channel::<LiveUiMessage>(100);
@@ -88,7 +89,7 @@ impl LiveTui {
             live_controller.clone(),
         );
 
-        Ok(Self {
+        Ok(Arc::new(Self {
             event_check_interval: config.event_check_interval(),
             shutdown_timeout: config.shutdown_timeout(),
             status_manager,
@@ -98,22 +99,11 @@ impl LiveTui {
             _shutdown_listener_handle,
             live_controller,
             live_update_listener_handle: OnceCell::new(),
-        })
+        }))
     }
 
     pub fn status(&self) -> TuiStatus {
         self.status_manager.status()
-    }
-
-    pub async fn log(&self, log_entry: impl Into<String>) -> Result<()> {
-        self.status_manager.require_running()?;
-
-        // An error here would be an edge case
-
-        self.ui_tx
-            .send(LiveUiMessage::LogEntry(log_entry.into()))
-            .await
-            .map_err(|_| TuiError::Generic("TUI is not running".to_string()))
     }
 
     fn spawn_live_update_listener(
@@ -270,7 +260,7 @@ impl LiveTui {
         .await
     }
 
-    pub async fn until_stopped(self) -> Arc<TuiStatusStopped> {
+    pub async fn until_stopped(&self) -> Arc<TuiStatusStopped> {
         loop {
             if let TuiStatus::Stopped(status_stopped) = self.status() {
                 return status_stopped;
@@ -278,6 +268,20 @@ impl LiveTui {
 
             time::sleep(self.event_check_interval).await;
         }
+    }
+}
+
+#[async_trait]
+impl LogInTui for LiveTui {
+    async fn log(&self, log_entry: String) -> Result<()> {
+        self.status_manager.require_running()?;
+
+        // An error here would be an edge case
+
+        self.ui_tx
+            .send(LiveUiMessage::LogEntry(log_entry.into()))
+            .await
+            .map_err(|_| TuiError::Generic("TUI is not running".to_string()))
     }
 }
 
