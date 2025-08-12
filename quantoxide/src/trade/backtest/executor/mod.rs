@@ -1,4 +1,4 @@
-use std::{collections::HashMap, num::NonZeroU64, sync::Arc};
+use std::{num::NonZeroU64, sync::Arc};
 
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
@@ -10,7 +10,7 @@ use lnm_sdk::api::rest::models::{
 };
 
 use super::super::{
-    core::{PriceTrigger, Stoploss, TradeExecutor, TradeExt, TradeTrailingStoploss, TradingState},
+    core::{PriceTrigger, RunningTradesMap, Stoploss, TradeExecutor, TradeExt, TradingState},
     error::{Result, TradeError},
 };
 
@@ -39,7 +39,7 @@ struct SimulatedTradeExecutorState {
     balance: i64,
     last_trade_time: Option<DateTime<Utc>>,
     trigger: PriceTrigger,
-    running: HashMap<Uuid, (Arc<SimulatedTradeRunning>, Option<TradeTrailingStoploss>)>,
+    running_map: RunningTradesMap<SimulatedTradeRunning>,
     closed_len: usize,
     closed_pl: i64,
     closed_fees: u64,
@@ -68,7 +68,7 @@ impl SimulatedTradeExecutor {
             balance: start_balance as i64,
             last_trade_time: None,
             trigger: PriceTrigger::new(),
-            running: HashMap::new(),
+            running_map: RunningTradesMap::new(),
             closed_len: 0,
             closed_pl: 0,
             closed_fees: 0,
@@ -135,9 +135,9 @@ impl SimulatedTradeExecutor {
         };
 
         let mut new_trigger = PriceTrigger::new();
-        let mut remaining_running_trades = HashMap::new();
+        let mut new_running_map = RunningTradesMap::new();
 
-        for (trade, trade_tsl_opt) in state_guard.running.values_mut() {
+        for (trade, trade_tsl_opt) in state_guard.running_map.trades_desc_mut() {
             // Check if price reached stoploss or takeprofit
 
             let (trade_min_opt, trade_max_opt) = match trade.side() {
@@ -188,13 +188,13 @@ impl SimulatedTradeExecutor {
             }
 
             new_trigger.update(self.tsl_step_size, trade.as_ref(), *trade_tsl_opt)?;
-            remaining_running_trades.insert(trade.id(), (trade.clone(), *trade_tsl_opt));
+            new_running_map.add(trade.clone(), *trade_tsl_opt);
         }
 
         state_guard.balance = new_balance;
 
         state_guard.trigger = new_trigger;
-        state_guard.running = remaining_running_trades;
+        state_guard.running_map = new_running_map;
 
         state_guard.closed_len = new_closed_len;
         state_guard.closed_pl = new_closed_pl;
@@ -228,9 +228,9 @@ impl SimulatedTradeExecutor {
         };
 
         let mut new_trigger = PriceTrigger::new();
-        let mut remaining_running_trades = HashMap::new();
+        let mut new_running_map = RunningTradesMap::new();
 
-        for (trade, trade_tsl) in state_guard.running.values() {
+        for (trade, trade_tsl) in state_guard.running_map.trades_desc() {
             let should_be_closed = match &close {
                 Close::Single(id) if *id == trade.id() => true,
                 Close::Side(side) if *side == trade.side() => true,
@@ -242,7 +242,7 @@ impl SimulatedTradeExecutor {
                 close_trade(trade.clone());
             } else {
                 new_trigger.update(self.tsl_step_size, trade.as_ref(), *trade_tsl)?;
-                remaining_running_trades.insert(trade.id(), (trade.clone(), *trade_tsl));
+                new_running_map.add(trade.clone(), *trade_tsl);
             }
         }
 
@@ -250,7 +250,7 @@ impl SimulatedTradeExecutor {
 
         state_guard.last_trade_time = Some(state_guard.time);
         state_guard.trigger = new_trigger;
-        state_guard.running = remaining_running_trades;
+        state_guard.running_map = new_running_map;
 
         state_guard.closed_len = new_closed_len;
         state_guard.closed_pl = new_closed_pl;
@@ -297,7 +297,7 @@ impl SimulatedTradeExecutor {
             return Err(TradeError::BalanceTooLow);
         }
 
-        if state_guard.running.len() >= self.max_running_qtd {
+        if state_guard.running_map.len() >= self.max_running_qtd {
             return Err(SimulatedTradeExecutorError::MaxRunningTradesReached {
                 max_qtd: self.max_running_qtd,
             })?;
@@ -312,7 +312,7 @@ impl SimulatedTradeExecutor {
         state_guard
             .trigger
             .update(self.tsl_step_size, trade.as_ref(), trade_tsl)?;
-        state_guard.running.insert(trade.id(), (trade, trade_tsl));
+        state_guard.running_map.add(trade, trade_tsl);
 
         Ok(())
     }
@@ -349,7 +349,7 @@ impl TradeExecutor for SimulatedTradeExecutor {
             return Err(TradeError::Generic("not enough balance".to_string()));
         }
 
-        let Some((trade, _)) = state_guard.running.get_mut(&trade_id) else {
+        let Some((trade, _)) = state_guard.running_map.get_trade_by_id_mut(trade_id) else {
             return Err(TradeError::Generic(format!(
                 "trade {trade_id} is not running"
             )));
@@ -368,7 +368,7 @@ impl TradeExecutor for SimulatedTradeExecutor {
 
         let market_price = Price::clamp_from(state_guard.market_price);
 
-        let Some((trade, _)) = state_guard.running.get_mut(&trade_id) else {
+        let Some((trade, _)) = state_guard.running_map.get_trade_by_id_mut(trade_id) else {
             return Err(TradeError::Generic(format!(
                 "trade {trade_id} is not running"
             )));
@@ -409,23 +409,12 @@ impl TradeExecutor for SimulatedTradeExecutor {
     async fn trading_state(&self) -> Result<TradingState> {
         let state_guard = self.state.lock().await;
 
-        let running = state_guard
-            .running
-            .values()
-            .map(|(trade, tsl)| {
-                (
-                    trade.creation_ts(),
-                    (trade.clone() as Arc<dyn TradeRunning>, *tsl),
-                )
-            })
-            .collect();
-
         let trades_state = TradingState::new(
             state_guard.last_tick_time,
             state_guard.balance.max(0) as u64,
             Price::clamp_from(state_guard.market_price),
             state_guard.last_trade_time,
-            running,
+            state_guard.running_map.clone().into_dyn(),
             state_guard.closed_len,
             state_guard.closed_pl,
             state_guard.closed_fees,

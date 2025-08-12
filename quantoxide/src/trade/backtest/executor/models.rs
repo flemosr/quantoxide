@@ -8,10 +8,7 @@ use lnm_sdk::api::rest::models::{
     TradeRunning, TradeSide, TradeSize, trade_util,
 };
 
-use super::super::super::{
-    core::TradeExt,
-    error::{Result, TradeError},
-};
+use super::super::super::error::{Result, TradeError};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SimulatedTradeRunning {
@@ -282,8 +279,6 @@ impl TradeRunning for SimulatedTradeRunning {
         trade_util::estimate_pl(self.side(), self.quantity(), self.price(), market_price)
     }
 }
-
-impl TradeExt for SimulatedTradeRunning {}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SimulatedTradeClosed {
