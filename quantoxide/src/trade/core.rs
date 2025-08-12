@@ -867,10 +867,10 @@ impl PriceTrigger {
         Self::NotSet
     }
 
-    pub fn update(
+    pub fn update<T: TradeExt + ?Sized>(
         &mut self,
         tsl_step_size: BoundedPercentage,
-        trade: &impl TradeExt,
+        trade: &T,
         trade_tsl: Option<TradeTrailingStoploss>,
     ) -> Result<()> {
         let (mut new_min, mut new_max) = trade.eval_trigger_bounds(tsl_step_size, trade_tsl)?;
