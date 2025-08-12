@@ -129,7 +129,7 @@ pub struct TradingState {
     balance: u64,
     market_price: Price,
     last_trade_time: Option<DateTime<Utc>>,
-    running: BTreeMap<DateTime<Utc>, (Arc<dyn TradeRunning>, Option<TradeTrailingStoploss>)>,
+    running_map: DynRunningTradesMap,
     running_stats: OnceCell<RunningStats>,
     closed_len: usize,
     closed_pl: i64,
@@ -142,7 +142,7 @@ impl TradingState {
         balance: u64,
         market_price: Price,
         last_trade_time: Option<DateTime<Utc>>,
-        running: BTreeMap<DateTime<Utc>, (Arc<dyn TradeRunning>, Option<TradeTrailingStoploss>)>,
+        running_map: DynRunningTradesMap,
         closed_len: usize,
         closed_pl: i64,
         closed_fees: u64,
@@ -152,7 +152,7 @@ impl TradingState {
             balance,
             market_price,
             last_trade_time,
-            running,
+            running_map,
             running_stats: OnceCell::new(),
             closed_len,
             closed_pl,
@@ -171,7 +171,7 @@ impl TradingState {
             let mut pl = 0;
             let mut fees = 0;
 
-            for (trade, _) in self.running.values() {
+            for (trade, _) in self.running_map.trades_desc() {
                 match trade.side() {
                     TradeSide::Buy => {
                         long_len += 1;
@@ -219,10 +219,8 @@ impl TradingState {
         self.last_trade_time
     }
 
-    pub fn running(
-        &self,
-    ) -> &BTreeMap<DateTime<Utc>, (Arc<dyn TradeRunning>, Option<TradeTrailingStoploss>)> {
-        &self.running
+    pub fn running_map(&self) -> &DynRunningTradesMap {
+        &self.running_map
     }
 
     pub fn running_long_len(&self) -> usize {
@@ -335,7 +333,7 @@ impl TradingState {
     }
 
     pub fn running_trades_table(&self) -> String {
-        if self.running().is_empty() {
+        if self.running_map.is_empty() {
             return "No running trades.".to_string();
         }
 
@@ -359,7 +357,7 @@ impl TradingState {
 
         table.push_str(&format!("\n{}", "-".repeat(153)));
 
-        for (trade, tsl) in self.running().values().rev() {
+        for (trade, tsl) in self.running_map.trades_desc() {
             let creation_time = trade
                 .creation_ts()
                 .with_timezone(&chrono::Local)
