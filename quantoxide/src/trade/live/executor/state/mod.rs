@@ -214,6 +214,6 @@ impl LiveTradeExecutorStateManager {
         self.lock_state()
             .await
             .trading_session()
-            .map_or(false, |session| !session.running().is_empty())
+            .map_or(false, |session| !session.running_map().is_empty())
     }
 }

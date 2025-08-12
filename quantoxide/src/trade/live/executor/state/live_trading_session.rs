@@ -4,14 +4,15 @@ use chrono::{DateTime, Utc};
 use futures::future;
 use uuid::Uuid;
 
-use lnm_sdk::api::rest::models::{BoundedPercentage, LnmTrade, Price, Trade, TradeRunning};
+use lnm_sdk::api::rest::models::{BoundedPercentage, LnmTrade, Price, Trade};
 
-use crate::{
-    db::DbContext,
-    trade::core::{PriceTrigger, TradeExt, TradeTrailingStoploss, TradingState},
-};
+use crate::db::DbContext;
 
 use super::super::super::{
+    super::core::{
+        DynRunningTradesMap, PriceTrigger, RunningTradesMap, TradeExt, TradeTrailingStoploss,
+        TradingState,
+    },
     error::{LiveError, Result as LiveResult},
     executor::WrappedApiContext,
 };
@@ -24,7 +25,7 @@ pub struct LiveTradingSession {
     last_evaluation_time: DateTime<Utc>,
     last_price: f64,
     trigger: PriceTrigger,
-    running: HashMap<Uuid, (Arc<LnmTrade>, Option<TradeTrailingStoploss>)>,
+    running_map: DynRunningTradesMap,
     closed_len: usize,
     closed_pl: i64,
     closed_fees: u64,
@@ -53,7 +54,7 @@ impl LiveTradingSession {
             last_evaluation_time: lastest_entry_time,
             last_price: lastest_entry_price,
             trigger: PriceTrigger::NotSet,
-            running: HashMap::new(),
+            running_map: RunningTradesMap::new(),
             closed_len: 0,
             closed_pl: 0,
             closed_fees: 0,
@@ -105,8 +106,8 @@ impl LiveTradingSession {
         self.balance
     }
 
-    pub fn running(&self) -> &HashMap<Uuid, (Arc<LnmTrade>, Option<TradeTrailingStoploss>)> {
-        &self.running
+    pub fn running_map(&self) -> &DynRunningTradesMap {
+        &self.running_map
     }
 
     pub async fn reevaluate(
@@ -132,7 +133,7 @@ impl LiveTradingSession {
         let mut to_get = Vec::new();
         let mut to_update = Vec::new();
 
-        for (trade, trade_tsl_opt) in self.running().values() {
+        for (trade, trade_tsl_opt) in self.running_map().trades_desc() {
             if trade.was_closed_on_range(range_min, range_max) {
                 to_get.push(trade.id());
                 continue;
@@ -227,7 +228,7 @@ impl LiveTradingSession {
             )));
         }
 
-        if self.running.contains_key(&new_trade.id()) {
+        if self.running_map.contains(&new_trade.id()) {
             return Err(LiveError::Generic(format!(
                 "`new_trade` {} already registered",
                 new_trade.id(),
@@ -252,8 +253,8 @@ impl LiveTradingSession {
         self.trigger
             .update(self.tsl_step_size, &new_trade, trade_tsl)
             .map_err(|e| LiveError::Generic(e.to_string()))?;
-        self.running
-            .insert(new_trade.id(), (Arc::new(new_trade), trade_tsl));
+
+        self.running_map.add(Arc::new(new_trade), trade_tsl);
 
         Ok(())
     }
@@ -266,13 +267,14 @@ impl LiveTradingSession {
             return Ok(());
         }
 
-        let mut new_running = HashMap::new();
+        let mut new_running_map = RunningTradesMap::new();
         let mut new_trigger = PriceTrigger::NotSet;
         let mut new_balance = self.balance as i64;
         let mut new_closed_pl = self.closed_pl;
 
-        for (id, (curr_trade, trade_tsl)) in &self.running {
-            let running_trade = if let Some(updated_trade) = updated_trades.remove(id) {
+        for (curr_trade, trade_tsl) in self.running_map.trades_desc() {
+            let running_trade = if let Some(updated_trade) = updated_trades.remove(&curr_trade.id())
+            {
                 // As of Jul 28 2025, using `.round` here seems to match
                 // LNM's behavior.
                 let cashed_in_pl = curr_trade.est_pl(updated_trade.price()).round() as i64;
@@ -295,7 +297,7 @@ impl LiveTradingSession {
                 .update(self.tsl_step_size, running_trade.as_ref(), *trade_tsl)
                 .map_err(|e| LiveError::Generic(e.to_string()))?;
 
-            new_running.insert(*id, (running_trade, *trade_tsl));
+            new_running_map.add(running_trade, *trade_tsl);
         }
 
         if !updated_trades.is_empty() {
@@ -312,7 +314,7 @@ impl LiveTradingSession {
         }
 
         self.trigger = new_trigger;
-        self.running = new_running;
+        self.running_map = new_running_map;
         self.balance = new_balance.max(0) as u64;
         self.closed_pl = new_closed_pl;
 
@@ -341,7 +343,7 @@ impl LiveTradingSession {
                 ))
             })?;
 
-            if !self.running.contains_key(&closed_trade.id()) {
+            if !self.running_map.contains(&closed_trade.id()) {
                 return Err(LiveError::Generic(format!(
                     "`closed_trade` {} was not running",
                     closed_trade.id(),
@@ -356,22 +358,22 @@ impl LiveTradingSession {
             closed_map.insert(closed_trade.id(), closed_trade);
         }
 
-        let mut new_running = HashMap::new();
+        let mut new_running_map = RunningTradesMap::new();
         let mut new_trigger = PriceTrigger::NotSet;
         let mut new_balance = self.balance as i64;
         let mut new_closed_len = self.closed_len;
         let mut new_closed_pl = self.closed_pl;
         let mut new_closed_fees = self.closed_fees;
 
-        for (id, (trade, trade_tsl)) in &self.running {
-            if let Some(closed_trade) = closed_map.remove(id) {
+        for (trade, trade_tsl) in self.running_map.trades_desc() {
+            if let Some(closed_trade) = closed_map.remove(&trade.id()) {
                 new_balance += trade.margin().into_i64() + trade.maintenance_margin()
                     - closed_trade.closing_fee() as i64
                     + closed_trade.pl();
 
                 new_closed_len += 1;
-                new_closed_pl += trade.pl();
-                new_closed_fees += trade.opening_fee() + trade.closing_fee();
+                new_closed_pl += closed_trade.pl();
+                new_closed_fees += closed_trade.opening_fee() + closed_trade.closing_fee();
 
                 continue;
             }
@@ -380,12 +382,13 @@ impl LiveTradingSession {
             new_trigger
                 .update(self.tsl_step_size, trade.as_ref(), *trade_tsl)
                 .map_err(|e| LiveError::Generic(e.to_string()))?;
-            new_running.insert(*id, (trade.clone(), *trade_tsl));
+
+            new_running_map.add(trade.clone(), *trade_tsl);
         }
 
         self.last_trade_time = new_last_trade_time;
         self.trigger = new_trigger;
-        self.running = new_running;
+        self.running_map = new_running_map;
         self.balance = new_balance.max(0) as u64;
         self.closed_len = new_closed_len;
         self.closed_pl = new_closed_pl;
@@ -397,23 +400,12 @@ impl LiveTradingSession {
 
 impl From<LiveTradingSession> for TradingState {
     fn from(value: LiveTradingSession) -> Self {
-        let running = value
-            .running
-            .values()
-            .map(|(trade, tsl)| {
-                (
-                    trade.creation_ts(),
-                    (trade.clone() as Arc<dyn TradeRunning>, *tsl),
-                )
-            })
-            .collect();
-
         TradingState::new(
             Utc::now(),
             value.balance,
             Price::clamp_from(value.last_price),
             value.last_trade_time,
-            running,
+            value.running_map,
             value.closed_len,
             value.closed_pl,
             value.closed_fees,

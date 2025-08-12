@@ -11,9 +11,7 @@ use uuid::Uuid;
 
 use lnm_sdk::api::{
     ApiContext,
-    rest::models::{
-        BoundedPercentage, Leverage, Price, Trade, TradeRunning, TradeSide, TradeSize, trade_util,
-    },
+    rest::models::{BoundedPercentage, Leverage, Price, Trade, TradeSide, TradeSize, trade_util},
 };
 
 use crate::{
@@ -229,7 +227,7 @@ impl LiveTradeExecutor {
         }
 
         let max_running_qtd = self.config.max_running_qtd();
-        if trading_session.running().len() == max_running_qtd {
+        if trading_session.running_map().len() == max_running_qtd {
             return Err(TradeError::Generic(format!(
                 "can't open trade, max_running_qtd {max_running_qtd} already reached"
             )));
@@ -274,9 +272,9 @@ impl LiveTradeExecutor {
         let mut new_trading_session = locked_ready_state.trading_session().to_owned();
         let mut to_close = Vec::new();
 
-        for (id, (trade, _)) in new_trading_session.running() {
+        for (trade, _) in new_trading_session.running_map().trades_desc() {
             if trade.side() == side {
-                to_close.push(id.clone());
+                to_close.push(trade.id());
             }
         }
 
@@ -410,9 +408,8 @@ impl TradeExecutor for LiveTradeExecutor {
 
         let trading_session = locked_ready_state.trading_session();
 
-        if trading_session.running().get(&trade_id).is_none() {}
-
-        let Some((current_trade, _)) = trading_session.running().get(&trade_id) else {
+        let Some((current_trade, _)) = trading_session.running_map().get_trade_by_id(trade_id)
+        else {
             return Err(TradeError::Generic(format!(
                 "trade {trade_id} is not running"
             )));
@@ -460,7 +457,8 @@ impl TradeExecutor for LiveTradeExecutor {
 
         let trading_session = locked_ready_state.trading_session();
 
-        let Some((current_trade, _)) = trading_session.running().get(&trade_id) else {
+        let Some((current_trade, _)) = trading_session.running_map().get_trade_by_id(trade_id)
+        else {
             return Err(TradeError::Generic(format!(
                 "trade {trade_id} is not running"
             )));
@@ -503,7 +501,7 @@ impl TradeExecutor for LiveTradeExecutor {
 
         let trading_session = locked_ready_state.trading_session();
 
-        if trading_session.running().get(&trade_id).is_none() {
+        if !trading_session.running_map().contains(&trade_id) {
             return Err(TradeError::Generic(format!(
                 "trade {trade_id} is not running"
             )));
