@@ -853,7 +853,8 @@ pub trait TradeExt: Trade {
     }
 }
 
-impl TradeExt for LnmTrade {}
+// Implement `TradeExt` for any type that implements `Trade`
+impl<T: Trade + ?Sized> TradeExt for T {}
 
 #[derive(Debug, Clone)]
 pub enum PriceTrigger {
