@@ -525,7 +525,7 @@ async fn test_simulated_trade_executor_trailing_stoploss_long() {
         .unwrap();
 
     let state = executor.trading_state().await.unwrap();
-    let Some((_, (trade, tsl))) = state.running().iter().next() else {
+    let Some((trade, tsl)) = state.running_map().trades_desc().next() else {
         panic!("must have trade");
     };
 
@@ -547,7 +547,7 @@ async fn test_simulated_trade_executor_trailing_stoploss_long() {
     executor.tick_update(time, 102_000.0).await.unwrap();
 
     let state = executor.trading_state().await.unwrap();
-    let Some((_, (trade, tsl))) = state.running().iter().next() else {
+    let Some((trade, tsl)) = state.running_map().trades_desc().next() else {
         panic!("must have trade");
     };
 
@@ -563,7 +563,7 @@ async fn test_simulated_trade_executor_trailing_stoploss_long() {
     executor.tick_update(time, 99_960.5).await.unwrap();
 
     let state = executor.trading_state().await.unwrap();
-    let Some((_, (trade, tsl))) = state.running().iter().next() else {
+    let Some((trade, tsl)) = state.running_map().trades_desc().next() else {
         panic!("must have trade");
     };
 
@@ -614,7 +614,7 @@ async fn test_simulated_trade_executor_trailing_stoploss_short() {
         .unwrap();
 
     let state = executor.trading_state().await.unwrap();
-    let Some((_, (trade, tsl))) = state.running().iter().next() else {
+    let Some((trade, tsl)) = state.running_map().trades_desc().next() else {
         panic!("must have trade");
     };
 
@@ -636,7 +636,7 @@ async fn test_simulated_trade_executor_trailing_stoploss_short() {
     executor.tick_update(time, 98_000.0).await.unwrap();
 
     let state = executor.trading_state().await.unwrap();
-    let Some((_, (trade, tsl))) = state.running().iter().next() else {
+    let Some((trade, tsl)) = state.running_map().trades_desc().next() else {
         panic!("must have trade");
     };
 
@@ -652,7 +652,7 @@ async fn test_simulated_trade_executor_trailing_stoploss_short() {
     executor.tick_update(time, 99_959.5).await.unwrap();
 
     let state = executor.trading_state().await.unwrap();
-    let Some((_, (trade, tsl))) = state.running().iter().next() else {
+    let Some((trade, tsl)) = state.running_map().trades_desc().next() else {
         panic!("must have trade");
     };
 
@@ -761,7 +761,11 @@ async fn test_simulated_trade_executor_partial_cash_in_short_profit() -> Result<
     // Step 4: Cash_in
 
     let state = executor.trading_state().await?;
-    let (trade, _) = state.running().values().next().expect("has running trade");
+    let (trade, _) = state
+        .running_map()
+        .trades_desc()
+        .next()
+        .expect("has running trade");
 
     let cash_in = 5000;
 
@@ -899,7 +903,11 @@ async fn test_simulated_trade_executor_full_cash_in_short_profit() -> Result<()>
     // Step 4: Cash_in
 
     let state = executor.trading_state().await?;
-    let (trade, _) = state.running().values().next().expect("has running trade");
+    let (trade, _) = state
+        .running_map()
+        .trades_desc()
+        .next()
+        .expect("has running trade");
 
     let cash_in = 15_000;
 
@@ -1013,7 +1021,11 @@ async fn test_simulated_trade_executor_add_margin_short_loss() -> Result<()> {
     executor.tick_update(time, market_price).await?;
 
     let state = executor.trading_state().await?;
-    let (trade, _) = state.running().values().next().expect("has running trade");
+    let (trade, _) = state
+        .running_map()
+        .trades_desc()
+        .next()
+        .expect("has running trade");
 
     assert_eq!(state.last_tick_time(), time);
     assert_eq!(state.balance(), expected_balance);
