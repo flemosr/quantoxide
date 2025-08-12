@@ -1,6 +1,6 @@
 use std::{
     cell::OnceCell,
-    collections::BTreeMap,
+    collections::{BTreeMap, HashMap},
     fmt,
     num::NonZeroU64,
     panic::{self, AssertUnwindSafe},
@@ -13,13 +13,103 @@ use futures::FutureExt;
 use uuid::Uuid;
 
 use lnm_sdk::api::rest::models::{
-    BoundedPercentage, Leverage, LnmTrade, LowerBoundedPercentage, Price, Trade, TradeClosed,
-    TradeRunning, TradeSide, TradeSize,
+    BoundedPercentage, Leverage, LowerBoundedPercentage, Price, Trade, TradeClosed, TradeRunning,
+    TradeSide, TradeSize,
 };
 
 use crate::{db::models::PriceHistoryEntryLOCF, signal::core::Signal, util::DateTimeExt};
 
 use super::error::{Result, TradeError};
+
+#[derive(Debug)]
+pub struct RunningTradesMap<T: TradeRunning + ?Sized> {
+    trades: BTreeMap<(DateTime<Utc>, Uuid), (Arc<T>, Option<TradeTrailingStoploss>)>,
+    id_to_time: HashMap<Uuid, DateTime<Utc>>,
+}
+
+pub type DynRunningTradesMap = RunningTradesMap<dyn TradeRunning>;
+
+impl<T: TradeRunning + ?Sized> RunningTradesMap<T> {
+    pub(crate) fn new() -> Self {
+        Self {
+            trades: BTreeMap::new(),
+            id_to_time: HashMap::new(),
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.trades.is_empty()
+    }
+
+    pub(crate) fn add(&mut self, trade: Arc<T>, trade_tsl: Option<TradeTrailingStoploss>) {
+        self.id_to_time.insert(trade.id(), trade.creation_ts());
+        self.trades
+            .insert((trade.creation_ts(), trade.id()), (trade, trade_tsl));
+    }
+
+    pub fn len(&self) -> usize {
+        self.id_to_time.len()
+    }
+
+    pub fn contains(&self, trade_id: &Uuid) -> bool {
+        self.id_to_time.get(trade_id).is_some()
+    }
+
+    pub fn get_trade_by_id(&self, id: Uuid) -> Option<&(Arc<T>, Option<TradeTrailingStoploss>)> {
+        self.id_to_time
+            .get(&id)
+            .and_then(|creation_ts| self.trades.get(&(*creation_ts, id)))
+    }
+
+    pub(crate) fn get_trade_by_id_mut(
+        &mut self,
+        id: Uuid,
+    ) -> Option<&mut (Arc<T>, Option<TradeTrailingStoploss>)> {
+        self.id_to_time
+            .get(&id)
+            .and_then(|creation_ts| self.trades.get_mut(&(*creation_ts, id)))
+    }
+
+    pub fn trades_desc(&self) -> impl Iterator<Item = &(Arc<T>, Option<TradeTrailingStoploss>)> {
+        self.trades.iter().rev().map(|(_, trade_tuple)| trade_tuple)
+    }
+
+    pub(crate) fn trades_desc_mut(
+        &mut self,
+    ) -> impl Iterator<Item = &mut (Arc<T>, Option<TradeTrailingStoploss>)> {
+        self.trades
+            .iter_mut()
+            .rev()
+            .map(|(_, trade_tuple)| trade_tuple)
+    }
+}
+
+impl<T: TradeRunning> RunningTradesMap<T> {
+    pub(crate) fn into_dyn(self) -> DynRunningTradesMap {
+        let dyn_trades = self
+            .trades
+            .into_iter()
+            .map(|(key, (trade, stoploss))| {
+                let dyn_trade: Arc<dyn TradeRunning> = trade;
+                (key, (dyn_trade, stoploss))
+            })
+            .collect();
+
+        RunningTradesMap {
+            trades: dyn_trades,
+            id_to_time: self.id_to_time,
+        }
+    }
+}
+
+impl<T: TradeRunning + ?Sized> Clone for RunningTradesMap<T> {
+    fn clone(&self) -> Self {
+        Self {
+            trades: self.trades.clone(),
+            id_to_time: self.id_to_time.clone(),
+        }
+    }
+}
 
 #[derive(Debug, Clone)]
 struct RunningStats {
