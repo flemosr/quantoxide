@@ -193,8 +193,6 @@ impl BacktestTui {
             ));
         }
 
-        // Now we have the info we need to finish setting up the chart
-
         self.tui_view.initialize_chart(
             engine.start_time(),
             engine.end_time(),
