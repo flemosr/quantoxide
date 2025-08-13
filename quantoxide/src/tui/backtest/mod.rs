@@ -20,7 +20,7 @@ use crate::{
 
 use super::{
     config::TuiConfig,
-    core::{self, LogInTui, TuiControllerShutdown},
+    core::{self, TuiControllerShutdown, TuiLogger},
     error::{Result, TuiError},
     status::{TuiStatus, TuiStatusManager, TuiStatusStopped},
     terminal::TuiTerminal,
@@ -265,7 +265,7 @@ impl BacktestTui {
 }
 
 #[async_trait]
-impl LogInTui for BacktestTui {
+impl TuiLogger for BacktestTui {
     async fn log(&self, log_entry: String) -> Result<()> {
         self.status_manager.require_running()?;
 

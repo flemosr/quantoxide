@@ -257,6 +257,6 @@ where
 }
 
 #[async_trait]
-pub trait LogInTui: Send + Sync {
+pub trait TuiLogger: Send + Sync {
     async fn log(&self, log_entry: String) -> Result<()>;
 }
