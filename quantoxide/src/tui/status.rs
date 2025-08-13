@@ -2,7 +2,7 @@ use std::sync::{Arc, Mutex};
 
 use super::{
     error::{Result, TuiError},
-    view::TuiLogger,
+    view::TuiLogManager,
 };
 
 #[derive(Debug, PartialEq)]
@@ -52,12 +52,12 @@ impl From<Arc<TuiStatusStopped>> for TuiStatus {
     }
 }
 
-pub struct TuiStatusManager<TView: TuiLogger> {
+pub struct TuiStatusManager<TView: TuiLogManager> {
     logger: Arc<TView>,
     status: Mutex<TuiStatus>,
 }
 
-impl<TView: TuiLogger> TuiStatusManager<TView> {
+impl<TView: TuiLogManager> TuiStatusManager<TView> {
     pub fn new_running(logger: Arc<TView>) -> Arc<Self> {
         Arc::new(Self {
             logger,

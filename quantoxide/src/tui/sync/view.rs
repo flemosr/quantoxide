@@ -12,7 +12,7 @@ use strum::EnumIter;
 use super::{
     super::{
         error::Result,
-        view::{TuiLogger, TuiView},
+        view::{TuiLogManager, TuiView},
     },
     SyncUiMessage,
 };
@@ -69,7 +69,7 @@ impl SyncTuiView {
     }
 }
 
-impl TuiLogger for SyncTuiView {
+impl TuiLogManager for SyncTuiView {
     type State = SyncTuiViewState;
 
     fn get_max_tui_log_len(&self) -> usize {

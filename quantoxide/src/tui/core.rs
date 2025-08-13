@@ -21,7 +21,7 @@ use super::{
     error::{Result, TuiError},
     status::{TuiStatus, TuiStatusManager},
     terminal::TuiTerminal,
-    view::{TuiLogger, TuiView},
+    view::{TuiLogManager, TuiView},
 };
 
 pub fn open_log_file(log_file_path: Option<&str>) -> Result<Option<File>> {
@@ -148,7 +148,7 @@ pub async fn shutdown_inner<TView, TMessage, Fut, F>(
     live_controller: Option<Arc<dyn TuiControllerShutdown>>,
 ) -> Result<()>
 where
-    TView: TuiLogger,
+    TView: TuiLogManager,
     TMessage: Send + 'static,
     Fut: Future<Output = std::result::Result<(), SendError<TMessage>>>,
     F: FnOnce() -> Fut,
@@ -232,7 +232,7 @@ pub fn spawn_shutdown_signal_listener<TView, TMessage, Fut, F>(
     sync_controller: Arc<OnceCell<Arc<dyn TuiControllerShutdown>>>,
 ) -> AbortOnDropHandle<()>
 where
-    TView: TuiLogger,
+    TView: TuiLogManager,
     TMessage: Send + 'static,
     Fut: Future<Output = std::result::Result<(), SendError<TMessage>>> + Send,
     F: FnOnce() -> Fut + Send + 'static,
