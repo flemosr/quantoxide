@@ -111,8 +111,6 @@ pub trait TuiView: TuiLogManager {
 
     type TuiPane: IntoEnumIterator;
 
-    // type State;
-
     fn render(&self, f: &mut Frame);
 
     /// Handle a UI message and return whether shutdown was completed
