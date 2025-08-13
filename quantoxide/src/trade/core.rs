@@ -404,7 +404,7 @@ impl fmt::Display for TradingState {
     }
 }
 
-pub struct ClosedTradeHistory<T: TradeClosed>(BTreeMap<DateTime<Utc>, T>);
+pub struct ClosedTradeHistory<T: TradeClosed>(BTreeMap<(DateTime<Utc>, Uuid), T>);
 
 impl<T: TradeClosed> ClosedTradeHistory<T> {
     pub fn new() -> Self {
@@ -416,7 +416,7 @@ impl<T: TradeClosed> ClosedTradeHistory<T> {
             return Err(TradeError::Generic("`trade` is not closed".to_string()));
         }
 
-        self.0.insert(trade.creation_ts(), trade);
+        self.0.insert((trade.creation_ts(), trade.id()), trade);
         Ok(())
     }
 
