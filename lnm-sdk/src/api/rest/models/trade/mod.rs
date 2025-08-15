@@ -8,13 +8,13 @@ use chrono::{
     serde::{ts_milliseconds, ts_milliseconds_option},
 };
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 
-use crate::api::rest::models::error::TradeValidationError;
+pub use uuid::Uuid;
 
-use super::error::ValidationError;
 use super::{
-    Leverage, Margin, Price, Quantity, error::FuturesTradeRequestValidationError, serde_util,
+    Leverage, Margin, Price, Quantity,
+    error::{FuturesTradeRequestValidationError, TradeValidationError, ValidationError},
+    serde_util,
 };
 
 pub mod util;
