@@ -660,11 +660,6 @@ impl BacktestEngine {
                 .map_err(|e| BacktestError::Generic(e.to_string()))?;
         }
 
-        trades_executor
-            .close_all()
-            .await
-            .map_err(|e| BacktestError::Generic(e.to_string()))?;
-
         let final_state = trades_executor
             .trading_state()
             .await
