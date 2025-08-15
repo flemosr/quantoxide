@@ -20,6 +20,6 @@ pub use ticker::Ticker;
 pub use trade::{
     FuturesTradeRequestBody, FuturesUpdateTradeRequestBody, LnmTrade, NestedTradesResponse, Trade,
     TradeClosed, TradeExecution, TradeExecutionType, TradeRunning, TradeSide, TradeSize,
-    TradeStatus, TradeUpdateType, util as trade_util,
+    TradeStatus, TradeUpdateType, Uuid, util as trade_util,
 };
 pub use user::{User, UserRole};
