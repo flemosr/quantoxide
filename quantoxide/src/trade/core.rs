@@ -207,6 +207,12 @@ impl TradingState {
         self.last_tick_time
     }
 
+    pub fn total_net_value(&self) -> u64 {
+        self.balance
+            .saturating_add(self.running_margin())
+            .saturating_add_signed(self.running_pl())
+    }
+
     pub fn balance(&self) -> u64 {
         self.balance
     }
@@ -303,6 +309,7 @@ impl TradingState {
             .map_or("null".to_string(), |lttl| lttl.format_local_millis());
         result.push_str(&format!("  last_trade_time: {lttl_str}\n"));
 
+        result.push_str(&format!("total_net_value: {}\n", self.total_net_value()));
         result.push_str(&format!("balance: {}\n", self.balance));
         result.push_str(&format!("market_price: {:.1}\n", self.market_price));
 
