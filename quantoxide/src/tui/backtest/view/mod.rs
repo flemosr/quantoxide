@@ -207,7 +207,7 @@ impl TuiView for BacktestTuiView {
     fn handle_ui_message(&self, message: Self::UiMessage) -> Result<bool> {
         match message {
             BacktestUiMessage::StateUpdate(state) => {
-                self.add_chart_point(state.last_tick_time(), state.balance());
+                self.add_chart_point(state.last_tick_time(), state.total_net_value());
 
                 self.update_pane_content(
                     BacktestTuiPane::TradingStatePane,
