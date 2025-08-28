@@ -18,9 +18,9 @@ use super::{
     BacktestUiMessage,
 };
 
-mod balance_chart;
+mod net_value_chart;
 
-use balance_chart::BalanceChartData;
+use net_value_chart::BalanceChartData;
 
 #[derive(Debug, PartialEq, EnumIter)]
 pub enum BacktestTuiPane {
