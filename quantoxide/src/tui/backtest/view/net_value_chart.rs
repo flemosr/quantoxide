@@ -8,22 +8,22 @@ use ratatui::{
     widgets::{Axis, Block, Borders, Chart, Dataset, GraphType},
 };
 
-pub struct BalanceChartData {
+pub struct NetValueChartData {
     title: String,
     data: Vec<(f64, f64)>,
     start_time: f64,
     end_time: f64,
-    max_balance: f64,
+    max_net_value: f64,
 }
 
-impl BalanceChartData {
+impl NetValueChartData {
     pub fn new() -> Self {
         Self {
             title: "No Data Available".to_string(),
             data: vec![],
             start_time: 0.0,
             end_time: 0.0,
-            max_balance: 0.0,
+            max_net_value: 0.0,
         }
     }
 
@@ -31,32 +31,32 @@ impl BalanceChartData {
         &mut self,
         start_time: DateTime<Utc>,
         end_time: DateTime<Utc>,
-        start_balance: u64,
+        start_net_value: u64,
     ) {
         let start_time = start_time.timestamp() as f64;
-        let start_balance = start_balance as f64;
+        let start_net_value = start_net_value as f64;
 
-        self.title = "Balance over time".to_string();
+        self.title = "Total net value over time".to_string();
         self.start_time = start_time;
         self.end_time = end_time.timestamp() as f64;
-        self.max_balance = start_balance;
+        self.max_net_value = start_net_value;
 
-        self.data.push((start_time, start_balance))
+        self.data.push((start_time, start_net_value))
     }
 
-    pub fn add_point(&mut self, time: DateTime<Utc>, balance: u64) {
-        let balance = balance as f64;
+    pub fn add_point(&mut self, time: DateTime<Utc>, total_net_value: u64) {
+        let total_net_value = total_net_value as f64;
 
-        if balance > self.max_balance {
-            self.max_balance = balance;
+        if total_net_value > self.max_net_value {
+            self.max_net_value = total_net_value;
         }
 
-        self.data.push((time.timestamp() as f64, balance))
+        self.data.push((time.timestamp() as f64, total_net_value))
     }
 
     pub fn to_widget(&self) -> Chart<'_> {
         let y_min = 0.; // Keep y axis starting at 0
-        let y_max = self.max_balance * 1.1; // Add padding to max_balance
+        let y_max = self.max_net_value * 1.1; // Add padding to max_net_value
 
         let datasets = vec![
             Dataset::default()

@@ -20,7 +20,7 @@ use super::{
 
 mod net_value_chart;
 
-use net_value_chart::BalanceChartData;
+use net_value_chart::NetValueChartData;
 
 #[derive(Debug, PartialEq, EnumIter)]
 pub enum BacktestTuiPane {
@@ -32,7 +32,7 @@ pub struct BacktestTuiViewState {
     log_file: Option<File>,
     active_pane: BacktestTuiPane,
 
-    chart_data: BalanceChartData,
+    chart_data: NetValueChartData,
 
     td_state_lines: Vec<String>,
     td_state_max_line_width: usize,
@@ -60,7 +60,7 @@ impl BacktestTuiView {
                 log_file,
                 active_pane: BacktestTuiPane::LogPane,
 
-                chart_data: BalanceChartData::new(),
+                chart_data: NetValueChartData::new(),
 
                 td_state_lines: vec!["Initializing...".to_string()],
                 td_state_max_line_width: 0,
