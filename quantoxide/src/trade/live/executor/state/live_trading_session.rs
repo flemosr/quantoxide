@@ -327,7 +327,7 @@ impl LiveTradingSession {
         self.update_running_trades(updated_trades_map)
     }
 
-    pub fn close_trades(&mut self, closed_trades: &Vec<LnmTrade>) -> LiveResult<()> {
+    pub fn close_trades(&mut self, closed_trades: &[LnmTrade]) -> LiveResult<()> {
         if closed_trades.is_empty() {
             return Ok(());
         }
