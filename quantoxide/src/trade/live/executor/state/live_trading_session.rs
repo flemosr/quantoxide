@@ -1,4 +1,4 @@
-use std::{collections::HashMap, result, sync::Arc};
+use std::{collections::HashMap, result, slice, sync::Arc};
 
 use chrono::{DateTime, Utc};
 use futures::future;
@@ -395,6 +395,10 @@ impl LiveTradingSession {
         self.closed_fees = new_closed_fees;
 
         Ok(())
+    }
+
+    pub fn close_trade(&mut self, closed_trade: &LnmTrade) -> LiveResult<()> {
+        self.close_trades(slice::from_ref(closed_trade))
     }
 }
 
