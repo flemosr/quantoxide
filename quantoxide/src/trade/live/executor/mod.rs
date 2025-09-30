@@ -507,7 +507,7 @@ impl TradeExecutor for LiveTradeExecutor {
             )));
         };
 
-        let close_trade = match self.api.close_trade(trade_id).await {
+        let closed_trade = match self.api.close_trade(trade_id).await {
             Ok(trade) => trade,
             Err(e) => {
                 let new_status_not_ready = LiveTradeExecutorStatusNotReady::Failed(
@@ -521,13 +521,18 @@ impl TradeExecutor for LiveTradeExecutor {
 
         self.db
             .running_trades
-            .remove_running_trades(&[close_trade.id()])
+            .remove_running_trades(&[closed_trade.id()])
             .await
             .map_err(|e| LiveError::Generic(e.to_string()))?;
 
         let mut new_trading_session = locked_ready_state.trading_session().to_owned();
 
-        new_trading_session.close_trades(&vec![close_trade])?;
+        new_trading_session.close_trade(&closed_trade)?;
+
+        // Ignore no-receiver errors
+        let _ = self
+            .update_tx
+            .send(LiveTradeExecutorUpdate::ClosedTrade(closed_trade));
 
         locked_ready_state
             .update_trading_session(new_trading_session)
