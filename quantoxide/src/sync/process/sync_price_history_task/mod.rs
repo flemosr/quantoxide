@@ -223,9 +223,14 @@ impl SyncPriceHistoryTask {
     }
 
     pub async fn live(self, range: Duration) -> Result<()> {
-        let history_state =
-            PriceHistoryState::evaluate_with_reach(&self.db, self.config.sync_history_reach)
-                .await?;
+        if range > self.config.sync_history_reach {
+            return Err(SyncPriceHistoryError::Generic(format!(
+                "live range {range} must be lt `sync_history_reach` {}",
+                self.config.sync_history_reach
+            )));
+        }
+
+        let history_state = PriceHistoryState::evaluate(&self.db).await?;
         self.handle_history_update(&history_state).await?;
 
         let initial_bound_end = history_state.bound_end();
@@ -235,9 +240,7 @@ impl SyncPriceHistoryTask {
         // Now it can be assumed that the history upper bound matches the current time
 
         loop {
-            let history_state =
-                PriceHistoryState::evaluate_with_reach(&self.db, self.config.sync_history_reach)
-                    .await?;
+            let history_state = PriceHistoryState::evaluate(&self.db).await?;
             self.handle_history_update(&history_state).await?;
 
             if let Some(lastest_history_range) = history_state.tail_continuous_duration() {
