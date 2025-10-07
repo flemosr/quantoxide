@@ -286,32 +286,35 @@ impl LiveProcess {
                 target_exec
             };
 
-            if !matches!(sync_reader.status_snapshot(), SyncStatus::Synced) {
+            if let SyncStatus::NotSynced(sync_status_not_synced) = sync_reader.status_snapshot() {
+                self.status_manager
+                    .update(LiveStatus::WaitingForSync(sync_status_not_synced).into());
+
                 let mut sync_rx = sync_reader.update_receiver();
                 loop {
                     tokio::select! {
                         sync_update_result = sync_rx.recv() => {
                             match sync_update_result {
-                                Ok(sync_update) => {
-                                    match sync_update {
-                                        SyncUpdate::Status(sync_status) => match sync_status {
-                                            SyncStatus::NotSynced(sync_status_not_synced) => {
-                                                self.status_manager.update(
-                                                    LiveStatus::WaitingForSync(
-                                                        sync_status_not_synced
-                                                    ).into(),
-                                                );
-                                            }
-                                            SyncStatus::Synced => break,
-                                            SyncStatus::ShutdownInitiated | SyncStatus::Shutdown => {
-                                                // Non-recoverable error
-                                                return Err(LiveError::Generic(
-                                                    "sync process was shutdown".to_string(),
-                                                ));
-                                            }
-                                        },
-                                        SyncUpdate::PriceTick(_) => break,
-                                        SyncUpdate::PriceHistoryState(_) => {}
+                                Ok(sync_update) => match sync_update {
+                                    SyncUpdate::Status(sync_status) => match sync_status {
+                                        SyncStatus::NotSynced(sync_status_not_synced) => {
+                                            self.status_manager.update(
+                                                LiveStatus::WaitingForSync(sync_status_not_synced)
+                                                    .into(),
+                                            );
+                                        }
+                                        SyncStatus::Synced => break,
+                                        SyncStatus::ShutdownInitiated | SyncStatus::Shutdown => {
+                                            // Non-recoverable error
+                                            return Err(LiveError::Generic(
+                                                "sync process was shutdown".to_string(),
+                                            ));
+                                        }
+                                    },
+                                    SyncUpdate::PriceTick(_) => break,
+                                    SyncUpdate::PriceHistoryState(_) => {
+                                        // TODO: Improve feedback on price history updates
+                                        // Sync may take a long time when `sync_mode_full: true`
                                     }
                                 }
                                 Err(e) => {
