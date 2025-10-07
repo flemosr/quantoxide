@@ -19,7 +19,7 @@ use crate::{
 
 use super::{
     config::TuiConfig,
-    core::{self, TuiLogger, TuiControllerShutdown},
+    core::{self, TuiControllerShutdown, TuiLogger},
     error::{Result, TuiError},
     status::{TuiStatus, TuiStatusManager, TuiStatusStopped},
     terminal::TuiTerminal,
