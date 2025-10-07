@@ -17,17 +17,13 @@ impl PriceHistoryState {
     async fn new(db: &DbContext, reach_opt: Option<Duration>) -> Result<Self> {
         let reach_time = reach_opt.map_or(None, |reach| Some(Utc::now() - reach));
 
-        let earliest_entry = match db.price_history.get_earliest_entry().await? {
-            Some(entry) => entry,
-            None => {
-                // DB is empty
-
-                return Ok(Self {
-                    reach_time,
-                    bounds: None,
-                    gaps: Vec::new(),
-                });
-            }
+        let Some(earliest_entry) = db.price_history.get_earliest_entry().await? else {
+            // DB is empty
+            return Ok(Self {
+                reach_time,
+                bounds: None,
+                gaps: Vec::new(),
+            });
         };
 
         let lastest_entry = db
