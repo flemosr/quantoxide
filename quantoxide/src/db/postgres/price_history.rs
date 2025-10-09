@@ -124,7 +124,7 @@ impl PriceHistoryRepository for PgPriceHistoryRepo {
         let entries = sqlx::query_as!(
             PriceHistoryEntry,
             "SELECT * FROM price_history
-             WHERE time >= $1 AND time <= $2
+             WHERE time >= $1 AND time < $2
              ORDER BY time ASC",
             start,
             end,
