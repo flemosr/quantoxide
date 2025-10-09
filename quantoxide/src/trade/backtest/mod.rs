@@ -533,7 +533,7 @@ impl BacktestEngine {
 
                 let price_ticks = db
                     .price_history
-                    .get_entries_between(time_cursor, locf_buffer_last_time)
+                    .get_entries_between(time_cursor, locf_buffer_last_time + Duration::seconds(1))
                     .await
                     .map_err(|e| BacktestError::Generic(e.to_string()))?;
 
@@ -555,10 +555,6 @@ impl BacktestEngine {
         self.status_manager.update(BacktestStatus::Running);
 
         loop {
-            if time_cursor >= self.end_time {
-                break;
-            }
-
             match &mut operator {
                 Operator::Signal {
                     evaluators,
@@ -624,7 +620,26 @@ impl BacktestEngine {
                 send_next_update_at += self.config.update_interval;
             }
 
-            time_cursor = time_cursor + Duration::seconds(1);
+            time_cursor += Duration::seconds(1);
+
+            if time_cursor >= self.end_time {
+                break;
+            }
+
+            // Update `SimulatedTradeExecutor` with all the price ticks with time lte the new
+            // `time_cursor`.
+            while let Some(next_price_tick) = price_ticks.get(price_ticks_cursor_idx) {
+                if next_price_tick.time > time_cursor {
+                    break;
+                }
+
+                trades_executor
+                    .tick_update(next_price_tick.time, next_price_tick.value)
+                    .await
+                    .map_err(|e| BacktestError::Generic(e.to_string()))?;
+
+                price_ticks_cursor_idx += 1;
+            }
 
             if locf_buffer_cursor_idx < locf_buffer.len() - 1 {
                 locf_buffer_cursor_idx += 1;
@@ -637,21 +652,6 @@ impl BacktestEngine {
                     price_ticks,
                     price_ticks_cursor_idx,
                 ) = get_buffers(time_cursor).await?;
-            }
-
-            // Update `SimulatedTradeExecutor` with all the price ticks with time lte
-            // the new `time_cursor`.
-            while let Some(next_price_tick) = price_ticks.get(price_ticks_cursor_idx) {
-                if next_price_tick.time > time_cursor {
-                    break;
-                }
-
-                trades_executor
-                    .tick_update(next_price_tick.time, next_price_tick.value)
-                    .await
-                    .map_err(|e| BacktestError::Generic(e.to_string()))?;
-
-                price_ticks_cursor_idx += 1;
             }
 
             trades_executor
