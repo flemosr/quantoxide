@@ -76,15 +76,21 @@ pub trait PriceHistoryRepository: Send + Sync {
         max: f64,
     ) -> Result<Option<PriceHistoryEntry>>;
 
-    /// Retrieves price history entries within the specified time range (inclusive).
+    /// Retrieves price history entries within a specified time range.
     ///
-    /// Parameters:
-    ///   - `start`: The lower bound timestamp (inclusive)
-    ///   - `end`: The upper bound timestamp (inclusive)
+    /// This method queries the database for all price history entries where the timestamp
+    /// falls within the half-open interval `[start, end)`. The results are ordered by
+    /// time in ascending order.
     ///
-    /// Returns:
-    ///   - `Ok(Vec<PriceHistoryEntry>)` containing entries ordered by time ascending
-    ///   - `Err` on database errors
+    /// # Arguments
+    ///
+    /// * `start` - The inclusive start of the time range (entries with `time >= start` are included)
+    /// * `end` - The exclusive end of the time range (entries with `time < end` are included)
+    ///
+    /// # Returns
+    ///
+    /// Returns `Ok(Vec<PriceHistoryEntry>)` containing all matching entries sorted by time,
+    /// or `Err(DbError)` if the database query fails.
     async fn get_entries_between(
         &self,
         start: DateTime<Utc>,
