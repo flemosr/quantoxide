@@ -282,7 +282,7 @@ impl LiveSignalProcess {
                 let start_idx = all_ctx_entries.len() - ctx_size;
                 let signal_ctx_entries = &all_ctx_entries[start_idx..];
 
-                let signal = Signal::try_evaluate(evaluator, signal_ctx_entries).await?;
+                let signal = Signal::try_evaluate(evaluator, now, signal_ctx_entries).await?;
 
                 let _ = self.update_tx.send(signal.into());
             }

@@ -170,21 +170,16 @@ pub struct Signal {
 impl Signal {
     pub(crate) async fn try_evaluate(
         evaluator: &ConfiguredSignalEvaluator,
+        time: DateTime<Utc>,
         entries: &[PriceHistoryEntryLOCF],
     ) -> Result<Self> {
         let signal_action = evaluator.evaluate(entries).await?;
 
-        let last_ctx_entry = entries
-            .last()
-            .ok_or(SignalError::Generic("empty context".to_string()))?;
-
-        let signal = Signal {
-            time: last_ctx_entry.time,
+        Ok(Signal {
+            time,
             name: evaluator.name().clone(),
             action: signal_action,
-        };
-
-        Ok(signal)
+        })
     }
 
     pub fn time(&self) -> DateTime<Utc> {
