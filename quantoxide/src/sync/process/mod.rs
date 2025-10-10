@@ -175,15 +175,16 @@ impl SyncProcess {
         let mut real_time_collection_handle =
             self.spawn_real_time_collection_task(price_tick_tx.clone());
 
-        // Ensure the database contains all entries from the last `range` duration
-        // (e.g., if range is 1 hour, we need all data from the past hour available).
+        if range > Duration::zero() {
+            // Backfill historical price data for the specified range.
 
-        let (history_state_tx, history_state_rx) = mpsc::channel::<PriceHistoryState>(100);
+            let (history_state_tx, history_state_rx) = mpsc::channel::<PriceHistoryState>(100);
 
-        self.spawn_history_state_update_handler(history_state_rx);
+            self.spawn_history_state_update_handler(history_state_rx);
 
-        self.run_price_history_task_live(Some(history_state_tx), range)
-            .await?;
+            self.run_price_history_task_live(Some(history_state_tx), range)
+                .await?;
+        }
 
         if real_time_collection_handle.is_finished() {
             real_time_collection_handle
