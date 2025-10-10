@@ -163,8 +163,8 @@ impl PriceTicksRepository for PgPriceTicksRepo {
         time: DateTime<Utc>,
         range_secs: usize,
     ) -> Result<Vec<PriceHistoryEntryLOCF>> {
-        if range_secs < 1 {
-            return Err(DbError::Generic("`range_secs` must be gte 1".to_string()));
+        if range_secs == 0 {
+            return Ok(Vec::new());
         }
 
         let end_locf_sec = time.trunc_subsecs(0);
