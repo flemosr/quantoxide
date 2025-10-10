@@ -524,23 +524,13 @@ impl BacktestEngine {
                         .map_err(|e| BacktestError::Generic(e.to_string()))?
                 };
 
-                let locf_buffer_cursor_idx = max_ctx_window.checked_sub(1).unwrap_or(0);
-
-                // FIXME: Redundant with `compute_locf_entries_for_range` checks
-                if max_ctx_window != 0
-                    && (locf_buffer.len() != buffer_size
-                        || locf_buffer[locf_buffer_cursor_idx].time != time_cursor)
-                {
-                    return Err(BacktestError::Generic(
-                        "unexpected `eval_entries_locf` result".to_string(),
-                    ));
-                }
-
                 let price_ticks = db
                     .price_history
                     .get_entries_between(time_cursor, buffer_end + Duration::seconds(1))
                     .await
                     .map_err(|e| BacktestError::Generic(e.to_string()))?;
+
+                let locf_buffer_cursor_idx = max_ctx_window.checked_sub(1).unwrap_or(0);
 
                 Ok::<_, BacktestError>((
                     buffer_end,
