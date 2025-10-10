@@ -507,7 +507,7 @@ impl BacktestEngine {
         let get_buffers = |time_cursor: DateTime<Utc>| {
             let db = &self.db;
             async move {
-                let locf_buffer_last_time = time_cursor
+                let buffer_end = time_cursor
                     .checked_add_signed(Duration::seconds(
                         buffer_size as i64 - max_ctx_window as i64,
                     ))
@@ -515,16 +515,21 @@ impl BacktestEngine {
                         "buffer date out of range".to_string(),
                     ))?;
 
-                let locf_buffer = db
-                    .price_ticks
-                    .compute_locf_entries_for_range(locf_buffer_last_time, buffer_size)
-                    .await
-                    .map_err(|e| BacktestError::Generic(e.to_string()))?;
+                let locf_buffer = if max_ctx_window == 0 {
+                    Vec::new()
+                } else {
+                    db.price_ticks
+                        .compute_locf_entries_for_range(buffer_end, buffer_size)
+                        .await
+                        .map_err(|e| BacktestError::Generic(e.to_string()))?
+                };
 
-                let locf_buffer_cursor_idx = max_ctx_window - 1;
+                let locf_buffer_cursor_idx = max_ctx_window.checked_sub(1).unwrap_or(0);
 
-                if locf_buffer.len() != buffer_size
-                    || locf_buffer[locf_buffer_cursor_idx].time != time_cursor
+                // FIXME: Redundant with `compute_locf_entries_for_range` checks
+                if max_ctx_window != 0
+                    && (locf_buffer.len() != buffer_size
+                        || locf_buffer[locf_buffer_cursor_idx].time != time_cursor)
                 {
                     return Err(BacktestError::Generic(
                         "unexpected `eval_entries_locf` result".to_string(),
@@ -533,17 +538,24 @@ impl BacktestEngine {
 
                 let price_ticks = db
                     .price_history
-                    .get_entries_between(time_cursor, locf_buffer_last_time + Duration::seconds(1))
+                    .get_entries_between(time_cursor, buffer_end + Duration::seconds(1))
                     .await
                     .map_err(|e| BacktestError::Generic(e.to_string()))?;
 
-                Ok::<_, BacktestError>((locf_buffer, locf_buffer_cursor_idx, price_ticks, 0))
+                Ok::<_, BacktestError>((
+                    buffer_end,
+                    locf_buffer,
+                    locf_buffer_cursor_idx,
+                    price_ticks,
+                    0,
+                ))
             }
         };
 
         let mut time_cursor = self.start_time;
 
         let (
+            mut buffer_end,
             mut locf_buffer,
             mut locf_buffer_cursor_idx,
             mut price_ticks,
@@ -569,10 +581,14 @@ impl BacktestEngine {
 
                         let ctx_window_size = evaluator.context_window_secs();
 
-                        let ctx_entries = &locf_buffer
-                            [locf_buffer_cursor_idx + 1 - ctx_window_size..=locf_buffer_cursor_idx];
+                        let ctx_entries = if ctx_window_size == 0 {
+                            &[]
+                        } else {
+                            &locf_buffer[locf_buffer_cursor_idx + 1 - ctx_window_size
+                                ..=locf_buffer_cursor_idx]
+                        };
 
-                        let signal = Signal::try_evaluate(evaluator, ctx_entries)
+                        let signal = Signal::try_evaluate(evaluator, time_cursor, ctx_entries)
                             .await
                             .map_err(|e| BacktestError::Generic(e.to_string()))?;
 
@@ -597,8 +613,12 @@ impl BacktestEngine {
                             .context_window_secs()
                             .map_err(|e| BacktestError::Generic(e.to_string()))?;
 
-                        let ctx_entries = &locf_buffer
-                            [locf_buffer_cursor_idx + 1 - ctx_window_size..=locf_buffer_cursor_idx];
+                        let ctx_entries = if ctx_window_size == 0 {
+                            &[]
+                        } else {
+                            &locf_buffer[locf_buffer_cursor_idx + 1 - ctx_window_size
+                                ..=locf_buffer_cursor_idx]
+                        };
 
                         raw_operator
                             .iterate(ctx_entries)
@@ -641,12 +661,11 @@ impl BacktestEngine {
                 price_ticks_cursor_idx += 1;
             }
 
-            if locf_buffer_cursor_idx < locf_buffer.len() - 1 {
+            if time_cursor <= buffer_end {
                 locf_buffer_cursor_idx += 1;
             } else {
-                // Reached the end of the current buffer
-
                 (
+                    buffer_end,
                     locf_buffer,
                     locf_buffer_cursor_idx,
                     price_ticks,
