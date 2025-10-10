@@ -256,13 +256,6 @@ impl LiveSignalProcess {
                 .await
                 .map_err(|_| SignalError::Generic("db error".to_string()))?;
 
-            let last_ctx_entry = all_ctx_entries
-                .last()
-                .ok_or(SignalError::Generic("empty context".to_string()))?;
-            if now != last_ctx_entry.time {
-                return Err(SignalError::Generic("invalid context".to_string()));
-            }
-
             next_eval = DateTime::<Utc>::MAX_UTC;
 
             for (last_eval, evaluator) in evaluators.iter_mut() {
@@ -277,9 +270,7 @@ impl LiveSignalProcess {
                     next_eval = evaluator_next_eval;
                 }
 
-                let ctx_size = evaluator.context_window_secs();
-
-                let start_idx = all_ctx_entries.len() - ctx_size;
+                let start_idx = all_ctx_entries.len() - evaluator.context_window_secs();
                 let signal_ctx_entries = &all_ctx_entries[start_idx..];
 
                 let signal = Signal::try_evaluate(evaluator, now, signal_ctx_entries).await?;
