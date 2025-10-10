@@ -341,30 +341,11 @@ impl LiveProcess {
                 .context_window_secs()
                 .map_err(|e| LiveError::Generic(e.to_string()))?;
 
-            if ctx_window == 0 {
-                raw_operator
-                    .iterate(&[])
-                    .await
-                    .map_err(|e| LiveError::Generic(e.to_string()))?;
-
-                continue;
-            }
-
             let ctx_entries = db
                 .price_ticks
                 .compute_locf_entries_for_range(now, ctx_window)
                 .await
                 .map_err(|_| LiveError::Generic("db error".to_string()))?;
-
-            if ctx_entries.len() < ctx_window {
-                return Err(LiveError::Generic("not enough context".to_string()));
-            }
-            let last_ctx_entry = ctx_entries
-                .last()
-                .ok_or(LiveError::Generic("empty context".to_string()))?;
-            if now != last_ctx_entry.time {
-                return Err(LiveError::Generic("invalid context".to_string()));
-            }
 
             raw_operator
                 .iterate(ctx_entries.as_slice())
