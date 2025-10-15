@@ -190,7 +190,4 @@ pub enum ValidationError {
 
     #[error("[TradeValidation] {0}")]
     TradeValidation(#[from] TradeValidationError),
-
-    #[error("[Generic] {0}")]
-    Generic(String),
 }
