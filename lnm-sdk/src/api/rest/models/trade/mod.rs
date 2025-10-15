@@ -13,7 +13,7 @@ pub use uuid::Uuid;
 
 use super::{
     Leverage, Margin, Price, Quantity,
-    error::{FuturesTradeRequestValidationError, TradeValidationError, ValidationError},
+    error::{FuturesTradeRequestValidationError, QuantityValidationError, TradeValidationError},
     serde_util,
 };
 
@@ -49,7 +49,7 @@ impl TradeSize {
         &self,
         price: Price,
         leverage: Leverage,
-    ) -> Result<(Quantity, Margin), ValidationError> {
+    ) -> Result<(Quantity, Margin), QuantityValidationError> {
         match self {
             TradeSize::Margin(margin) => {
                 let quantity = Quantity::try_calculate(*margin, price, leverage)?;
