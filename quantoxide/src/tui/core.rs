@@ -6,7 +6,7 @@ use std::{
 };
 
 use async_trait::async_trait;
-use crossterm::event::{self, Event, KeyCode};
+use ratatui::crossterm::event::{self, Event, KeyCode, KeyModifiers};
 use tokio::{
     sync::{
         OnceCell,
