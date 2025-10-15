@@ -197,7 +197,7 @@ pub trait TuiView: TuiLogManager {
 
         let help_area = Self::get_help_area(f);
 
-        let help_text = " Press 'q' to quit, Tab to switch panes, scroll with ↑/↓, ←/→, 'b' to bottom and 't' to top";
+        let help_text = " Press Ctrl+C to shutdown, Tab to switch panes, scroll with Up/Down, Left/Right, 'b' to bottom and 't' to top";
         let help_paragraph = Paragraph::new(help_text).style(Style::default().fg(Color::Gray));
         f.render_widget(help_paragraph, help_area);
     }
