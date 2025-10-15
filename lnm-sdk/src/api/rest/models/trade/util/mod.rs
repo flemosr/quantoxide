@@ -51,7 +51,7 @@ pub fn evaluate_open_trade_params(
 ) -> Result<(Quantity, Margin, Price, u64, u64), TradeValidationError> {
     let (quantity, margin) = size
         .to_quantity_and_margin(entry_price, leverage)
-        .map_err(|e| TradeValidationError::Generic(e.to_string()))?;
+        .map_err(TradeValidationError::TradeParamsInvalidQuantity)?;
 
     let liquidation = estimate_liquidation_price(side, quantity, entry_price, leverage);
 
@@ -172,17 +172,17 @@ pub fn evaluate_new_stoploss(
                 });
             }
             if new_stoploss >= market_price {
-                return Err(TradeValidationError::Generic(format!(
-                    "For long position, stoploss ({}) must be below market price ({})",
-                    new_stoploss, market_price
-                )));
+                return Err(TradeValidationError::NewStoplossNotBelowMarketForLong {
+                    new_stoploss,
+                    market_price,
+                });
             }
             if let Some(takeprofit) = takeprofit {
                 if new_stoploss >= takeprofit {
-                    return Err(TradeValidationError::Generic(format!(
-                        "For long position, stoploss ({}) must be below takeprofit ({})",
-                        new_stoploss, takeprofit
-                    )));
+                    return Err(TradeValidationError::NewStoplossNotBelowTakeprofitForLong {
+                        new_stoploss,
+                        takeprofit,
+                    });
                 }
             }
         }
@@ -194,17 +194,19 @@ pub fn evaluate_new_stoploss(
                 });
             }
             if new_stoploss <= market_price {
-                return Err(TradeValidationError::Generic(format!(
-                    "For short position, stoploss ({}) must be above market price ({})",
-                    new_stoploss, market_price
-                )));
+                return Err(TradeValidationError::NewStoplossNotAboveMarketForShort {
+                    new_stoploss,
+                    market_price,
+                });
             }
             if let Some(takeprofit) = takeprofit {
                 if new_stoploss <= takeprofit {
-                    return Err(TradeValidationError::Generic(format!(
-                        "For short position, stoploss ({}) must be above takeprofit ({})",
-                        new_stoploss, takeprofit
-                    )));
+                    return Err(
+                        TradeValidationError::NewStoplossNotAboveTakeprofitForShort {
+                            new_stoploss,
+                            takeprofit,
+                        },
+                    );
                 }
             }
         }
@@ -222,11 +224,8 @@ pub fn evaluate_added_margin(
 ) -> Result<(Margin, Leverage, Price), TradeValidationError> {
     let new_margin = current_margin + amount.into();
 
-    let new_leverage = Leverage::try_calculate(quantity, new_margin, price).map_err(|e| {
-        TradeValidationError::Generic(format!(
-            "added margin would result in invalid leverage: {e}"
-        ))
-    })?;
+    let new_leverage = Leverage::try_calculate(quantity, new_margin, price)
+        .map_err(TradeValidationError::AddedMarginInvalidLeverage)?;
 
     let new_liquidation = estimate_liquidation_price(side, quantity, price, new_leverage);
 
@@ -264,14 +263,12 @@ pub fn evaluate_cash_in(
         // Only PL will be cashed-in. Margin shouldn't change
         margin
     } else {
-        Margin::try_from(margin.into_u64().saturating_sub(remaining_amount)).map_err(|e| {
-            TradeValidationError::Generic(format!("cash-in would result in invalid margin: {e}"))
-        })?
+        Margin::try_from(margin.into_u64().saturating_sub(remaining_amount))
+            .map_err(TradeValidationError::CashInInvalidMargin)?
     };
 
-    let new_leverage = Leverage::try_calculate(quantity, new_margin, new_price).map_err(|e| {
-        TradeValidationError::Generic(format!("cash-in would result in invalid leverage: {e}"))
-    })?;
+    let new_leverage = Leverage::try_calculate(quantity, new_margin, new_price)
+        .map_err(TradeValidationError::CashInInvalidLeverage)?;
     let new_liquidation = estimate_liquidation_price(side, quantity, new_price, new_leverage);
 
     let new_stoploss = stoploss.and_then(|sl| {
