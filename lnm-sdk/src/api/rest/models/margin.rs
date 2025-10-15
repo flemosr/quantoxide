@@ -39,16 +39,16 @@ impl Margin {
     ) -> Result<Self, TradeValidationError> {
         match side {
             TradeSide::Buy if liquidation >= price => {
-                return Err(TradeValidationError::Generic(
-                    "For buy positions, liquidation price must be lower than entry price"
-                        .to_string(),
-                ));
+                return Err(TradeValidationError::LiquidationNotBelowPriceForLong {
+                    liquidation,
+                    price,
+                });
             }
             TradeSide::Sell if liquidation <= price => {
-                return Err(TradeValidationError::Generic(
-                    "For sell positions, liquidation price must be higher than entry price"
-                        .to_string(),
-                ));
+                return Err(TradeValidationError::LiquidationNotAbovePriceForShort {
+                    liquidation,
+                    price,
+                });
             }
             _ => {}
         }
