@@ -120,8 +120,55 @@ pub enum TradeValidationError {
         entry_price: Price,
     },
 
-    #[error("[Generic] {0}")]
-    Generic(String),
+    #[error("Trade params result in invalid quantity: {0}")]
+    TradeParamsInvalidQuantity(QuantityValidationError),
+
+    #[error(
+        "New stoploss ({new_stoploss}) must be below market price ({market_price}) for long positions"
+    )]
+    NewStoplossNotBelowMarketForLong {
+        new_stoploss: Price,
+        market_price: Price,
+    },
+
+    #[error(
+        "New stoploss ({new_stoploss}) must be below takeprofit ({takeprofit}) for long positions"
+    )]
+    NewStoplossNotBelowTakeprofitForLong {
+        new_stoploss: Price,
+        takeprofit: Price,
+    },
+
+    #[error(
+        "New stoploss ({new_stoploss}) must be above market price ({market_price}) for short positions"
+    )]
+    NewStoplossNotAboveMarketForShort {
+        new_stoploss: Price,
+        market_price: Price,
+    },
+
+    #[error(
+        "New stoploss ({new_stoploss}) must be above takeprofit ({takeprofit}) for short positions"
+    )]
+    NewStoplossNotAboveTakeprofitForShort {
+        new_stoploss: Price,
+        takeprofit: Price,
+    },
+
+    #[error("Added margin results in invalid leverage: {0}")]
+    AddedMarginInvalidLeverage(LeverageValidationError),
+
+    #[error("Cash-in results in invalid margin: {0}")]
+    CashInInvalidMargin(MarginValidationError),
+
+    #[error("Cash-in results in invalid leverage: {0}")]
+    CashInInvalidLeverage(LeverageValidationError),
+
+    #[error("Liquidation ({liquidation}) must be below price ({price}) for long positions")]
+    LiquidationNotBelowPriceForLong { liquidation: Price, price: Price },
+
+    #[error("Liquidation ({liquidation}) must be above price ({price}) for short positions")]
+    LiquidationNotAbovePriceForShort { liquidation: Price, price: Price },
 }
 
 #[derive(Debug, Error)]
