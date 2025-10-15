@@ -70,8 +70,10 @@ where
         if event::poll(event_check_interval).map_err(|e| TuiError::Generic(e.to_string()))? {
             if let Event::Key(key) = event::read().map_err(|e| TuiError::Generic(e.to_string()))? {
                 match key.code {
-                    KeyCode::Char('q') | KeyCode::Char('Q') => {
-                        tui_view.add_log_entry("'q' pressed".to_string())?;
+                    KeyCode::Char('c') | KeyCode::Char('C')
+                        if key.modifiers.contains(KeyModifiers::CONTROL) =>
+                    {
+                        tui_view.add_log_entry("'Ctrl+C' pressed. Shutting down.".to_string())?;
 
                         shutdown_tx.send(()).await.map_err(|e| {
                             TuiError::Generic(format!("Failed to send TUI shutdown signal {:?}", e))
