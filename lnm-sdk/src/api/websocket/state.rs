@@ -16,6 +16,17 @@ impl ConnectionStatus {
     }
 }
 
+impl fmt::Display for ConnectionStatus {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ConnectionStatus::Connected => write!(f, "Connected"),
+            ConnectionStatus::DisconnectInitiated => write!(f, "Disconnect Initiated"),
+            ConnectionStatus::Disconnected => write!(f, "Disconnected"),
+            ConnectionStatus::Failed(err) => write!(f, "Failed: {}", err),
+        }
+    }
+}
+
 pub struct ConnectionStatusManager(Mutex<Arc<ConnectionStatus>>);
 
 impl ConnectionStatusManager {
