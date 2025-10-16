@@ -1,13 +1,16 @@
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::{
+    fmt,
+    sync::{Arc, Mutex, MutexGuard},
+};
 
-use super::error::WebSocketApiError;
+use super::error::{Result, WebSocketApiError, WebSocketConnectionError};
 
 #[derive(Debug)]
 pub enum ConnectionStatus {
     Connected,
     DisconnectInitiated,
     Disconnected,
-    Failed(WebSocketApiError),
+    Failed(WebSocketConnectionError),
 }
 
 impl ConnectionStatus {
