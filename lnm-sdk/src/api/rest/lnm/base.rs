@@ -80,7 +80,7 @@ impl LnmApiCredentials {
         );
 
         let mut mac = Hmac::<Sha256>::new_from_slice(self.secret.as_bytes())
-            .map_err(|_| RestApiError::Generic("HMAC error".to_string()))?;
+            .map_err(RestApiError::InvalidSecretHmac)?;
         mac.update(prehash.as_bytes());
         let mac = mac.finalize().into_bytes();
 
@@ -103,20 +103,19 @@ impl LnmApiCredentials {
 
         headers.insert(
             HeaderName::from_static("lnm-access-key"),
-            HeaderValue::from_str(&self.key).map_err(|e| RestApiError::Generic(e.to_string()))?,
+            HeaderValue::from_str(&self.key)?,
         );
         headers.insert(
             HeaderName::from_static("lnm-access-signature"),
-            HeaderValue::from_str(&signature).map_err(|e| RestApiError::Generic(e.to_string()))?,
+            HeaderValue::from_str(&signature)?,
         );
         headers.insert(
             HeaderName::from_static("lnm-access-passphrase"),
-            HeaderValue::from_str(&self.passphrase)
-                .map_err(|e| RestApiError::Generic(e.to_string()))?,
+            HeaderValue::from_str(&self.passphrase)?,
         );
         headers.insert(
             HeaderName::from_static("lnm-access-timestamp"),
-            HeaderValue::from_str(&timestamp).map_err(|e| RestApiError::Generic(e.to_string()))?,
+            HeaderValue::from_str(&timestamp)?,
         );
 
         Ok(headers)
@@ -138,7 +137,7 @@ impl LnmApiBase {
         let client = Client::builder()
             .timeout(config.timeout)
             .build()
-            .map_err(|e| RestApiError::Generic(e.to_string()))?;
+            .map_err(RestApiError::GenericReqwest)?;
 
         Ok(Arc::new(Self {
             domain,
@@ -189,9 +188,10 @@ impl LnmApiBase {
         T: DeserializeOwned,
     {
         let mut headers = if authenticated {
-            let creds = self.credentials.as_ref().ok_or(RestApiError::Generic(
-                "tried to make authenticated request without creds".to_string(),
-            ))?;
+            let creds = self
+                .credentials
+                .as_ref()
+                .ok_or(RestApiError::MissingRequestCredentials)?;
 
             creds.get_authentication_headers(&method, path.clone(), params_str.as_ref())?
         } else {
@@ -216,32 +216,28 @@ impl LnmApiBase {
                 let url = self.get_url(path, params_str)?;
                 self.client.request(method, url).headers(headers)
             }
-            _ => return Err(RestApiError::Generic("invalid method".to_string())),
+            m => return Err(RestApiError::UnsupportedMethod(m)),
         };
 
-        let response = req
-            .send()
-            .await
-            .map_err(|e| RestApiError::Generic(e.to_string()))?;
+        let response = req.send().await.map_err(RestApiError::SendFailed)?;
 
         if !response.status().is_success() {
             let status = response.status();
-            let error_text = response
+            let text = response
                 .text()
                 .await
-                .map_err(|e| RestApiError::Generic(format!("{:?}, {}", e, status)))?;
+                .map_err(RestApiError::GenericReqwest)?;
 
-            return Err(RestApiError::Generic(error_text));
+            return Err(RestApiError::ErrorResponse { status, text });
         }
 
         let raw_response = response
             .text()
             .await
-            .map_err(|e| RestApiError::Generic(format!("Failed to get response text: {}", e)))?;
+            .map_err(RestApiError::GenericReqwest)?;
 
-        let response_data = serde_json::from_str::<T>(&raw_response).map_err(|e| {
-            RestApiError::Generic(format!("err {}, res {raw_response}", e.to_string()))
-        })?;
+        let response_data = serde_json::from_str::<T>(&raw_response)
+            .map_err(|e| RestApiError::ResponseJsonDeserializeFailed { raw_response, e })?;
 
         Ok(response_data)
     }
@@ -258,7 +254,7 @@ impl LnmApiBase {
         B: Serialize,
     {
         let body =
-            serde_json::to_string(&body).map_err(|e| RestApiError::Generic(e.to_string()))?;
+            serde_json::to_string(&body).map_err(RestApiError::RequestJsonSerializeFailed)?;
 
         self.make_request(method, path, Some(body), authenticated)
             .await
