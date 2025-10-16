@@ -7,7 +7,7 @@ use tokio::{
 };
 
 use super::super::{
-    error::{Result, WebSocketApiError},
+    error::{ConnectionResult, WebSocketConnectionError},
     models::{LnmJsonRpcRequest, LnmJsonRpcResponse, WebSocketUpdate},
     state::{ConnectionStatus, ConnectionStatusManager},
 };
@@ -44,7 +44,7 @@ impl WebSocketEventLoop {
         request_rx: RequestReceiver,
         response_tx: ResponseTransmiter,
         connection_status_manager: Arc<ConnectionStatusManager>,
-    ) -> Result<Self> {
+    ) -> ConnectionResult<Self> {
         let ws = WebSocketApiConnection::new(api_domain).await?;
 
         Ok(Self {
@@ -56,7 +56,7 @@ impl WebSocketEventLoop {
         })
     }
 
-    async fn run(mut self) -> Result<()> {
+    async fn run(mut self) {
         let mut ws = self.ws;
 
         let mut pending: PendingMap = HashMap::new();
@@ -121,7 +121,7 @@ impl WebSocketEventLoop {
                                     // Server requested close. Attempt to send close confirmation response
                                     let _ = ws.send_close().await;
 
-                                    return Err(WebSocketApiError::ServerRequestedClose);
+                                    return Err(WebSocketConnectionError::ServerRequestedClose);
                                 }
                                 // Pongs can be ignored since heartbeat mechanism is reset after any message
                                 LnmWebSocketResponse::Pong => {}
@@ -130,12 +130,12 @@ impl WebSocketEventLoop {
                         _ = &mut heartbeat_timer => {
                             if close_initiated {
                                 // No close confirmation after a heartbeat, timeout
-                                return Err(WebSocketApiError::NoServerCloseConfirmation);
+                                return Err(WebSocketConnectionError::NoServerCloseConfirmation);
                             }
 
                             if waiting_for_pong {
                                 // No pong received after ping and a heartbeat, timeout
-                                return Err(WebSocketApiError::NoServerPong);
+                                return Err(WebSocketConnectionError::NoServerPong);
                             }
 
                             // No messages received for a heartbeat, send a ping
@@ -166,8 +166,6 @@ impl WebSocketEventLoop {
 
         // Ignore no-receivers errors
         let _ = self.response_tx.send(connection_update.into());
-
-        Ok(())
     }
 
     pub async fn try_spawn(
@@ -175,7 +173,7 @@ impl WebSocketEventLoop {
         disconnect_rx: DisconnectReceiver,
         request_rx: RequestReceiver,
         response_tx: ResponseTransmiter,
-    ) -> Result<(JoinHandle<Result<()>>, Arc<ConnectionStatusManager>)> {
+    ) -> ConnectionResult<(JoinHandle<()>, Arc<ConnectionStatusManager>)> {
         let connection_status_manager = ConnectionStatusManager::new();
 
         let event_loop = Self::new(
