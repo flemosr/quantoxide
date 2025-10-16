@@ -34,7 +34,7 @@ pub enum ChannelStatus {
 
 pub struct LnmWebSocketRepo {
     config: WebSocketApiConfig,
-    event_loop_handle: SyncMutex<Option<JoinHandle<Result<()>>>>,
+    event_loop_handle: SyncMutex<Option<JoinHandle<()>>>,
     disconnect_tx: DisconnectTransmiter,
     request_tx: RequestTransmiter,
     response_tx: ResponseTransmiter,
@@ -60,7 +60,8 @@ impl LnmWebSocketRepo {
             request_rx,
             response_tx.clone(),
         )
-        .await?;
+        .await
+        .map_err(WebSocketApiError::FailedToSpawnEventLoop)?;
 
         Ok(Arc::new(Self {
             config,
@@ -83,7 +84,7 @@ impl LnmWebSocketRepo {
         Err(WebSocketApiError::BadConnectionStatus(connection_status))
     }
 
-    fn try_consume_event_loop_handle(&self) -> Option<JoinHandle<Result<()>>> {
+    fn try_consume_event_loop_handle(&self) -> Option<JoinHandle<()>> {
         let mut handle_guard = self
             .event_loop_handle
             .lock()
@@ -301,8 +302,8 @@ impl WebSocketRepository for LnmWebSocketRepo {
             return Err(e);
         }
 
-        self.connection_status_manager
-            .update(ConnectionStatus::DisconnectInitiated);
+        // self.connection_status_manager
+        //     .update(ConnectionStatus::DisconnectInitiated);
 
         self.disconnect_tx.send(()).await.map_err(|e| {
             handle.abort();
@@ -311,11 +312,13 @@ impl WebSocketRepository for LnmWebSocketRepo {
 
         tokio::select! {
             join_res = &mut handle => {
-                join_res.map_err(WebSocketApiError::TaskJoin)?
+                // join_res.map_err(WebSocketApiError::TaskJoin)?
+                //     .map_err(|e| WebSocketApiError::WebSocketAlreadyDisconnectedWithError(e.to_string()))
+                join_res.map_err(WebSocketApiError::TaskJoin)
             }
             _ = time::sleep(self.config.disconnect_timeout()) => {
                 handle.abort();
-                Err(WebSocketApiError::Generic("Disconnect timeout".to_string()))
+                Err(WebSocketApiError::DisconnectTimeout)
             }
         }
     }
