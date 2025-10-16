@@ -1,11 +1,12 @@
+use std::{collections::HashSet, fmt, sync::Arc};
+
 use chrono::{DateTime, Utc};
 use rand::Rng;
 use serde::{Deserialize, Deserializer, Serialize, de};
 use serde_json::Value;
-use std::{collections::HashSet, fmt, sync::Arc};
 
 use super::{
-    error::{Result, WebSocketApiError},
+    error::{ConnectionResult, Result, WebSocketApiError, WebSocketConnectionError},
     state::ConnectionStatus,
 };
 
@@ -18,8 +19,9 @@ struct JsonRpcRequest {
 }
 
 impl JsonRpcRequest {
-    pub fn try_to_bytes(&self) -> Result<Vec<u8>> {
-        let request_json = serde_json::to_string(&self).map_err(WebSocketApiError::EncodeJson)?;
+    pub fn try_to_bytes(&self) -> ConnectionResult<Vec<u8>> {
+        let request_json =
+            serde_json::to_string(&self).map_err(WebSocketConnectionError::EncodeJson)?;
         let bytes = request_json.into_bytes();
         Ok(bytes)
     }
@@ -117,7 +119,7 @@ impl LnmJsonRpcRequest {
         set_a == set_b
     }
 
-    pub fn try_into_bytes(self) -> Result<Vec<u8>> {
+    pub fn try_into_bytes(self) -> ConnectionResult<Vec<u8>> {
         JsonRpcRequest::from(self).try_to_bytes()
     }
 }
@@ -215,9 +217,9 @@ pub enum LnmJsonRpcResponse {
 }
 
 impl TryFrom<JsonRpcResponse> for LnmJsonRpcResponse {
-    type Error = WebSocketApiError;
+    type Error = WebSocketConnectionError;
 
-    fn try_from(response: JsonRpcResponse) -> Result<Self> {
+    fn try_from(response: JsonRpcResponse) -> ConnectionResult<Self> {
         if let Some(id) = &response.id {
             let try_parse_confirmation_data = || -> Option<(String, Vec<LnmWebSocketChannel>)> {
                 let result = response.result.as_ref()?;
@@ -240,7 +242,9 @@ impl TryFrom<JsonRpcResponse> for LnmJsonRpcResponse {
                 return Ok(Self::Confirmation { id, channels });
             }
 
-            return Err(WebSocketApiError::UnexpectedJsonRpcResponse(response));
+            return Err(WebSocketConnectionError::UnexpectedJsonRpcResponse(
+                response,
+            ));
         }
 
         if response.method.as_deref() == Some("subscription") {
@@ -275,10 +279,14 @@ impl TryFrom<JsonRpcResponse> for LnmJsonRpcResponse {
                 return Ok(Self::Subscription(data));
             }
 
-            return Err(WebSocketApiError::UnexpectedJsonRpcResponse(response));
+            return Err(WebSocketConnectionError::UnexpectedJsonRpcResponse(
+                response,
+            ));
         }
 
-        Err(WebSocketApiError::UnexpectedJsonRpcResponse(response))
+        Err(WebSocketConnectionError::UnexpectedJsonRpcResponse(
+            response,
+        ))
     }
 }
 
