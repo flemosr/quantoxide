@@ -16,10 +16,7 @@ use super::{
 };
 
 #[derive(Error, Debug)]
-pub enum WebSocketApiError {
-    #[error("BadConnectionStatus error, {0:?}")]
-    BadConnectionStatus(Arc<ConnectionStatus>),
-
+pub enum WebSocketConnectionError {
     #[error("InvalidDnsName error, {0}")]
     InvalidDnsName(InvalidDnsNameError),
 
@@ -62,7 +59,21 @@ pub enum WebSocketApiError {
     #[error("NoServerPong error")]
     NoServerPong,
 
-    #[error("SendConnectionUpdate error")]
+    #[error("UnexpectedJsonRpcResponse error, {0:?}")]
+    UnexpectedJsonRpcResponse(JsonRpcResponse),
+}
+
+pub type ConnectionResult<T> = result::Result<T, WebSocketConnectionError>;
+
+#[derive(Error, Debug)]
+pub enum WebSocketApiError {
+    #[error("Failed to spawn event loop: {0}")]
+    FailedToSpawnEventLoop(WebSocketConnectionError),
+
+    #[error("BadConnectionStatus error, {0:?}")]
+    BadConnectionStatus(Arc<ConnectionStatus>),
+
+    #[error("SendConnectionUpdate error, {0}")]
     SendConnectionUpdate(broadcast::error::SendError<WebSocketUpdate>),
 
     #[error("SubscribeWithUnsubscriptionPending error, {0}")]
@@ -71,10 +82,10 @@ pub enum WebSocketApiError {
     #[error("SendSubscriptionRequest error, {0}")]
     SendSubscriptionRequest(mpsc::error::SendError<(LnmJsonRpcRequest, oneshot::Sender<bool>)>),
 
-    #[error("ReceiveSubscriptionConfirmation error")]
+    #[error("ReceiveSubscriptionConfirmation error, {0}")]
     ReceiveSubscriptionConfirmation(oneshot::error::RecvError),
 
-    #[error("InvalidSubscriptionsChannelNotFound error")]
+    #[error("InvalidSubscriptionsChannelNotFound error, {0}")]
     InvalidSubscriptionsChannelNotFound(LnmWebSocketChannel),
 
     #[error("InvalidSubscriptionsChannelStatus error")]
@@ -95,17 +106,17 @@ pub enum WebSocketApiError {
     #[error("SendDisconnectRequest error, {0}")]
     SendDisconnectRequest(mpsc::error::SendError<()>),
 
-    #[error("UnexpectedJsonRpcResponse error, {0:?}")]
-    UnexpectedJsonRpcResponse(JsonRpcResponse),
-
-    #[error("UnknownChannel error, {0:?}")]
+    #[error("UnknownChannel error, {0}")]
     UnknownChannel(String),
 
     #[error("[TaskJoin] {0}")]
     TaskJoin(JoinError),
 
-    #[error("Generic error, {0:?}")]
-    Generic(String),
+    #[error("WebSocket is not connected, status: {0}")]
+    WebSocketNotConnected(Arc<ConnectionStatus>),
+
+    #[error("WebSocket disconnect timeout")]
+    DisconnectTimeout,
 }
 
 pub type Result<T> = result::Result<T, WebSocketApiError>;
