@@ -138,7 +138,7 @@ impl FuturesRepository for LnmFuturesRepository {
     ) -> Result<LnmTrade> {
         let body =
             FuturesTradeRequestBody::new(leverage, stoploss, takeprofit, side, size, execution)
-                .map_err(|e| RestApiError::Generic(e.to_string()))?;
+                .map_err(RestApiError::FuturesTradeRequestValidation)?;
 
         self.base
             .make_request_with_body(Method::POST, ApiPath::FuturesTrade, body, true)
