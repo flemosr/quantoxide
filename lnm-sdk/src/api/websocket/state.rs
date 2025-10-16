@@ -54,6 +54,18 @@ impl ConnectionStatusManager {
     }
 
     pub fn is_connected(&self) -> bool {
-        self.snapshot().is_connected()
+        self.lock_status().is_connected()
+    }
+
+    pub fn try_initiate_disconnect(&self) -> Result<()> {
+        let mut status_guard = self.lock_status();
+        if status_guard.is_connected() {
+            *status_guard = Arc::new(ConnectionStatus::DisconnectInitiated);
+            Ok(())
+        } else {
+            Err(WebSocketApiError::WebSocketNotConnected(
+                status_guard.clone(),
+            ))
+        }
     }
 }
