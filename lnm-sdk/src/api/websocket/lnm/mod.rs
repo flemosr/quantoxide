@@ -34,6 +34,7 @@ pub enum ChannelStatus {
 
 pub struct LnmWebSocketRepo {
     config: WebSocketApiConfig,
+    // Consumed in `disconnect` or `Drop`
     event_loop_handle: SyncMutex<Option<JoinHandle<()>>>,
     disconnect_tx: DisconnectTransmiter,
     request_tx: RequestTransmiter,
@@ -82,14 +83,6 @@ impl LnmWebSocketRepo {
         }
 
         Err(WebSocketApiError::BadConnectionStatus(connection_status))
-    }
-
-    fn try_consume_event_loop_handle(&self) -> Option<JoinHandle<()>> {
-        let mut handle_guard = self
-            .event_loop_handle
-            .lock()
-            .expect("`LnmWebSocketRepo::event_loop_handle` mutex can't be poisoned");
-        handle_guard.take()
     }
 }
 
@@ -278,32 +271,20 @@ impl WebSocketRepository for LnmWebSocketRepo {
     }
 
     async fn disconnect(&self) -> Result<()> {
-        let Some(mut handle) = self.try_consume_event_loop_handle() else {
-            return Err(WebSocketApiError::Generic(
-                "websocket was already disconnected".to_string(),
-            ));
+        self.connection_status_manager.try_initiate_disconnect()?;
+
+        // The event loop can only finish prematurely due to errors in
+        // `WebSocketEventLoop::run`, which would be reflected in
+        // `ConnectionStatusManager`. After `try_initiate_disconnect`,
+        // the handle is guaranteed to not be consumed and not finished.
+
+        let mut handle = {
+            self.event_loop_handle
+                .lock()
+                .expect("`LnmWebSocketRepo::event_loop_handle` mutex can't be poisoned")
+                .take()
+                .expect("not consumed")
         };
-
-        if handle.is_finished() {
-            // The event loop task can only be finished due to errors or
-            // via this `disconnect` method. The `connection_status_manager`
-            // snapshot should reflect the termination condition.
-
-            let e = match self.connection_status_manager.snapshot().as_ref() {
-                ConnectionStatus::Failed(e) => WebSocketApiError::Generic(format!(
-                    "websocket connection was already failed with error {e}"
-                )),
-                _ => WebSocketApiError::Generic(
-                    "event loop task terminated without proper connection status update"
-                        .to_string(),
-                ),
-            };
-
-            return Err(e);
-        }
-
-        // self.connection_status_manager
-        //     .update(ConnectionStatus::DisconnectInitiated);
 
         self.disconnect_tx.send(()).await.map_err(|e| {
             handle.abort();
@@ -312,8 +293,6 @@ impl WebSocketRepository for LnmWebSocketRepo {
 
         tokio::select! {
             join_res = &mut handle => {
-                // join_res.map_err(WebSocketApiError::TaskJoin)?
-                //     .map_err(|e| WebSocketApiError::WebSocketAlreadyDisconnectedWithError(e.to_string()))
                 join_res.map_err(WebSocketApiError::TaskJoin)
             }
             _ = time::sleep(self.config.disconnect_timeout()) => {
