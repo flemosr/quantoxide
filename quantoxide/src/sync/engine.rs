@@ -68,11 +68,10 @@ impl SyncController {
     }
 
     fn try_consume_handle(&self) -> Option<AbortOnDropHandle<()>> {
-        let mut handle_guard = self
-            .handle
+        self.handle
             .lock()
-            .expect("`SyncController` mutex can't be poisoned");
-        handle_guard.take()
+            .expect("`SyncController` mutex can't be poisoned")
+            .take()
     }
 
     /// Tries to perform a clean shutdown of the sync process and consumes the
