@@ -521,11 +521,10 @@ impl LiveController {
     }
 
     fn try_consume_handle(&self) -> Option<AbortOnDropHandle<()>> {
-        let mut handle_guard = self
-            .process_handle
+        self.process_handle
             .lock()
-            .expect("`LiveController` mutex can't be poisoned");
-        handle_guard.take()
+            .expect("`LiveController` mutex can't be poisoned")
+            .take()
     }
 
     /// Tries to perform a clean shutdown of the live trade process and consumes
