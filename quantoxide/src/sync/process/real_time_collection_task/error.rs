@@ -1,6 +1,7 @@
 use std::{result, sync::Arc};
 
 use thiserror::Error;
+use tokio::sync::broadcast::error::RecvError;
 
 use lnm_sdk::api::websocket::{error::WebSocketApiError, state::ConnectionStatus};
 
@@ -11,14 +12,14 @@ pub enum RealTimeCollectionError {
     #[error("[WebSocketApi] {0}")]
     WebSocketApi(#[from] WebSocketApiError),
 
-    #[error("BadConnectionUpdate error, {0:?}")]
+    #[error("BadConnectionUpdate error: {0}")]
     BadConnectionUpdate(Arc<ConnectionStatus>),
 
     #[error("[Db] {0}")]
     Db(#[from] DbError),
 
-    #[error("RealTimeCollection generic error: {0}")]
-    Generic(String),
+    #[error("Recv error: {0}")]
+    Recv(RecvError),
 }
 
 pub type Result<T> = result::Result<T, RealTimeCollectionError>;
