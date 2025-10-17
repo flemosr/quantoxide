@@ -160,8 +160,7 @@ impl DbContext {
             .map_err(DbError::Query)?;
 
             let full_locf_entries =
-                IndicatorsEvaluator::evaluate(partial_locf_entries, batch_start)
-                    .map_err(|e| DbError::Generic(e.to_string()))?;
+                IndicatorsEvaluator::evaluate(partial_locf_entries, batch_start)?;
 
             if !full_locf_entries.is_empty() {
                 let times: Vec<_> = full_locf_entries.iter().map(|e| e.time).collect();
