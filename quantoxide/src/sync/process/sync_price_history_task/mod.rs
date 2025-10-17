@@ -224,10 +224,10 @@ impl SyncPriceHistoryTask {
 
     pub async fn live(self, range: Duration) -> Result<()> {
         if range > self.config.sync_history_reach {
-            return Err(SyncPriceHistoryError::Generic(format!(
-                "live range {range} must be lt `sync_history_reach` {}",
-                self.config.sync_history_reach
-            )));
+            return Err(SyncPriceHistoryError::InvalidLiveRange {
+                range,
+                sync_history_reach: self.config.sync_history_reach,
+            });
         }
 
         let history_state = PriceHistoryState::evaluate(&self.db).await?;
