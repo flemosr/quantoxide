@@ -1,6 +1,6 @@
 use std::result;
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Duration, Utc};
 use thiserror::Error;
 
 use lnm_sdk::api::rest::error::RestApiError;
@@ -36,8 +36,20 @@ pub enum SyncPriceHistoryError {
         reach: DateTime<Utc>,
     },
 
-    #[error("Generic error, {0}")]
-    Generic(String),
+    #[error("Live range {range} must be lte `sync_history_reach` {sync_history_reach}")]
+    InvalidLiveRange {
+        range: Duration,
+        sync_history_reach: Duration,
+    },
+
+    #[error("Price history state `range_from` ({range_from}) can't be gte `range_to` ({range_to})")]
+    InvalidPriceHistoryStateRange {
+        range_from: DateTime<Utc>,
+        range_to: DateTime<Utc>,
+    },
+
+    #[error("Price history state `reach` was not set, and it is required to evaluate DB gaps")]
+    PriceHistoryStateReachNotSet,
 }
 
 pub type Result<T> = result::Result<T, SyncPriceHistoryError>;
