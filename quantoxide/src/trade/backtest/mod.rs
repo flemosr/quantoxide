@@ -160,11 +160,10 @@ impl BacktestController {
     }
 
     fn try_consume_handle(&self) -> Option<AbortOnDropHandle<()>> {
-        let mut handle_guard = self
-            .handle
+        self.handle
             .lock()
-            .expect("`BacktestController` mutex can't be poisoned");
-        handle_guard.take()
+            .expect("`BacktestController` mutex can't be poisoned")
+            .take()
     }
 
     /// Consumes the task handle and waits for the backtest to complete.
