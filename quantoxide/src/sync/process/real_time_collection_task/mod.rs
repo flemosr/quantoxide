@@ -64,12 +64,12 @@ impl RealTimeCollectionTask {
                                 }
                             },
                         },
-                        Err(err) => return Err(RealTimeCollectionError::Generic(err.to_string())),
+                        Err(err) => return Err(RealTimeCollectionError::Recv(err)),
                     }
                 }
                 shutdown_res = shutdown_rx.recv() => {
                     if let Err(e) = shutdown_res {
-                        return Err(RealTimeCollectionError::Generic(format!("shutdown_rx error {e}")));
+                        return Err(RealTimeCollectionError::Recv(e));
                     }
                     return Ok(());
                 }
