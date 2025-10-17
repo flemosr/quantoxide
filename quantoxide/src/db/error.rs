@@ -1,6 +1,9 @@
 use std::result;
 
+use chrono::{DateTime, Utc};
 use thiserror::Error;
+
+use crate::indicators::error::IndicatorError;
 
 #[derive(Error, Debug)]
 pub enum DbError {
@@ -19,8 +22,27 @@ pub enum DbError {
     #[error("Transaction commit error: {0}")]
     TransactionCommit(sqlx::Error),
 
-    #[error("Db generic error: {0}")]
-    Generic(String),
+    #[error("Unexpected query result: {0}")]
+    UnexpectedQueryResult(String),
+
+    #[error(
+        "When adding entries, `next_observed_time` ({next_observed_time}) must be gt than first entry `time` ({first_entry_time})"
+    )]
+    NewEntriesInvalidNextObservedTime {
+        next_observed_time: DateTime<Utc>,
+        first_entry_time: DateTime<Utc>,
+    },
+
+    #[error("New entries must be sorted by time in descending order")]
+    NewEntriesNotSortedTimeDescending,
+
+    #[error(
+        "There are no price history entries with time lte the start of the LOCF range ({start_locf_sec})"
+    )]
+    InvalidLocfRange { start_locf_sec: DateTime<Utc> },
+
+    #[error(transparent)]
+    IndicatorEvaluation(#[from] IndicatorError),
 }
 
 pub type Result<T> = result::Result<T, DbError>;
