@@ -84,6 +84,13 @@ impl LnmWebSocketRepo {
 
         Err(WebSocketApiError::BadConnectionStatus(connection_status))
     }
+
+    fn try_consume_handle(&self) -> Option<JoinHandle<()>> {
+        self.event_loop_handle
+            .lock()
+            .expect("`LnmWebSocketRepo::event_loop_handle` mutex can't be poisoned")
+            .take()
+    }
 }
 
 #[async_trait]
@@ -271,20 +278,20 @@ impl WebSocketRepository for LnmWebSocketRepo {
     }
 
     async fn disconnect(&self) -> Result<()> {
-        self.connection_status_manager.try_initiate_disconnect()?;
+        let mut handle = match self.try_consume_handle() {
+            Some(handle) if handle.is_finished() == false => handle,
+            _ => {
+                // The event loop can only finish prematurely due to errors in
+                // `WebSocketEventLoop::run`, which would be reflected in
+                // `ConnectionStatusManager`.
 
-        // The event loop can only finish prematurely due to errors in
-        // `WebSocketEventLoop::run`, which would be reflected in
-        // `ConnectionStatusManager`. After `try_initiate_disconnect`,
-        // the handle is guaranteed to not be consumed and not finished.
-
-        let mut handle = {
-            self.event_loop_handle
-                .lock()
-                .expect("`LnmWebSocketRepo::event_loop_handle` mutex can't be poisoned")
-                .take()
-                .expect("not consumed")
+                let status = self.connection_status_manager.snapshot();
+                return Err(WebSocketApiError::WebSocketNotConnected(status));
+            }
         };
+
+        self.connection_status_manager
+            .update(ConnectionStatus::DisconnectInitiated);
 
         self.disconnect_tx.send(()).await.map_err(|e| {
             handle.abort();
@@ -300,6 +307,9 @@ impl WebSocketRepository for LnmWebSocketRepo {
                 Err(WebSocketApiError::DisconnectTimeout)
             }
         }
+
+        // `ConnectionStatus` updated after the disconnect in
+        // `WebSocketEventLoop::run`.
     }
 }
 
