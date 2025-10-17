@@ -103,14 +103,14 @@ impl PriceTicksRepository for PgPriceTicksRepo {
 
         impl PriceEntry {
             fn time(&self) -> Result<DateTime<Utc>> {
-                self.time.ok_or(DbError::Generic(
-                    "combined prices with null data".to_string(),
+                self.time.ok_or(DbError::UnexpectedQueryResult(
+                    "Combined price entry `time` can't be `None`".into(),
                 ))
             }
 
             fn price(&self) -> Result<f64> {
-                self.price.ok_or(DbError::Generic(
-                    "combined prices with null data".to_string(),
+                self.price.ok_or(DbError::UnexpectedQueryResult(
+                    "Combined price entry `price` can't be `None`".into(),
                 ))
             }
         }
@@ -199,9 +199,7 @@ impl PriceTicksRepository for PgPriceTicksRepo {
         .unwrap_or(false);
 
         if !is_time_valid {
-            return Err(DbError::Generic(format!(
-                "There is no price history entry with time lte {start_locf_sec}"
-            )));
+            return Err(DbError::InvalidLocfRange { start_locf_sec });
         }
 
         let start_indicator_sec =
@@ -265,8 +263,8 @@ impl PriceTicksRepository for PgPriceTicksRepo {
             })
             .collect();
 
-        let full_locf_entries = IndicatorsEvaluator::evaluate(partial_locf_entries, start_locf_sec)
-            .map_err(|e| DbError::Generic(e.to_string()))?;
+        let full_locf_entries =
+            IndicatorsEvaluator::evaluate(partial_locf_entries, start_locf_sec)?;
 
         Ok(full_locf_entries)
     }
