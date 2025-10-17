@@ -70,7 +70,11 @@ impl RunningTradesRepository for PgRunningTradesRepo {
                 .trailing_stoploss
                 .map(|tsl| {
                     BoundedPercentage::try_from(tsl)
-                        .map_err(|e| DbError::Generic(e.to_string()))
+                        .map_err(|e| {
+                            DbError::UnexpectedQueryResult(format!(
+                                "`trailing_stoploss` ({tsl}) cannot be casted as `BoundedPercentage`: {e}"
+                            ))
+                        })
                         .map(|tsl| TradeTrailingStoploss::prev_validated(tsl))
                 })
                 .transpose()?;
