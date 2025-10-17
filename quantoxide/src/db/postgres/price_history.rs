@@ -170,14 +170,14 @@ impl PriceHistoryRepository for PgPriceHistoryRepo {
         let mut gaps = Vec::new();
 
         for (i, entry) in entries.iter().enumerate() {
-            let from = entry
-                .time
-                .ok_or(DbError::Generic("unexpected query result".into()))?;
+            let from = entry.time.ok_or(DbError::UnexpectedQueryResult(
+                "Price history entry `time` must be `Some`".into(),
+            ))?;
             if entry.is_gap.unwrap_or(false) {
                 if let Some(to) = entries.get(i + 1) {
-                    let to = to
-                        .time
-                        .ok_or(DbError::Generic("unexpected query result".into()))?;
+                    let to = to.time.ok_or(DbError::UnexpectedQueryResult(
+                        "Price history entry `time` must be `Some`".into(),
+                    ))?;
                     gaps.push((from, to))
                 }
             }
@@ -194,18 +194,16 @@ impl PriceHistoryRepository for PgPriceHistoryRepo {
         if entries.is_empty() {
             return Ok(());
         }
+
         if next_observed_time.map_or(false, |time| time <= entries.first().unwrap().time()) {
-            return Err(DbError::Generic(
-                "next observed time lte first entry time".to_string(),
-            ));
+            return Err(DbError::NewEntriesInvalidNextObservedTime {
+                next_observed_time: next_observed_time.expect("Not `None`"),
+                first_entry_time: entries.first().unwrap().time(),
+            });
         }
-        for window in entries.windows(2) {
-            if window[0].time() < window[1].time() {
-                return Err(DbError::Generic(
-                    "entries must be sorted by time in descending order (latest times first)"
-                        .to_string(),
-                ));
-            }
+
+        if !entries.is_sorted_by(|a, b| a.time() >= b.time()) {
+            return Err(DbError::NewEntriesNotSortedTimeDescending);
         }
 
         let mut tx = self.start_transaction().await?;
@@ -300,8 +298,8 @@ impl PriceHistoryRepository for PgPriceHistoryRepo {
         .await
         .map_err(DbError::Query)?;
 
-        let full_locf_entries = IndicatorsEvaluator::evaluate(partial_locf_entries, start_locf_sec)
-            .map_err(|e| DbError::Generic(e.to_string()))?;
+        let full_locf_entries =
+            IndicatorsEvaluator::evaluate(partial_locf_entries, start_locf_sec)?;
 
         if !full_locf_entries.is_empty() {
             let times: Vec<_> = full_locf_entries.iter().map(|e| e.time).collect();
