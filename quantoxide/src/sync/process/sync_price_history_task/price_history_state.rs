@@ -99,15 +99,14 @@ impl PriceHistoryState {
         range_to: DateTime<Utc>,
     ) -> Result<bool> {
         if range_from >= range_to {
-            return Err(SyncPriceHistoryError::Generic(
-                "`from` gte `to`".to_string(),
-            ));
+            return Err(SyncPriceHistoryError::InvalidPriceHistoryStateRange {
+                range_from,
+                range_to,
+            });
         }
 
         let Some(bounds) = self.bounds else {
-            return Err(SyncPriceHistoryError::Generic(
-                "price history is empty".to_string(),
-            ));
+            return Ok(false);
         };
 
         let range_within_bounds = bounds.0 <= range_from && bounds.1 >= range_to;
@@ -124,9 +123,7 @@ impl PriceHistoryState {
         backfilling: bool,
     ) -> Result<(Option<DateTime<Utc>>, Option<DateTime<Utc>>)> {
         let Some(reach_time) = self.reach_time else {
-            return Err(SyncPriceHistoryError::Generic(
-                "`reach` was not set".to_string(),
-            ));
+            return Err(SyncPriceHistoryError::PriceHistoryStateReachNotSet);
         };
 
         let history_bounds = match &self.bounds {
@@ -183,9 +180,7 @@ impl PriceHistoryState {
 
     pub(crate) fn has_gaps(&self) -> Result<bool> {
         let Some(reach_time) = self.reach_time else {
-            return Err(SyncPriceHistoryError::Generic(
-                "`reach` was not set".to_string(),
-            ));
+            return Err(SyncPriceHistoryError::PriceHistoryStateReachNotSet);
         };
 
         Ok(self.bounds.map_or(true, |bounds| {
