@@ -19,9 +19,7 @@ impl SignalName {
         let name = name.into();
 
         if name.is_empty() {
-            return Err(SignalError::Generic(
-                "signal name cannot be empty".to_string(),
-            ));
+            return Err(SignalError::InvalidSignalNameEmptyString);
         }
 
         Ok(Self(name))
