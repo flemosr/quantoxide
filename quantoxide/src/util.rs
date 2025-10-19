@@ -1,4 +1,6 @@
 use std::{
+    any::Any,
+    fmt,
     future::Future,
     ops::{Deref, DerefMut},
     pin::Pin,
@@ -111,5 +113,28 @@ impl<T> Future for AbortOnDropHandle<T> {
 impl<T> Drop for AbortOnDropHandle<T> {
     fn drop(&mut self) {
         self.0.abort();
+    }
+}
+
+#[derive(Debug)]
+pub struct PanicPayload(String);
+
+impl From<Box<dyn Any + Send>> for PanicPayload {
+    fn from(value: Box<dyn Any + Send>) -> Self {
+        let panic_msg = if let Some(s) = value.downcast_ref::<String>() {
+            s.clone()
+        } else if let Some(s) = value.downcast_ref::<&str>() {
+            s.to_string()
+        } else {
+            "unknown panic payload".to_string()
+        };
+
+        Self(panic_msg)
+    }
+}
+
+impl fmt::Display for PanicPayload {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
     }
 }
