@@ -81,16 +81,14 @@ impl SyncController {
     /// was already consumed.
     pub async fn shutdown(&self) -> Result<()> {
         let Some(mut handle) = self.try_consume_handle() else {
-            return Err(SyncError::Generic(
-                "`SyncProcess` was already shutdown".to_string(),
-            ));
+            return Err(SyncError::SyncAlreadyShutdown);
         };
 
         self.status_manager.update(SyncStatus::ShutdownInitiated);
 
         let shutdown_send_res = self.shutdown_tx.send(()).map_err(|e| {
             handle.abort();
-            SyncError::Generic(format!("Failed to send shutdown request, {e}"))
+            SyncError::SendShutdownFailed(e)
         });
 
         let shutdown_res = match shutdown_send_res {
@@ -101,7 +99,7 @@ impl SyncController {
                     }
                     _ = time::sleep(self.config.shutdown_timeout) => {
                         handle.abort();
-                        Err(SyncError::Generic("Shutdown timeout".to_string()))
+                        Err(SyncError::ShutdownTimeout)
                     }
                 }
             }
