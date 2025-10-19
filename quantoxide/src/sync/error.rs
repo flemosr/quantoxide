@@ -28,8 +28,17 @@ pub enum SyncError {
     #[error("UnexpectedRealTimeCollectionShutdown error")]
     UnexpectedRealTimeCollectionShutdown,
 
-    #[error("Generic error, {0}")]
-    Generic(String),
+    #[error("PriceTickRecv error: {0}")]
+    PriceTickRecv(RecvError),
+
+    #[error("Sync already shutdown error")]
+    SyncAlreadyShutdown,
+
+    #[error("Failed to send sync shutdown request error: {0}")]
+    SendShutdownFailed(SendError<()>),
+
+    #[error("Sync shutdown timeout error")]
+    ShutdownTimeout,
 }
 
 impl PartialEq for SyncError {
