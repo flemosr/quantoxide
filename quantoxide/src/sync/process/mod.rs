@@ -207,7 +207,7 @@ impl SyncProcess {
                     return Err(SyncError::UnexpectedRealTimeCollectionShutdown);
                 }
                 tick_res = price_tick_rx.recv() => {
-                    let tick = tick_res.map_err(|e| SyncError::Generic(e.to_string()))?;
+                    let tick = tick_res.map_err(SyncError::PriceTickRecv)?;
                     let _ = self.update_tx.send(tick.into());
                 }
             }
@@ -264,7 +264,7 @@ impl SyncProcess {
                         Ok(tick) => {
                             let _ = self.update_tx.send(tick.into());
                         },
-                        Err(e) => return Err(SyncError::Generic(e.to_string()))
+                        Err(e) => return Err(SyncError::PriceTickRecv(e))
                     }
                 }
                 _ = &mut re_sync_timer => {
