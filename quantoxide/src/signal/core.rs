@@ -99,10 +99,9 @@ impl<T: SignalActionEvaluator> SignalEvaluator<T> {
         context_window_secs: usize,
         action_evaluator: T,
     ) -> Result<Self> {
-        let evaluation_interval_secs: NonZeroU64 =
-            evaluation_interval_secs.try_into().map_err(|_| {
-                SignalError::Generic("`evaluation_interval_secs` must be gte 1".to_string())
-            })?;
+        let evaluation_interval_secs: NonZeroU64 = evaluation_interval_secs
+            .try_into()
+            .map_err(|_| SignalError::InvalidEvaluationInterval)?;
 
         Ok(Self {
             name,
@@ -127,13 +126,8 @@ impl<T: SignalActionEvaluator> SignalEvaluator<T> {
     pub async fn evaluate(&self, entries: &[PriceHistoryEntryLOCF]) -> Result<SignalAction> {
         FutureExt::catch_unwind(AssertUnwindSafe(self.action_evaluator.evaluate(entries)))
             .await
-            .map_err(|_| SignalError::Generic(format!("`SignalEvaluator::evaluate` panicked")))?
-            .map_err(|e| {
-                SignalError::Generic(format!(
-                    "`SignalEvaluator::evaluate` error {}",
-                    e.to_string()
-                ))
-            })
+            .map_err(|e| SignalError::EvaluatePanicked(e.into()))?
+            .map_err(|e| SignalError::EvaluateError(e.to_string()))
     }
 }
 
