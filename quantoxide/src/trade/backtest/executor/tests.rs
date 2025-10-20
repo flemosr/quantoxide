@@ -5,7 +5,7 @@ use chrono::Duration;
 use lnm_sdk::api::rest::models::{BoundedPercentage, Leverage, Quantity};
 
 #[tokio::test]
-async fn test_simulated_trade_executor_long_profit() -> Result<()> {
+async fn test_simulated_trade_executor_long_profit() -> TradeExecutorResult<()> {
     // Step 1: Create a new executor with market price as 99_000, balance of 1_000_000
 
     let start_time = Utc::now();
@@ -149,7 +149,7 @@ async fn test_simulated_trade_executor_long_profit() -> Result<()> {
 }
 
 #[tokio::test]
-async fn test_simulated_trade_executor_long_loss() -> Result<()> {
+async fn test_simulated_trade_executor_long_loss() -> TradeExecutorResult<()> {
     // Step 1: Create a new executor with market price as 100_000, balance of 1_000_000
 
     let start_time = Utc::now();
@@ -261,7 +261,7 @@ async fn test_simulated_trade_executor_long_loss() -> Result<()> {
 }
 
 #[tokio::test]
-async fn test_simulated_trade_executor_short_profit() -> Result<()> {
+async fn test_simulated_trade_executor_short_profit() -> TradeExecutorResult<()> {
     // Step 1: Create a new executor with market price as 100_000, balance of 1_000_000
 
     let start_time = Utc::now();
@@ -382,7 +382,7 @@ async fn test_simulated_trade_executor_short_profit() -> Result<()> {
 }
 
 #[tokio::test]
-async fn test_simulated_trade_executor_short_loss() -> Result<()> {
+async fn test_simulated_trade_executor_short_loss() -> TradeExecutorResult<()> {
     // Step 1: Create a new executor with market price as 100_000, balance of 1_000_000
 
     let start_time = Utc::now();
@@ -673,7 +673,7 @@ async fn test_simulated_trade_executor_trailing_stoploss_short() {
 }
 
 #[tokio::test]
-async fn test_simulated_trade_executor_partial_cash_in_short_profit() -> Result<()> {
+async fn test_simulated_trade_executor_partial_cash_in_short_profit() -> TradeExecutorResult<()> {
     // Step 1: Create a new executor with market price as 100_000, balance of 1_000_000
 
     let start_time = Utc::now();
@@ -815,7 +815,7 @@ async fn test_simulated_trade_executor_partial_cash_in_short_profit() -> Result<
 }
 
 #[tokio::test]
-async fn test_simulated_trade_executor_full_cash_in_short_profit() -> Result<()> {
+async fn test_simulated_trade_executor_full_cash_in_short_profit() -> TradeExecutorResult<()> {
     // Step 1: Create a new executor with market price as 100_000, balance of 1_000_000
 
     let start_time = Utc::now();
@@ -956,7 +956,7 @@ async fn test_simulated_trade_executor_full_cash_in_short_profit() -> Result<()>
 }
 
 #[tokio::test]
-async fn test_simulated_trade_executor_add_margin_short_loss() -> Result<()> {
+async fn test_simulated_trade_executor_add_margin_short_loss() -> TradeExecutorResult<()> {
     // Step 1: Create a new executor with market price as 100_000, balance of 1_000_000
 
     let start_time = Utc::now();
