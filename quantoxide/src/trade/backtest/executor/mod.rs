@@ -164,19 +164,19 @@ impl SimulatedTradeExecutor {
                     trade.next_stoploss_update_trigger(self.tsl_step_size, trade_tsl)?;
 
                 let market_price = Price::round(price)
-                    .map_err(|e| SimulatedTradeExecutorError::Generic(e.to_string()))?;
+                    .map_err(SimulatedTradeExecutorError::TickUpdatePriceValidation)?;
 
                 let new_stoploss = match trade.side() {
                     TradeSide::Buy if market_price >= next_stoploss_update_trigger => {
                         let new_stoploss = market_price
                             .apply_discount(trade_tsl.into())
-                            .map_err(|e| SimulatedTradeExecutorError::Generic(e.to_string()))?;
+                            .map_err(SimulatedTradeExecutorError::TickUpdatePriceValidation)?;
                         Some(new_stoploss)
                     }
                     TradeSide::Sell if market_price <= next_stoploss_update_trigger => {
                         let new_stoploss = market_price
                             .apply_gain(trade_tsl.into())
-                            .map_err(|e| SimulatedTradeExecutorError::Generic(e.to_string()))?;
+                            .map_err(SimulatedTradeExecutorError::TickUpdatePriceValidation)?;
                         Some(new_stoploss)
                     }
                     _ => None,
