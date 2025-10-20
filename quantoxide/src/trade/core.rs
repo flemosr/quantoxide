@@ -19,7 +19,7 @@ use lnm_sdk::api::rest::models::{
 
 use crate::{db::models::PriceHistoryEntryLOCF, signal::core::Signal, util::DateTimeExt};
 
-use super::error::{Result, TradeError};
+use super::error::{Result, TradeError, TradeExecutorResult};
 
 #[derive(Debug)]
 pub struct RunningTradesMap<T: TradeRunning + ?Sized> {
@@ -585,7 +585,7 @@ pub trait TradeExecutor: Send + Sync {
         leverage: Leverage,
         stoploss: Option<Stoploss>,
         takeprofit: Option<Price>,
-    ) -> Result<()>;
+    ) -> TradeExecutorResult<()>;
 
     async fn open_short(
         &self,
@@ -593,21 +593,21 @@ pub trait TradeExecutor: Send + Sync {
         leverage: Leverage,
         stoploss: Option<Stoploss>,
         takeprofit: Option<Price>,
-    ) -> Result<()>;
+    ) -> TradeExecutorResult<()>;
 
-    async fn add_margin(&self, trade_id: Uuid, amount: NonZeroU64) -> Result<()>;
+    async fn add_margin(&self, trade_id: Uuid, amount: NonZeroU64) -> TradeExecutorResult<()>;
 
-    async fn cash_in(&self, trade_id: Uuid, amount: NonZeroU64) -> Result<()>;
+    async fn cash_in(&self, trade_id: Uuid, amount: NonZeroU64) -> TradeExecutorResult<()>;
 
-    async fn close_trade(&self, trade_id: Uuid) -> Result<()>;
+    async fn close_trade(&self, trade_id: Uuid) -> TradeExecutorResult<()>;
 
-    async fn close_longs(&self) -> Result<()>;
+    async fn close_longs(&self) -> TradeExecutorResult<()>;
 
-    async fn close_shorts(&self) -> Result<()>;
+    async fn close_shorts(&self) -> TradeExecutorResult<()>;
 
-    async fn close_all(&self) -> Result<()>;
+    async fn close_all(&self) -> TradeExecutorResult<()>;
 
-    async fn trading_state(&self) -> Result<TradingState>;
+    async fn trading_state(&self) -> TradeExecutorResult<TradingState>;
 }
 
 #[async_trait]
