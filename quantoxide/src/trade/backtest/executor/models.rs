@@ -8,7 +8,7 @@ use lnm_sdk::api::rest::models::{
     TradeRunning, TradeSide, TradeSize, trade_util,
 };
 
-use super::super::super::error::{Result, TradeError};
+use super::error::{SimulatedTradeExecutorError, SimulatedTradeExecutorResult};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SimulatedTradeRunning {
@@ -37,7 +37,7 @@ impl SimulatedTradeRunning {
         stoploss: Option<Price>,
         takeprofit: Option<Price>,
         fee_perc: BoundedPercentage,
-    ) -> Result<Arc<Self>> {
+    ) -> SimulatedTradeExecutorResult<Arc<Self>> {
         let (quantity, margin, liquidation, opening_fee, closing_fee_reserved) =
             trade_util::evaluate_open_trade_params(
                 side,
@@ -48,7 +48,7 @@ impl SimulatedTradeRunning {
                 takeprofit,
                 fee_perc,
             )
-            .map_err(TradeError::TradeValidation)?;
+            .map_err(SimulatedTradeExecutorError::TradeValidation)?;
 
         Ok(Arc::new(Self {
             id: Uuid::new_v4(),
@@ -67,7 +67,11 @@ impl SimulatedTradeRunning {
         }))
     }
 
-    pub fn with_new_stoploss(&self, market_price: Price, new_stoploss: Price) -> Result<Arc<Self>> {
+    pub fn with_new_stoploss(
+        &self,
+        market_price: Price,
+        new_stoploss: Price,
+    ) -> SimulatedTradeExecutorResult<Arc<Self>> {
         trade_util::evaluate_new_stoploss(
             self.side,
             self.liquidation,
@@ -75,7 +79,7 @@ impl SimulatedTradeRunning {
             market_price,
             new_stoploss,
         )
-        .map_err(TradeError::TradeValidation)?;
+        .map_err(SimulatedTradeExecutorError::TradeValidation)?;
 
         Ok(Arc::new(Self {
             id: self.id,
@@ -94,7 +98,7 @@ impl SimulatedTradeRunning {
         }))
     }
 
-    pub fn with_added_margin(&self, amount: NonZeroU64) -> Result<Arc<Self>> {
+    pub fn with_added_margin(&self, amount: NonZeroU64) -> SimulatedTradeExecutorResult<Arc<Self>> {
         let (new_margin, new_leverage, new_liquidation) = trade_util::evaluate_added_margin(
             self.side,
             self.quantity,
@@ -102,7 +106,7 @@ impl SimulatedTradeRunning {
             self.margin,
             amount,
         )
-        .map_err(TradeError::TradeValidation)?;
+        .map_err(SimulatedTradeExecutorError::TradeValidation)?;
 
         Ok(Arc::new(Self {
             id: self.id,
@@ -121,7 +125,11 @@ impl SimulatedTradeRunning {
         }))
     }
 
-    pub fn with_cash_in(&self, market_price: Price, amount: NonZeroU64) -> Result<Arc<Self>> {
+    pub fn with_cash_in(
+        &self,
+        market_price: Price,
+        amount: NonZeroU64,
+    ) -> SimulatedTradeExecutorResult<Arc<Self>> {
         let (new_price, new_margin, new_leverage, new_liquidation, new_stoploss) =
             trade_util::evaluate_cash_in(
                 self.side,
@@ -132,7 +140,7 @@ impl SimulatedTradeRunning {
                 market_price,
                 amount,
             )
-            .map_err(TradeError::TradeValidation)?;
+            .map_err(SimulatedTradeExecutorError::TradeValidation)?;
 
         Ok(Arc::new(Self {
             id: self.id,
