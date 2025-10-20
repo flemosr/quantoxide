@@ -166,7 +166,7 @@ impl SimulatedTradeExecutor {
             if let Some(trade_tsl) = *trade_tsl_opt {
                 let next_stoploss_update_trigger = trade
                     .next_stoploss_update_trigger(self.tsl_step_size, trade_tsl)
-                    .map_err(|e| SimulatedTradeExecutorError::Generic(e.to_string()))?;
+                    .map_err(SimulatedTradeExecutorError::StoplossEvaluation)?;
 
                 let market_price = Price::round(price)
                     .map_err(SimulatedTradeExecutorError::TickUpdatePriceValidation)?;
@@ -188,15 +188,13 @@ impl SimulatedTradeExecutor {
                 };
 
                 if let Some(new_stoploss) = new_stoploss {
-                    *trade = trade
-                        .with_new_stoploss(market_price, new_stoploss)
-                        .map_err(|e| SimulatedTradeExecutorError::Generic(e.to_string()))?;
+                    *trade = trade.with_new_stoploss(market_price, new_stoploss)?;
                 }
             }
 
             new_trigger
                 .update(self.tsl_step_size, trade.as_ref(), *trade_tsl_opt)
-                .map_err(|e| SimulatedTradeExecutorError::Generic(e.to_string()))?;
+                .map_err(SimulatedTradeExecutorError::PriceTriggerUpdate)?;
             new_running_map.add(trade.clone(), *trade_tsl_opt);
         }
 
@@ -252,7 +250,7 @@ impl SimulatedTradeExecutor {
             } else {
                 new_trigger
                     .update(self.tsl_step_size, trade.as_ref(), *trade_tsl)
-                    .map_err(|e| SimulatedTradeExecutorError::Generic(e.to_string()))?;
+                    .map_err(SimulatedTradeExecutorError::PriceTriggerUpdate)?;
                 new_running_map.add(trade.clone(), *trade_tsl);
             }
         }
@@ -287,7 +285,7 @@ impl SimulatedTradeExecutor {
             Some(stoploss) => {
                 let (stoploss_price, tsl) = stoploss
                     .evaluate(self.tsl_step_size, side, market_price)
-                    .map_err(|e| SimulatedTradeExecutorError::Generic(e.to_string()))?;
+                    .map_err(SimulatedTradeExecutorError::StoplossEvaluation)?;
                 (Some(stoploss_price), tsl)
             }
             None => (None, None),
@@ -324,7 +322,7 @@ impl SimulatedTradeExecutor {
         state_guard
             .trigger
             .update(self.tsl_step_size, trade.as_ref(), trade_tsl)
-            .map_err(|e| SimulatedTradeExecutorError::Generic(e.to_string()))?;
+            .map_err(SimulatedTradeExecutorError::PriceTriggerUpdate)?;
         state_guard.running_map.add(trade, trade_tsl);
 
         Ok(())
@@ -361,15 +359,11 @@ impl TradeExecutor for SimulatedTradeExecutor {
         let mut state_guard = self.state.lock().await;
 
         if state_guard.balance < amount.get() as i64 {
-            return Err(SimulatedTradeExecutorError::Generic(
-                "not enough balance".to_string(),
-            ))?;
+            return Err(SimulatedTradeExecutorError::BalanceTooLow)?;
         }
 
         let Some((trade, _)) = state_guard.running_map.get_trade_by_id_mut(trade_id) else {
-            return Err(SimulatedTradeExecutorError::Generic(format!(
-                "trade {trade_id} is not running"
-            )))?;
+            return Err(SimulatedTradeExecutorError::TradeNotRunning { trade_id })?;
         };
 
         let updated_trade = trade.with_added_margin(amount)?;
@@ -386,9 +380,7 @@ impl TradeExecutor for SimulatedTradeExecutor {
         let market_price = Price::clamp_from(state_guard.market_price);
 
         let Some((trade, _)) = state_guard.running_map.get_trade_by_id_mut(trade_id) else {
-            return Err(SimulatedTradeExecutorError::Generic(format!(
-                "trade {trade_id} is not running"
-            )))?;
+            return Err(SimulatedTradeExecutorError::TradeNotRunning { trade_id })?;
         };
 
         let updated_trade = trade.with_cash_in(market_price, amount)?;
