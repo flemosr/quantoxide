@@ -946,7 +946,8 @@ impl LiveEngine {
         let operator_pending = OperatorPending::signal(signal_engine, operator.into());
 
         let trade_executor_launcher =
-            LiveTradeExecutorLauncher::new(&config, db, api, sync_engine.update_receiver())?;
+            LiveTradeExecutorLauncher::new(&config, db, api, sync_engine.update_receiver())
+                .map_err(LiveError::LauchExecutor)?;
 
         let (update_tx, _) = broadcast::channel::<LiveUpdate>(100);
 
@@ -987,7 +988,8 @@ impl LiveEngine {
         let operator_pending = OperatorPending::raw(db.clone(), sync_engine.reader(), operator);
 
         let trade_executor_launcher =
-            LiveTradeExecutorLauncher::new(&config, db, api, sync_engine.update_receiver())?;
+            LiveTradeExecutorLauncher::new(&config, db, api, sync_engine.update_receiver())
+                .map_err(LiveError::LauchExecutor)?;
 
         let (update_tx, _) = broadcast::channel::<LiveUpdate>(100);
 

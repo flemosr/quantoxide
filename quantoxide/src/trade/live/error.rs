@@ -10,8 +10,8 @@ pub enum LiveError {
     #[error("[TaskJoin] {0}")]
     TaskJoin(JoinError),
 
-    #[error("Executor error {0}")]
-    Executor(#[from] LiveTradeExecutorError),
+    #[error("Launch executor error {0}")]
+    LauchExecutor(LiveTradeExecutorError),
 
     #[error("Generic error, {0}")]
     Generic(String),
