@@ -297,7 +297,7 @@ impl Operator {
             } => {
                 operator
                     .set_trade_executor(trade_executor)
-                    .map_err(|e| BacktestError::Generic(e.to_string()))?;
+                    .map_err(BacktestError::SetTradeExecutor)?;
 
                 Ok(())
             }
@@ -307,7 +307,7 @@ impl Operator {
             } => {
                 raw_operator
                     .set_trade_executor(trade_executor)
-                    .map_err(|e| BacktestError::Generic(e.to_string()))?;
+                    .map_err(BacktestError::SetTradeExecutor)?;
 
                 Ok(())
             }
@@ -334,7 +334,7 @@ impl Operator {
             } => {
                 let ctx_window = raw_operator
                     .context_window_secs()
-                    .map_err(|e| BacktestError::Generic(e.to_string()))?;
+                    .map_err(BacktestError::OperatorError)?;
 
                 Ok(ctx_window)
             }
@@ -363,38 +363,35 @@ impl BacktestEngine {
         end_time: DateTime<Utc>,
     ) -> Result<Self> {
         if !start_time.is_round() || !end_time.is_round() {
-            return Err(BacktestError::Generic(
-                "Start and end times must be rounded to seconds".to_string(),
-            ));
+            return Err(BacktestError::InvalidTimeRangeNotRounded);
         }
 
-        // Validate duration is at least 1 day
-        if end_time - start_time < chrono::Duration::days(1) {
-            return Err(BacktestError::Generic(
-                "Backtest duration must be at least 1 day".to_string(),
-            ));
+        if end_time - start_time < Duration::days(1) {
+            let duration_hours = (end_time - start_time).num_hours();
+            return Err(BacktestError::InvalidTimeRangeTooShort { duration_hours });
         }
 
         let max_ctx_window = operator.max_ctx_window_secs()?;
 
         if config.buffer_size < max_ctx_window {
-            return Err(BacktestError::Generic(format!(
-                "buffer size {} is incompatible with max ctx window {}",
-                config.buffer_size, max_ctx_window
-            )));
+            return Err(BacktestError::IncompatibleBufferSize {
+                buffer_size: config.buffer_size,
+                max_ctx_window,
+            });
         }
 
         let price_history_state = PriceHistoryState::evaluate(&db)
             .await
-            .map_err(|e| BacktestError::Generic(e.to_string()))?;
+            .map_err(BacktestError::PriceHistoryStateEvaluation)?;
 
         if !price_history_state
             .is_range_available(start_time, end_time)
-            .map_err(|e| BacktestError::Generic(e.to_string()))?
+            .map_err(BacktestError::PriceHistoryStateEvaluation)?
         {
-            return Err(BacktestError::Generic(format!(
-                "range ({start_time} to {end_time}) is not available in price history ({price_history_state})"
-            )));
+            return Err(BacktestError::PriceHistoryUnavailable {
+                start_time,
+                end_time,
+            });
         }
 
         let (update_tx, _) = broadcast::channel::<BacktestUpdate>(100);
@@ -464,11 +461,8 @@ impl BacktestEngine {
                 .db
                 .price_history
                 .get_latest_entry_at_or_before(self.start_time)
-                .await
-                .map_err(|e| BacktestError::Generic(e.to_string()))?
-                .ok_or(BacktestError::Generic(format!(
-                    "no entries before start_time"
-                )))?;
+                .await?
+                .ok_or(BacktestError::DatabaseNoEntriesBeforeStartTime)?;
 
             Arc::new(SimulatedTradeExecutor::new(
                 self.config.max_running_qtd,
@@ -482,14 +476,7 @@ impl BacktestEngine {
 
         let mut operator = self.operator;
 
-        operator
-            .set_executor(trades_executor.clone())
-            .map_err(|e| {
-                BacktestError::Generic(format!(
-                    "couldn't set the simulated trades manager {}",
-                    e.to_string()
-                ))
-            })?;
+        operator.set_executor(trades_executor.clone())?;
 
         let max_ctx_window = operator.max_ctx_window_secs()?;
 
@@ -502,24 +489,20 @@ impl BacktestEngine {
                     .checked_add_signed(Duration::seconds(
                         buffer_size as i64 - max_ctx_window as i64,
                     ))
-                    .ok_or(BacktestError::Generic(
-                        "buffer date out of range".to_string(),
-                    ))?;
+                    .ok_or(BacktestError::DateRangeBufferOutOfRange)?;
 
                 let locf_buffer = if max_ctx_window == 0 {
                     Vec::new()
                 } else {
                     db.price_ticks
                         .compute_locf_entries_for_range(buffer_end, buffer_size)
-                        .await
-                        .map_err(|e| BacktestError::Generic(e.to_string()))?
+                        .await?
                 };
 
                 let price_ticks = db
                     .price_history
                     .get_entries_between(time_cursor, buffer_end + Duration::seconds(1))
-                    .await
-                    .map_err(|e| BacktestError::Generic(e.to_string()))?;
+                    .await?;
 
                 let locf_buffer_cursor_idx = max_ctx_window.checked_sub(1).unwrap_or(0);
 
@@ -571,12 +554,12 @@ impl BacktestEngine {
 
                         let signal = Signal::try_evaluate(evaluator, time_cursor, ctx_entries)
                             .await
-                            .map_err(|e| BacktestError::Generic(e.to_string()))?;
+                            .map_err(BacktestError::SignalEvalutationError)?;
 
                         signal_operator
                             .process_signal(&signal)
                             .await
-                            .map_err(|e| BacktestError::Generic(e.to_string()))?;
+                            .map_err(BacktestError::SignalProcessingError)?;
                     }
                 }
                 Operator::Raw {
@@ -585,14 +568,14 @@ impl BacktestEngine {
                 } => {
                     let iteration_interval = raw_operator
                         .iteration_interval()
-                        .map_err(|e| BacktestError::Generic(e.to_string()))?;
+                        .map_err(BacktestError::OperatorError)?;
 
                     if time_cursor >= *last_eval + iteration_interval {
                         *last_eval = time_cursor;
 
                         let ctx_window_size = raw_operator
                             .context_window_secs()
-                            .map_err(|e| BacktestError::Generic(e.to_string()))?;
+                            .map_err(BacktestError::OperatorError)?;
 
                         let ctx_entries = if ctx_window_size == 0 {
                             &[]
@@ -604,7 +587,7 @@ impl BacktestEngine {
                         raw_operator
                             .iterate(ctx_entries)
                             .await
-                            .map_err(|e| BacktestError::Generic(e.to_string()))?;
+                            .map_err(BacktestError::OperatorError)?;
                     }
                 }
             }
@@ -613,7 +596,7 @@ impl BacktestEngine {
                 let trades_state = trades_executor
                     .trading_state()
                     .await
-                    .map_err(|e| BacktestError::Generic(e.to_string()))?;
+                    .map_err(BacktestError::ExecutorStateEvaluation)?;
 
                 // Ignore no-receivers errors
                 let _ = self.update_tx.send(trades_state.into());
@@ -637,7 +620,7 @@ impl BacktestEngine {
                 trades_executor
                     .tick_update(next_price_tick.time, next_price_tick.value)
                     .await
-                    .map_err(|e| BacktestError::Generic(e.to_string()))?;
+                    .map_err(BacktestError::ExecutorTickUpdate)?;
 
                 price_ticks_cursor_idx += 1;
             }
@@ -657,13 +640,13 @@ impl BacktestEngine {
             trades_executor
                 .time_update(time_cursor)
                 .await
-                .map_err(|e| BacktestError::Generic(e.to_string()))?;
+                .map_err(BacktestError::ExecutorTimeUpdate)?;
         }
 
         let final_state = trades_executor
             .trading_state()
             .await
-            .map_err(|e| BacktestError::Generic(e.to_string()))?;
+            .map_err(BacktestError::ExecutorStateEvaluation)?;
 
         Ok(final_state)
     }
