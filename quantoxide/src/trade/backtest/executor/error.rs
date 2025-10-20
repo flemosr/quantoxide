@@ -35,6 +35,6 @@ pub enum SimulatedTradeExecutorError {
         entry: PriceHistoryEntry,
     },
 
-    #[error("Generic error, {0}")]
-    Generic(String),
+    #[error("Tick update failed, price validation error: {0}")]
+    TickUpdatePriceValidation(PriceValidationError),
 }
