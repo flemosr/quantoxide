@@ -382,9 +382,7 @@ impl LiveSignalController {
     /// was already consumed.
     pub async fn shutdown(&self) -> Result<()> {
         let Some(mut handle) = self.try_consume_handle() else {
-            return Err(SignalError::Generic(
-                "`LiveSignalProcess` was already shutdown".to_string(),
-            ));
+            return Err(SignalError::LiveSignalAlreadyShutdown);
         };
 
         self.status_manager
@@ -392,7 +390,7 @@ impl LiveSignalController {
 
         let shutdown_send_res = self.shutdown_tx.send(()).map_err(|e| {
             handle.abort();
-            SignalError::Generic(format!("Failed to send shutdown request, {e}"))
+            SignalError::SendShutdownFailed(e)
         });
 
         let shutdown_res = match shutdown_send_res {
@@ -403,7 +401,7 @@ impl LiveSignalController {
                     }
                     _ = time::sleep(self.config.shutdown_timeout) => {
                         handle.abort();
-                        Err(SignalError::Generic("Shutdown timeout".to_string()))
+                        Err(SignalError::ShutdownTimeout)
                     }
                 }
             }
@@ -489,9 +487,7 @@ impl LiveSignalEngine {
         evaluators: Arc<Vec<ConfiguredSignalEvaluator>>,
     ) -> Result<Self> {
         if evaluators.is_empty() {
-            return Err(SignalError::Generic(
-                "At least one evaluator must be provided".to_string(),
-            ));
+            return Err(SignalError::EmptyEvaluatorsVec);
         }
 
         let (update_tx, _) = broadcast::channel::<LiveSignalUpdate>(100);
