@@ -4,21 +4,21 @@ use tokio::sync::{Mutex, MutexGuard};
 
 use crate::sync::SyncStatusNotSynced;
 
-use super::super::{
-    error::{LiveError, Result as LiveResult},
-    executor::LiveTradeExecutorTransmiter,
+use super::{
+    error::{LiveTradeExecutorError, LiveTradeExecutorResult},
+    update::LiveTradeExecutorTransmiter,
 };
 
 mod live_trading_session;
 
 pub use live_trading_session::LiveTradingSession;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 pub enum LiveTradeExecutorStatusNotReady {
     Starting,
     WaitingForSync(Arc<SyncStatusNotSynced>),
-    Failed(LiveError),
-    NotViable(LiveError),
+    Failed(LiveTradeExecutorError),
+    NotViable(LiveTradeExecutorError),
     ShutdownInitiated,
     Shutdown,
 }
@@ -38,7 +38,7 @@ impl fmt::Display for LiveTradeExecutorStatusNotReady {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub enum LiveTradeExecutorStatus {
     NotReady(Arc<LiveTradeExecutorStatusNotReady>),
     Ready,
@@ -127,7 +127,7 @@ impl<'a> TryFrom<LockedLiveTradeExecutorState<'a>> for LockedLiveTradeExecutorSt
     ///
     /// # Errors
     ///
-    /// Returns `LiveError::ManagerNotReady` if:
+    /// Returns `LiveTradeExecutorError` if:
     /// - The executor status is not `Ready`
     /// - The trading session is `None`
     fn try_from(value: LockedLiveTradeExecutorState<'a>) -> Result<Self, Self::Error> {
