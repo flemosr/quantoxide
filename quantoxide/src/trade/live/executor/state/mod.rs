@@ -121,7 +121,7 @@ impl<'a> LockedLiveTradeExecutorState<'a> {
 pub struct LockedLiveTradeExecutorStateReady<'a>(LockedLiveTradeExecutorState<'a>);
 
 impl<'a> TryFrom<LockedLiveTradeExecutorState<'a>> for LockedLiveTradeExecutorStateReady<'a> {
-    type Error = LiveError;
+    type Error = LiveTradeExecutorError;
 
     /// Attempts to convert a generic locked state into a ready state.
     ///
@@ -135,7 +135,7 @@ impl<'a> TryFrom<LockedLiveTradeExecutorState<'a>> for LockedLiveTradeExecutorSt
             LiveTradeExecutorStatus::Ready if value.state_guard.trading_session.is_some() => {
                 Ok(Self(value))
             }
-            _ => Err(LiveError::ManagerNotReady),
+            _ => Err(LiveTradeExecutorError::Generic("not ready".to_string())),
         }
     }
 }
@@ -148,7 +148,9 @@ impl<'a> LockedLiveTradeExecutorStateReady<'a> {
     /// This should never panic due to the guarantees provided by the `TryFrom`
     /// implementation, but includes an assertion for defensive programming.
     pub fn trading_session(&self) -> &LiveTradingSession {
-        assert_eq!(self.0.state_guard.status, LiveTradeExecutorStatus::Ready);
+        if !matches!(self.0.state_guard.status, LiveTradeExecutorStatus::Ready) {
+            panic!("Must be `LiveTradeExecutorStatus::Ready` from `TryFrom`");
+        }
         self.0.state_guard.trading_session.as_ref().unwrap()
     }
 
@@ -186,7 +188,9 @@ impl LiveTradeExecutorStateManager {
         }
     }
 
-    pub async fn try_lock_ready_state(&self) -> LiveResult<LockedLiveTradeExecutorStateReady> {
+    pub async fn try_lock_ready_state(
+        &self,
+    ) -> LiveTradeExecutorResult<LockedLiveTradeExecutorStateReady> {
         let locked_state = self.lock_state().await;
         LockedLiveTradeExecutorStateReady::try_from(locked_state)
     }
