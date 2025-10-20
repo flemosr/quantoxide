@@ -2,13 +2,17 @@ use std::result;
 
 use chrono::{DateTime, Utc};
 use thiserror::Error;
+use uuid::Uuid;
 
 use lnm_sdk::api::rest::models::{
     TradeSide,
     error::{PriceValidationError, TradeValidationError},
 };
 
-use crate::db::{error::DbError, models::PriceHistoryEntry};
+use crate::{
+    db::{error::DbError, models::PriceHistoryEntry},
+    trade::error::TradeCoreError,
+};
 
 #[derive(Error, Debug)]
 pub enum SimulatedTradeExecutorError {
@@ -43,8 +47,6 @@ pub enum SimulatedTradeExecutorError {
     #[error("Tick update failed, price validation error: {0}")]
     TickUpdatePriceValidation(PriceValidationError),
 
-    // #[error("RiskParamsConversion error {0}")]
-    // RiskParamsConversion(PriceValidationError),
     #[error("TradeValidation error {0}")]
     TradeValidation(TradeValidationError),
 
@@ -54,8 +56,14 @@ pub enum SimulatedTradeExecutorError {
     #[error("Balance is too high error")]
     BalanceTooHigh,
 
-    #[error("Generic error, {0}")]
-    Generic(String),
+    #[error("Trade {trade_id} is not running")]
+    TradeNotRunning { trade_id: Uuid },
+
+    #[error("Price Trigger update error")]
+    PriceTriggerUpdate(TradeCoreError),
+
+    #[error("Stoploss evaluation error")]
+    StoplossEvaluation(TradeCoreError),
 }
 
 pub type SimulatedTradeExecutorResult<T> = result::Result<T, SimulatedTradeExecutorError>;
