@@ -11,13 +11,13 @@ use lnm_sdk::api::rest::models::{
 
 use super::super::{
     core::{PriceTrigger, RunningTradesMap, Stoploss, TradeExecutor, TradeExt, TradingState},
-    error::{Result, TradeError},
+    error::TradeExecutorResult,
 };
 
 pub mod error;
 mod models;
 
-use error::SimulatedTradeExecutorError;
+use error::{SimulatedTradeExecutorError, SimulatedTradeExecutorResult};
 use models::SimulatedTradeRunning;
 
 enum Close {
@@ -82,7 +82,7 @@ impl SimulatedTradeExecutor {
         }
     }
 
-    pub async fn time_update(&self, time: DateTime<Utc>) -> Result<()> {
+    pub async fn time_update(&self, time: DateTime<Utc>) -> SimulatedTradeExecutorResult<()> {
         let mut state_guard = self.state.lock().await;
 
         if time < state_guard.time {
@@ -96,7 +96,11 @@ impl SimulatedTradeExecutor {
         Ok(())
     }
 
-    pub async fn tick_update(&self, time: DateTime<Utc>, price: f64) -> Result<()> {
+    pub async fn tick_update(
+        &self,
+        time: DateTime<Utc>,
+        price: f64,
+    ) -> SimulatedTradeExecutorResult<()> {
         let mut state_guard = self.state.lock().await;
 
         if time <= state_guard.last_tick_time || time < state_guard.time {
@@ -160,8 +164,9 @@ impl SimulatedTradeExecutor {
             }
 
             if let Some(trade_tsl) = *trade_tsl_opt {
-                let next_stoploss_update_trigger =
-                    trade.next_stoploss_update_trigger(self.tsl_step_size, trade_tsl)?;
+                let next_stoploss_update_trigger = trade
+                    .next_stoploss_update_trigger(self.tsl_step_size, trade_tsl)
+                    .map_err(|e| SimulatedTradeExecutorError::Generic(e.to_string()))?;
 
                 let market_price = Price::round(price)
                     .map_err(SimulatedTradeExecutorError::TickUpdatePriceValidation)?;
@@ -183,11 +188,15 @@ impl SimulatedTradeExecutor {
                 };
 
                 if let Some(new_stoploss) = new_stoploss {
-                    *trade = trade.with_new_stoploss(market_price, new_stoploss)?;
+                    *trade = trade
+                        .with_new_stoploss(market_price, new_stoploss)
+                        .map_err(|e| SimulatedTradeExecutorError::Generic(e.to_string()))?;
                 }
             }
 
-            new_trigger.update(self.tsl_step_size, trade.as_ref(), *trade_tsl_opt)?;
+            new_trigger
+                .update(self.tsl_step_size, trade.as_ref(), *trade_tsl_opt)
+                .map_err(|e| SimulatedTradeExecutorError::Generic(e.to_string()))?;
             new_running_map.add(trade.clone(), *trade_tsl_opt);
         }
 
@@ -203,7 +212,7 @@ impl SimulatedTradeExecutor {
         Ok(())
     }
 
-    async fn close_running(&self, close: Close) -> Result<()> {
+    async fn close_running(&self, close: Close) -> SimulatedTradeExecutorResult<()> {
         let mut state_guard = self.state.lock().await;
 
         let time = state_guard.time;
@@ -241,7 +250,9 @@ impl SimulatedTradeExecutor {
             if should_be_closed {
                 close_trade(trade.clone());
             } else {
-                new_trigger.update(self.tsl_step_size, trade.as_ref(), *trade_tsl)?;
+                new_trigger
+                    .update(self.tsl_step_size, trade.as_ref(), *trade_tsl)
+                    .map_err(|e| SimulatedTradeExecutorError::Generic(e.to_string()))?;
                 new_running_map.add(trade.clone(), *trade_tsl);
             }
         }
@@ -266,7 +277,7 @@ impl SimulatedTradeExecutor {
         leverage: Leverage,
         stoploss: Option<Stoploss>,
         takeprofit: Option<Price>,
-    ) -> Result<()> {
+    ) -> SimulatedTradeExecutorResult<()> {
         let mut state_guard = self.state.lock().await;
 
         let market_price = Price::round(state_guard.market_price)
@@ -274,8 +285,9 @@ impl SimulatedTradeExecutor {
 
         let (stoploss_price, trade_tsl) = match stoploss {
             Some(stoploss) => {
-                let (stoploss_price, tsl) =
-                    stoploss.evaluate(self.tsl_step_size, side, market_price)?;
+                let (stoploss_price, tsl) = stoploss
+                    .evaluate(self.tsl_step_size, side, market_price)
+                    .map_err(|e| SimulatedTradeExecutorError::Generic(e.to_string()))?;
                 (Some(stoploss_price), tsl)
             }
             None => (None, None),
@@ -294,7 +306,7 @@ impl SimulatedTradeExecutor {
 
         let balance_delta = trade.margin().into_i64() + trade.maintenance_margin();
         if balance_delta > state_guard.balance {
-            return Err(TradeError::BalanceTooLow);
+            return Err(SimulatedTradeExecutorError::BalanceTooLow);
         }
 
         if state_guard.running_map.len() >= self.max_running_qtd {
@@ -311,7 +323,8 @@ impl SimulatedTradeExecutor {
 
         state_guard
             .trigger
-            .update(self.tsl_step_size, trade.as_ref(), trade_tsl)?;
+            .update(self.tsl_step_size, trade.as_ref(), trade_tsl)
+            .map_err(|e| SimulatedTradeExecutorError::Generic(e.to_string()))?;
         state_guard.running_map.add(trade, trade_tsl);
 
         Ok(())
@@ -326,9 +339,10 @@ impl TradeExecutor for SimulatedTradeExecutor {
         leverage: Leverage,
         stoploss: Option<Stoploss>,
         takeprofit: Option<Price>,
-    ) -> Result<()> {
+    ) -> TradeExecutorResult<()> {
         self.create_running(TradeSide::Buy, size, leverage, stoploss, takeprofit)
-            .await
+            .await?;
+        Ok(())
     }
 
     async fn open_short(
@@ -337,22 +351,25 @@ impl TradeExecutor for SimulatedTradeExecutor {
         leverage: Leverage,
         stoploss: Option<Stoploss>,
         takeprofit: Option<Price>,
-    ) -> Result<()> {
+    ) -> TradeExecutorResult<()> {
         self.create_running(TradeSide::Sell, size, leverage, stoploss, takeprofit)
-            .await
+            .await?;
+        Ok(())
     }
 
-    async fn add_margin(&self, trade_id: Uuid, amount: NonZeroU64) -> Result<()> {
+    async fn add_margin(&self, trade_id: Uuid, amount: NonZeroU64) -> TradeExecutorResult<()> {
         let mut state_guard = self.state.lock().await;
 
         if state_guard.balance < amount.get() as i64 {
-            return Err(TradeError::Generic("not enough balance".to_string()));
+            return Err(SimulatedTradeExecutorError::Generic(
+                "not enough balance".to_string(),
+            ))?;
         }
 
         let Some((trade, _)) = state_guard.running_map.get_trade_by_id_mut(trade_id) else {
-            return Err(TradeError::Generic(format!(
+            return Err(SimulatedTradeExecutorError::Generic(format!(
                 "trade {trade_id} is not running"
-            )));
+            )))?;
         };
 
         let updated_trade = trade.with_added_margin(amount)?;
@@ -363,15 +380,15 @@ impl TradeExecutor for SimulatedTradeExecutor {
         Ok(())
     }
 
-    async fn cash_in(&self, trade_id: Uuid, amount: NonZeroU64) -> Result<()> {
+    async fn cash_in(&self, trade_id: Uuid, amount: NonZeroU64) -> TradeExecutorResult<()> {
         let mut state_guard = self.state.lock().await;
 
         let market_price = Price::clamp_from(state_guard.market_price);
 
         let Some((trade, _)) = state_guard.running_map.get_trade_by_id_mut(trade_id) else {
-            return Err(TradeError::Generic(format!(
+            return Err(SimulatedTradeExecutorError::Generic(format!(
                 "trade {trade_id} is not running"
-            )));
+            )))?;
         };
 
         let updated_trade = trade.with_cash_in(market_price, amount)?;
@@ -386,27 +403,27 @@ impl TradeExecutor for SimulatedTradeExecutor {
         Ok(())
     }
 
-    async fn close_trade(&self, trade_id: Uuid) -> Result<()> {
+    async fn close_trade(&self, trade_id: Uuid) -> TradeExecutorResult<()> {
         self.close_running(Close::Single(trade_id)).await?;
         Ok(())
     }
 
-    async fn close_longs(&self) -> Result<()> {
+    async fn close_longs(&self) -> TradeExecutorResult<()> {
         self.close_running(TradeSide::Buy.into()).await?;
         Ok(())
     }
 
-    async fn close_shorts(&self) -> Result<()> {
+    async fn close_shorts(&self) -> TradeExecutorResult<()> {
         self.close_running(TradeSide::Sell.into()).await?;
         Ok(())
     }
 
-    async fn close_all(&self) -> Result<()> {
+    async fn close_all(&self) -> TradeExecutorResult<()> {
         self.close_running(Close::All).await?;
         Ok(())
     }
 
-    async fn trading_state(&self) -> Result<TradingState> {
+    async fn trading_state(&self) -> TradeExecutorResult<TradingState> {
         let state_guard = self.state.lock().await;
 
         let trades_state = TradingState::new(
