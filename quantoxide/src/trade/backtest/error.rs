@@ -1,10 +1,16 @@
 use std::{result, sync::Arc};
 
+use chrono::{DateTime, Utc};
 use thiserror::Error;
 use tokio::{sync::broadcast::error::SendError, task::JoinError};
 
-use super::BacktestStatus;
+use crate::{db::error::DbError, signal::error::SignalError, sync::SyncPriceHistoryError};
+
 pub use super::executor::error::SimulatedTradeExecutorError;
+use super::{
+    super::error::{TradeCoreError, TradeExecutorError},
+    BacktestStatus,
+};
 
 #[derive(Error, Debug)]
 pub enum BacktestError {
@@ -14,16 +20,65 @@ pub enum BacktestError {
     #[error("[TaskJoin] {0}")]
     TaskJoin(JoinError),
 
-    #[error("Generic error, {0}")]
-    Generic(String),
-}
+    #[error("Backtest process was already consumed")]
+    ProcessAlreadyConsumed,
 
-impl PartialEq for BacktestError {
-    fn eq(&self, other: &Self) -> bool {
-        self.to_string() == other.to_string()
-    }
-}
+    #[error("Buffer size must be at least 100, got {size}")]
+    InvalidConfigurationBufferSize { size: usize },
 
-impl Eq for BacktestError {}
+    #[error("Maximum running quantity must be at least 1, got {max}")]
+    InvalidConfigurationMaxRunningQtd { max: usize },
+
+    #[error("Start and end times must be rounded to seconds")]
+    InvalidTimeRangeNotRounded,
+
+    #[error("Backtest duration must be at least 1 day, got {duration_hours} hours")]
+    InvalidTimeRangeTooShort { duration_hours: i64 },
+
+    #[error("Buffer size {buffer_size} is incompatible with max context window {max_ctx_window}")]
+    IncompatibleBufferSize {
+        buffer_size: usize,
+        max_ctx_window: usize,
+    },
+
+    #[error("Price History State Evaluation error: {0}")]
+    PriceHistoryStateEvaluation(SyncPriceHistoryError),
+
+    #[error("No price history entries found before start time")]
+    DatabaseNoEntriesBeforeStartTime,
+
+    #[error("Price history range ({start_time} to {end_time}) is not available")]
+    PriceHistoryUnavailable {
+        start_time: DateTime<Utc>,
+        end_time: DateTime<Utc>,
+    },
+
+    #[error("Buffer date calculation resulted in out of range value")]
+    DateRangeBufferOutOfRange,
+
+    #[error("Set trade executor error: {0}")]
+    SetTradeExecutor(TradeCoreError),
+
+    #[error("Operator error: {0}")]
+    OperatorError(TradeCoreError),
+
+    #[error("[Db] {0}")]
+    Db(#[from] DbError),
+
+    #[error("Signal evaluation error: {0}")]
+    SignalEvalutationError(SignalError),
+
+    #[error("Signal processing error: {0}")]
+    SignalProcessingError(TradeCoreError),
+
+    #[error("Trade executor tick update error: {0}")]
+    ExecutorTickUpdate(SimulatedTradeExecutorError),
+
+    #[error("Trade executor time update error: {0}")]
+    ExecutorTimeUpdate(SimulatedTradeExecutorError),
+
+    #[error("Trade executor state evaluation error: {0}")]
+    ExecutorStateEvaluation(TradeExecutorError),
+}
 
 pub type Result<T> = result::Result<T, BacktestError>;
