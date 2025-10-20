@@ -174,9 +174,7 @@ impl BacktestController {
             return handle.await.map_err(BacktestError::TaskJoin);
         }
 
-        return Err(BacktestError::Generic(
-            "Backtest process was already consumed".to_string(),
-        ));
+        return Err(BacktestError::ProcessAlreadyConsumed);
     }
 
     /// Consumes the task handle and aborts the backtest.
@@ -192,9 +190,7 @@ impl BacktestController {
             return handle.await.map_err(BacktestError::TaskJoin);
         }
 
-        Err(BacktestError::Generic(
-            "Backtest process was already consumed".to_string(),
-        ))
+        Err(BacktestError::ProcessAlreadyConsumed)
     }
 }
 
@@ -230,9 +226,7 @@ impl Default for BacktestConfig {
 impl BacktestConfig {
     pub fn set_buffer_size(mut self, size: usize) -> Result<Self> {
         if size < 100 {
-            return Err(BacktestError::Generic(
-                "Buffer size must be at least 100".to_string(),
-            ));
+            return Err(BacktestError::InvalidConfigurationBufferSize { size });
         }
         self.buffer_size = size;
         Ok(self)
@@ -240,9 +234,7 @@ impl BacktestConfig {
 
     pub fn set_max_running_qtd(mut self, max: usize) -> Result<Self> {
         if max == 0 {
-            return Err(BacktestError::Generic(
-                "Maximum running quantity must be at least 1".to_string(),
-            ));
+            return Err(BacktestError::InvalidConfigurationMaxRunningQtd { max });
         }
         self.max_running_qtd = max;
         Ok(self)
