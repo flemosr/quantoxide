@@ -1,17 +1,16 @@
 use std::{fmt, num::NonZeroU64, sync::Arc};
 
+use tokio::sync::broadcast;
+use uuid::Uuid;
+
 use lnm_sdk::api::{
     ApiContext,
     rest::models::{Leverage, LnmTrade, Price, TradeExecution, TradeSide, TradeSize, User},
 };
-use tokio::sync::broadcast;
-use uuid::Uuid;
 
 use super::{
-    super::{
-        super::core::TradingState,
-        error::{LiveError, Result as LiveResult},
-    },
+    super::super::core::TradingState,
+    error::{LiveTradeExecutorError, LiveTradeExecutorResult},
     state::{LiveTradeExecutorStatus, LiveTradingSession},
 };
 
@@ -131,31 +130,31 @@ impl WrappedApiContext {
         Self { api, update_tx }
     }
 
-    pub async fn get_trades_running(&self) -> LiveResult<Vec<LnmTrade>> {
+    pub async fn get_trades_running(&self) -> LiveTradeExecutorResult<Vec<LnmTrade>> {
         self.api
             .rest
             .futures
             .get_trades_running(None, None, None)
             .await
-            .map_err(LiveError::RestApi)
+            .map_err(LiveTradeExecutorError::RestApi)
     }
 
-    pub async fn get_user(&self) -> LiveResult<User> {
+    pub async fn get_user(&self) -> LiveTradeExecutorResult<User> {
         self.api
             .rest
             .user
             .get_user()
             .await
-            .map_err(LiveError::RestApi)
+            .map_err(LiveTradeExecutorError::RestApi)
     }
 
-    pub async fn get_trade(&self, id: Uuid) -> LiveResult<LnmTrade> {
+    pub async fn get_trade(&self, id: Uuid) -> LiveTradeExecutorResult<LnmTrade> {
         self.api
             .rest
             .futures
             .get_trade(id)
             .await
-            .map_err(LiveError::RestApi)
+            .map_err(LiveTradeExecutorError::RestApi)
     }
 
     fn send_order_update(&self, order_update: LiveTradeExecutorUpdateOrder) {
@@ -169,7 +168,7 @@ impl WrappedApiContext {
         leverage: Leverage,
         stoploss: Option<Price>,
         takeprofit: Option<Price>,
-    ) -> LiveResult<LnmTrade> {
+    ) -> LiveTradeExecutorResult<LnmTrade> {
         self.send_order_update(LiveTradeExecutorUpdateOrder::CreateNewTrade {
             side,
             size,
@@ -190,10 +189,14 @@ impl WrappedApiContext {
                 takeprofit,
             )
             .await
-            .map_err(LiveError::RestApi)
+            .map_err(LiveTradeExecutorError::RestApi)
     }
 
-    pub async fn update_trade_stoploss(&self, id: Uuid, stoploss: Price) -> LiveResult<LnmTrade> {
+    pub async fn update_trade_stoploss(
+        &self,
+        id: Uuid,
+        stoploss: Price,
+    ) -> LiveTradeExecutorResult<LnmTrade> {
         self.send_order_update(LiveTradeExecutorUpdateOrder::UpdateTradeStoploss { id, stoploss });
 
         self.api
@@ -201,10 +204,14 @@ impl WrappedApiContext {
             .futures
             .update_trade_stoploss(id, stoploss)
             .await
-            .map_err(LiveError::RestApi)
+            .map_err(LiveTradeExecutorError::RestApi)
     }
 
-    pub async fn add_margin(&self, id: Uuid, amount: NonZeroU64) -> LiveResult<LnmTrade> {
+    pub async fn add_margin(
+        &self,
+        id: Uuid,
+        amount: NonZeroU64,
+    ) -> LiveTradeExecutorResult<LnmTrade> {
         self.send_order_update(LiveTradeExecutorUpdateOrder::AddMargin { id, amount });
 
         self.api
@@ -212,10 +219,10 @@ impl WrappedApiContext {
             .futures
             .add_margin(id, amount)
             .await
-            .map_err(LiveError::RestApi)
+            .map_err(LiveTradeExecutorError::RestApi)
     }
 
-    pub async fn cash_in(&self, id: Uuid, amount: NonZeroU64) -> LiveResult<LnmTrade> {
+    pub async fn cash_in(&self, id: Uuid, amount: NonZeroU64) -> LiveTradeExecutorResult<LnmTrade> {
         self.send_order_update(LiveTradeExecutorUpdateOrder::CashIn { id, amount });
 
         self.api
@@ -223,10 +230,10 @@ impl WrappedApiContext {
             .futures
             .cash_in(id, amount)
             .await
-            .map_err(LiveError::RestApi)
+            .map_err(LiveTradeExecutorError::RestApi)
     }
 
-    pub async fn close_trade(&self, id: Uuid) -> LiveResult<LnmTrade> {
+    pub async fn close_trade(&self, id: Uuid) -> LiveTradeExecutorResult<LnmTrade> {
         self.send_order_update(LiveTradeExecutorUpdateOrder::CloseTrade { id });
 
         self.api
@@ -234,10 +241,10 @@ impl WrappedApiContext {
             .futures
             .close_trade(id)
             .await
-            .map_err(LiveError::RestApi)
+            .map_err(LiveTradeExecutorError::RestApi)
     }
 
-    pub async fn cancel_all_trades(&self) -> LiveResult<Vec<LnmTrade>> {
+    pub async fn cancel_all_trades(&self) -> LiveTradeExecutorResult<Vec<LnmTrade>> {
         self.send_order_update(LiveTradeExecutorUpdateOrder::CancelAllTrades);
 
         self.api
@@ -245,10 +252,10 @@ impl WrappedApiContext {
             .futures
             .cancel_all_trades()
             .await
-            .map_err(LiveError::RestApi)
+            .map_err(LiveTradeExecutorError::RestApi)
     }
 
-    pub async fn close_all_trades(&self) -> LiveResult<Vec<LnmTrade>> {
+    pub async fn close_all_trades(&self) -> LiveTradeExecutorResult<Vec<LnmTrade>> {
         self.send_order_update(LiveTradeExecutorUpdateOrder::CloseAllTrades);
 
         self.api
@@ -256,6 +263,6 @@ impl WrappedApiContext {
             .futures
             .close_all_trades()
             .await
-            .map_err(LiveError::RestApi)
+            .map_err(LiveTradeExecutorError::RestApi)
     }
 }
