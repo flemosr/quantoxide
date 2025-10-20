@@ -13,8 +13,10 @@ use super::super::super::{
         DynRunningTradesMap, PriceTrigger, RunningTradesMap, TradeExt, TradeTrailingStoploss,
         TradingState,
     },
-    error::{LiveError, Result as LiveResult},
-    executor::WrappedApiContext,
+    executor::{
+        WrappedApiContext,
+        error::{LiveTradeExecutorError, LiveTradeExecutorResult},
+    },
 };
 
 #[derive(Debug, Clone)]
@@ -37,13 +39,13 @@ impl LiveTradingSession {
         tsl_step_size: BoundedPercentage,
         db: &DbContext,
         api: &WrappedApiContext,
-    ) -> LiveResult<Self> {
+    ) -> LiveTradeExecutorResult<Self> {
         let (lastest_entry_time, lastest_entry_price) = db
             .price_ticks
             .get_latest_entry()
             .await
-            .map_err(|e| LiveError::Generic(e.to_string()))?
-            .ok_or(LiveError::Generic("db is empty".to_string()))?;
+            .map_err(|e| LiveTradeExecutorError::Generic(e.to_string()))?
+            .ok_or(LiveTradeExecutorError::Generic("db is empty".to_string()))?;
 
         let user = api.get_user().await?;
 
@@ -72,7 +74,7 @@ impl LiveTradingSession {
             .running_trades
             .get_running_trades_map()
             .await
-            .map_err(|e| LiveError::Generic(e.to_string()))?;
+            .map_err(|e| LiveTradeExecutorError::Generic(e.to_string()))?;
 
         for trade in running_trades {
             let trade_tsl = registered_trades_map
@@ -92,7 +94,7 @@ impl LiveTradingSession {
             db.running_trades
                 .remove_running_trades(dangling_registered_trades.as_slice())
                 .await
-                .map_err(|e| LiveError::Generic(e.to_string()))?;
+                .map_err(|e| LiveTradeExecutorError::Generic(e.to_string()))?;
         }
 
         Ok(session)
@@ -114,13 +116,13 @@ impl LiveTradingSession {
         &mut self,
         db: &DbContext,
         api: &WrappedApiContext,
-    ) -> LiveResult<Vec<LnmTrade>> {
+    ) -> LiveTradeExecutorResult<Vec<LnmTrade>> {
         let (range_min, range_max, lastest_entry_time, latest_entry_price) = db
             .price_ticks
             .get_price_range_from(self.last_evaluation_time)
             .await
-            .map_err(|e| LiveError::Generic(e.to_string()))?
-            .ok_or(LiveError::Generic("db is empty".to_string()))?;
+            .map_err(|e| LiveTradeExecutorError::Generic(e.to_string()))?
+            .ok_or(LiveTradeExecutorError::Generic("db is empty".to_string()))?;
 
         self.last_evaluation_time = lastest_entry_time;
         self.last_price = latest_entry_price;
@@ -147,7 +149,7 @@ impl LiveTradingSession {
                         range_min,
                         range_max,
                     )
-                    .map_err(|e| LiveError::Generic(e.to_string()))?;
+                    .map_err(|e| LiveTradeExecutorError::Generic(e.to_string()))?;
 
                 if let Some(new_stoploss) = new_stoploss_opt {
                     to_update.push((trade.id(), new_stoploss));
@@ -220,16 +222,16 @@ impl LiveTradingSession {
         new_trade: LnmTrade,
         trade_tsl: Option<TradeTrailingStoploss>,
         update_balance: bool,
-    ) -> LiveResult<()> {
+    ) -> LiveTradeExecutorResult<()> {
         if !new_trade.running() {
-            return Err(LiveError::Generic(format!(
+            return Err(LiveTradeExecutorError::Generic(format!(
                 "`new_trade` {} is not running",
                 new_trade.id(),
             )));
         }
 
         if self.running_map.contains(&new_trade.id()) {
-            return Err(LiveError::Generic(format!(
+            return Err(LiveTradeExecutorError::Generic(format!(
                 "`new_trade` {} already registered",
                 new_trade.id(),
             )));
@@ -252,7 +254,7 @@ impl LiveTradingSession {
 
         self.trigger
             .update(self.tsl_step_size, &new_trade, trade_tsl)
-            .map_err(|e| LiveError::Generic(e.to_string()))?;
+            .map_err(|e| LiveTradeExecutorError::Generic(e.to_string()))?;
 
         self.running_map.add(Arc::new(new_trade), trade_tsl);
 
@@ -262,7 +264,7 @@ impl LiveTradingSession {
     pub fn update_running_trades(
         &mut self,
         mut updated_trades: HashMap<Uuid, LnmTrade>,
-    ) -> LiveResult<()> {
+    ) -> LiveTradeExecutorResult<()> {
         if updated_trades.is_empty() {
             return Ok(());
         }
@@ -295,7 +297,7 @@ impl LiveTradingSession {
             // TODO: Improve error handling here
             new_trigger
                 .update(self.tsl_step_size, running_trade.as_ref(), *trade_tsl)
-                .map_err(|e| LiveError::Generic(e.to_string()))?;
+                .map_err(|e| LiveTradeExecutorError::Generic(e.to_string()))?;
 
             new_running_map.add(running_trade, *trade_tsl);
         }
@@ -307,7 +309,7 @@ impl LiveTradingSession {
                 .collect::<Vec<_>>()
                 .join(", ");
 
-            return Err(LiveError::Generic(format!(
+            return Err(LiveTradeExecutorError::Generic(format!(
                 "`updated_trade`s {remaining_updated_keys} were not running",
             )))
             .into();
@@ -321,13 +323,13 @@ impl LiveTradingSession {
         Ok(())
     }
 
-    pub fn update_running_trade(&mut self, updated_trade: LnmTrade) -> LiveResult<()> {
+    pub fn update_running_trade(&mut self, updated_trade: LnmTrade) -> LiveTradeExecutorResult<()> {
         let mut updated_trades_map = HashMap::new();
         updated_trades_map.insert(updated_trade.id(), updated_trade);
         self.update_running_trades(updated_trades_map)
     }
 
-    pub fn close_trades(&mut self, closed_trades: &[LnmTrade]) -> LiveResult<()> {
+    pub fn close_trades(&mut self, closed_trades: &[LnmTrade]) -> LiveTradeExecutorResult<()> {
         if closed_trades.is_empty() {
             return Ok(());
         }
@@ -337,14 +339,14 @@ impl LiveTradingSession {
 
         for closed_trade in closed_trades {
             let closed_ts = closed_trade.closed_ts().ok_or_else(|| {
-                LiveError::Generic(format!(
+                LiveTradeExecutorError::Generic(format!(
                     "`closed_trade` {} is not closed",
                     closed_trade.id(),
                 ))
             })?;
 
             if !self.running_map.contains(&closed_trade.id()) {
-                return Err(LiveError::Generic(format!(
+                return Err(LiveTradeExecutorError::Generic(format!(
                     "`closed_trade` {} was not running",
                     closed_trade.id(),
                 ))
@@ -381,7 +383,7 @@ impl LiveTradingSession {
             // TODO: Improve error handling here
             new_trigger
                 .update(self.tsl_step_size, trade.as_ref(), *trade_tsl)
-                .map_err(|e| LiveError::Generic(e.to_string()))?;
+                .map_err(|e| LiveTradeExecutorError::Generic(e.to_string()))?;
 
             new_running_map.add(trade.clone(), *trade_tsl);
         }
@@ -397,7 +399,7 @@ impl LiveTradingSession {
         Ok(())
     }
 
-    pub fn close_trade(&mut self, closed_trade: &LnmTrade) -> LiveResult<()> {
+    pub fn close_trade(&mut self, closed_trade: &LnmTrade) -> LiveTradeExecutorResult<()> {
         self.close_trades(slice::from_ref(closed_trade))
     }
 }
