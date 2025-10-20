@@ -19,7 +19,7 @@ use lnm_sdk::api::rest::models::{
 
 use crate::{db::models::PriceHistoryEntryLOCF, signal::core::Signal, util::DateTimeExt};
 
-use super::error::{Result, TradeError, TradeExecutorResult};
+use super::error::{TradeCoreError, TradeCoreResult, TradeExecutorResult};
 
 #[derive(Debug)]
 pub struct RunningTradesMap<T: TradeRunning + ?Sized> {
@@ -418,9 +418,9 @@ impl<T: TradeClosed> ClosedTradeHistory<T> {
         Self(BTreeMap::new())
     }
 
-    pub fn add(&mut self, trade: T) -> Result<()> {
+    pub fn add(&mut self, trade: T) -> TradeCoreResult<()> {
         if !trade.closed() || trade.exit_price().is_none() || trade.closed_ts().is_none() {
-            return Err(TradeError::Generic("`trade` is not closed".to_string()));
+            return Err(TradeCoreError::Generic("`trade` is not closed".to_string()));
         }
 
         self.0.insert((trade.creation_ts(), trade.id()), trade);
@@ -501,12 +501,12 @@ impl Stoploss {
         tsl_step_size: BoundedPercentage,
         side: TradeSide,
         market_price: Price,
-    ) -> Result<(Price, Option<TradeTrailingStoploss>)> {
+    ) -> TradeCoreResult<(Price, Option<TradeTrailingStoploss>)> {
         match self {
             Self::Fixed(price) => Ok((*price, None)),
             Self::Trailing(tsl) => {
                 if tsl_step_size > *tsl {
-                    return Err(TradeError::Generic(
+                    return Err(TradeCoreError::Generic(
                         "`stoploss_perc` must be gt than `tsl_step_size`".to_string(),
                     ));
                 }
@@ -514,10 +514,10 @@ impl Stoploss {
                 let initial_stoploss_price = match side {
                     TradeSide::Buy => market_price
                         .apply_discount(*tsl)
-                        .map_err(|e| TradeError::Generic(e.to_string()))?,
+                        .map_err(|e| TradeCoreError::Generic(e.to_string()))?,
                     TradeSide::Sell => market_price
                         .apply_gain((*tsl).into())
-                        .map_err(|e| TradeError::Generic(e.to_string()))?,
+                        .map_err(|e| TradeCoreError::Generic(e.to_string()))?,
                 };
 
                 Ok((initial_stoploss_price, Some(TradeTrailingStoploss(*tsl))))
@@ -626,25 +626,28 @@ pub trait SignalOperator: Send + Sync {
 pub(crate) struct WrappedSignalOperator(Box<dyn SignalOperator>);
 
 impl WrappedSignalOperator {
-    pub fn set_trade_executor(&mut self, trade_executor: Arc<dyn TradeExecutor>) -> Result<()> {
+    pub fn set_trade_executor(
+        &mut self,
+        trade_executor: Arc<dyn TradeExecutor>,
+    ) -> TradeCoreResult<()> {
         panic::catch_unwind(AssertUnwindSafe(|| {
             self.0.set_trade_executor(trade_executor)
         }))
-        .map_err(|_| TradeError::Generic(format!("`Operator::set_trade_executor` panicked")))?
+        .map_err(|_| TradeCoreError::Generic(format!("`Operator::set_trade_executor` panicked")))?
         .map_err(|e| {
-            TradeError::Generic(format!(
+            TradeCoreError::Generic(format!(
                 "`Operator::set_trade_executor` error {}",
                 e.to_string()
             ))
         })
     }
 
-    pub async fn process_signal(&self, signal: &Signal) -> Result<()> {
+    pub async fn process_signal(&self, signal: &Signal) -> TradeCoreResult<()> {
         FutureExt::catch_unwind(AssertUnwindSafe(self.0.process_signal(signal)))
             .await
-            .map_err(|_| TradeError::Generic(format!("`Operator::process_signal` panicked")))?
+            .map_err(|_| TradeCoreError::Generic(format!("`Operator::process_signal` panicked")))?
             .map_err(|e| {
-                TradeError::Generic(format!(
+                TradeCoreError::Generic(format!(
                     "`Operator::process_signal` error {}",
                     e.to_string()
                 ))
@@ -678,41 +681,50 @@ pub trait RawOperator: Send + Sync {
 pub(crate) struct WrappedRawOperator(Box<dyn RawOperator>);
 
 impl WrappedRawOperator {
-    pub fn set_trade_executor(&mut self, trade_executor: Arc<dyn TradeExecutor>) -> Result<()> {
+    pub fn set_trade_executor(
+        &mut self,
+        trade_executor: Arc<dyn TradeExecutor>,
+    ) -> TradeCoreResult<()> {
         panic::catch_unwind(AssertUnwindSafe(|| {
             self.0.set_trade_executor(trade_executor)
         }))
-        .map_err(|_| TradeError::Generic(format!("`RawOperator::set_trade_executor` panicked")))?
+        .map_err(|_| {
+            TradeCoreError::Generic(format!("`RawOperator::set_trade_executor` panicked"))
+        })?
         .map_err(|e| {
-            TradeError::Generic(format!(
+            TradeCoreError::Generic(format!(
                 "`RawOperator::set_trade_executor` error {}",
                 e.to_string()
             ))
         })
     }
 
-    pub fn iteration_interval(&self) -> Result<Duration> {
+    pub fn iteration_interval(&self) -> TradeCoreResult<Duration> {
         let interval_secs =
             panic::catch_unwind(AssertUnwindSafe(|| self.0.iteration_interval_secs())).map_err(
-                |_| TradeError::Generic(format!("`RawOperator::iteration_interval_secs` panicked")),
+                |_| {
+                    TradeCoreError::Generic(format!(
+                        "`RawOperator::iteration_interval_secs` panicked"
+                    ))
+                },
             )?;
         Ok(Duration::seconds(interval_secs as i64))
     }
 
-    pub fn context_window_secs(&self) -> Result<usize> {
+    pub fn context_window_secs(&self) -> TradeCoreResult<usize> {
         let window = panic::catch_unwind(AssertUnwindSafe(|| self.0.context_window_secs()))
             .map_err(|_| {
-                TradeError::Generic(format!("`RawOperator::context_window_secs` panicked"))
+                TradeCoreError::Generic(format!("`RawOperator::context_window_secs` panicked"))
             })?;
         Ok(window)
     }
 
-    pub async fn iterate(&self, entries: &[PriceHistoryEntryLOCF]) -> Result<()> {
+    pub async fn iterate(&self, entries: &[PriceHistoryEntryLOCF]) -> TradeCoreResult<()> {
         FutureExt::catch_unwind(AssertUnwindSafe(self.0.iterate(entries)))
             .await
-            .map_err(|_| TradeError::Generic(format!("`RawOperator::iterate` panicked")))?
+            .map_err(|_| TradeCoreError::Generic(format!("`RawOperator::iterate` panicked")))?
             .map_err(|e| {
-                TradeError::Generic(format!("`RawOperator::iterate`  error {}", e.to_string()))
+                TradeCoreError::Generic(format!("`RawOperator::iterate`  error {}", e.to_string()))
             })
     }
 }
@@ -728,33 +740,33 @@ pub trait TradeExt: Trade {
         &self,
         tsl_step_size: BoundedPercentage,
         trade_tsl: TradeTrailingStoploss,
-    ) -> Result<Price> {
+    ) -> TradeCoreResult<Price> {
         if tsl_step_size > trade_tsl.into() {
-            return Err(TradeError::Generic(
+            return Err(TradeCoreError::Generic(
                 "`tsl_step_size` cannot be gt than `trade_tsl`".to_string(),
             ));
         }
 
         let curr_stoploss = self
             .stoploss()
-            .ok_or_else(|| TradeError::Generic("trade stoploss is not set".to_string()))?;
+            .ok_or_else(|| TradeCoreError::Generic("trade stoploss is not set".to_string()))?;
 
         let price_trigger = match self.side() {
             TradeSide::Buy => {
                 let next_stoploss = curr_stoploss
                     .apply_gain(tsl_step_size.into())
-                    .map_err(|e| TradeError::Generic(e.to_string()))?;
+                    .map_err(|e| TradeCoreError::Generic(e.to_string()))?;
                 next_stoploss
                     .apply_gain(trade_tsl.into())
-                    .map_err(|e| TradeError::Generic(e.to_string()))?
+                    .map_err(|e| TradeCoreError::Generic(e.to_string()))?
             }
             TradeSide::Sell => {
                 let next_stoploss = curr_stoploss
                     .apply_discount(tsl_step_size)
-                    .map_err(|e| TradeError::Generic(e.to_string()))?;
+                    .map_err(|e| TradeCoreError::Generic(e.to_string()))?;
                 next_stoploss
                     .apply_discount(trade_tsl.into())
-                    .map_err(|e| TradeError::Generic(e.to_string()))?
+                    .map_err(|e| TradeCoreError::Generic(e.to_string()))?
             }
         };
 
@@ -765,7 +777,7 @@ pub trait TradeExt: Trade {
         &self,
         tsl_step_size: BoundedPercentage,
         trade_tsl: Option<TradeTrailingStoploss>,
-    ) -> Result<(Price, Price)> {
+    ) -> TradeCoreResult<(Price, Price)> {
         let next_stoploss_update_trigger = trade_tsl
             .map(|tsl| self.next_stoploss_update_trigger(tsl_step_size, tsl))
             .transpose()?;
@@ -824,7 +836,7 @@ pub trait TradeExt: Trade {
         trade_tsl: TradeTrailingStoploss,
         range_min: f64,
         range_max: f64,
-    ) -> Result<Option<Price>> {
+    ) -> TradeCoreResult<Option<Price>> {
         let next_stoploss_update_trigger = self
             .next_stoploss_update_trigger(tsl_step_size, trade_tsl)?
             .into_f64();
@@ -833,9 +845,9 @@ pub trait TradeExt: Trade {
             TradeSide::Buy => {
                 if range_max >= next_stoploss_update_trigger {
                     let new_stoploss = Price::round(range_max)
-                        .map_err(|e| TradeError::Generic(e.to_string()))?
+                        .map_err(|e| TradeCoreError::Generic(e.to_string()))?
                         .apply_discount(trade_tsl.into())
-                        .map_err(|e| TradeError::Generic(e.to_string()))?;
+                        .map_err(|e| TradeCoreError::Generic(e.to_string()))?;
 
                     Some(new_stoploss)
                 } else {
@@ -845,9 +857,9 @@ pub trait TradeExt: Trade {
             TradeSide::Sell => {
                 if range_min <= next_stoploss_update_trigger {
                     let new_stoploss = Price::round(range_min)
-                        .map_err(|e| TradeError::Generic(e.to_string()))?
+                        .map_err(|e| TradeCoreError::Generic(e.to_string()))?
                         .apply_gain(trade_tsl.into())
-                        .map_err(|e| TradeError::Generic(e.to_string()))?;
+                        .map_err(|e| TradeCoreError::Generic(e.to_string()))?;
 
                     Some(new_stoploss)
                 } else {
@@ -879,7 +891,7 @@ impl PriceTrigger {
         tsl_step_size: BoundedPercentage,
         trade: &T,
         trade_tsl: Option<TradeTrailingStoploss>,
-    ) -> Result<()> {
+    ) -> TradeCoreResult<()> {
         let (mut new_min, mut new_max) = trade.eval_trigger_bounds(tsl_step_size, trade_tsl)?;
 
         if let PriceTrigger::Set { min, max } = *self {

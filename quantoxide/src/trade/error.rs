@@ -3,8 +3,7 @@ use std::result;
 use thiserror::Error;
 
 use super::{
-    backtest::error::{BacktestError, SimulatedTradeExecutorError},
-    live::{error::LiveError, executor::error::LiveTradeExecutorError},
+    backtest::error::SimulatedTradeExecutorError, live::executor::error::LiveTradeExecutorError,
 };
 
 #[derive(Error, Debug)]
@@ -19,15 +18,9 @@ pub enum TradeExecutorError {
 pub type TradeExecutorResult<T> = result::Result<T, TradeExecutorError>;
 
 #[derive(Error, Debug)]
-pub enum TradeError {
-    #[error("[Backtest] {0}")]
-    Backtest(#[from] BacktestError),
-
-    #[error("[Live] {0}")]
-    Live(#[from] LiveError),
-
+pub enum TradeCoreError {
     #[error("Generic error, {0}")]
     Generic(String),
 }
 
-pub type Result<T> = result::Result<T, TradeError>;
+pub type TradeCoreResult<T> = result::Result<T, TradeCoreError>;
