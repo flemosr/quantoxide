@@ -34,7 +34,7 @@ pub enum SyncError {
     #[error("Sync already shutdown error")]
     SyncAlreadyShutdown,
 
-    #[error("Failed to send sync shutdown request error: {0}")]
+    #[error("Failed to send sync process shutdown request error: {0}")]
     SendShutdownFailed(SendError<()>),
 
     #[error("Sync shutdown timeout error")]
