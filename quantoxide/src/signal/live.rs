@@ -224,18 +224,14 @@ impl LiveSignalProcess {
                                             SyncStatus::Synced => break,
                                             SyncStatus::ShutdownInitiated | SyncStatus::Shutdown => {
                                                 // Non-recoverable error
-                                                return Err(SignalError::Generic(
-                                                    "sync process was shutdown".to_string(),
-                                                ));
+                                                return Err(SignalError::SyncProcessShutdown);
                                             }
                                         },
                                         SyncUpdate::PriceTick(_) => break,
                                         SyncUpdate::PriceHistoryState(_) => {}
                                     }
-                                }
-                                Err(e) => {
-                                    return Err(SignalError::Generic(format!("sync_rx error {:?}", e)));
-                                }
+                                },
+                                Err(e) => return Err(SignalError::SyncRecv(e))
                             }
                         }
                         _ = time::sleep(self.config.sync_update_timeout) => {
@@ -253,8 +249,7 @@ impl LiveSignalProcess {
                 .db
                 .price_ticks
                 .compute_locf_entries_for_range(now, max_ctx_window)
-                .await
-                .map_err(|_| SignalError::Generic("db error".to_string()))?;
+                .await?;
 
             next_eval = DateTime::<Utc>::MAX_UTC;
 
@@ -289,12 +284,14 @@ impl LiveSignalProcess {
                 tokio::select! {
                     run_res = self.run() => {
                         let Err(signal_error) = run_res;
-                        self.status_manager.update(LiveSignalStatusNotRunning::Failed(signal_error).into());
+                        self.status_manager.update(
+                            LiveSignalStatusNotRunning::Failed(signal_error).into()
+                        );
                     }
                     shutdown_res = shutdown_rx.recv() => {
                         if let Err(e) = shutdown_res {
-                            self.status_manager.update(LiveSignalStatusNotRunning::Failed(
-                                SignalError::Generic(e.to_string())).into()
+                            self.status_manager.update(
+                                LiveSignalStatusNotRunning::Failed(SignalError::ShutdownRecv(e)).into()
                             );
                         }
                         return;
@@ -311,8 +308,8 @@ impl LiveSignalProcess {
                     }
                     shutdown_res = shutdown_rx.recv() => {
                         if let Err(e) = shutdown_res {
-                            self.status_manager.update(LiveSignalStatusNotRunning::Failed(
-                                SignalError::Generic(e.to_string())).into()
+                            self.status_manager.update(
+                                LiveSignalStatusNotRunning::Failed(SignalError::ShutdownRecv(e)).into()
                             );
                         }
                         return;
