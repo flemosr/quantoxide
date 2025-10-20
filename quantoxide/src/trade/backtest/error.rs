@@ -8,9 +8,6 @@ pub use super::executor::error::SimulatedTradeExecutorError;
 
 #[derive(Error, Debug)]
 pub enum BacktestError {
-    #[error("[Manager] {0}")]
-    Manager(#[from] SimulatedTradeExecutorError),
-
     #[error("TransmiterFailed error {0}")]
     TransmiterFailed(SendError<Arc<BacktestStatus>>),
 

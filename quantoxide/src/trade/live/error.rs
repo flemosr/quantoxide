@@ -3,21 +3,15 @@ use std::result;
 use thiserror::Error;
 use tokio::task::JoinError;
 
-use lnm_sdk::api::rest::error::RestApiError;
+use super::executor::error::LiveTradeExecutorError;
 
 #[derive(Error, Debug)]
 pub enum LiveError {
-    #[error("[RestApi] {0}")]
-    RestApi(#[from] RestApiError),
-
     #[error("[TaskJoin] {0}")]
     TaskJoin(JoinError),
 
-    #[error("ManagerNotReady error")]
-    ManagerNotReady,
-
-    #[error("ManagerNotViable error")]
-    ManagerNotViable,
+    #[error("Executor error {0}")]
+    Executor(#[from] LiveTradeExecutorError),
 
     #[error("Generic error, {0}")]
     Generic(String),
