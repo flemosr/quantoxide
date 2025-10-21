@@ -585,9 +585,7 @@ impl LiveController {
 #[async_trait]
 impl TuiControllerShutdown for LiveController {
     async fn tui_shutdown(&self) -> TuiResult<()> {
-        self.shutdown()
-            .await
-            .map_err(|e| TuiError::Generic(e.to_string()))
+        self.shutdown().await.map_err(TuiError::LiveShutdownFailed)
     }
 }
 
