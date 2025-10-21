@@ -525,9 +525,7 @@ impl LiveController {
     /// was already consumed.
     pub async fn shutdown(&self) -> Result<()> {
         let Some(mut handle) = self.try_consume_handle() else {
-            return Err(LiveError::Generic(
-                "Live trade process was already shutdown".to_string(),
-            ));
+            return Err(LiveError::LiveAlreadyShutdown);
         };
 
         self.status_manager.update(LiveStatus::ShutdownInitiated);
@@ -536,7 +534,7 @@ impl LiveController {
 
         let shutdown_send_res = self.shutdown_tx.send(()).map_err(|e| {
             handle.abort();
-            LiveError::Generic(format!("Failed to send shutdown request, {e}"))
+            LiveError::SendShutdownFailed(e)
         });
 
         let shutdown_res = match shutdown_send_res {
@@ -547,7 +545,7 @@ impl LiveController {
                     }
                     _ = time::sleep(self.config.shutdown_timeout) => {
                         handle.abort();
-                        Err(LiveError::Generic("Shutdown timeout".to_string()))
+                        Err(LiveError::ShutdownTimeout)
                     }
                 }
             }
@@ -558,13 +556,13 @@ impl LiveController {
             .trade_executor
             .shutdown()
             .await
-            .map_err(|e| LiveError::Generic(e.to_string()));
+            .map_err(LiveError::ExecutorShutdownError);
 
         let signal_shutdown_res = if let Some(signal_controller) = &self.signal_controller {
             signal_controller
                 .shutdown()
                 .await
-                .map_err(|e| LiveError::Generic(e.to_string()))
+                .map_err(LiveError::SignalShutdown)
         } else {
             Ok(())
         };
@@ -573,7 +571,7 @@ impl LiveController {
             .sync_controller
             .shutdown()
             .await
-            .map_err(|e| LiveError::Generic(e.to_string()));
+            .map_err(LiveError::SyncShutdown);
 
         self.status_manager.update(LiveStatus::Shutdown);
 
