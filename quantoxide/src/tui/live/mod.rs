@@ -119,7 +119,7 @@ impl LiveTui {
                     ui_tx
                         .send(LiveUiMessage::TradesUpdate(tables))
                         .await
-                        .map_err(|e| TuiError::Generic(e.to_string()))
+                        .map_err(TuiError::LiveTuiSendFailed)
                 };
 
             let mut running_trades_table = "No running trades.".to_string();
@@ -132,19 +132,19 @@ impl LiveTui {
                         ui_tx
                             .send(LiveUiMessage::LogEntry(format!("Live status: {live_status}")))
                             .await
-                            .map_err(|e| TuiError::Generic(e.to_string()))?;
+                            .map_err(TuiError::LiveTuiSendFailed)?;
                     }
                     LiveUpdate::Signal(signal) => {
                         ui_tx
                             .send(LiveUiMessage::LogEntry(signal.to_string()))
                             .await
-                            .map_err(|e| TuiError::Generic(e.to_string()))?;
+                            .map_err(TuiError::LiveTuiSendFailed)?;
                     }
                     LiveUpdate::Order(order) => {
                         ui_tx
                             .send(LiveUiMessage::LogEntry(format!("Order: {order}")))
                             .await
-                            .map_err(|e| TuiError::Generic(e.to_string()))?;
+                            .map_err(TuiError::LiveTuiSendFailed)?;
                     }
                     LiveUpdate::TradingState(trading_state) => {
                         ui_tx
@@ -153,14 +153,14 @@ impl LiveTui {
                                 trading_state.summary()
                             )))
                             .await
-                            .map_err(|e| TuiError::Generic(e.to_string()))?;
+                            .map_err(TuiError::LiveTuiSendFailed)?;
 
                         running_trades_table = trading_state.running_trades_table();
 
                         send_trades_update(&running_trades_table, &closed_trades_table).await?;
                     }
                     LiveUpdate::ClosedTrade(closed_trade) => {
-                        closed_trade_history.add(closed_trade).map_err(|e| TuiError::Generic(e.to_string()))?;
+                        closed_trade_history.add(closed_trade).map_err(TuiError::LiveHandleClosedTradeFailed)?;
 
                         closed_trades_table = closed_trade_history.to_table();
 
@@ -181,8 +181,8 @@ impl LiveTui {
                     }
                     Err(RecvError::Lagged(skipped)) => {
                         let log_msg = format!("Live updates lagged by {skipped} messages");
-                        if let Err(e) = ui_tx.send(LiveUiMessage::LogEntry(log_msg)).await {
-                            status_manager.set_crashed(TuiError::Generic(e.to_string()));
+                        if let Err(e) = ui_tx.send(LiveUiMessage::LogEntry(log_msg)).await.map_err(TuiError::LiveTuiSendFailed) {
+                            status_manager.set_crashed(e);
                             return;
                         }
 
@@ -196,10 +196,7 @@ impl LiveTui {
                             return;
                         }
 
-                        status_manager.set_crashed(TuiError::Generic(format!(
-                            "`live_rx` returned err {:?}",
-                            e
-                        )));
+                        status_manager.set_crashed(TuiError::LiveRecv(e));
 
                         return;
                     }
@@ -211,9 +208,7 @@ impl LiveTui {
 
     pub async fn couple(&self, engine: LiveEngine) -> Result<()> {
         if self.live_controller.initialized() {
-            return Err(TuiError::Generic(
-                "`live_engine` was already coupled".to_string(),
-            ));
+            return Err(TuiError::LiveEngineAlreadyCoupled);
         }
 
         let live_rx = engine.update_receiver();
@@ -227,17 +222,15 @@ impl LiveTui {
         let live_controller = engine
             .start()
             .await
-            .map_err(|e| TuiError::Generic(e.to_string()))?;
+            .map_err(TuiError::LiveEngineStartFailed)?;
 
         self.live_controller
             .set(live_controller)
-            .map_err(|_| TuiError::Generic("Failed to set `live_controller`".to_string()))?;
+            .map_err(|_| TuiError::LiveEngineAlreadyCoupled)?;
 
         self.live_update_listener_handle
             .set(live_update_listener_handle)
-            .map_err(|_| {
-                TuiError::Generic("Failed to set `live_update_listener_handle`".to_string())
-            })?;
+            .map_err(|_| TuiError::LiveEngineAlreadyCoupled)?;
 
         Ok(())
     }
@@ -281,7 +274,7 @@ impl TuiLogger for LiveTui {
         self.ui_tx
             .send(LiveUiMessage::LogEntry(log_entry.into()))
             .await
-            .map_err(|_| TuiError::Generic("TUI is not running".to_string()))
+            .map_err(TuiError::LiveTuiSendFailed)
     }
 }
 
