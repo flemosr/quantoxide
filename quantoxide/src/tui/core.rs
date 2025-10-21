@@ -28,9 +28,7 @@ pub fn open_log_file(log_file_path: Option<&str>) -> Result<Option<File>> {
     log_file_path
         .map(|log_file_path| {
             if let Some(parent) = Path::new(log_file_path).parent() {
-                fs::create_dir_all(parent).map_err(|e| {
-                    TuiError::Generic(format!("couldn't create log_file parent {}", e.to_string()))
-                })?;
+                fs::create_dir_all(parent).map_err(TuiError::LogFileOpen)?;
             }
 
             OpenOptions::new()
@@ -38,9 +36,7 @@ pub fn open_log_file(log_file_path: Option<&str>) -> Result<Option<File>> {
                 .append(true)
                 .create(true)
                 .open(log_file_path)
-                .map_err(|e| {
-                    TuiError::Generic(format!("couldn't open the log file. {}", e.to_string()))
-                })
+                .map_err(TuiError::LogFileOpen)
         })
         .transpose()
 }
@@ -67,17 +63,18 @@ where
             }
         }
 
-        if event::poll(event_check_interval).map_err(|e| TuiError::Generic(e.to_string()))? {
-            if let Event::Key(key) = event::read().map_err(|e| TuiError::Generic(e.to_string()))? {
+        if event::poll(event_check_interval).map_err(TuiError::TerminalEventRead)? {
+            if let Event::Key(key) = event::read().map_err(TuiError::TerminalEventRead)? {
                 match key.code {
                     KeyCode::Char('c') | KeyCode::Char('C')
                         if key.modifiers.contains(KeyModifiers::CONTROL) =>
                     {
                         tui_view.add_log_entry("'Ctrl+C' pressed. Shutting down.".to_string())?;
 
-                        shutdown_tx.send(()).await.map_err(|e| {
-                            TuiError::Generic(format!("Failed to send TUI shutdown signal {:?}", e))
-                        })?;
+                        shutdown_tx
+                            .send(())
+                            .await
+                            .map_err(TuiError::SendShutdownFailed)?;
 
                         break;
                     }
@@ -160,9 +157,7 @@ where
         .expect("`ui_task_handle` mutex can't be poisoned")
         .take()
     else {
-        return Err(TuiError::Generic(
-            "Live TUI shutdown can only be run once".to_string(),
-        ));
+        return Err(TuiError::TuiAlreadyShutdown);
     };
 
     if handle.is_finished() {
@@ -173,17 +168,12 @@ where
         let status_not_running = match status_manager.status() {
             // "Should Never Happen" case
             TuiStatus::Running => status_manager
-                .set_crashed(TuiError::Generic(
-                    "UI task crashed without corresponding status update".to_string(),
-                ))
+                .set_crashed(TuiError::TuiCrashedWithoutStatusUpdate)
                 .into(),
             status_not_running => status_not_running,
         };
 
-        return Err(TuiError::Generic(format!(
-            "Tried to shutdown TUI that is not running: {:?}",
-            status_not_running
-        )));
+        return Err(TuiError::TuiNotRunning(status_not_running));
     }
 
     status_manager.set_shutdown_initiated();
@@ -196,29 +186,26 @@ where
 
         let ui_message_res = send_completed_signal().await.map_err(|e| {
             handle.abort();
-            TuiError::Generic(format!("Failed to send shutdown completed signal, {e}"))
+            TuiError::SendShutdownCompletedFailed(e.to_string())
         });
 
         shutdown_res.and(ui_message_res)?;
 
         tokio::select! {
             join_res = &mut handle => {
-                join_res.map_err(|e| TuiError::Generic(e.to_string()))?;
+                join_res.map_err(TuiError::TaskJoin)?;
                 Ok(())
             }
             _ = time::sleep(shutdown_timeout) => {
                 handle.abort();
-                Err(TuiError::Generic("Shutdown timeout".to_string()))
+                Err(TuiError::ShutdownTimeout)
             }
         }
     };
 
     if let Err(e) = shutdown_procedure().await {
         let status_stopped = status_manager.set_crashed(e);
-        Err(TuiError::Generic(format!(
-            "Shutdown failed: {:?}",
-            status_stopped
-        )))
+        Err(TuiError::ShutdownFailed(status_stopped.to_string()))
     } else {
         status_manager.set_shutdown();
         Ok(())
