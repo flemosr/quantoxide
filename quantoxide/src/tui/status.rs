@@ -1,21 +1,43 @@
-use std::sync::{Arc, Mutex};
+use std::{
+    fmt,
+    sync::{Arc, Mutex},
+};
 
 use super::{
     error::{Result, TuiError},
     view::TuiLogManager,
 };
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 pub enum TuiStatusStopped {
     Crashed(TuiError),
     Shutdown,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub enum TuiStatus {
     Running,
     ShutdownInitiated,
     Stopped(Arc<TuiStatusStopped>),
+}
+
+impl fmt::Display for TuiStatusStopped {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Crashed(error) => write!(f, "Crashed: {}", error),
+            Self::Shutdown => write!(f, "Shutdown"),
+        }
+    }
+}
+
+impl fmt::Display for TuiStatus {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Running => write!(f, "Running"),
+            Self::ShutdownInitiated => write!(f, "Shutdown Initiated"),
+            Self::Stopped(status) => write!(f, "Stopped: {}", status),
+        }
+    }
 }
 
 impl TuiStatus {
@@ -29,12 +51,12 @@ impl TuiStatus {
     }
 
     pub fn is_shutdown_initiated(&self) -> bool {
-        TuiStatus::ShutdownInitiated == *self
+        matches!(self, TuiStatus::ShutdownInitiated)
     }
 
     pub fn is_shutdown(&self) -> bool {
         if let TuiStatus::Stopped(ref status_stopped) = *self {
-            return TuiStatusStopped::Shutdown == **status_stopped;
+            return matches!(status_stopped.as_ref(), TuiStatusStopped::Shutdown);
         }
         false
     }
@@ -103,10 +125,7 @@ impl<TView: TuiLogManager> TuiStatusManager<TView> {
     pub fn require_running(&self) -> Result<()> {
         match self.status() {
             TuiStatus::Running => Ok(()),
-            status_not_running => Err(TuiError::Generic(format!(
-                "TUI is not running {:?}",
-                status_not_running
-            ))),
+            status_not_running => Err(TuiError::TuiNotRunning(status_not_running)),
         }
     }
 }
