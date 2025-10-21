@@ -116,13 +116,13 @@ impl SyncTui {
                                 "Sync status: {sync_status}"
                             )))
                             .await
-                            .map_err(|e| TuiError::Generic(e.to_string()))?;
+                            .map_err(TuiError::SyncTuiSendFailed)?;
                     }
                     SyncUpdate::PriceTick(tick) => {
                         ui_tx
                             .send(SyncUiMessage::LogEntry(tick.to_string()))
                             .await
-                            .map_err(|e| TuiError::Generic(e.to_string()))?;
+                            .map_err(TuiError::SyncTuiSendFailed)?;
                     }
                     SyncUpdate::PriceHistoryState(price_history_state) => {
                         ui_tx
@@ -131,7 +131,7 @@ impl SyncTui {
                                 price_history_state.summary()
                             )))
                             .await
-                            .map_err(|e| TuiError::Generic(e.to_string()))?;
+                            .map_err(TuiError::SyncTuiSendFailed)?;
                     }
                 }
                 Ok(())
@@ -147,8 +147,12 @@ impl SyncTui {
                     }
                     Err(RecvError::Lagged(skipped)) => {
                         let log_msg = format!("Sync updates lagged by {skipped} messages");
-                        if let Err(e) = ui_tx.send(SyncUiMessage::LogEntry(log_msg)).await {
-                            status_manager.set_crashed(TuiError::Generic(e.to_string()));
+                        if let Err(e) = ui_tx
+                            .send(SyncUiMessage::LogEntry(log_msg))
+                            .await
+                            .map_err(TuiError::SyncTuiSendFailed)
+                        {
+                            status_manager.set_crashed(e);
                             return;
                         }
 
@@ -162,10 +166,7 @@ impl SyncTui {
                             return;
                         }
 
-                        status_manager.set_crashed(TuiError::Generic(format!(
-                            "`sync_rx` returned err {:?}",
-                            e
-                        )));
+                        status_manager.set_crashed(TuiError::SyncRecv(e));
 
                         return;
                     }
@@ -177,9 +178,7 @@ impl SyncTui {
 
     pub fn couple(&self, engine: SyncEngine) -> Result<()> {
         if self.sync_controller.initialized() {
-            return Err(TuiError::Generic(
-                "`sync_engine` was already coupled".to_string(),
-            ));
+            return Err(TuiError::SyncEngineAlreadyCoupled);
         }
 
         let sync_rx = engine.update_receiver();
@@ -194,13 +193,11 @@ impl SyncTui {
 
         self.sync_controller
             .set(sync_controller)
-            .map_err(|_| TuiError::Generic("Failed to set `sync_controller`".to_string()))?;
+            .map_err(|_| TuiError::SyncEngineAlreadyCoupled)?;
 
         self.sync_update_listener_handle
             .set(sync_update_listener_handle)
-            .map_err(|_| {
-                TuiError::Generic("Failed to set `sync_update_listener_handle`".to_string())
-            })?;
+            .map_err(|_| TuiError::SyncEngineAlreadyCoupled)?;
 
         Ok(())
     }
@@ -244,7 +241,7 @@ impl TuiLogger for SyncTui {
         self.ui_tx
             .send(SyncUiMessage::LogEntry(log_entry.into()))
             .await
-            .map_err(|_| TuiError::Generic("TUI is not running".to_string()))
+            .map_err(TuiError::SyncTuiSendFailed)
     }
 }
 
