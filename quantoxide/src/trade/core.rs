@@ -1,10 +1,9 @@
 use std::{
-    cell::OnceCell,
     collections::{BTreeMap, HashMap},
     fmt,
     num::NonZeroU64,
     panic::{self, AssertUnwindSafe},
-    sync::Arc,
+    sync::{Arc, OnceLock},
 };
 
 use async_trait::async_trait;
@@ -130,7 +129,7 @@ pub struct TradingState {
     market_price: Price,
     last_trade_time: Option<DateTime<Utc>>,
     running_map: DynRunningTradesMap,
-    running_stats: OnceCell<RunningStats>,
+    running_stats: OnceLock<RunningStats>,
     closed_len: usize,
     closed_pl: i64,
     closed_fees: u64,
@@ -153,7 +152,7 @@ impl TradingState {
             market_price,
             last_trade_time,
             running_map,
-            running_stats: OnceCell::new(),
+            running_stats: OnceLock::new(),
             closed_len,
             closed_pl,
             closed_fees,
