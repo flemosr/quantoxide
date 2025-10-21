@@ -726,32 +726,53 @@ pub trait TradeExt: Trade {
         tsl_step_size: BoundedPercentage,
         trade_tsl: TradeTrailingStoploss,
     ) -> TradeCoreResult<Price> {
-        if tsl_step_size > trade_tsl.into() {
-            return Err(TradeCoreError::Generic(
-                "`tsl_step_size` cannot be gt than `trade_tsl`".to_string(),
-            ));
+        let tsl = trade_tsl.into();
+        if tsl_step_size > tsl {
+            return Err(TradeCoreError::InvalidStoplossSmallerThanTrailingStepSize {
+                tsl,
+                tsl_step_size,
+            });
         }
 
-        let curr_stoploss = self
-            .stoploss()
-            .ok_or_else(|| TradeCoreError::Generic("trade stoploss is not set".to_string()))?;
+        let curr_stoploss =
+            self.stoploss()
+                .ok_or_else(|| TradeCoreError::NoNextTriggerTradeStoplossNotSet {
+                    trade_id: self.id(),
+                })?;
 
         let price_trigger = match self.side() {
             TradeSide::Buy => {
-                let next_stoploss = curr_stoploss
-                    .apply_gain(tsl_step_size.into())
-                    .map_err(|e| TradeCoreError::Generic(e.to_string()))?;
-                next_stoploss
-                    .apply_gain(trade_tsl.into())
-                    .map_err(|e| TradeCoreError::Generic(e.to_string()))?
+                let next_stoploss =
+                    curr_stoploss
+                        .apply_gain(tsl_step_size.into())
+                        .map_err(|e| TradeCoreError::InvalidPriceApplyGain {
+                            price: curr_stoploss,
+                            gain: tsl_step_size.into(),
+                            e,
+                        })?;
+                next_stoploss.apply_gain(trade_tsl.into()).map_err(|e| {
+                    TradeCoreError::InvalidPriceApplyGain {
+                        price: next_stoploss,
+                        gain: trade_tsl.into(),
+                        e,
+                    }
+                })?
             }
             TradeSide::Sell => {
-                let next_stoploss = curr_stoploss
-                    .apply_discount(tsl_step_size)
-                    .map_err(|e| TradeCoreError::Generic(e.to_string()))?;
+                let next_stoploss = curr_stoploss.apply_discount(tsl_step_size).map_err(|e| {
+                    TradeCoreError::InvalidPriceApplyDiscount {
+                        price: curr_stoploss,
+                        discount: tsl_step_size.into(),
+                        e,
+                    }
+                })?;
                 next_stoploss
                     .apply_discount(trade_tsl.into())
-                    .map_err(|e| TradeCoreError::Generic(e.to_string()))?
+                    .map_err(|e| TradeCoreError::InvalidPriceApplyDiscount {
+                        price: next_stoploss,
+                        discount: trade_tsl.into(),
+                        e,
+                    })?
             }
         };
 
@@ -829,10 +850,20 @@ pub trait TradeExt: Trade {
         let new_stoploss = match self.side() {
             TradeSide::Buy => {
                 if range_max >= next_stoploss_update_trigger {
-                    let new_stoploss = Price::round(range_max)
-                        .map_err(|e| TradeCoreError::Generic(e.to_string()))?
-                        .apply_discount(trade_tsl.into())
-                        .map_err(|e| TradeCoreError::Generic(e.to_string()))?;
+                    let new_stoploss = Price::round(range_max).map_err(|e| {
+                        TradeCoreError::InvalidPriceRounding {
+                            price: range_max,
+                            e,
+                        }
+                    })?;
+                    let new_stoploss =
+                        new_stoploss.apply_discount(trade_tsl.into()).map_err(|e| {
+                            TradeCoreError::InvalidPriceApplyDiscount {
+                                price: new_stoploss,
+                                discount: trade_tsl.into(),
+                                e,
+                            }
+                        })?;
 
                     Some(new_stoploss)
                 } else {
@@ -841,10 +872,19 @@ pub trait TradeExt: Trade {
             }
             TradeSide::Sell => {
                 if range_min <= next_stoploss_update_trigger {
-                    let new_stoploss = Price::round(range_min)
-                        .map_err(|e| TradeCoreError::Generic(e.to_string()))?
-                        .apply_gain(trade_tsl.into())
-                        .map_err(|e| TradeCoreError::Generic(e.to_string()))?;
+                    let new_stoploss = Price::round(range_min).map_err(|e| {
+                        TradeCoreError::InvalidPriceRounding {
+                            price: range_min,
+                            e,
+                        }
+                    })?;
+                    let new_stoploss = new_stoploss.apply_gain(trade_tsl.into()).map_err(|e| {
+                        TradeCoreError::InvalidPriceApplyGain {
+                            price: new_stoploss,
+                            gain: trade_tsl.into(),
+                            e,
+                        }
+                    })?;
 
                     Some(new_stoploss)
                 } else {
