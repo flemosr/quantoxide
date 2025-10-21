@@ -267,16 +267,14 @@ impl LiveProcess {
         loop {
             let iteration_interval = raw_operator
                 .iteration_interval()
-                .map_err(|e| LiveError::Generic(e.to_string()))?;
+                .map_err(LiveError::OperatorError)?;
 
             let now = {
                 let target_exec = (last_eval + iteration_interval).ceil_sec();
                 let now = Utc::now();
 
                 if now >= target_exec {
-                    return Err(LiveError::Generic(
-                        "evaluation time incompatible with eval interval".to_string(),
-                    ));
+                    return Err(LiveError::OperatorIterationTimeTooLong);
                 }
 
                 let wait_duration = (target_exec - now).to_std().expect("valid duration");
@@ -306,9 +304,7 @@ impl LiveProcess {
                                         SyncStatus::Synced => break,
                                         SyncStatus::ShutdownInitiated | SyncStatus::Shutdown => {
                                             // Non-recoverable error
-                                            return Err(LiveError::Generic(
-                                                "sync process was shutdown".to_string(),
-                                            ));
+                                            return Err(LiveError::SyncProcessShutdown);
                                         }
                                     },
                                     SyncUpdate::PriceTick(_) => break,
@@ -316,10 +312,9 @@ impl LiveProcess {
                                         // TODO: Improve feedback on price history updates
                                         // Sync may take a long time when `sync_mode_full: true`
                                     }
-                                }
-                                Err(e) => {
-                                    return Err(LiveError::Generic(format!("sync_rx error {:?}", e)));
-                                }
+                                },
+                                Err(e) => return Err(LiveError::SyncRecv(e))
+
                             }
                         }
                         _ = time::sleep(self.config.sync_update_timeout) => {
@@ -339,18 +334,17 @@ impl LiveProcess {
 
             let ctx_window = raw_operator
                 .context_window_secs()
-                .map_err(|e| LiveError::Generic(e.to_string()))?;
+                .map_err(LiveError::OperatorError)?;
 
             let ctx_entries = db
                 .price_ticks
                 .compute_locf_entries_for_range(now, ctx_window)
-                .await
-                .map_err(|_| LiveError::Generic("db error".to_string()))?;
+                .await?;
 
             raw_operator
                 .iterate(ctx_entries.as_slice())
                 .await
-                .map_err(|e| LiveError::Generic(e.to_string()))?;
+                .map_err(LiveError::OperatorError)?;
         }
     }
 
@@ -359,47 +353,44 @@ impl LiveProcess {
         signal_controller: &LiveSignalController,
         signal_operator: &WrappedSignalOperator,
     ) -> Result<Never> {
-        while let Ok(signal_update) = signal_controller.update_receiver().recv().await {
-            match signal_update {
-                LiveSignalUpdate::Status(signal_status) => match signal_status {
-                    LiveSignalStatus::NotRunning(signal_status_not_running) => {
-                        self.status_manager
-                            .update(LiveStatus::WaitingForSignal(signal_status_not_running));
-                    }
-                    LiveSignalStatus::Running => {}
-                    LiveSignalStatus::ShutdownInitiated | LiveSignalStatus::Shutdown => {
-                        // Non-recoverable error
-                        return Err(LiveError::Generic(
-                            "signal process was shutdown".to_string(),
-                        ));
+        loop {
+            match signal_controller.update_receiver().recv().await {
+                Ok(signal_update) => match signal_update {
+                    LiveSignalUpdate::Status(signal_status) => match signal_status {
+                        LiveSignalStatus::NotRunning(signal_status_not_running) => {
+                            self.status_manager
+                                .update(LiveStatus::WaitingForSignal(signal_status_not_running));
+                        }
+                        LiveSignalStatus::Running => {}
+                        LiveSignalStatus::ShutdownInitiated | LiveSignalStatus::Shutdown => {
+                            // Non-recoverable error
+                            return Err(LiveError::SignalProcessShutdown);
+                        }
+                    },
+                    LiveSignalUpdate::Signal(new_signal) => {
+                        let tex_state = self.trade_executor.state_snapshot().await;
+
+                        if let LiveTradeExecutorStatus::Ready = tex_state.status() {
+                            // Sync is ok, signal is ok and trade controller is ok
+
+                            self.status_manager
+                                .update_if_not_running(LiveStatus::Running);
+                        } else {
+                            continue;
+                        }
+
+                        // Send Signal update
+                        let _ = self.update_tx.send(new_signal.clone().into());
+
+                        signal_operator
+                            .process_signal(&new_signal)
+                            .await
+                            .map_err(LiveError::OperatorError)?;
                     }
                 },
-                LiveSignalUpdate::Signal(new_signal) => {
-                    let tex_state = self.trade_executor.state_snapshot().await;
-
-                    if let LiveTradeExecutorStatus::Ready = tex_state.status() {
-                        // Sync is ok, signal is ok and trade controller is ok
-
-                        self.status_manager
-                            .update_if_not_running(LiveStatus::Running);
-                    } else {
-                        continue;
-                    }
-
-                    // Send Signal update
-                    let _ = self.update_tx.send(new_signal.clone().into());
-
-                    signal_operator
-                        .process_signal(&new_signal)
-                        .await
-                        .map_err(|e| LiveError::Generic(e.to_string()))?;
-                }
+                Err(e) => return Err(LiveError::SignalRecv(e)),
             }
         }
-
-        Err(LiveError::Generic(
-            "Live signals job transmitter was dropped unexpectedly".to_string(),
-        ))
     }
 
     fn run_operator(&self) -> Pin<Box<dyn Future<Output = Result<Never>> + Send + '_>> {
@@ -431,7 +422,7 @@ impl LiveProcess {
                     shutdown_res = shutdown_rx.recv() => {
                         if let Err(e) = shutdown_res {
                             self.status_manager.update(LiveStatus::Failed(
-                                LiveError::Generic(e.to_string()))
+                                LiveError::ShutdownRecv(e))
                             );
                         }
                         return;
@@ -449,7 +440,7 @@ impl LiveProcess {
                     shutdown_res = shutdown_rx.recv() => {
                         if let Err(e) = shutdown_res {
                             self.status_manager.update(LiveStatus::Failed(
-                                LiveError::Generic(e.to_string()))
+                                LiveError::ShutdownRecv(e))
                             );
                         }
                         return;
