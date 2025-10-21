@@ -420,7 +420,9 @@ impl<T: TradeClosed> ClosedTradeHistory<T> {
 
     pub fn add(&mut self, trade: T) -> TradeCoreResult<()> {
         if !trade.closed() || trade.exit_price().is_none() || trade.closed_ts().is_none() {
-            return Err(TradeCoreError::Generic("`trade` is not closed".to_string()));
+            return Err(TradeCoreError::TradeNotClosed {
+                trade_id: trade.id(),
+            });
         }
 
         self.0.insert((trade.creation_ts(), trade.id()), trade);
@@ -506,18 +508,27 @@ impl Stoploss {
             Self::Fixed(price) => Ok((*price, None)),
             Self::Trailing(tsl) => {
                 if tsl_step_size > *tsl {
-                    return Err(TradeCoreError::Generic(
-                        "`stoploss_perc` must be gt than `tsl_step_size`".to_string(),
-                    ));
+                    return Err(TradeCoreError::InvalidStoplossSmallerThanTrailingStepSize {
+                        tsl: *tsl,
+                        tsl_step_size,
+                    });
                 }
 
                 let initial_stoploss_price = match side {
-                    TradeSide::Buy => market_price
-                        .apply_discount(*tsl)
-                        .map_err(|e| TradeCoreError::Generic(e.to_string()))?,
-                    TradeSide::Sell => market_price
-                        .apply_gain((*tsl).into())
-                        .map_err(|e| TradeCoreError::Generic(e.to_string()))?,
+                    TradeSide::Buy => market_price.apply_discount(*tsl).map_err(|e| {
+                        TradeCoreError::InvalidPriceApplyDiscount {
+                            price: market_price,
+                            discount: *tsl,
+                            e,
+                        }
+                    })?,
+                    TradeSide::Sell => market_price.apply_gain((*tsl).into()).map_err(|e| {
+                        TradeCoreError::InvalidPriceApplyGain {
+                            price: market_price,
+                            gain: (*tsl).into(),
+                            e,
+                        }
+                    })?,
                 };
 
                 Ok((initial_stoploss_price, Some(TradeTrailingStoploss(*tsl))))
