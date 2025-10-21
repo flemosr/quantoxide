@@ -27,12 +27,12 @@ pub struct TuiTerminal(Mutex<TerminalState>);
 
 impl TuiTerminal {
     pub fn new() -> Result<Arc<Self>> {
-        enable_raw_mode().map_err(|e| TuiError::Generic(e.to_string()))?;
+        enable_raw_mode().map_err(TuiError::TerminalSetup)?;
         let mut stdout = io::stdout();
         execute!(stdout, EnterAlternateScreen, EnableMouseCapture)
-            .map_err(|e| TuiError::Generic(e.to_string()))?;
+            .map_err(TuiError::TerminalSetup)?;
         let backend = CrosstermBackend::new(stdout);
-        let terminal = Terminal::new(backend).map_err(|e| TuiError::Generic(e.to_string()))?;
+        let terminal = Terminal::new(backend).map_err(TuiError::TerminalSetup)?;
 
         Ok(Arc::new(Self(Mutex::new(TerminalState {
             terminal,
@@ -47,13 +47,13 @@ impl TuiTerminal {
     pub fn draw<T: TuiView>(&self, tui_view: &T) -> Result<()> {
         let mut state = self.get_state();
         if state.restored {
-            return Err(TuiError::Generic("Terminal already restored".to_string()));
+            return Err(TuiError::DrawTerminalAlreadyRestored);
         }
 
         state
             .terminal
             .draw(|f| tui_view.render(f))
-            .map_err(|e| TuiError::Generic(e.to_string()))?;
+            .map_err(TuiError::DrawFailed)?;
 
         Ok(())
     }
@@ -64,18 +64,18 @@ impl TuiTerminal {
             return Ok(());
         }
 
-        disable_raw_mode().map_err(|e| TuiError::Generic(e.to_string()))?;
+        disable_raw_mode().map_err(TuiError::TerminalRestore)?;
         execute!(
             state.terminal.backend_mut(),
             LeaveAlternateScreen,
             DisableMouseCapture
         )
-        .map_err(|e| TuiError::Generic(e.to_string()))?;
+        .map_err(TuiError::TerminalRestore)?;
 
         state
             .terminal
             .show_cursor()
-            .map_err(|e| TuiError::Generic(e.to_string()))?;
+            .map_err(TuiError::TerminalRestore)?;
 
         state.restored = true;
 
