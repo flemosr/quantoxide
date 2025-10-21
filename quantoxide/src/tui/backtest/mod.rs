@@ -135,13 +135,13 @@ impl BacktestTui {
                                 "Backtest status: {backtest_status}{complement}"
                             )))
                             .await
-                            .map_err(|e| TuiError::Generic(e.to_string()))?;
+                            .map_err(TuiError::BacktestTuiSendFailed)?;
                     }
                     BacktestUpdate::TradingState(trading_state) => {
                         ui_tx
                             .send(BacktestUiMessage::StateUpdate(trading_state))
                             .await
-                            .map_err(|e| TuiError::Generic(e.to_string()))?;
+                            .map_err(TuiError::BacktestTuiSendFailed)?;
                     }
                 };
 
@@ -158,8 +158,12 @@ impl BacktestTui {
                     }
                     Err(RecvError::Lagged(skipped)) => {
                         let log_msg = format!("Backtest updates lagged by {skipped} messages");
-                        if let Err(e) = ui_tx.send(BacktestUiMessage::LogEntry(log_msg)).await {
-                            status_manager.set_crashed(TuiError::Generic(e.to_string()));
+                        if let Err(e) = ui_tx
+                            .send(BacktestUiMessage::LogEntry(log_msg))
+                            .await
+                            .map_err(TuiError::BacktestTuiSendFailed)
+                        {
+                            status_manager.set_crashed(e);
                             return;
                         }
 
@@ -173,10 +177,7 @@ impl BacktestTui {
                             return;
                         }
 
-                        status_manager.set_crashed(TuiError::Generic(format!(
-                            "`backtest_rx` returned err {:?}",
-                            e
-                        )));
+                        status_manager.set_crashed(TuiError::BacktestRecv(e));
 
                         return;
                     }
@@ -188,9 +189,7 @@ impl BacktestTui {
 
     pub async fn couple(&self, engine: BacktestEngine) -> Result<()> {
         if self.backtest_controller.initialized() {
-            return Err(TuiError::Generic(
-                "`backtest_engine` was already coupled".to_string(),
-            ));
+            return Err(TuiError::BacktestEngineAlreadyCoupled);
         }
 
         self.tui_view.initialize_chart(
@@ -210,7 +209,7 @@ impl BacktestTui {
         self.ui_tx
             .send(BacktestUiMessage::LogEntry(log_str))
             .await
-            .map_err(|e| TuiError::Generic(e.to_string()))?;
+            .map_err(TuiError::BacktestTuiSendFailed)?;
 
         let backtest_update_listener_handle = Self::spawn_backtest_update_listener(
             self.status_manager.clone(),
@@ -222,13 +221,11 @@ impl BacktestTui {
 
         self.backtest_controller
             .set(backtest_controller)
-            .map_err(|_| TuiError::Generic("Failed to set `backtest_controller`".to_string()))?;
+            .map_err(|_| TuiError::BacktestEngineAlreadyCoupled)?;
 
         self.backtest_update_listener_handle
             .set(backtest_update_listener_handle)
-            .map_err(|_| {
-                TuiError::Generic("Failed to set `backtest_update_listener_handle`".to_string())
-            })?;
+            .map_err(|_| TuiError::BacktestEngineAlreadyCoupled)?;
 
         Ok(())
     }
@@ -272,7 +269,7 @@ impl TuiLogger for BacktestTui {
         self.ui_tx
             .send(BacktestUiMessage::LogEntry(log_entry.into()))
             .await
-            .map_err(|_| TuiError::Generic("TUI is not running".to_string()))
+            .map_err(TuiError::BacktestTuiSendFailed)
     }
 }
 
