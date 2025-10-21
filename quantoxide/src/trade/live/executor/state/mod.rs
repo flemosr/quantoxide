@@ -135,7 +135,7 @@ impl<'a> TryFrom<LockedLiveTradeExecutorState<'a>> for LockedLiveTradeExecutorSt
             LiveTradeExecutorStatus::Ready if value.state_guard.trading_session.is_some() => {
                 Ok(Self(value))
             }
-            _ => Err(LiveTradeExecutorError::Generic("not ready".to_string())),
+            _ => Err(LiveTradeExecutorError::ExecutorNotReady),
         }
     }
 }
