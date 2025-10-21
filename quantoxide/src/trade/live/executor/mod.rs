@@ -177,12 +177,11 @@ impl LiveTradeExecutor {
             .db
             .price_ticks
             .get_latest_entry()
-            .await
-            .map_err(|e| LiveTradeExecutorError::Generic(e.to_string()))?
-            .ok_or(LiveTradeExecutorError::Generic("db is empty".to_string()))?;
+            .await?
+            .ok_or(LiveTradeExecutorError::DbIsEmpty)?;
 
-        let price = Price::round(last_entry_price)
-            .map_err(|e| LiveTradeExecutorError::Generic(e.to_string()))?;
+        let price =
+            Price::round(last_entry_price).map_err(LiveTradeExecutorError::InvalidMarketPrice)?;
 
         Ok(price)
     }
@@ -203,7 +202,7 @@ impl LiveTradeExecutor {
             Some(stoploss) => {
                 let (stoploss_price, tsl) = stoploss
                     .evaluate(self.config.tsl_step_size, side, market_price)
-                    .map_err(|e| LiveTradeExecutorError::Generic(e.to_string()))?;
+                    .map_err(LiveTradeExecutorError::StoplossEvaluation)?;
                 (Some(stoploss_price), tsl)
             }
             None => (None, None),
@@ -219,7 +218,7 @@ impl LiveTradeExecutor {
                 takeprofit,
                 self.config.estimated_fee_perc,
             )
-            .map_err(|e| LiveTradeExecutorError::Generic(e.to_string()))?;
+            .map_err(LiveTradeExecutorError::InvalidTradeParams)?;
 
         let trading_session = locked_ready_state.trading_session();
 
@@ -228,34 +227,20 @@ impl LiveTradeExecutor {
             return Err(LiveTradeExecutorError::BalanceTooLow);
         }
 
-        let max_running_qtd = self.config.max_running_qtd();
-        if trading_session.running_map().len() == max_running_qtd {
-            return Err(LiveTradeExecutorError::Generic(format!(
-                "can't open trade, max_running_qtd {max_running_qtd} already reached"
-            )));
+        let max_qtd = self.config.max_running_qtd();
+        if trading_session.running_map().len() == max_qtd {
+            return Err(LiveTradeExecutorError::MaxRunningTradesReached { max_qtd });
         }
 
-        let trade = match self
+        let trade = self
             .api
             .create_new_trade(side, size, leverage, stoploss_price, takeprofit)
-            .await
-        {
-            Ok(trade) => trade,
-            Err(e) => {
-                let new_status_not_ready = LiveTradeExecutorStatusNotReady::Failed(
-                    LiveTradeExecutorError::Generic("api error".to_string()),
-                );
-                locked_ready_state.update_status_not_ready(new_status_not_ready);
-
-                return Err(e.into());
-            }
-        };
+            .await?;
 
         self.db
             .running_trades
             .add_running_trade(trade.id(), trade_tsl.clone())
-            .await
-            .map_err(|e| LiveTradeExecutorError::Generic(e.to_string()))?;
+            .await?;
 
         let mut new_trading_session = locked_ready_state.trading_session().to_owned();
 
@@ -287,22 +272,10 @@ impl LiveTradeExecutor {
                 .map(|&trade_id| self.api.close_trade(trade_id))
                 .collect::<Vec<_>>();
 
-            let closed_trades = match future::join_all(close_futures)
+            let closed_trades = future::join_all(close_futures)
                 .await
                 .into_iter()
-                .collect::<result::Result<Vec<_>, _>>()
-            {
-                Ok(closed) => closed,
-                Err(e) => {
-                    // Status needs to be recreated
-                    let new_status_not_ready = LiveTradeExecutorStatusNotReady::Failed(
-                        LiveTradeExecutorError::Generic("api error".to_string()),
-                    );
-                    locked_ready_state.update_status_not_ready(new_status_not_ready);
-
-                    return Err(e.into());
-                }
-            };
+                .collect::<result::Result<Vec<_>, _>>()?;
 
             new_trading_session.close_trades(&closed_trades)?;
 
@@ -320,8 +293,7 @@ impl LiveTradeExecutor {
             self.db
                 .running_trades
                 .remove_running_trades(closed_ids.as_slice())
-                .await
-                .map_err(|e| LiveTradeExecutorError::Generic(e.to_string()))?;
+                .await?;
         }
 
         locked_ready_state
@@ -340,9 +312,7 @@ impl LiveTradeExecutor {
 
     pub async fn shutdown(&self) -> LiveTradeExecutorResult<()> {
         let Some(handle) = self.try_consume_handle() else {
-            return Err(LiveTradeExecutorError::Generic(
-                "`LiveTradeExecutor` was already shutdown".to_string(),
-            ));
+            return Err(LiveTradeExecutorError::TradeExecutorProcessAlreadyConsumed);
         };
 
         self.state_manager
@@ -364,10 +334,9 @@ impl LiveTradeExecutor {
             match futures::try_join!(self.api.cancel_all_trades(), self.api.close_all_trades()) {
                 Ok(_) => (Ok(()), LiveTradeExecutorStatusNotReady::Shutdown),
                 Err(e) => (
-                    Err(LiveTradeExecutorError::Generic(format!(
-                        "couldn't cancel and close trades on shutdown {:?}",
-                        e
-                    ))),
+                    Err(LiveTradeExecutorError::FailedToCloseTradesOnShutdown(
+                        e.to_string(),
+                    )),
                     LiveTradeExecutorStatusNotReady::NotViable(e),
                 ),
             }
@@ -414,36 +383,23 @@ impl TradeExecutor for LiveTradeExecutor {
 
         let Some((current_trade, _)) = trading_session.running_map().get_trade_by_id(trade_id)
         else {
-            return Err(LiveTradeExecutorError::Generic(format!(
-                "trade {trade_id} is not running"
-            )))?;
+            return Err(LiveTradeExecutorError::TradeNotRegistered { trade_id })?;
         };
 
-        let max_additional_margin = current_trade.est_max_additional_margin();
-        if amount.get() > max_additional_margin {
-            return Err(LiveTradeExecutorError::Generic(format!(
-                "amount {amount} exceeds max_additional_margin {max_additional_margin} for trade {trade_id}"
-            )))?;
+        let max_amount = current_trade.est_max_additional_margin();
+        if amount.get() > max_amount {
+            return Err(LiveTradeExecutorError::MarginAmountExceedsMaxForTrade {
+                amount,
+                max_amount,
+            })?;
         }
 
         let balance = trading_session.balance();
         if amount.get() >= balance {
-            return Err(LiveTradeExecutorError::Generic(format!(
-                "amount {amount} exceeds current balance {balance}"
-            )))?;
+            return Err(LiveTradeExecutorError::BalanceTooLow)?;
         }
 
-        let updated_trade = match self.api.add_margin(trade_id, amount).await {
-            Ok(trade) => trade,
-            Err(e) => {
-                let new_status_not_ready = LiveTradeExecutorStatusNotReady::Failed(
-                    LiveTradeExecutorError::Generic("api error".to_string()),
-                );
-                locked_ready_state.update_status_not_ready(new_status_not_ready);
-
-                return Err(e.into());
-            }
-        };
+        let updated_trade = self.api.add_margin(trade_id, amount).await?;
 
         let mut new_trading_session = trading_session.to_owned();
 
@@ -463,31 +419,20 @@ impl TradeExecutor for LiveTradeExecutor {
 
         let Some((current_trade, _)) = trading_session.running_map().get_trade_by_id(trade_id)
         else {
-            return Err(LiveTradeExecutorError::Generic(format!(
-                "trade {trade_id} is not running"
-            )))?;
+            return Err(LiveTradeExecutorError::TradeNotRegistered { trade_id })?;
         };
 
         let market_price = self.get_estimated_market_price().await?;
 
         let max_cash_in = current_trade.est_max_cash_in(market_price);
         if amount.get() > max_cash_in {
-            return Err(LiveTradeExecutorError::Generic(format!(
-                "amount {amount} exceeds max_cash_in {max_cash_in} for trade {trade_id}"
-            )))?;
+            return Err(LiveTradeExecutorError::CashInAmountExceedsMaxForTrade {
+                amount,
+                max_cash_in,
+            })?;
         }
 
-        let updated_trade = match self.api.cash_in(trade_id, amount).await {
-            Ok(trade) => trade,
-            Err(e) => {
-                let new_status_not_ready = LiveTradeExecutorStatusNotReady::Failed(
-                    LiveTradeExecutorError::Generic("api error".to_string()),
-                );
-                locked_ready_state.update_status_not_ready(new_status_not_ready);
-
-                return Err(e.into());
-            }
-        };
+        let updated_trade = self.api.cash_in(trade_id, amount).await?;
 
         let mut new_trading_session = trading_session.to_owned();
 
@@ -506,28 +451,16 @@ impl TradeExecutor for LiveTradeExecutor {
         let trading_session = locked_ready_state.trading_session();
 
         if !trading_session.running_map().contains(&trade_id) {
-            return Err(LiveTradeExecutorError::Generic(format!(
-                "trade {trade_id} is not running"
-            )))?;
+            return Err(LiveTradeExecutorError::TradeNotRegistered { trade_id })?;
         };
 
-        let closed_trade = match self.api.close_trade(trade_id).await {
-            Ok(trade) => trade,
-            Err(e) => {
-                let new_status_not_ready = LiveTradeExecutorStatusNotReady::Failed(
-                    LiveTradeExecutorError::Generic("api error".to_string()),
-                );
-                locked_ready_state.update_status_not_ready(new_status_not_ready);
-
-                return Err(e.into());
-            }
-        };
+        let closed_trade = self.api.close_trade(trade_id).await?;
 
         self.db
             .running_trades
             .remove_running_trades(&[closed_trade.id()])
             .await
-            .map_err(|e| LiveTradeExecutorError::Generic(e.to_string()))?;
+            .map_err(LiveTradeExecutorError::Db)?;
 
         let mut new_trading_session = locked_ready_state.trading_session().to_owned();
 
@@ -560,19 +493,8 @@ impl TradeExecutor for LiveTradeExecutor {
 
         let mut new_trading_session = locked_ready_state.trading_session().to_owned();
 
-        let closed_trades =
-            match futures::try_join!(self.api.cancel_all_trades(), self.api.close_all_trades()) {
-                Ok((_, closed)) => closed,
-                Err(e) => {
-                    // Status needs to be reevaluated
-                    let new_status_not_ready = LiveTradeExecutorStatusNotReady::Failed(
-                        LiveTradeExecutorError::Generic("api error".to_string()),
-                    );
-                    locked_ready_state.update_status_not_ready(new_status_not_ready);
-
-                    return Err(e.into());
-                }
-            };
+        let (_, closed_trades) =
+            futures::try_join!(self.api.cancel_all_trades(), self.api.close_all_trades())?;
 
         new_trading_session.close_trades(&closed_trades)?;
 
@@ -619,9 +541,7 @@ impl LiveTradeExecutorLauncher {
         sync_rx: SyncReceiver,
     ) -> LiveTradeExecutorResult<Self> {
         if !api.rest.has_credentials {
-            return Err(LiveTradeExecutorError::Generic(
-                "`LiveTradeExecutorLauncher`'s `api` must have credentials".to_string(),
-            ));
+            return Err(LiveTradeExecutorError::ApiCredentialsNotSet);
         }
 
         let (update_tx, _) = broadcast::channel::<LiveTradeExecutorUpdate>(100);
@@ -717,20 +637,14 @@ impl LiveTradeExecutorLauncher {
                                 }
                                 SyncStatus::ShutdownInitiated | SyncStatus::Shutdown => {
                                     // Non-recoverable error
-                                    return Err(LiveTradeExecutorError::Generic(
-                                        "sync process was shutdown".to_string(),
-                                    ));
+                                    return Err(LiveTradeExecutorError::SyncProcessShutdown);
                                 }
                                 SyncStatus::Synced => refresh_trading_session().await,
                             },
                             SyncUpdate::PriceTick(_) => refresh_trading_session().await,
                             SyncUpdate::PriceHistoryState(_) => {}
                         },
-                        Err(e) => {
-                            return Err(LiveTradeExecutorError::Generic(format!(
-                                "sync_rx error {e}"
-                            )));
-                        }
+                        Err(e) => return Err(LiveTradeExecutorError::SyncRecv(e)),
                     }
                 }
             };
