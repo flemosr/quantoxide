@@ -644,25 +644,15 @@ impl WrappedSignalOperator {
         panic::catch_unwind(AssertUnwindSafe(|| {
             self.0.set_trade_executor(trade_executor)
         }))
-        .map_err(|_| TradeCoreError::Generic(format!("`Operator::set_trade_executor` panicked")))?
-        .map_err(|e| {
-            TradeCoreError::Generic(format!(
-                "`Operator::set_trade_executor` error {}",
-                e.to_string()
-            ))
-        })
+        .map_err(|e| TradeCoreError::SignalOperatorSetTradeExecutorPanicked(e.into()))?
+        .map_err(|e| TradeCoreError::SignalOperatorSetTradeExecutorError(e.to_string()))
     }
 
     pub async fn process_signal(&self, signal: &Signal) -> TradeCoreResult<()> {
         FutureExt::catch_unwind(AssertUnwindSafe(self.0.process_signal(signal)))
             .await
-            .map_err(|_| TradeCoreError::Generic(format!("`Operator::process_signal` panicked")))?
-            .map_err(|e| {
-                TradeCoreError::Generic(format!(
-                    "`Operator::process_signal` error {}",
-                    e.to_string()
-                ))
-            })
+            .map_err(|e| TradeCoreError::SignalOperatorProcessSignalPanicked(e.into()))?
+            .map_err(|e| TradeCoreError::SignalOperatorProcessSignalError(e.to_string()))
     }
 }
 
@@ -699,44 +689,28 @@ impl WrappedRawOperator {
         panic::catch_unwind(AssertUnwindSafe(|| {
             self.0.set_trade_executor(trade_executor)
         }))
-        .map_err(|_| {
-            TradeCoreError::Generic(format!("`RawOperator::set_trade_executor` panicked"))
-        })?
-        .map_err(|e| {
-            TradeCoreError::Generic(format!(
-                "`RawOperator::set_trade_executor` error {}",
-                e.to_string()
-            ))
-        })
+        .map_err(|e| TradeCoreError::RawOperatorSetTradeExecutorPanicked(e.into()))?
+        .map_err(|e| TradeCoreError::RawOperatorSetTradeExecutorError(e.to_string()))
     }
 
     pub fn iteration_interval(&self) -> TradeCoreResult<Duration> {
         let interval_secs =
-            panic::catch_unwind(AssertUnwindSafe(|| self.0.iteration_interval_secs())).map_err(
-                |_| {
-                    TradeCoreError::Generic(format!(
-                        "`RawOperator::iteration_interval_secs` panicked"
-                    ))
-                },
-            )?;
+            panic::catch_unwind(AssertUnwindSafe(|| self.0.iteration_interval_secs()))
+                .map_err(|e| TradeCoreError::RawOperatorIterationIntervalPanicked(e.into()))?;
         Ok(Duration::seconds(interval_secs as i64))
     }
 
     pub fn context_window_secs(&self) -> TradeCoreResult<usize> {
         let window = panic::catch_unwind(AssertUnwindSafe(|| self.0.context_window_secs()))
-            .map_err(|_| {
-                TradeCoreError::Generic(format!("`RawOperator::context_window_secs` panicked"))
-            })?;
+            .map_err(|e| TradeCoreError::RawOperatorContextWindowPanicked(e.into()))?;
         Ok(window)
     }
 
     pub async fn iterate(&self, entries: &[PriceHistoryEntryLOCF]) -> TradeCoreResult<()> {
         FutureExt::catch_unwind(AssertUnwindSafe(self.0.iterate(entries)))
             .await
-            .map_err(|_| TradeCoreError::Generic(format!("`RawOperator::iterate` panicked")))?
-            .map_err(|e| {
-                TradeCoreError::Generic(format!("`RawOperator::iterate`  error {}", e.to_string()))
-            })
+            .map_err(|e| TradeCoreError::RawOperatorIteratePanicked(e.into()))?
+            .map_err(|e| TradeCoreError::RawOperatorIterateError(e.to_string()))
     }
 }
 
