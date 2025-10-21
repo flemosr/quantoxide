@@ -72,12 +72,8 @@ pub trait TuiLogManager: Sync + Send + 'static {
             };
 
             if let Some(log_file) = log_file.as_mut() {
-                writeln!(log_file, "{}", log_entry_line).map_err(|e| {
-                    TuiError::Generic(format!("couldn't write to log file {}", e.to_string()))
-                })?;
-                log_file.flush().map_err(|e| {
-                    TuiError::Generic(format!("couldn't flush log file {}", e.to_string()))
-                })?;
+                writeln!(log_file, "{}", log_entry_line).map_err(TuiError::LogFileWrite)?;
+                log_file.flush().map_err(TuiError::LogFileWrite)?;
             }
 
             log_entry.push(log_entry_line)
