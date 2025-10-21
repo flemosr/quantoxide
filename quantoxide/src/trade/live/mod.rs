@@ -821,7 +821,7 @@ impl OperatorPending {
             } => {
                 operator
                     .set_trade_executor(trade_executor)
-                    .map_err(|e| LiveError::Generic(e.to_string()))?;
+                    .map_err(LiveError::OperatorError)?;
 
                 let signal_controller = signal_engine.start();
 
@@ -837,7 +837,7 @@ impl OperatorPending {
             } => {
                 raw_operator
                     .set_trade_executor(trade_executor)
-                    .map_err(|e| LiveError::Generic(e.to_string()))?;
+                    .map_err(LiveError::OperatorError)?;
 
                 Ok(OperatorRunning::Raw {
                     db,
@@ -865,32 +865,35 @@ impl LiveEngine {
         mut executor_rx: LiveTradeExecutorReceiver,
     ) -> AbortOnDropHandle<()> {
         tokio::spawn(async move {
-            while let Ok(executor_update) = executor_rx.recv().await {
-                match executor_update {
-                    LiveTradeExecutorUpdate::Status(executor_status) => match executor_status {
-                        LiveTradeExecutorStatus::NotReady(executor_state_not_ready) => {
-                            let new_status =
-                                LiveStatus::WaitingTradeExecutor(executor_state_not_ready);
-                            status_manager.update_if_running(new_status.into());
+            loop {
+                match executor_rx.recv().await {
+                    Ok(executor_update) => match executor_update {
+                        LiveTradeExecutorUpdate::Status(executor_status) => match executor_status {
+                            LiveTradeExecutorStatus::NotReady(executor_state_not_ready) => {
+                                let new_status =
+                                    LiveStatus::WaitingTradeExecutor(executor_state_not_ready);
+                                status_manager.update_if_running(new_status.into());
+                            }
+                            LiveTradeExecutorStatus::Ready => {}
+                        },
+                        LiveTradeExecutorUpdate::Order(executor_update_order) => {
+                            let _ = update_tx.send(executor_update_order.into());
                         }
-                        LiveTradeExecutorStatus::Ready => {}
+                        LiveTradeExecutorUpdate::TradingState(trading_state) => {
+                            let _ = update_tx.send(trading_state.into());
+                        }
+                        LiveTradeExecutorUpdate::ClosedTrade(closed_trade) => {
+                            let _ = update_tx.send(LiveUpdate::ClosedTrade(closed_trade));
+                        }
                     },
-                    LiveTradeExecutorUpdate::Order(executor_update_order) => {
-                        let _ = update_tx.send(executor_update_order.into());
-                    }
-                    LiveTradeExecutorUpdate::TradingState(trading_state) => {
-                        let _ = update_tx.send(trading_state.into());
-                    }
-                    LiveTradeExecutorUpdate::ClosedTrade(closed_trade) => {
-                        let _ = update_tx.send(LiveUpdate::ClosedTrade(closed_trade));
+                    Err(e) => {
+                        // TODO: Non-recoverable error
+                        let new_status = LiveStatus::Failed(LiveError::ExecutorRecv(e));
+                        status_manager.update(new_status);
+                        break;
                     }
                 }
             }
-
-            let new_status = LiveStatus::Failed(LiveError::Generic(
-                "`trade_executor` job transmitter was dropped unexpectedly".to_string(),
-            ));
-            status_manager.update(new_status);
         })
         .into()
     }
@@ -903,9 +906,7 @@ impl LiveEngine {
         operator: Box<dyn SignalOperator>,
     ) -> Result<Self> {
         if evaluators.is_empty() {
-            return Err(LiveError::Generic(
-                "At least one evaluator must be provided".to_string(),
-            ));
+            return Err(LiveError::EmptyEvaluatorsVec);
         }
 
         let sync_mode = if config.sync_mode_full() {
@@ -930,7 +931,7 @@ impl LiveEngine {
             sync_engine.reader(),
             Arc::new(evaluators),
         )
-        .map_err(|e| LiveError::Generic(e.to_string()))?;
+        .map_err(LiveError::LaunchLiveSignalEngine)?;
 
         let operator_pending = OperatorPending::signal(signal_engine, operator.into());
 
@@ -965,7 +966,7 @@ impl LiveEngine {
         } else {
             let context_window_secs = operator
                 .context_window_secs()
-                .map_err(|e| LiveError::Generic(e.to_string()))?;
+                .map_err(LiveError::OperatorError)?;
 
             SyncMode::Live {
                 range: Duration::seconds(context_window_secs as i64),
@@ -1013,7 +1014,7 @@ impl LiveEngine {
             .trade_executor_launcher
             .launch()
             .await
-            .map_err(|e| LiveError::Generic(e.to_string()))?;
+            .map_err(LiveError::LauchExecutor)?;
 
         let _executor_updates_handle = Self::spawn_executor_update_handler(
             self.status_manager.clone(),
