@@ -24,11 +24,11 @@ mod error;
 mod real_time_collection_task;
 mod sync_price_history_task;
 
-use error::Result;
+use error::{Result, SyncProcessError};
 use real_time_collection_task::RealTimeCollectionTask;
 use sync_price_history_task::{PriceHistoryStateTransmiter, SyncPriceHistoryTask};
 
-pub use error::SyncProcessError;
+pub use error::{SyncProcessFatalError, SyncProcessRecoverableError};
 pub use real_time_collection_task::RealTimeCollectionError;
 pub use sync_price_history_task::{PriceHistoryState, SyncPriceHistoryError};
 

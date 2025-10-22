@@ -6,7 +6,7 @@ use tokio::{sync::broadcast::error::RecvError, task::JoinError};
 use super::{RealTimeCollectionError, SyncPriceHistoryError};
 
 #[derive(Error, Debug)]
-pub enum SyncProcessError {
+pub enum SyncProcessRecoverableError {
     #[error("[SyncPriceHistory] {0}")]
     SyncPriceHistory(#[from] SyncPriceHistoryError),
 
@@ -21,9 +21,21 @@ pub enum SyncProcessError {
 
     #[error("PriceTickRecv error: {0}")]
     PriceTickRecv(RecvError),
+}
 
-    #[error("Shutdown signal channel error: {0}")]
-    ShutdownSignalRecv(RecvError), // Both lagged and closed are not recoverable
+#[derive(Error, Debug)]
+pub enum SyncProcessFatalError {
+    #[error("Shutdown signal channel recv error: {0}")]
+    ShutdownSignalRecv(RecvError),
+}
+
+#[derive(Error, Debug)]
+pub enum SyncProcessError {
+    #[error(transparent)]
+    Recoverable(#[from] SyncProcessRecoverableError),
+
+    #[error(transparent)]
+    Fatal(#[from] SyncProcessFatalError),
 }
 
 pub type Result<T> = result::Result<T, SyncProcessError>;

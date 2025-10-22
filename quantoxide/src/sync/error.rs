@@ -3,8 +3,13 @@ use std::result;
 use thiserror::Error;
 use tokio::{sync::broadcast::error::SendError, task::JoinError};
 
+use super::process::SyncProcessFatalError;
+
 #[derive(Error, Debug)]
 pub enum SyncError {
+    #[error("[SyncProcessFatal] {0}")]
+    SyncProcessFatal(#[from] SyncProcessFatalError),
+
     #[error("[SyncProcessTaskJoin] {0}")]
     SyncProcessTaskJoin(JoinError),
 
