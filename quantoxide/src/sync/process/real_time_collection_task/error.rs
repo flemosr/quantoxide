@@ -18,8 +18,14 @@ pub enum RealTimeCollectionError {
     #[error("[Db] {0}")]
     Db(#[from] DbError),
 
-    #[error("Recv error: {0}")]
-    Recv(RecvError),
+    #[error("RecvLagged error, skipped: {skipped}")]
+    WebSocketRecvLagged { skipped: u64 },
+
+    #[error("RecvLagged error")]
+    WebSocketRecvClosed,
+
+    #[error("Shutdown signal channel error: {0}")]
+    ShutdownSignalRecv(RecvError),
 }
 
 pub type Result<T> = result::Result<T, RealTimeCollectionError>;
