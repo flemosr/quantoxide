@@ -1,7 +1,10 @@
 use std::result;
 
 use thiserror::Error;
-use tokio::{sync::broadcast::error::RecvError, task::JoinError};
+use tokio::{
+    sync::broadcast::error::{RecvError, SendError},
+    task::JoinError,
+};
 
 use super::{RealTimeCollectionError, SyncPriceHistoryError};
 
@@ -27,6 +30,15 @@ pub enum SyncProcessRecoverableError {
 pub enum SyncProcessFatalError {
     #[error("Shutdown signal channel recv error: {0}")]
     ShutdownSignalRecv(RecvError),
+
+    #[error("[SyncProcessTaskJoin] {0}")]
+    SyncProcessTaskJoin(JoinError),
+
+    #[error("Failed to send sync shutdown signal error: {0}")]
+    SendShutdownSignalFailed(SendError<()>),
+
+    #[error("Sync shutdown timeout error")]
+    ShutdownTimeout,
 }
 
 #[derive(Error, Debug)]
