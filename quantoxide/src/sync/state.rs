@@ -7,7 +7,7 @@ use tokio::sync::broadcast;
 
 use crate::db::models::PriceTick;
 
-use super::{PriceHistoryState, SyncError, SyncProcessFatalError, SyncProcessRecoverableError};
+use super::{PriceHistoryState, SyncProcessFatalError, SyncProcessRecoverableError};
 
 #[derive(Debug)]
 pub enum SyncStatusNotSynced {
@@ -35,20 +35,20 @@ impl fmt::Display for SyncStatusNotSynced {
 #[derive(Debug, Clone)]
 pub enum SyncStatus {
     NotSynced(Arc<SyncStatusNotSynced>),
-    Terminated(Arc<SyncError>),
     Synced,
     ShutdownInitiated,
     Shutdown,
+    Terminated(Arc<SyncProcessFatalError>),
 }
 
 impl fmt::Display for SyncStatus {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::NotSynced(status) => write!(f, "Not synced ({status})"),
-            Self::Terminated(error) => write!(f, "Terminated: {error}"),
             Self::Synced => write!(f, "Synced"),
             Self::ShutdownInitiated => write!(f, "Shutdown initiated"),
             Self::Shutdown => write!(f, "Shutdown"),
+            Self::Terminated(error) => write!(f, "Terminated: {error}"),
         }
     }
 }
@@ -59,9 +59,15 @@ impl From<SyncStatusNotSynced> for SyncStatus {
     }
 }
 
+impl From<Arc<SyncProcessFatalError>> for SyncStatus {
+    fn from(value: Arc<SyncProcessFatalError>) -> Self {
+        Self::Terminated(value)
+    }
+}
+
 impl From<SyncProcessFatalError> for SyncStatus {
     fn from(value: SyncProcessFatalError) -> Self {
-        Self::Terminated(Arc::new(value.into()))
+        Arc::new(value).into()
     }
 }
 
