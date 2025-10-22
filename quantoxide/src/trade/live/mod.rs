@@ -302,6 +302,10 @@ impl LiveProcess {
                                             );
                                         }
                                         SyncStatus::Synced => break,
+                                        SyncStatus::Terminated(err) => {
+                                            // Non-recoverable error
+                                            return Err(LiveError::SyncProcessTerminated(err));
+                                        }
                                         SyncStatus::ShutdownInitiated | SyncStatus::Shutdown => {
                                             // Non-recoverable error
                                             return Err(LiveError::SyncProcessShutdown);
