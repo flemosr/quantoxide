@@ -100,7 +100,7 @@ impl SyncProcess {
         )
         .backfill()
         .await
-        .map_err(SyncProcessError::SyncPriceHistory)
+        .map_err(|e| SyncProcessRecoverableError::SyncPriceHistory(e).into())
     }
 
     async fn run_price_history_task_live(
@@ -116,7 +116,7 @@ impl SyncProcess {
         )
         .live(range)
         .await
-        .map_err(SyncProcessError::SyncPriceHistory)
+        .map_err(|e| SyncProcessRecoverableError::SyncPriceHistory(e).into())
     }
 
     /// Clean up is not needed since the task is terminated when
@@ -145,7 +145,11 @@ impl SyncProcess {
             price_tick_tx,
         );
 
-        tokio::spawn(task.run().map_err(SyncProcessError::RealTimeCollection)).into()
+        tokio::spawn(
+            task.run()
+                .map_err(|e| SyncProcessRecoverableError::RealTimeCollection(e).into()),
+        )
+        .into()
     }
 
     async fn run_backfill(&self) -> Result<Never> {
@@ -192,12 +196,9 @@ impl SyncProcess {
         if real_time_collection_handle.is_finished() {
             real_time_collection_handle
                 .await
-                .map_err(SyncProcessError::RealTimeCollectionTaskJoin)??;
+                .map_err(SyncProcessRecoverableError::RealTimeCollectionTaskJoin)??;
 
-            // "Should Never Happen" since `real_time_collection_handle` should
-            // store the `RealTimeCollectionError` that led to the early
-            // termination.
-            return Err(SyncProcessError::UnexpectedRealTimeCollectionShutdown);
+            return Err(SyncProcessRecoverableError::UnexpectedRealTimeCollectionShutdown.into());
         }
 
         // Sync achieved
@@ -209,11 +210,12 @@ impl SyncProcess {
         loop {
             tokio::select! {
                 rt_res = &mut real_time_collection_handle => {
-                    rt_res.map_err(SyncProcessError::RealTimeCollectionTaskJoin)??;
-                    return Err(SyncProcessError::UnexpectedRealTimeCollectionShutdown);
+                    rt_res.map_err(SyncProcessRecoverableError::RealTimeCollectionTaskJoin)??;
+
+                    return Err(SyncProcessRecoverableError::UnexpectedRealTimeCollectionShutdown.into());
                 }
                 tick_res = price_tick_rx.recv() => {
-                    let tick = tick_res.map_err(SyncProcessError::PriceTickRecv)?;
+                    let tick = tick_res.map_err(SyncProcessRecoverableError::PriceTickRecv)?;
                     let _ = self.update_tx.send(tick.into());
                 }
             }
@@ -245,9 +247,9 @@ impl SyncProcess {
         if real_time_collection_handle.is_finished() {
             real_time_collection_handle
                 .await
-                .map_err(SyncProcessError::RealTimeCollectionTaskJoin)??;
+                .map_err(SyncProcessRecoverableError::RealTimeCollectionTaskJoin)??;
 
-            return Err(SyncProcessError::UnexpectedRealTimeCollectionShutdown);
+            return Err(SyncProcessRecoverableError::UnexpectedRealTimeCollectionShutdown.into());
         }
 
         // Sync achieved
@@ -262,15 +264,16 @@ impl SyncProcess {
         loop {
             tokio::select! {
                 rt_res = &mut real_time_collection_handle => {
-                    rt_res.map_err(SyncProcessError::RealTimeCollectionTaskJoin)??;
-                    return Err(SyncProcessError::UnexpectedRealTimeCollectionShutdown);
+                    rt_res.map_err(SyncProcessRecoverableError::RealTimeCollectionTaskJoin)??;
+
+                    return Err(SyncProcessRecoverableError::UnexpectedRealTimeCollectionShutdown.into());
                 }
                 tick_res = price_tick_rx.recv() => {
                     match tick_res {
                         Ok(tick) => {
                             let _ = self.update_tx.send(tick.into());
                         },
-                        Err(e) => return Err(SyncProcessError::PriceTickRecv(e))
+                        Err(e) => return Err(SyncProcessRecoverableError::PriceTickRecv(e).into())
                     }
                 }
                 _ = &mut re_sync_timer => {
@@ -293,23 +296,36 @@ impl SyncProcess {
     pub fn spawn_recovery_loop(self) -> AbortOnDropHandle<()> {
         tokio::spawn(async move {
             loop {
-                self.status_manager.update(SyncStatusNotSynced::Starting.into());
+                self.status_manager
+                    .update(SyncStatusNotSynced::Starting.into());
 
                 let mut shutdown_rx = self.shutdown_tx.subscribe();
-                tokio::select! {
-                    run_res = self.run_mode() => {
-                        let Err(sync_error) = run_res;
-                        self.status_manager.update(SyncStatusNotSynced::Failed(sync_error).into());
-                    }
+
+                let sync_process_error = tokio::select! {
+                    Err(sync_error) = self.run_mode() => sync_error,
                     shutdown_res = shutdown_rx.recv() => {
-                        if let Err(e) = shutdown_res {
-                            self.status_manager.update(SyncStatusNotSynced::Failed(SyncProcessError::ShutdownSignalRecv(e)).into());
-                        }
-                        return;
+                        let Err(err) = shutdown_res else {
+                            // Shutdown signal received
+                            return;
+                        };
+
+                        SyncProcessFatalError::ShutdownSignalRecv(err).into()
                     }
                 };
 
-                self.status_manager.update(SyncStatusNotSynced::Restarting.into());
+                match sync_process_error {
+                    SyncProcessError::Fatal(err) => {
+                        self.status_manager.update(err.into());
+                        return;
+                    }
+                    SyncProcessError::Recoverable(err) => {
+                        self.status_manager
+                            .update(SyncStatusNotSynced::Failed(err).into());
+                    }
+                }
+
+                self.status_manager
+                    .update(SyncStatusNotSynced::Restarting.into());
 
                 // Handle shutdown signals while waiting for `restart_interval`
 
@@ -318,13 +334,15 @@ impl SyncProcess {
                         // Continue with the restart loop
                     }
                     shutdown_res = shutdown_rx.recv() => {
-                        if let Err(e) = shutdown_res {
-                            self.status_manager.update(SyncStatusNotSynced::Failed(SyncProcessError::ShutdownSignalRecv(e)).into());
+                        if let Err(err) = shutdown_res {
+                            let status = SyncProcessFatalError::ShutdownSignalRecv(err).into();
+                            self.status_manager.update(status);
                         }
                         return;
                     }
                 }
             }
-        }).into()
+        })
+        .into()
     }
 }
