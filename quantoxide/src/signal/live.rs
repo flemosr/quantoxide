@@ -5,7 +5,10 @@ use std::{
 };
 
 use chrono::{DateTime, Duration, Utc};
-use tokio::{sync::broadcast, time};
+use tokio::{
+    sync::broadcast::{self, error::RecvError},
+    time,
+};
 
 use crate::{
     db::DbContext,
@@ -19,7 +22,7 @@ use super::{
     error::{Result, SignalError},
 };
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 pub enum LiveSignalStatusNotRunning {
     NotInitiated,
     Starting,
@@ -42,7 +45,7 @@ impl fmt::Display for LiveSignalStatusNotRunning {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub enum LiveSignalStatus {
     NotRunning(Arc<LiveSignalStatusNotRunning>),
     Running,
@@ -219,9 +222,13 @@ impl LiveSignalProcess {
                                                         sync_status_not_synced,
                                                     )
                                                     .into(),
-                                                );
+                                                )
                                             }
                                             SyncStatus::Synced => break,
+                                            SyncStatus::Terminated(err) => {
+                                                // Non-recoverable error
+                                                return Err(SignalError::SyncProcessTerminated(err));
+                                            }
                                             SyncStatus::ShutdownInitiated | SyncStatus::Shutdown => {
                                                 // Non-recoverable error
                                                 return Err(SignalError::SyncProcessShutdown);
@@ -231,7 +238,8 @@ impl LiveSignalProcess {
                                         SyncUpdate::PriceHistoryState(_) => {}
                                     }
                                 },
-                                Err(e) => return Err(SignalError::SyncRecv(e))
+                                Err(RecvError::Lagged(skipped)) => return Err(SignalError::SyncRecvLagged{skipped}),
+                                Err(RecvError::Closed) => return Err(SignalError::SyncRecvClosed)
                             }
                         }
                         _ = time::sleep(self.config.sync_update_timeout) => {
@@ -291,7 +299,7 @@ impl LiveSignalProcess {
                     shutdown_res = shutdown_rx.recv() => {
                         if let Err(e) = shutdown_res {
                             self.status_manager.update(
-                                LiveSignalStatusNotRunning::Failed(SignalError::ShutdownRecv(e)).into()
+                                LiveSignalStatusNotRunning::Failed(SignalError::ShutdownSignalRecv(e)).into()
                             );
                         }
                         return;
@@ -309,7 +317,7 @@ impl LiveSignalProcess {
                     shutdown_res = shutdown_rx.recv() => {
                         if let Err(e) = shutdown_res {
                             self.status_manager.update(
-                                LiveSignalStatusNotRunning::Failed(SignalError::ShutdownRecv(e)).into()
+                                LiveSignalStatusNotRunning::Failed(SignalError::ShutdownSignalRecv(e)).into()
                             );
                         }
                         return;
@@ -390,14 +398,14 @@ impl LiveSignalController {
 
         let shutdown_send_res = self.shutdown_tx.send(()).map_err(|e| {
             handle.abort();
-            SignalError::SendShutdownFailed(e)
+            SignalError::SendShutdownSignalFailed(e)
         });
 
         let shutdown_res = match shutdown_send_res {
             Ok(_) => {
                 tokio::select! {
                     join_res = &mut handle => {
-                        join_res.map_err(SignalError::TaskJoin)
+                        join_res.map_err(SignalError::LiveSignalProcessTaskJoin)
                     }
                     _ = time::sleep(self.config.shutdown_timeout) => {
                         handle.abort();
