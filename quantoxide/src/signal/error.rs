@@ -6,7 +6,7 @@ use tokio::{
     task::JoinError,
 };
 
-use crate::{db::error::DbError, util::PanicPayload};
+use crate::{db::error::DbError, sync::SyncProcessFatalError, util::PanicPayload};
 
 use super::live::LiveSignalStatus;
 
@@ -16,7 +16,7 @@ pub enum SignalError {
     SignalTransmiterFailed(SendError<Arc<LiveSignalStatus>>),
 
     #[error("TaskJoin error {0}")]
-    TaskJoin(JoinError),
+    LiveSignalProcessTaskJoin(JoinError), // Not recoverable
 
     #[error("It was not possible to convert `evaluation_interval_secs` to `NonZeroU64`")]
     InvalidEvaluationInterval,
@@ -34,19 +34,25 @@ pub enum SignalError {
     Db(#[from] DbError),
 
     #[error("`Sync` process (dependency) was shutdown")]
-    SyncProcessShutdown,
+    SyncProcessShutdown, // Not recoverable
 
-    #[error("`Sync` `RecvError` error: {0}")]
-    SyncRecv(RecvError),
+    #[error("`Sync` process (dependency) was terminated with error: {0}")]
+    SyncProcessTerminated(Arc<SyncProcessFatalError>), // Not recoverable
 
-    #[error("Shutdown `RecvError` error: {0}")]
-    ShutdownRecv(RecvError),
+    #[error("`SyncRecvLagged` error, skipped: {skipped}")]
+    SyncRecvLagged { skipped: u64 },
+
+    #[error("`SyncRecvClosed` error")]
+    SyncRecvClosed, // Not recoverable
 
     #[error("Live Signal already shutdown error")]
     LiveSignalAlreadyShutdown,
 
+    #[error("Shutdown `RecvError` error: {0}")]
+    ShutdownSignalRecv(RecvError), // Not recoverable
+
     #[error("Failed to send live signal process shutdown request error: {0}")]
-    SendShutdownFailed(SendError<()>),
+    SendShutdownSignalFailed(SendError<()>), // Not recoverable
 
     #[error("Live Signal shutdown timeout error")]
     ShutdownTimeout,
@@ -54,13 +60,5 @@ pub enum SignalError {
     #[error("At least one signal evaluator must be provided")]
     EmptyEvaluatorsVec,
 }
-
-impl PartialEq for SignalError {
-    fn eq(&self, other: &Self) -> bool {
-        self.to_string() == other.to_string()
-    }
-}
-
-impl Eq for SignalError {}
 
 pub type Result<T> = result::Result<T, SignalError>;
