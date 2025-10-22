@@ -50,10 +50,10 @@ impl LnmWebSocketRepo {
 
         // Internal channel for JSON RPC requests
         let (request_tx, request_rx) =
-            mpsc::channel::<(LnmJsonRpcRequest, oneshot::Sender<bool>)>(100);
+            mpsc::channel::<(LnmJsonRpcRequest, oneshot::Sender<bool>)>(1000);
 
         // External channel for API responses
-        let (response_tx, _) = broadcast::channel::<WebSocketUpdate>(100);
+        let (response_tx, _) = broadcast::channel::<WebSocketUpdate>(1000);
 
         let (event_loop_handle, connection_status_manager) = WebSocketEventLoop::try_spawn(
             api_domain,
