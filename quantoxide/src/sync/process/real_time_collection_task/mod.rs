@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use tokio::sync::broadcast;
+use tokio::sync::broadcast::{self, error::RecvError};
 
 use lnm_sdk::api::{
     ApiContext,
@@ -64,12 +64,13 @@ impl RealTimeCollectionTask {
                                 }
                             },
                         },
-                        Err(err) => return Err(RealTimeCollectionError::Recv(err)),
+                        Err(RecvError::Lagged(skipped)) => return Err(RealTimeCollectionError::WebSocketRecvLagged{skipped}),
+                        Err(RecvError::Closed) => return Err(RealTimeCollectionError::WebSocketRecvClosed)
                     }
                 }
                 shutdown_res = shutdown_rx.recv() => {
                     if let Err(e) = shutdown_res {
-                        return Err(RealTimeCollectionError::Recv(e));
+                        return Err(RealTimeCollectionError::ShutdownSignalRecv(e));
                     }
                     return Ok(());
                 }
