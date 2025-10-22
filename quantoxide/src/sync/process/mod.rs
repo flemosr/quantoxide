@@ -16,7 +16,6 @@ use crate::{
 
 use super::{
     engine::{SyncConfig, SyncMode},
-    error::{Result, SyncError},
     state::{SyncStatus, SyncStatusManager, SyncStatusNotSynced, SyncTransmiter},
 };
 
@@ -25,9 +24,11 @@ mod error;
 mod real_time_collection_task;
 mod sync_price_history_task;
 
+use error::Result;
 use real_time_collection_task::RealTimeCollectionTask;
 use sync_price_history_task::{PriceHistoryStateTransmiter, SyncPriceHistoryTask};
 
+pub use error::SyncProcessError;
 pub use real_time_collection_task::RealTimeCollectionError;
 pub use sync_price_history_task::{PriceHistoryState, SyncPriceHistoryError};
 
@@ -99,7 +100,7 @@ impl SyncProcess {
         )
         .backfill()
         .await
-        .map_err(SyncError::SyncPriceHistory)
+        .map_err(SyncProcessError::SyncPriceHistory)
     }
 
     async fn run_price_history_task_live(
@@ -115,7 +116,7 @@ impl SyncProcess {
         )
         .live(range)
         .await
-        .map_err(SyncError::SyncPriceHistory)
+        .map_err(SyncProcessError::SyncPriceHistory)
     }
 
     /// Clean up is not needed since the task is terminated when
@@ -144,7 +145,7 @@ impl SyncProcess {
             price_tick_tx,
         );
 
-        tokio::spawn(task.run().map_err(SyncError::RealTimeCollection)).into()
+        tokio::spawn(task.run().map_err(SyncProcessError::RealTimeCollection)).into()
     }
 
     async fn run_backfill(&self) -> Result<Never> {
@@ -172,7 +173,7 @@ impl SyncProcess {
 
         // Start to collect real-time data
 
-        let (price_tick_tx, _) = broadcast::channel::<PriceTick>(100);
+        let (price_tick_tx, _) = broadcast::channel::<PriceTick>(1000);
 
         let mut real_time_collection_handle =
             self.spawn_real_time_collection_task(price_tick_tx.clone());
@@ -191,9 +192,12 @@ impl SyncProcess {
         if real_time_collection_handle.is_finished() {
             real_time_collection_handle
                 .await
-                .map_err(SyncError::TaskJoin)??;
+                .map_err(SyncProcessError::RealTimeCollectionTaskJoin)??;
 
-            return Err(SyncError::UnexpectedRealTimeCollectionShutdown);
+            // "Should Never Happen" since `real_time_collection_handle` should
+            // store the `RealTimeCollectionError` that led to the early
+            // termination.
+            return Err(SyncProcessError::UnexpectedRealTimeCollectionShutdown);
         }
 
         // Sync achieved
@@ -205,11 +209,11 @@ impl SyncProcess {
         loop {
             tokio::select! {
                 rt_res = &mut real_time_collection_handle => {
-                    rt_res.map_err(SyncError::TaskJoin)??;
-                    return Err(SyncError::UnexpectedRealTimeCollectionShutdown);
+                    rt_res.map_err(SyncProcessError::RealTimeCollectionTaskJoin)??;
+                    return Err(SyncProcessError::UnexpectedRealTimeCollectionShutdown);
                 }
                 tick_res = price_tick_rx.recv() => {
-                    let tick = tick_res.map_err(SyncError::PriceTickRecv)?;
+                    let tick = tick_res.map_err(SyncProcessError::PriceTickRecv)?;
                     let _ = self.update_tx.send(tick.into());
                 }
             }
@@ -229,7 +233,7 @@ impl SyncProcess {
 
         // Start to collect real-time data
 
-        let (price_tick_tx, _) = broadcast::channel::<PriceTick>(100);
+        let (price_tick_tx, _) = broadcast::channel::<PriceTick>(1000);
 
         let mut real_time_collection_handle =
             self.spawn_real_time_collection_task(price_tick_tx.clone());
@@ -241,9 +245,9 @@ impl SyncProcess {
         if real_time_collection_handle.is_finished() {
             real_time_collection_handle
                 .await
-                .map_err(SyncError::TaskJoin)??;
+                .map_err(SyncProcessError::RealTimeCollectionTaskJoin)??;
 
-            return Err(SyncError::UnexpectedRealTimeCollectionShutdown);
+            return Err(SyncProcessError::UnexpectedRealTimeCollectionShutdown);
         }
 
         // Sync achieved
@@ -258,15 +262,15 @@ impl SyncProcess {
         loop {
             tokio::select! {
                 rt_res = &mut real_time_collection_handle => {
-                    rt_res.map_err(SyncError::TaskJoin)??;
-                    return Err(SyncError::UnexpectedRealTimeCollectionShutdown);
+                    rt_res.map_err(SyncProcessError::RealTimeCollectionTaskJoin)??;
+                    return Err(SyncProcessError::UnexpectedRealTimeCollectionShutdown);
                 }
                 tick_res = price_tick_rx.recv() => {
                     match tick_res {
                         Ok(tick) => {
                             let _ = self.update_tx.send(tick.into());
                         },
-                        Err(e) => return Err(SyncError::PriceTickRecv(e))
+                        Err(e) => return Err(SyncProcessError::PriceTickRecv(e))
                     }
                 }
                 _ = &mut re_sync_timer => {
@@ -299,7 +303,7 @@ impl SyncProcess {
                     }
                     shutdown_res = shutdown_rx.recv() => {
                         if let Err(e) = shutdown_res {
-                            self.status_manager.update(SyncStatusNotSynced::Failed(SyncError::ShutdownRecv(e)).into());
+                            self.status_manager.update(SyncStatusNotSynced::Failed(SyncProcessError::ShutdownSignalRecv(e)).into());
                         }
                         return;
                     }
@@ -315,7 +319,7 @@ impl SyncProcess {
                     }
                     shutdown_res = shutdown_rx.recv() => {
                         if let Err(e) = shutdown_res {
-                            self.status_manager.update(SyncStatusNotSynced::Failed(SyncError::ShutdownRecv(e)).into());
+                            self.status_manager.update(SyncStatusNotSynced::Failed(SyncProcessError::ShutdownSignalRecv(e)).into());
                         }
                         return;
                     }
