@@ -7,15 +7,15 @@ use tokio::sync::broadcast;
 
 use crate::db::models::PriceTick;
 
-use super::{PriceHistoryState, SyncError};
+use super::{PriceHistoryState, SyncProcessError};
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 pub enum SyncStatusNotSynced {
     NotInitiated,
     Starting,
     InProgress,
     WaitingForResync,
-    Failed(SyncError),
+    Failed(SyncProcessError),
     Restarting,
 }
 
@@ -32,7 +32,7 @@ impl fmt::Display for SyncStatusNotSynced {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub enum SyncStatus {
     NotSynced(Arc<SyncStatusNotSynced>),
     Synced,
