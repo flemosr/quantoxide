@@ -635,6 +635,10 @@ impl LiveTradeExecutorLauncher {
                                         .update_status_not_ready(new_status_not_ready)
                                         .await;
                                 }
+                                SyncStatus::Terminated(err) => {
+                                    // Non-recoverable error
+                                    return Err(LiveTradeExecutorError::SyncProcessTerminated(err));
+                                }
                                 SyncStatus::ShutdownInitiated | SyncStatus::Shutdown => {
                                     // Non-recoverable error
                                     return Err(LiveTradeExecutorError::SyncProcessShutdown);
