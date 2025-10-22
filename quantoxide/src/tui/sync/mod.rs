@@ -54,7 +54,7 @@ impl SyncTui {
         let log_file = core::open_log_file(log_file_path)?;
 
         let (ui_tx, ui_rx) = mpsc::channel::<SyncUiMessage>(100);
-        let (shutdown_tx, shutdown_rx) = mpsc::channel::<()>(10);
+        let (shutdown_tx, shutdown_rx) = mpsc::channel::<()>(1);
 
         let tui_terminal = TuiTerminal::new()?;
 
