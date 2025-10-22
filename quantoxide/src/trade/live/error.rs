@@ -1,4 +1,4 @@
-use std::result;
+use std::{result, sync::Arc};
 
 use thiserror::Error;
 use tokio::{
@@ -56,6 +56,9 @@ pub enum LiveError {
 
     #[error("`LiveSignal` shutdown error: {0}")]
     SignalShutdown(SignalError),
+
+    #[error("`Sync` process (dependency) was terminated with error: {0}")]
+    SyncProcessTerminated(Arc<SyncError>), // Not recoverable
 
     #[error("`Sync` shutdown error: {0}")]
     SyncShutdown(SyncError),
