@@ -1,4 +1,4 @@
-use std::{num::NonZeroU64, result};
+use std::{num::NonZeroU64, result, sync::Arc};
 
 use thiserror::Error;
 use tokio::sync::broadcast::error::RecvError;
@@ -9,7 +9,7 @@ use lnm_sdk::api::rest::{
     models::error::{PriceValidationError, TradeValidationError},
 };
 
-use crate::db::error::DbError;
+use crate::{db::error::DbError, sync::SyncError};
 
 use super::super::super::error::TradeCoreError;
 
@@ -80,6 +80,9 @@ pub enum LiveTradeExecutorError {
 
     #[error("API credentials were not set")]
     ApiCredentialsNotSet,
+
+    #[error("`Sync` process (dependency) was terminated with error: {0}")]
+    SyncProcessTerminated(Arc<SyncError>), // Not recoverable
 
     #[error("`Sync` process (dependency) was shutdown")]
     SyncProcessShutdown,
