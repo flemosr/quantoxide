@@ -8,7 +8,7 @@ use tokio::{
 
 use crate::{db::error::DbError, sync::SyncProcessFatalError, util::PanicPayload};
 
-use super::live::LiveSignalStatus;
+use super::state::LiveSignalStatus;
 
 #[derive(Error, Debug)]
 pub enum SignalError {
