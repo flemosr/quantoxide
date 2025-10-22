@@ -9,7 +9,7 @@ use lnm_sdk::api::rest::{
     models::error::{PriceValidationError, TradeValidationError},
 };
 
-use crate::{db::error::DbError, sync::SyncError};
+use crate::{db::error::DbError, sync::SyncProcessFatalError};
 
 use super::super::super::error::TradeCoreError;
 
@@ -82,7 +82,7 @@ pub enum LiveTradeExecutorError {
     ApiCredentialsNotSet,
 
     #[error("`Sync` process (dependency) was terminated with error: {0}")]
-    SyncProcessTerminated(Arc<SyncError>), // Not recoverable
+    SyncProcessTerminated(Arc<SyncProcessFatalError>), // Not recoverable
 
     #[error("`Sync` process (dependency) was shutdown")]
     SyncProcessShutdown,

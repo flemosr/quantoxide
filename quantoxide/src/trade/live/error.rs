@@ -6,7 +6,11 @@ use tokio::{
     task::JoinError,
 };
 
-use crate::{db::error::DbError, signal::error::SignalError, sync::SyncError};
+use crate::{
+    db::error::DbError,
+    signal::error::SignalError,
+    sync::{SyncError, SyncProcessFatalError},
+};
 
 use super::{super::error::TradeCoreError, executor::error::LiveTradeExecutorError};
 
@@ -58,7 +62,7 @@ pub enum LiveError {
     SignalShutdown(SignalError),
 
     #[error("`Sync` process (dependency) was terminated with error: {0}")]
-    SyncProcessTerminated(Arc<SyncError>), // Not recoverable
+    SyncProcessTerminated(Arc<SyncProcessFatalError>), // Not recoverable
 
     #[error("`Sync` shutdown error: {0}")]
     SyncShutdown(SyncError),
