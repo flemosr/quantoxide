@@ -15,7 +15,7 @@ use crate::{
 
 use super::{
     error::{Result, SyncError},
-    process::SyncProcess,
+    process::{SyncProcess, SyncProcessFatalError},
     state::{SyncReader, SyncReceiver, SyncStatus, SyncStatusManager, SyncTransmiter, SyncUpdate},
 };
 
@@ -88,27 +88,33 @@ impl SyncController {
 
         let shutdown_send_res = self.shutdown_tx.send(()).map_err(|e| {
             handle.abort();
-            SyncError::SendShutdownSignalFailed(e)
+            SyncProcessFatalError::SendShutdownSignalFailed(e)
         });
 
         let shutdown_res = match shutdown_send_res {
             Ok(_) => {
                 tokio::select! {
                     join_res = &mut handle => {
-                        join_res.map_err(SyncError::SyncProcessTaskJoin)
+                        join_res.map_err(SyncProcessFatalError::SyncProcessTaskJoin)
                     }
                     _ = time::sleep(self.config.shutdown_timeout) => {
                         handle.abort();
-                        Err(SyncError::ShutdownTimeout)
+                        Err(SyncProcessFatalError::ShutdownTimeout)
                     }
                 }
             }
             Err(e) => Err(e),
         };
 
-        self.status_manager.update(SyncStatus::Shutdown);
+        if let Err(err) = shutdown_res {
+            let err_ref = Arc::new(err);
+            self.status_manager.update(err_ref.clone().into());
 
-        shutdown_res
+            return Err(SyncError::SyncShutdownFailed(err_ref));
+        }
+
+        self.status_manager.update(SyncStatus::Shutdown);
+        Ok(())
     }
 }
 
