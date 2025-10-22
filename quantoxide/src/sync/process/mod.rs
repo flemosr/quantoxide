@@ -20,6 +20,8 @@ use super::{
     state::{SyncStatus, SyncStatusManager, SyncStatusNotSynced, SyncTransmiter},
 };
 
+mod error;
+
 mod real_time_collection_task;
 mod sync_price_history_task;
 
