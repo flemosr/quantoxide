@@ -11,18 +11,9 @@ async fn test_simulated_trade_executor_long_profit() -> TradeExecutorResult<()> 
     let start_time = Utc::now();
     let market_price = 99_000.0;
     let start_balance = 1_000_000;
-    let fee_perc = BoundedPercentage::try_from(0.1).unwrap();
-    let tsl_step_size = BoundedPercentage::try_from(0.1).unwrap();
-    let max_running_qtd = 10;
+    let config = SimulatedTradeExecutorConfig::default();
 
-    let executor = SimulatedTradeExecutor::new(
-        max_running_qtd,
-        fee_perc,
-        tsl_step_size,
-        start_time,
-        market_price,
-        start_balance,
-    );
+    let executor = SimulatedTradeExecutor::new(config, start_time, market_price, start_balance);
 
     let state = executor.trading_state().await?;
     assert_eq!(state.last_tick_time(), start_time);
@@ -155,18 +146,9 @@ async fn test_simulated_trade_executor_long_loss() -> TradeExecutorResult<()> {
     let start_time = Utc::now();
     let market_price = 100_000.0;
     let start_balance = 1_000_000;
-    let fee_perc = BoundedPercentage::try_from(0.1).unwrap();
-    let tsl_step_size = BoundedPercentage::try_from(0.1).unwrap();
-    let max_running_qtd = 10;
+    let config = SimulatedTradeExecutorConfig::default();
 
-    let executor = SimulatedTradeExecutor::new(
-        max_running_qtd,
-        fee_perc,
-        tsl_step_size,
-        start_time,
-        market_price,
-        start_balance,
-    );
+    let executor = SimulatedTradeExecutor::new(config, start_time, market_price, start_balance);
 
     let state = executor.trading_state().await?;
     assert_eq!(state.last_tick_time(), start_time);
@@ -267,18 +249,9 @@ async fn test_simulated_trade_executor_short_profit() -> TradeExecutorResult<()>
     let start_time = Utc::now();
     let market_price = 100_000.0;
     let start_balance = 1_000_000;
-    let fee_perc = BoundedPercentage::try_from(0.1).unwrap(); // 0.1% fee
-    let tsl_step_size = BoundedPercentage::try_from(0.1).unwrap(); // 0.1% trailing stop loss step size
-    let max_running_qtd = 10;
+    let config = SimulatedTradeExecutorConfig::default();
 
-    let executor = SimulatedTradeExecutor::new(
-        max_running_qtd,
-        fee_perc,
-        tsl_step_size,
-        start_time,
-        market_price,
-        start_balance,
-    );
+    let executor = SimulatedTradeExecutor::new(config, start_time, market_price, start_balance);
 
     let state = executor.trading_state().await?;
     assert_eq!(state.last_tick_time(), start_time);
@@ -388,18 +361,9 @@ async fn test_simulated_trade_executor_short_loss() -> TradeExecutorResult<()> {
     let start_time = Utc::now();
     let market_price = 100_000.0;
     let start_balance = 1_000_000;
-    let fee_perc = BoundedPercentage::try_from(0.1).unwrap(); // 0.1% fee
-    let tsl_step_size = BoundedPercentage::try_from(0.1).unwrap();
-    let max_running_qtd = 10;
+    let config = SimulatedTradeExecutorConfig::default();
 
-    let executor = SimulatedTradeExecutor::new(
-        max_running_qtd,
-        fee_perc,
-        tsl_step_size,
-        start_time,
-        market_price,
-        start_balance,
-    );
+    let executor = SimulatedTradeExecutor::new(config, start_time, market_price, start_balance);
 
     let state = executor.trading_state().await?;
     assert_eq!(state.last_tick_time(), start_time);
@@ -498,18 +462,9 @@ async fn test_simulated_trade_executor_trailing_stoploss_long() {
     let start_time = Utc::now();
     let start_balance = 100_000_000;
     let market_price = 100_000.0;
-    let fee_perc = BoundedPercentage::try_from(0.1).unwrap(); // 0.1% fee
-    let tsl_step_size = BoundedPercentage::try_from(0.1).unwrap(); // 0.1% trailing stop loss step size
-    let max_running_qtd = 10;
+    let config = SimulatedTradeExecutorConfig::default();
 
-    let executor = SimulatedTradeExecutor::new(
-        max_running_qtd,
-        fee_perc,
-        tsl_step_size,
-        start_time,
-        market_price,
-        start_balance,
-    );
+    let executor = SimulatedTradeExecutor::new(config, start_time, market_price, start_balance);
 
     let size = Quantity::try_from(500).unwrap().into(); // $500 quantity
     let leverage = Leverage::try_from(1).unwrap();
@@ -587,18 +542,9 @@ async fn test_simulated_trade_executor_trailing_stoploss_short() {
     let start_time = Utc::now();
     let start_balance = 100_000_000;
     let market_price = 100_000.0;
-    let fee_perc = BoundedPercentage::try_from(0.1).unwrap();
-    let tsl_step_size = BoundedPercentage::try_from(0.1).unwrap();
-    let max_running_qtd = 10;
+    let config = SimulatedTradeExecutorConfig::default();
 
-    let executor = SimulatedTradeExecutor::new(
-        max_running_qtd,
-        fee_perc,
-        tsl_step_size,
-        start_time,
-        market_price,
-        start_balance,
-    );
+    let executor = SimulatedTradeExecutor::new(config, start_time, market_price, start_balance);
 
     let size = Quantity::try_from(500).unwrap().into();
     let leverage = Leverage::try_from(1).unwrap();
@@ -679,18 +625,9 @@ async fn test_simulated_trade_executor_partial_cash_in_short_profit() -> TradeEx
     let start_time = Utc::now();
     let market_price = 100_000.0;
     let start_balance = 1_000_000;
-    let fee_perc = BoundedPercentage::try_from(0.1).unwrap(); // 0.1% fee
-    let tsl_step_size = BoundedPercentage::try_from(0.1).unwrap(); // 0.1% trailing stop loss step size
-    let max_running_qtd = 10;
+    let config = SimulatedTradeExecutorConfig::default();
 
-    let executor = SimulatedTradeExecutor::new(
-        max_running_qtd,
-        fee_perc,
-        tsl_step_size,
-        start_time,
-        market_price,
-        start_balance,
-    );
+    let executor = SimulatedTradeExecutor::new(config, start_time, market_price, start_balance);
 
     let state = executor.trading_state().await?;
     assert_eq!(state.last_tick_time(), start_time);
@@ -821,18 +758,9 @@ async fn test_simulated_trade_executor_full_cash_in_short_profit() -> TradeExecu
     let start_time = Utc::now();
     let market_price = 100_000.0;
     let start_balance = 1_000_000;
-    let fee_perc = BoundedPercentage::try_from(0.1).unwrap(); // 0.1% fee
-    let tsl_step_size = BoundedPercentage::try_from(0.1).unwrap(); // 0.1% trailing stop loss step size
-    let max_running_qtd = 10;
+    let config = SimulatedTradeExecutorConfig::default();
 
-    let executor = SimulatedTradeExecutor::new(
-        max_running_qtd,
-        fee_perc,
-        tsl_step_size,
-        start_time,
-        market_price,
-        start_balance,
-    );
+    let executor = SimulatedTradeExecutor::new(config, start_time, market_price, start_balance);
 
     let state = executor.trading_state().await?;
     assert_eq!(state.last_tick_time(), start_time);
@@ -962,18 +890,9 @@ async fn test_simulated_trade_executor_add_margin_short_loss() -> TradeExecutorR
     let start_time = Utc::now();
     let market_price = 100_000.0;
     let start_balance = 1_000_000;
-    let fee_perc = BoundedPercentage::try_from(0.1).unwrap(); // 0.1% fee
-    let tsl_step_size = BoundedPercentage::try_from(0.1).unwrap();
-    let max_running_qtd = 10;
+    let config = SimulatedTradeExecutorConfig::default();
 
-    let executor = SimulatedTradeExecutor::new(
-        max_running_qtd,
-        fee_perc,
-        tsl_step_size,
-        start_time,
-        market_price,
-        start_balance,
-    );
+    let executor = SimulatedTradeExecutor::new(config, start_time, market_price, start_balance);
 
     let state = executor.trading_state().await?;
     assert_eq!(state.last_tick_time(), start_time);
