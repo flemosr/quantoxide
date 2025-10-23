@@ -400,7 +400,7 @@ impl OperatorPending {
             } => {
                 operator
                     .set_trade_executor(trade_executor)
-                    .map_err(LiveError::OperatorError)?;
+                    .map_err(LiveError::SetupOperatorError)?;
 
                 let signal_controller = signal_engine.start();
 
@@ -416,7 +416,7 @@ impl OperatorPending {
             } => {
                 raw_operator
                     .set_trade_executor(trade_executor)
-                    .map_err(LiveError::OperatorError)?;
+                    .map_err(LiveError::SetupOperatorError)?;
 
                 Ok(OperatorRunning::Raw {
                     db,
@@ -467,8 +467,8 @@ impl LiveEngine {
                     },
                     Err(e) => {
                         // TODO: Non-recoverable error
-                        let new_status = LiveStatus::Failed(LiveError::ExecutorRecv(e));
-                        status_manager.update(new_status);
+                        // let new_status = LiveStatus::Failed(LiveError::ExecutorRecv(e));
+                        // status_manager.update(new_status);
                         break;
                     }
                 }
@@ -545,7 +545,7 @@ impl LiveEngine {
         } else {
             let context_window_secs = operator
                 .context_window_secs()
-                .map_err(LiveError::OperatorError)?;
+                .map_err(LiveError::SetupOperatorError)?;
 
             SyncMode::Live {
                 range: Duration::seconds(context_window_secs as i64),
