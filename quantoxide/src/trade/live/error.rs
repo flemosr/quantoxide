@@ -8,7 +8,7 @@ use tokio::{
 
 use crate::{
     db::error::DbError,
-    signal::error::SignalError,
+    signal::{error::SignalError, process::error::SignalProcessFatalError},
     sync::{SyncError, SyncProcessFatalError},
 };
 
@@ -28,17 +28,23 @@ pub enum LiveError {
     #[error("Operator error: {0}")]
     OperatorError(TradeCoreError),
 
-    #[error("`Sync` process (dependency) was shutdown")]
-    SyncProcessShutdown,
-
     #[error("`Sync` `RecvError` error: {0}")]
-    SyncRecv(RecvError),
+    SyncRecv(RecvError), // TODO: Split
+
+    #[error("`Sync` process (dependency) was terminated with error: {0}")]
+    SyncProcessTerminated(Arc<SyncProcessFatalError>), // Not recoverable
+
+    #[error("`Sync` process (dependency) was shutdown")]
+    SyncProcessShutdown, // Not recoverable
+
+    #[error("`LiveSignal` process (dependency) was terminated with error: {0}")]
+    LiveSignalProcessTerminated(Arc<SignalProcessFatalError>), // Not recoverable
 
     #[error("`LiveSignal` process (dependency) was shutdown")]
-    SignalProcessShutdown,
+    LiveSignalProcessShutdown,
 
     #[error("`LiveSignal` `RecvError` error: {0}")]
-    SignalRecv(RecvError),
+    SignalRecv(RecvError), // Split
 
     #[error("`LiveTradeExecutor` `RecvError` error: {0}")]
     ExecutorRecv(RecvError),
@@ -58,13 +64,10 @@ pub enum LiveError {
     #[error("`LiveTradeExecutor` shutdown error: {0}")]
     ExecutorShutdownError(LiveTradeExecutorError),
 
-    #[error("`LiveSignal` shutdown error: {0}")]
-    SignalShutdown(SignalError),
+    #[error("Error while shutting down `LiveSignal`: {0}")]
+    LiveSignalShutdown(SignalError), // Not recoverable
 
-    #[error("`Sync` process (dependency) was terminated with error: {0}")]
-    SyncProcessTerminated(Arc<SyncProcessFatalError>), // Not recoverable
-
-    #[error("`Sync` shutdown error: {0}")]
+    #[error("Error while shutting down `Sync`: {0}")]
     SyncShutdown(SyncError),
 
     #[error("Lauch `LiveSignal` error: {0}")]
