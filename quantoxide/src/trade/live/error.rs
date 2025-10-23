@@ -1,10 +1,13 @@
-use std::result;
+use std::{result, sync::Arc};
 
 use thiserror::Error;
 
 use crate::signal::error::SignalError;
 
-use super::{super::error::TradeCoreError, executor::error::LiveTradeExecutorError};
+use super::{
+    super::error::TradeCoreError, executor::error::LiveTradeExecutorError,
+    process::error::LiveProcessFatalError,
+};
 
 #[derive(Error, Debug)]
 pub enum LiveError {
@@ -22,6 +25,9 @@ pub enum LiveError {
 
     #[error("At least one signal evaluator must be provided")]
     EmptyEvaluatorsVec,
+
+    #[error("Live shutdown procedure failed: {0}")]
+    LiveShutdownFailed(Arc<LiveProcessFatalError>),
 }
 
 pub type Result<T> = result::Result<T, LiveError>;
