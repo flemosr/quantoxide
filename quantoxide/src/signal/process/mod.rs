@@ -20,7 +20,7 @@ use super::{
 
 pub mod error;
 
-use error::{ProcessResult, SignalProcessError};
+use error::{ProcessResult, SignalProcessFatalError, SignalProcessRecoverableError};
 
 #[derive(Clone, Debug)]
 pub struct LiveSignalProcessConfig {
@@ -115,19 +115,19 @@ impl LiveSignalProcess {
                                             SyncStatus::Synced => break,
                                             SyncStatus::Terminated(err) => {
                                                 // Non-recoverable error
-                                                return Err(SignalProcessError::SyncProcessTerminated(err));
+                                                return Err(SignalProcessFatalError::SyncProcessTerminated(err).into());
                                             }
                                             SyncStatus::ShutdownInitiated | SyncStatus::Shutdown => {
                                                 // Non-recoverable error
-                                                return Err(SignalProcessError::SyncProcessShutdown);
+                                                return Err(SignalProcessFatalError::SyncProcessShutdown.into());
                                             }
                                         },
                                         SyncUpdate::PriceTick(_) => break,
                                         SyncUpdate::PriceHistoryState(_) => {}
                                     }
                                 },
-                                Err(RecvError::Lagged(skipped)) => return Err(SignalProcessError::SyncRecvLagged{skipped}),
-                                Err(RecvError::Closed) => return Err(SignalProcessError::SyncRecvClosed)
+                                Err(RecvError::Lagged(skipped)) => return Err(SignalProcessRecoverableError::SyncRecvLagged{skipped}.into()),
+                                Err(RecvError::Closed) => return Err(SignalProcessFatalError::SyncRecvClosed.into())
                             }
                         }
                         _ = time::sleep(self.config.sync_update_timeout) => {
@@ -145,7 +145,8 @@ impl LiveSignalProcess {
                 .db
                 .price_ticks
                 .compute_locf_entries_for_range(now, max_ctx_window)
-                .await?;
+                .await
+                .map_err(SignalProcessRecoverableError::Db)?;
 
             next_eval = DateTime::<Utc>::MAX_UTC;
 
@@ -174,27 +175,29 @@ impl LiveSignalProcess {
     pub fn spawn_recovery_loop(self) -> AbortOnDropHandle<()> {
         tokio::spawn(async move {
             loop {
-                self.status_manager.update(LiveSignalStatusNotRunning::Starting.into());
+                self.status_manager
+                    .update(LiveSignalStatusNotRunning::Starting.into());
 
                 let mut shutdown_rx = self.shutdown_tx.subscribe();
-                tokio::select! {
-                    run_res = self.run() => {
-                        let Err(signal_error) = run_res;
-                        self.status_manager.update(
-                            LiveSignalStatusNotRunning::Failed(signal_error).into()
-                        );
-                    }
+
+                let signal_process_error = tokio::select! {
+                    Err(signal_error) = self.run() => signal_error,
                     shutdown_res = shutdown_rx.recv() => {
-                        if let Err(e) = shutdown_res {
-                            self.status_manager.update(
-                                LiveSignalStatusNotRunning::Failed(SignalProcessError::ShutdownSignalRecv(e)).into()
-                            );
-                        }
-                        return;
+                        let Err(e) = shutdown_res else {
+                           // Shutdown signal received
+                           return;
+                        };
+
+                        SignalProcessFatalError::ShutdownSignalRecv(e).into()
                     }
                 };
 
-                self.status_manager.update(LiveSignalStatusNotRunning::Restarting.into());
+                // self.status_manager.update(
+                //     LiveSignalStatusNotRunning::Failed(SignalProcessFatalError::ShutdownSignalRecv(e)).into()
+                // );
+
+                self.status_manager
+                    .update(LiveSignalStatusNotRunning::Restarting.into());
 
                 // Handle shutdown signals while waiting for `restart_interval`
 
@@ -204,14 +207,15 @@ impl LiveSignalProcess {
                     }
                     shutdown_res = shutdown_rx.recv() => {
                         if let Err(e) = shutdown_res {
-                            self.status_manager.update(
-                                LiveSignalStatusNotRunning::Failed(SignalProcessError::ShutdownSignalRecv(e)).into()
-                            );
+                            // self.status_manager.update(
+                            //     LiveSignalStatusNotRunning::Failed(SignalProcessFatalError::ShutdownSignalRecv(e)).into()
+                            // );
                         }
                         return;
                     }
                 }
             }
-        }).into()
+        })
+        .into()
     }
 }
