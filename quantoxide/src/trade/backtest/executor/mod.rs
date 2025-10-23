@@ -6,12 +6,15 @@ use tokio::sync::Mutex;
 use uuid::Uuid;
 
 use lnm_sdk::api::rest::models::{
-    BoundedPercentage, Leverage, Price, Trade, TradeClosed, TradeRunning, TradeSide, TradeSize,
+    Leverage, Price, Trade, TradeClosed, TradeRunning, TradeSide, TradeSize,
 };
 
-use super::super::{
-    core::{PriceTrigger, RunningTradesMap, Stoploss, TradeExecutor, TradeExt, TradingState},
-    error::TradeExecutorResult,
+use super::{
+    super::{
+        core::{PriceTrigger, RunningTradesMap, Stoploss, TradeExecutor, TradeExt, TradingState},
+        error::TradeExecutorResult,
+    },
+    config::SimulatedTradeExecutorConfig,
 };
 
 pub mod error;
@@ -46,17 +49,13 @@ struct SimulatedTradeExecutorState {
 }
 
 pub struct SimulatedTradeExecutor {
-    max_running_qtd: usize,
-    fee_perc: BoundedPercentage,
-    tsl_step_size: BoundedPercentage,
+    config: SimulatedTradeExecutorConfig,
     state: Arc<Mutex<SimulatedTradeExecutorState>>,
 }
 
 impl SimulatedTradeExecutor {
     pub fn new(
-        max_running_qtd: usize,
-        fee_perc: BoundedPercentage,
-        tsl_step_size: BoundedPercentage,
+        config: impl Into<SimulatedTradeExecutorConfig>,
         start_time: DateTime<Utc>,
         market_price: f64,
         start_balance: u64,
@@ -75,9 +74,7 @@ impl SimulatedTradeExecutor {
         };
 
         Self {
-            max_running_qtd,
-            fee_perc,
-            tsl_step_size,
+            config: config.into(),
             state: Arc::new(Mutex::new(initial_state)),
         }
     }
@@ -127,7 +124,7 @@ impl SimulatedTradeExecutor {
         let mut new_closed_fees = state_guard.closed_fees;
 
         let mut close_trade = |trade: &SimulatedTradeRunning, close_price: Price| {
-            let closed_trade = trade.to_closed(self.fee_perc, time, close_price);
+            let closed_trade = trade.to_closed(self.config.fee_perc(), time, close_price);
 
             new_balance += closed_trade.margin().into_i64() + closed_trade.maintenance_margin()
                 - closed_trade.closing_fee() as i64
@@ -165,7 +162,10 @@ impl SimulatedTradeExecutor {
 
             if let Some(trade_tsl) = *trade_tsl_opt {
                 let next_stoploss_update_trigger = trade
-                    .next_stoploss_update_trigger(self.tsl_step_size, trade_tsl)
+                    .next_stoploss_update_trigger(
+                        self.config.trailing_stoploss_step_size(),
+                        trade_tsl,
+                    )
                     .map_err(SimulatedTradeExecutorError::StoplossEvaluation)?;
 
                 let market_price = Price::round(price)
@@ -193,7 +193,11 @@ impl SimulatedTradeExecutor {
             }
 
             new_trigger
-                .update(self.tsl_step_size, trade.as_ref(), *trade_tsl_opt)
+                .update(
+                    self.config.trailing_stoploss_step_size(),
+                    trade.as_ref(),
+                    *trade_tsl_opt,
+                )
                 .map_err(SimulatedTradeExecutorError::PriceTriggerUpdate)?;
             new_running_map.add(trade.clone(), *trade_tsl_opt);
         }
@@ -223,7 +227,7 @@ impl SimulatedTradeExecutor {
         let mut new_closed_fees = state_guard.closed_fees;
 
         let mut close_trade = |trade: Arc<SimulatedTradeRunning>| {
-            let closed_trade = trade.to_closed(self.fee_perc, time, market_price);
+            let closed_trade = trade.to_closed(self.config.fee_perc(), time, market_price);
 
             new_balance += closed_trade.margin().into_i64() + closed_trade.maintenance_margin()
                 - closed_trade.closing_fee() as i64
@@ -249,7 +253,11 @@ impl SimulatedTradeExecutor {
                 close_trade(trade.clone());
             } else {
                 new_trigger
-                    .update(self.tsl_step_size, trade.as_ref(), *trade_tsl)
+                    .update(
+                        self.config.trailing_stoploss_step_size(),
+                        trade.as_ref(),
+                        *trade_tsl,
+                    )
                     .map_err(SimulatedTradeExecutorError::PriceTriggerUpdate)?;
                 new_running_map.add(trade.clone(), *trade_tsl);
             }
@@ -284,7 +292,11 @@ impl SimulatedTradeExecutor {
         let (stoploss_price, trade_tsl) = match stoploss {
             Some(stoploss) => {
                 let (stoploss_price, tsl) = stoploss
-                    .evaluate(self.tsl_step_size, side, market_price)
+                    .evaluate(
+                        self.config.trailing_stoploss_step_size(),
+                        side,
+                        market_price,
+                    )
                     .map_err(SimulatedTradeExecutorError::StoplossEvaluation)?;
                 (Some(stoploss_price), tsl)
             }
@@ -299,7 +311,7 @@ impl SimulatedTradeExecutor {
             market_price,
             stoploss_price,
             takeprofit,
-            self.fee_perc,
+            self.config.fee_perc(),
         )?;
 
         let balance_delta = trade.margin().into_i64() + trade.maintenance_margin();
@@ -307,9 +319,9 @@ impl SimulatedTradeExecutor {
             return Err(SimulatedTradeExecutorError::BalanceTooLow);
         }
 
-        if state_guard.running_map.len() >= self.max_running_qtd {
+        if state_guard.running_map.len() >= self.config.max_running_qtd() {
             return Err(SimulatedTradeExecutorError::MaxRunningTradesReached {
-                max_qtd: self.max_running_qtd,
+                max_qtd: self.config.max_running_qtd(),
             })?;
         }
 
@@ -321,7 +333,11 @@ impl SimulatedTradeExecutor {
 
         state_guard
             .trigger
-            .update(self.tsl_step_size, trade.as_ref(), trade_tsl)
+            .update(
+                self.config.trailing_stoploss_step_size(),
+                trade.as_ref(),
+                trade_tsl,
+            )
             .map_err(SimulatedTradeExecutorError::PriceTriggerUpdate)?;
         state_guard.running_map.add(trade, trade_tsl);
 

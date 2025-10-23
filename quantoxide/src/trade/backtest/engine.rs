@@ -300,9 +300,7 @@ impl BacktestEngine {
                 .ok_or(BacktestError::DatabaseNoEntriesBeforeStartTime)?;
 
             Arc::new(SimulatedTradeExecutor::new(
-                self.config.max_running_qtd(),
-                self.config.fee_perc(),
-                self.config.trailing_stoploss_step_size(),
+                &self.config,
                 self.start_time,
                 start_time_entry.value,
                 self.start_balance,
