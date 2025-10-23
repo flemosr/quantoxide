@@ -117,12 +117,12 @@ impl LiveController {
 
         // Stop live trade process
 
-        let shutdown_send_res = self.shutdown_tx.send(()).map_err(|e| {
+        let live_shutdown_send_res = self.shutdown_tx.send(()).map_err(|e| {
             handle.abort();
             LiveProcessFatalError::SendShutdownSignalFailed(e)
         });
 
-        let shutdown_res = match shutdown_send_res {
+        let live_shutdown_res = match live_shutdown_send_res {
             Ok(_) => {
                 tokio::select! {
                     join_res = &mut handle => {
@@ -158,11 +158,17 @@ impl LiveController {
             .await
             .map_err(LiveProcessFatalError::SyncShutdown);
 
-        // TODO: Handle fatal errors properly
-        // shutdown_res
-        //     .and(executor_shutdown_res)
-        //     .and(signal_shutdown_res)
-        //     .and(sync_shutdown_res)
+        let shutdown_res = live_shutdown_res
+            .and(executor_shutdown_res)
+            .and(signal_shutdown_res)
+            .and(sync_shutdown_res);
+
+        if let Err(err) = shutdown_res {
+            let err_ref = Arc::new(err);
+            self.status_manager.update(err_ref.clone().into());
+
+            return Err(LiveError::LiveShutdownFailed(err_ref));
+        }
 
         self.status_manager.update(LiveStatus::Shutdown);
         Ok(())
