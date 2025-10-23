@@ -7,7 +7,10 @@ use tokio::sync::broadcast;
 
 use crate::sync::SyncStatusNotSynced;
 
-use super::{core::Signal, process::error::SignalProcessRecoverableError};
+use super::{
+    core::Signal,
+    process::error::{SignalProcessFatalError, SignalProcessRecoverableError},
+};
 
 #[derive(Debug)]
 pub enum LiveSignalStatusNotRunning {
@@ -38,6 +41,7 @@ pub enum LiveSignalStatus {
     Running,
     ShutdownInitiated,
     Shutdown,
+    Terminated(Arc<SignalProcessFatalError>),
 }
 
 impl fmt::Display for LiveSignalStatus {
@@ -47,6 +51,7 @@ impl fmt::Display for LiveSignalStatus {
             Self::Running => write!(f, "Running"),
             Self::ShutdownInitiated => write!(f, "Shutdown initiated"),
             Self::Shutdown => write!(f, "Shutdown"),
+            Self::Terminated(error) => write!(f, "Terminated: {error}"),
         }
     }
 }
@@ -54,6 +59,18 @@ impl fmt::Display for LiveSignalStatus {
 impl From<LiveSignalStatusNotRunning> for LiveSignalStatus {
     fn from(value: LiveSignalStatusNotRunning) -> Self {
         Self::NotRunning(Arc::new(value))
+    }
+}
+
+impl From<Arc<SignalProcessFatalError>> for LiveSignalStatus {
+    fn from(value: Arc<SignalProcessFatalError>) -> Self {
+        Self::Terminated(value)
+    }
+}
+
+impl From<SignalProcessFatalError> for LiveSignalStatus {
+    fn from(value: SignalProcessFatalError) -> Self {
+        Arc::new(value).into()
     }
 }
 
