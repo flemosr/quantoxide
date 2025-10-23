@@ -25,7 +25,7 @@ use super::{
 
 pub mod error;
 
-use error::{LiveProcessFatalError, LiveProcessRecoverableError, Result};
+use error::{LiveProcessError, LiveProcessFatalError, LiveProcessRecoverableError, Result};
 
 pub enum OperatorRunning {
     Signal {
@@ -265,20 +265,27 @@ impl LiveProcess {
 
                 let mut shutdown_rx = self.shutdown_tx.subscribe();
 
-                tokio::select! {
-                    run_operator_res = self.run_operator() => {
-                        let Err(e) = run_operator_res;
-                        // self.status_manager.update(LiveStatus::Failed(e));
-                    }
+                let live_process_error = tokio::select! {
+                    Err(err) = self.run_operator() => err,
                     shutdown_res = shutdown_rx.recv() => {
-                        if let Err(e) = shutdown_res {
-                            self.status_manager.update(LiveStatus::Failed(
-                                LiveProcessFatalError::ShutdownSignalRecv(e))
-                            );
-                        }
-                        return;
+                        let Err(err) = shutdown_res else {
+                            // Shutdown signal received
+                            return;
+                        };
+
+                        LiveProcessFatalError::ShutdownSignalRecv(err).into()
                     }
                 };
+
+                match live_process_error {
+                    LiveProcessError::Fatal(err) => {
+                        self.status_manager.update(err.into());
+                        return;
+                    }
+                    LiveProcessError::Recoverable(err) => {
+                        self.status_manager.update(err.into());
+                    }
+                }
 
                 self.status_manager.update(LiveStatus::Restarting);
 
@@ -289,12 +296,13 @@ impl LiveProcess {
                         // Continue with the restart loop
                     }
                     shutdown_res = shutdown_rx.recv() => {
-                        if let Err(e) = shutdown_res {
-                            self.status_manager.update(LiveStatus::Failed(
-                                LiveProcessFatalError::ShutdownSignalRecv(e))
-                            );
-                        }
-                        return;
+                        let Err(err) = shutdown_res else {
+                            // Shutdown signal received
+                            return;
+                        };
+
+                        let status = LiveProcessFatalError::ShutdownSignalRecv(err).into();
+                        self.status_manager.update(status);
                     }
                 }
             }
