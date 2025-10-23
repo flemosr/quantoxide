@@ -9,7 +9,7 @@ use tokio::{
 use crate::{db::error::DbError, sync::SyncProcessFatalError, util::PanicPayload};
 
 #[derive(Error, Debug)]
-pub enum SignalProcessError {
+pub enum SignalProcessRecoverableError {
     #[error("`SignalEvaluator::evaluate` panicked: {0}")]
     EvaluatePanicked(PanicPayload),
 
@@ -19,29 +19,43 @@ pub enum SignalProcessError {
     #[error("[Db] {0}")]
     Db(#[from] DbError),
 
-    #[error("`Sync` process (dependency) was shutdown")]
-    SyncProcessShutdown, // Not recoverable
-
-    #[error("`Sync` process (dependency) was terminated with error: {0}")]
-    SyncProcessTerminated(Arc<SyncProcessFatalError>), // Not recoverable
-
     #[error("`SyncRecvLagged` error, skipped: {skipped}")]
     SyncRecvLagged { skipped: u64 },
+}
+
+pub type ProcessRecoverableResult<T> = result::Result<T, SignalProcessRecoverableError>;
+
+#[derive(Error, Debug)]
+pub enum SignalProcessFatalError {
+    #[error("`Sync` process (dependency) was shutdown")]
+    SyncProcessShutdown,
+
+    #[error("`Sync` process (dependency) was terminated with error: {0}")]
+    SyncProcessTerminated(Arc<SyncProcessFatalError>),
 
     #[error("`SyncRecvClosed` error")]
-    SyncRecvClosed, // Not recoverable
+    SyncRecvClosed,
 
     #[error("TaskJoin error {0}")]
-    LiveSignalProcessTaskJoin(JoinError), // Not recoverable
+    LiveSignalProcessTaskJoin(JoinError),
 
     #[error("Shutdown `RecvError` error: {0}")]
-    ShutdownSignalRecv(RecvError), // Not recoverable
+    ShutdownSignalRecv(RecvError),
 
     #[error("Failed to send live signal process shutdown request error: {0}")]
-    SendShutdownSignalFailed(SendError<()>), // Not recoverable
+    SendShutdownSignalFailed(SendError<()>),
 
     #[error("Live Signal shutdown timeout error")]
     ShutdownTimeout,
+}
+
+#[derive(Error, Debug)]
+pub enum SignalProcessError {
+    #[error(transparent)]
+    Recoverable(#[from] SignalProcessRecoverableError),
+
+    #[error(transparent)]
+    Fatal(#[from] SignalProcessFatalError),
 }
 
 pub type ProcessResult<T> = result::Result<T, SignalProcessError>;
