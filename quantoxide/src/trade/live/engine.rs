@@ -27,7 +27,7 @@ use super::{
         state::LiveTradeExecutorStatus,
         update::{LiveTradeExecutorReceiver, LiveTradeExecutorUpdate},
     },
-    process::{LiveProcess, OperatorRunning},
+    process::{LiveProcess, OperatorRunning, error::LiveProcessError},
     state::{LiveReader, LiveReceiver, LiveStatus, LiveStatusManager, LiveTransmiter, LiveUpdate},
 };
 
@@ -113,18 +113,18 @@ impl LiveController {
 
         let shutdown_send_res = self.shutdown_tx.send(()).map_err(|e| {
             handle.abort();
-            LiveError::SendShutdownFailed(e)
+            LiveProcessError::SendShutdownFailed(e)
         });
 
         let shutdown_res = match shutdown_send_res {
             Ok(_) => {
                 tokio::select! {
                     join_res = &mut handle => {
-                        join_res.map_err(LiveError::TaskJoin)
+                        join_res.map_err(LiveProcessError::TaskJoin)
                     }
                     _ = time::sleep(self.config.shutdown_timeout) => {
                         handle.abort();
-                        Err(LiveError::ShutdownTimeout)
+                        Err(LiveProcessError::ShutdownTimeout)
                     }
                 }
             }
@@ -135,13 +135,13 @@ impl LiveController {
             .trade_executor
             .shutdown()
             .await
-            .map_err(LiveError::ExecutorShutdownError);
+            .map_err(LiveProcessError::ExecutorShutdownError);
 
         let signal_shutdown_res = if let Some(signal_controller) = &self.signal_controller {
             signal_controller
                 .shutdown()
                 .await
-                .map_err(LiveError::LiveSignalShutdown)
+                .map_err(LiveProcessError::LiveSignalShutdown)
         } else {
             Ok(())
         };
@@ -150,14 +150,16 @@ impl LiveController {
             .sync_controller
             .shutdown()
             .await
-            .map_err(LiveError::SyncShutdown);
+            .map_err(LiveProcessError::SyncShutdown);
+
+        // TODO: Handle fatal errors properly
+        // shutdown_res
+        //     .and(executor_shutdown_res)
+        //     .and(signal_shutdown_res)
+        //     .and(sync_shutdown_res)
 
         self.status_manager.update(LiveStatus::Shutdown);
-
-        shutdown_res
-            .and(executor_shutdown_res)
-            .and(signal_shutdown_res)
-            .and(sync_shutdown_res)
+        Ok(())
     }
 }
 
