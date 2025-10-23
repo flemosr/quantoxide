@@ -16,10 +16,13 @@ use crate::{
 use super::{
     super::core::{WrappedRawOperator, WrappedSignalOperator},
     engine::LiveConfig,
-    error::{LiveError, Result},
     executor::{LiveTradeExecutor, state::LiveTradeExecutorStatus},
     state::{LiveStatus, LiveStatusManager, LiveTransmiter},
 };
+
+pub mod error;
+
+use error::{LiveProcessError, Result};
 
 pub enum OperatorRunning {
     Signal {
