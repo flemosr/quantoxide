@@ -76,3 +76,43 @@ impl BacktestConfig {
         self
     }
 }
+
+pub struct SimulatedTradeExecutorConfig {
+    max_running_qtd: usize,
+    fee_perc: BoundedPercentage,
+    tsl_step_size: BoundedPercentage,
+}
+
+impl Default for SimulatedTradeExecutorConfig {
+    fn default() -> Self {
+        Self {
+            max_running_qtd: 50,
+            fee_perc: 0.1.try_into().expect("must be a valid `BoundedPercentage`"),
+            tsl_step_size: BoundedPercentage::MIN,
+        }
+    }
+}
+
+impl SimulatedTradeExecutorConfig {
+    pub fn max_running_qtd(&self) -> usize {
+        self.max_running_qtd
+    }
+
+    pub fn fee_perc(&self) -> BoundedPercentage {
+        self.fee_perc
+    }
+
+    pub fn trailing_stoploss_step_size(&self) -> BoundedPercentage {
+        self.tsl_step_size
+    }
+}
+
+impl From<&BacktestConfig> for SimulatedTradeExecutorConfig {
+    fn from(value: &BacktestConfig) -> Self {
+        Self {
+            max_running_qtd: value.max_running_qtd,
+            fee_perc: value.fee_perc,
+            tsl_step_size: value.tsl_step_size,
+        }
+    }
+}
