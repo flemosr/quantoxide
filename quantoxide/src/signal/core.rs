@@ -4,11 +4,14 @@ use async_trait::async_trait;
 use chrono::{DateTime, Duration, Utc};
 use futures::FutureExt;
 
-use crate::{db::models::PriceHistoryEntryLOCF, util::DateTimeExt};
+use crate::{
+    db::models::PriceHistoryEntryLOCF, signal::process::error::ProcessRecoverableResult,
+    util::DateTimeExt,
+};
 
 use super::{
     error::{SignalValidationError, ValidationResult},
-    process::error::{ProcessResult, SignalProcessError},
+    process::error::SignalProcessRecoverableError,
 };
 
 #[derive(Debug, Clone)]
@@ -126,11 +129,14 @@ impl<T: SignalActionEvaluator> SignalEvaluator<T> {
         self.context_window_secs
     }
 
-    pub async fn evaluate(&self, entries: &[PriceHistoryEntryLOCF]) -> ProcessResult<SignalAction> {
+    pub async fn evaluate(
+        &self,
+        entries: &[PriceHistoryEntryLOCF],
+    ) -> ProcessRecoverableResult<SignalAction> {
         FutureExt::catch_unwind(AssertUnwindSafe(self.action_evaluator.evaluate(entries)))
             .await
-            .map_err(|e| SignalProcessError::EvaluatePanicked(e.into()))?
-            .map_err(|e| SignalProcessError::EvaluateError(e.to_string()))
+            .map_err(|e| SignalProcessRecoverableError::EvaluatePanicked(e.into()))?
+            .map_err(|e| SignalProcessRecoverableError::EvaluateError(e.to_string()))
     }
 }
 
@@ -167,7 +173,7 @@ impl Signal {
         evaluator: &ConfiguredSignalEvaluator,
         time: DateTime<Utc>,
         entries: &[PriceHistoryEntryLOCF],
-    ) -> ProcessResult<Self> {
+    ) -> ProcessRecoverableResult<Self> {
         let signal_action = evaluator.evaluate(entries).await?;
 
         Ok(Signal {
