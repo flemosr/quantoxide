@@ -25,7 +25,7 @@ use super::{
 
 pub mod error;
 
-use error::{LiveProcessError, Result};
+use error::{LiveProcessFatalError, LiveProcessRecoverableError, Result};
 
 pub enum OperatorRunning {
     Signal {
@@ -106,14 +106,14 @@ impl LiveProcess {
         loop {
             let iteration_interval = raw_operator
                 .iteration_interval()
-                .map_err(LiveProcessError::OperatorError)?;
+                .map_err(LiveProcessRecoverableError::OperatorError)?;
 
             let now = {
                 let target_exec = (last_eval + iteration_interval).ceil_sec();
                 let now = Utc::now();
 
                 if now >= target_exec {
-                    return Err(LiveProcessError::OperatorIterationTimeTooLong);
+                    return Err(LiveProcessRecoverableError::OperatorIterationTimeTooLong.into());
                 }
 
                 let wait_duration = (target_exec - now).to_std().expect("valid duration");
@@ -142,10 +142,10 @@ impl LiveProcess {
                                         }
                                         SyncStatus::Synced => break,
                                         SyncStatus::Terminated(err) => {
-                                            return Err(LiveProcessError::SyncProcessTerminated(err));
+                                            return Err(LiveProcessFatalError::SyncProcessTerminated(err).into());
                                         }
                                         SyncStatus::ShutdownInitiated | SyncStatus::Shutdown => {
-                                            return Err(LiveProcessError::SyncProcessShutdown);
+                                            return Err(LiveProcessFatalError::SyncProcessShutdown.into());
                                         }
                                     },
                                     SyncUpdate::PriceTick(_) => break,
@@ -154,8 +154,8 @@ impl LiveProcess {
                                         // Sync may take a long time when `sync_mode_full: true`
                                     }
                                 },
-                                Err(RecvError::Lagged(skipped)) => return Err(LiveProcessError::SyncRecvLagged{skipped}.into()),
-                                Err(RecvError::Closed) => return Err(LiveProcessError::SyncRecvClosed.into())
+                                Err(RecvError::Lagged(skipped)) => return Err(LiveProcessRecoverableError::SyncRecvLagged{skipped}.into()),
+                                Err(RecvError::Closed) => return Err(LiveProcessFatalError::SyncRecvClosed.into())
                             }
                         }
                         _ = time::sleep(self.config.sync_update_timeout) => {
@@ -175,17 +175,18 @@ impl LiveProcess {
 
             let ctx_window = raw_operator
                 .context_window_secs()
-                .map_err(LiveProcessError::OperatorError)?;
+                .map_err(LiveProcessRecoverableError::OperatorError)?;
 
             let ctx_entries = db
                 .price_ticks
                 .compute_locf_entries_for_range(now, ctx_window)
-                .await?;
+                .await
+                .map_err(LiveProcessRecoverableError::Db)?;
 
             raw_operator
                 .iterate(ctx_entries.as_slice())
                 .await
-                .map_err(LiveProcessError::OperatorError)?;
+                .map_err(LiveProcessRecoverableError::OperatorError)?;
         }
     }
 
@@ -204,10 +205,12 @@ impl LiveProcess {
                         }
                         LiveSignalStatus::Running => {}
                         LiveSignalStatus::Terminated(err) => {
-                            return Err(LiveProcessError::LiveSignalProcessTerminated(err));
+                            return Err(
+                                LiveProcessFatalError::LiveSignalProcessTerminated(err).into()
+                            );
                         }
                         LiveSignalStatus::ShutdownInitiated | LiveSignalStatus::Shutdown => {
-                            return Err(LiveProcessError::LiveSignalProcessShutdown);
+                            return Err(LiveProcessFatalError::LiveSignalProcessShutdown.into());
                         }
                     },
                     LiveSignalUpdate::Signal(new_signal) => {
@@ -228,13 +231,15 @@ impl LiveProcess {
                         signal_operator
                             .process_signal(&new_signal)
                             .await
-                            .map_err(LiveProcessError::OperatorError)?;
+                            .map_err(LiveProcessRecoverableError::OperatorError)?;
                     }
                 },
                 Err(RecvError::Lagged(skipped)) => {
-                    return Err(LiveProcessError::SignalRecvLagged { skipped }.into());
+                    return Err(LiveProcessRecoverableError::SignalRecvLagged { skipped }.into());
                 }
-                Err(RecvError::Closed) => return Err(LiveProcessError::SignalRecvClosed.into()),
+                Err(RecvError::Closed) => {
+                    return Err(LiveProcessFatalError::SignalRecvClosed.into());
+                }
             }
         }
     }
@@ -263,12 +268,12 @@ impl LiveProcess {
                 tokio::select! {
                     run_operator_res = self.run_operator() => {
                         let Err(e) = run_operator_res;
-                        self.status_manager.update(LiveStatus::Failed(e));
+                        // self.status_manager.update(LiveStatus::Failed(e));
                     }
                     shutdown_res = shutdown_rx.recv() => {
                         if let Err(e) = shutdown_res {
                             self.status_manager.update(LiveStatus::Failed(
-                                LiveProcessError::ShutdownSignalRecv(e))
+                                LiveProcessFatalError::ShutdownSignalRecv(e))
                             );
                         }
                         return;
@@ -286,7 +291,7 @@ impl LiveProcess {
                     shutdown_res = shutdown_rx.recv() => {
                         if let Err(e) = shutdown_res {
                             self.status_manager.update(LiveStatus::Failed(
-                                LiveProcessError::ShutdownSignalRecv(e))
+                                LiveProcessFatalError::ShutdownSignalRecv(e))
                             );
                         }
                         return;
