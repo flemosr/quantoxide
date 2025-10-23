@@ -68,7 +68,7 @@ impl LiveSignalProcess {
         }
     }
 
-    async fn run(&self) -> Result<Never> {
+    async fn run(&self) -> ProcessResult<Never> {
         let mut min_evaluation_interval = Duration::MAX;
         let mut max_ctx_window = usize::MIN;
         let mut evaluators = Vec::with_capacity(self.evaluators.len());
@@ -115,19 +115,19 @@ impl LiveSignalProcess {
                                             SyncStatus::Synced => break,
                                             SyncStatus::Terminated(err) => {
                                                 // Non-recoverable error
-                                                return Err(SignalError::SyncProcessTerminated(err));
+                                                return Err(SignalProcessError::SyncProcessTerminated(err));
                                             }
                                             SyncStatus::ShutdownInitiated | SyncStatus::Shutdown => {
                                                 // Non-recoverable error
-                                                return Err(SignalError::SyncProcessShutdown);
+                                                return Err(SignalProcessError::SyncProcessShutdown);
                                             }
                                         },
                                         SyncUpdate::PriceTick(_) => break,
                                         SyncUpdate::PriceHistoryState(_) => {}
                                     }
                                 },
-                                Err(RecvError::Lagged(skipped)) => return Err(SignalError::SyncRecvLagged{skipped}),
-                                Err(RecvError::Closed) => return Err(SignalError::SyncRecvClosed)
+                                Err(RecvError::Lagged(skipped)) => return Err(SignalProcessError::SyncRecvLagged{skipped}),
+                                Err(RecvError::Closed) => return Err(SignalProcessError::SyncRecvClosed)
                             }
                         }
                         _ = time::sleep(self.config.sync_update_timeout) => {
@@ -187,7 +187,7 @@ impl LiveSignalProcess {
                     shutdown_res = shutdown_rx.recv() => {
                         if let Err(e) = shutdown_res {
                             self.status_manager.update(
-                                LiveSignalStatusNotRunning::Failed(SignalError::ShutdownSignalRecv(e)).into()
+                                LiveSignalStatusNotRunning::Failed(SignalProcessError::ShutdownSignalRecv(e)).into()
                             );
                         }
                         return;
@@ -205,7 +205,7 @@ impl LiveSignalProcess {
                     shutdown_res = shutdown_rx.recv() => {
                         if let Err(e) = shutdown_res {
                             self.status_manager.update(
-                                LiveSignalStatusNotRunning::Failed(SignalError::ShutdownSignalRecv(e)).into()
+                                LiveSignalStatusNotRunning::Failed(SignalProcessError::ShutdownSignalRecv(e)).into()
                             );
                         }
                         return;
