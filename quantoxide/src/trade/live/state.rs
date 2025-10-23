@@ -15,7 +15,7 @@ use crate::{
 use super::{
     super::core::TradingState,
     executor::{state::LiveTradeExecutorStatusNotReady, update::LiveTradeExecutorUpdateOrder},
-    process::error::LiveProcessError,
+    process::error::{LiveProcessFatalError, LiveProcessRecoverableError},
 };
 
 #[derive(Debug)]
@@ -26,10 +26,11 @@ pub enum LiveStatus {
     WaitingForSignal(Arc<LiveSignalStatusNotRunning>),
     WaitingTradeExecutor(Arc<LiveTradeExecutorStatusNotReady>),
     Running,
-    Failed(LiveProcessError),
+    Failed(LiveProcessRecoverableError),
     Restarting,
     ShutdownInitiated,
     Shutdown,
+    Terminated(Arc<LiveProcessFatalError>),
 }
 
 impl fmt::Display for LiveStatus {
@@ -47,7 +48,26 @@ impl fmt::Display for LiveStatus {
             Self::Restarting => write!(f, "Restarting"),
             Self::ShutdownInitiated => write!(f, "Shutdown initiated"),
             Self::Shutdown => write!(f, "Shutdown"),
+            Self::Terminated(error) => write!(f, "Terminated: {error}"),
         }
+    }
+}
+
+impl From<LiveProcessRecoverableError> for LiveStatus {
+    fn from(value: LiveProcessRecoverableError) -> Self {
+        Self::Failed(value)
+    }
+}
+
+impl From<Arc<LiveProcessFatalError>> for LiveStatus {
+    fn from(value: Arc<LiveProcessFatalError>) -> Self {
+        Self::Terminated(value)
+    }
+}
+
+impl From<LiveProcessFatalError> for LiveStatus {
+    fn from(value: LiveProcessFatalError) -> Self {
+        Arc::new(value).into()
     }
 }
 
