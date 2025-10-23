@@ -301,11 +301,9 @@ impl LiveProcess {
                                         }
                                         SyncStatus::Synced => break,
                                         SyncStatus::Terminated(err) => {
-                                            // Non-recoverable error
                                             return Err(LiveError::SyncProcessTerminated(err));
                                         }
                                         SyncStatus::ShutdownInitiated | SyncStatus::Shutdown => {
-                                            // Non-recoverable error
                                             return Err(LiveError::SyncProcessShutdown);
                                         }
                                     },
@@ -364,9 +362,11 @@ impl LiveProcess {
                                 .update(LiveStatus::WaitingForSignal(signal_status_not_running));
                         }
                         LiveSignalStatus::Running => {}
+                        LiveSignalStatus::Terminated(err) => {
+                            return Err(LiveError::LiveSignalProcessTerminated(err));
+                        }
                         LiveSignalStatus::ShutdownInitiated | LiveSignalStatus::Shutdown => {
-                            // Non-recoverable error
-                            return Err(LiveError::SignalProcessShutdown);
+                            return Err(LiveError::LiveSignalProcessShutdown);
                         }
                     },
                     LiveSignalUpdate::Signal(new_signal) => {
@@ -564,7 +564,7 @@ impl LiveController {
             signal_controller
                 .shutdown()
                 .await
-                .map_err(LiveError::SignalShutdown)
+                .map_err(LiveError::LiveSignalShutdown)
         } else {
             Ok(())
         };
