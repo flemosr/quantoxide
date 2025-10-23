@@ -3,7 +3,13 @@ use std::sync::{Arc, Mutex};
 use tokio::{sync::broadcast, time};
 
 use crate::{
-    db::DbContext, signal::process::LiveSignalProcess, sync::SyncReader, trade::live::LiveConfig,
+    db::DbContext,
+    signal::{
+        error::SignalValidationError,
+        process::{LiveSignalProcess, error::SignalProcessError},
+    },
+    sync::SyncReader,
+    trade::live::LiveConfig,
     util::AbortOnDropHandle,
 };
 
@@ -86,27 +92,34 @@ impl LiveSignalController {
 
         let shutdown_send_res = self.shutdown_tx.send(()).map_err(|e| {
             handle.abort();
-            SignalError::SendShutdownSignalFailed(e)
+            SignalProcessError::SendShutdownSignalFailed(e)
         });
 
         let shutdown_res = match shutdown_send_res {
             Ok(_) => {
                 tokio::select! {
                     join_res = &mut handle => {
-                        join_res.map_err(SignalError::LiveSignalProcessTaskJoin)
+                        join_res.map_err(SignalProcessError::LiveSignalProcessTaskJoin)
                     }
                     _ = time::sleep(self.config.shutdown_timeout) => {
                         handle.abort();
-                        Err(SignalError::ShutdownTimeout)
+                        Err(SignalProcessError::ShutdownTimeout)
                     }
                 }
             }
             Err(e) => Err(e),
         };
 
-        self.status_manager.update(LiveSignalStatus::Shutdown);
+        if let Err(err) = shutdown_res {
+            let err_ref = Arc::new(err);
+            // TODO
+            // self.status_manager.update(err_ref.clone().into());
 
-        shutdown_res
+            return Err(SignalError::SignalShutdownFailed(err_ref));
+        }
+
+        self.status_manager.update(LiveSignalStatus::Shutdown);
+        Ok(())
     }
 }
 
@@ -183,7 +196,7 @@ impl LiveSignalEngine {
         evaluators: Arc<Vec<ConfiguredSignalEvaluator>>,
     ) -> Result<Self> {
         if evaluators.is_empty() {
-            return Err(SignalError::EmptyEvaluatorsVec);
+            return Err(SignalValidationError::EmptyEvaluatorsVec.into());
         }
 
         let (update_tx, _) = broadcast::channel::<LiveSignalUpdate>(100);
