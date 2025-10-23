@@ -15,60 +15,72 @@ use crate::{
 use super::super::{super::error::TradeCoreError, executor::error::LiveTradeExecutorError};
 
 #[derive(Error, Debug)]
-pub enum LiveProcessError {
+pub enum LiveProcessRecoverableError {
     #[error("[Db] {0}")]
     Db(#[from] DbError),
-
-    #[error("[TaskJoin] {0}")]
-    LiveProcessTaskJoin(JoinError), // Not recoverable
 
     #[error("Operator error: {0}")]
     OperatorError(TradeCoreError),
 
-    #[error("`SyncRecvClosed` error")]
-    SyncRecvClosed, // Not recoverable
-
     #[error("`SyncRecvLagged` error, skipped: {skipped}")]
     SyncRecvLagged { skipped: u64 },
-
-    #[error("`Sync` process (dependency) was terminated with error: {0}")]
-    SyncProcessTerminated(Arc<SyncProcessFatalError>), // Not recoverable
-
-    #[error("`Sync` process (dependency) was shutdown")]
-    SyncProcessShutdown, // Not recoverable
-
-    #[error("`LiveSignal` process (dependency) was terminated with error: {0}")]
-    LiveSignalProcessTerminated(Arc<SignalProcessFatalError>), // Not recoverable
-
-    #[error("`LiveSignal` process (dependency) was shutdown")]
-    LiveSignalProcessShutdown, // Not recoverable
-
-    #[error("`SignalRecvClosed` error")]
-    SignalRecvClosed, // Not recoverable
 
     #[error("`SignalRecvLagged` error, skipped: {skipped}")]
     SignalRecvLagged { skipped: u64 },
 
-    #[error("Shutdown signal channel recv error: {0}")]
-    ShutdownSignalRecv(RecvError), // Not recoverable
+    #[error("Operator iteration time too long for iteration interval")]
+    OperatorIterationTimeTooLong,
+}
+
+#[derive(Error, Debug)]
+pub enum LiveProcessFatalError {
+    #[error("[TaskJoin] {0}")]
+    LiveProcessTaskJoin(JoinError),
+
+    #[error("`SyncRecvClosed` error")]
+    SyncRecvClosed,
+
+    #[error("`Sync` process (dependency) was terminated with error: {0}")]
+    SyncProcessTerminated(Arc<SyncProcessFatalError>),
+
+    #[error("`Sync` process (dependency) was shutdown")]
+    SyncProcessShutdown,
+
+    #[error("`LiveSignal` process (dependency) was terminated with error: {0}")]
+    LiveSignalProcessTerminated(Arc<SignalProcessFatalError>),
+
+    #[error("`LiveSignal` process (dependency) was shutdown")]
+    LiveSignalProcessShutdown,
+
+    #[error("`SignalRecvClosed` error")]
+    SignalRecvClosed,
 
     #[error("Failed to send live trade process shutdown signal error: {0}")]
     SendShutdownSignalFailed(SendError<()>),
 
+    #[error("Shutdown signal channel recv error: {0}")]
+    ShutdownSignalRecv(RecvError),
+
     #[error("Live shutdown process timeout error")]
-    ShutdownTimeout, // Not recoverable
+    ShutdownTimeout,
 
     #[error("`LiveTradeExecutor` shutdown error: {0}")]
-    ExecutorShutdownError(LiveTradeExecutorError), // Not recoverable
+    ExecutorShutdownError(LiveTradeExecutorError),
 
     #[error("Error while shutting down `LiveSignal`: {0}")]
-    LiveSignalShutdown(SignalError), // Not recoverable
+    LiveSignalShutdown(SignalError),
 
     #[error("Error while shutting down `Sync`: {0}")]
-    SyncShutdown(SyncError), // Not recoverable
+    SyncShutdown(SyncError),
+}
 
-    #[error("Operator iteration time too long for iteration interval")]
-    OperatorIterationTimeTooLong,
+#[derive(Error, Debug)]
+pub enum LiveProcessError {
+    #[error(transparent)]
+    Recoverable(#[from] LiveProcessRecoverableError),
+
+    #[error(transparent)]
+    Fatal(#[from] LiveProcessFatalError),
 }
 
 pub type Result<T> = result::Result<T, LiveProcessError>;
