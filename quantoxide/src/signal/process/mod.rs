@@ -15,9 +15,12 @@ use crate::{
 use super::{
     core::{ConfiguredSignalEvaluator, Signal},
     engine::LiveSignalConfig,
-    error::{Result, SignalError},
     state::{LiveSignalStatusManager, LiveSignalStatusNotRunning, LiveSignalTransmiter},
 };
+
+pub mod error;
+
+use error::{ProcessResult, SignalProcessError};
 
 #[derive(Clone, Debug)]
 pub struct LiveSignalProcessConfig {

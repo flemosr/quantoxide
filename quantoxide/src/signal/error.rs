@@ -1,64 +1,33 @@
 use std::{result, sync::Arc};
 
 use thiserror::Error;
-use tokio::{
-    sync::broadcast::error::{RecvError, SendError},
-    task::JoinError,
-};
 
-use crate::{db::error::DbError, sync::SyncProcessFatalError, util::PanicPayload};
-
-use super::state::LiveSignalStatus;
+use super::process::error::SignalProcessError;
 
 #[derive(Error, Debug)]
-pub enum SignalError {
-    #[error("SignalTransmiterFailed failed error {0}")]
-    SignalTransmiterFailed(SendError<Arc<LiveSignalStatus>>),
-
-    #[error("TaskJoin error {0}")]
-    LiveSignalProcessTaskJoin(JoinError), // Not recoverable
-
+pub enum SignalValidationError {
     #[error("It was not possible to convert `evaluation_interval_secs` to `NonZeroU64`")]
     InvalidEvaluationInterval,
-
-    #[error("`SignalEvaluator::evaluate` panicked: {0}")]
-    EvaluatePanicked(PanicPayload),
-
-    #[error("`SignalEvaluator::evaluate` error: {0}")]
-    EvaluateError(String),
 
     #[error("`SignalName` cannot be an empty `String`")]
     InvalidSignalNameEmptyString,
 
-    #[error("[Db] {0}")]
-    Db(#[from] DbError),
+    #[error("At least one signal evaluator must be provided")]
+    EmptyEvaluatorsVec,
+}
 
-    #[error("`Sync` process (dependency) was shutdown")]
-    SyncProcessShutdown, // Not recoverable
+pub type ValidationResult<T> = result::Result<T, SignalValidationError>;
 
-    #[error("`Sync` process (dependency) was terminated with error: {0}")]
-    SyncProcessTerminated(Arc<SyncProcessFatalError>), // Not recoverable
-
-    #[error("`SyncRecvLagged` error, skipped: {skipped}")]
-    SyncRecvLagged { skipped: u64 },
-
-    #[error("`SyncRecvClosed` error")]
-    SyncRecvClosed, // Not recoverable
+#[derive(Error, Debug)]
+pub enum SignalError {
+    #[error(transparent)]
+    SignalValidation(#[from] SignalValidationError),
 
     #[error("Live Signal already shutdown error")]
     LiveSignalAlreadyShutdown,
 
-    #[error("Shutdown `RecvError` error: {0}")]
-    ShutdownSignalRecv(RecvError), // Not recoverable
-
-    #[error("Failed to send live signal process shutdown request error: {0}")]
-    SendShutdownSignalFailed(SendError<()>), // Not recoverable
-
-    #[error("Live Signal shutdown timeout error")]
-    ShutdownTimeout,
-
-    #[error("At least one signal evaluator must be provided")]
-    EmptyEvaluatorsVec,
+    #[error("Signal shutdown procedure failed: {0}")]
+    SignalShutdownFailed(Arc<SignalProcessError>),
 }
 
 pub type Result<T> = result::Result<T, SignalError>;

@@ -6,4 +6,4 @@ pub mod error;
 
 pub mod state;
 
-mod process;
+pub mod process;
