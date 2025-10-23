@@ -282,13 +282,11 @@ impl LiveProcess {
                         // Continue with the restart loop
                     }
                     shutdown_res = shutdown_rx.recv() => {
-                        let Err(err) = shutdown_res else {
-                            // Shutdown signal received
-                            return;
+                        if let Err(err) = shutdown_res  {
+                            let status = LiveProcessFatalError::ShutdownSignalRecv(err).into();
+                            self.status_manager.update(status);
                         };
-
-                        let status = LiveProcessFatalError::ShutdownSignalRecv(err).into();
-                        self.status_manager.update(status);
+                        return;
                     }
                 }
             }
