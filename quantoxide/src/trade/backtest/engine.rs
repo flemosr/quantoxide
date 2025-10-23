@@ -4,12 +4,11 @@ use async_trait::async_trait;
 use chrono::{DateTime, Duration, Utc};
 use tokio::sync::broadcast;
 
-use lnm_sdk::api::rest::models::BoundedPercentage;
-
 use crate::{
     db::DbContext,
     signal::core::{ConfiguredSignalEvaluator, Signal},
     sync::PriceHistoryState,
+    trade::backtest::config::BacktestConfig,
     tui::{Result as TuiResult, TuiControllerShutdown},
     util::{AbortOnDropHandle, DateTimeExt},
 };
@@ -89,59 +88,6 @@ impl TuiControllerShutdown for BacktestController {
         // A `TaskJoin` error is expected here and can be safely ignored.
         let _ = self.abort().await;
         Ok(())
-    }
-}
-
-pub struct BacktestConfig {
-    buffer_size: usize,
-    max_running_qtd: usize,
-    fee_perc: BoundedPercentage,
-    tsl_step_size: BoundedPercentage,
-    update_interval: Duration,
-}
-
-impl Default for BacktestConfig {
-    fn default() -> Self {
-        Self {
-            buffer_size: 1800,
-            max_running_qtd: 50,
-            fee_perc: 0.1.try_into().expect("must be a valid `BoundedPercentage`"),
-            tsl_step_size: BoundedPercentage::MIN,
-            update_interval: Duration::days(1),
-        }
-    }
-}
-
-impl BacktestConfig {
-    pub fn set_buffer_size(mut self, size: usize) -> Result<Self> {
-        if size < 100 {
-            return Err(BacktestError::InvalidConfigurationBufferSize { size });
-        }
-        self.buffer_size = size;
-        Ok(self)
-    }
-
-    pub fn set_max_running_qtd(mut self, max: usize) -> Result<Self> {
-        if max == 0 {
-            return Err(BacktestError::InvalidConfigurationMaxRunningQtd { max });
-        }
-        self.max_running_qtd = max;
-        Ok(self)
-    }
-
-    pub fn set_fee_perc(mut self, fee_perc: BoundedPercentage) -> Self {
-        self.fee_perc = fee_perc;
-        self
-    }
-
-    pub fn set_trailing_stoploss_step_size(mut self, tsl_step_size: BoundedPercentage) -> Self {
-        self.tsl_step_size = tsl_step_size;
-        self
-    }
-
-    pub fn set_update_interval(mut self, hours: u32) -> Self {
-        self.update_interval = Duration::hours(hours as i64);
-        self
     }
 }
 
@@ -262,9 +208,9 @@ impl BacktestEngine {
 
         let max_ctx_window = operator.max_ctx_window_secs()?;
 
-        if config.buffer_size < max_ctx_window {
+        if config.buffer_size() < max_ctx_window {
             return Err(BacktestError::IncompatibleBufferSize {
-                buffer_size: config.buffer_size,
+                buffer_size: config.buffer_size(),
                 max_ctx_window,
             });
         }
@@ -354,9 +300,9 @@ impl BacktestEngine {
                 .ok_or(BacktestError::DatabaseNoEntriesBeforeStartTime)?;
 
             Arc::new(SimulatedTradeExecutor::new(
-                self.config.max_running_qtd,
-                self.config.fee_perc,
-                self.config.tsl_step_size,
+                self.config.max_running_qtd(),
+                self.config.fee_perc(),
+                self.config.trailing_stoploss_step_size(),
                 self.start_time,
                 start_time_entry.value,
                 self.start_balance,
@@ -369,7 +315,7 @@ impl BacktestEngine {
 
         let max_ctx_window = operator.max_ctx_window_secs()?;
 
-        let buffer_size = self.config.buffer_size;
+        let buffer_size = self.config.buffer_size();
 
         let get_buffers = |time_cursor: DateTime<Utc>| {
             let db = &self.db;
@@ -415,7 +361,7 @@ impl BacktestEngine {
             mut price_ticks_cursor_idx,
         ) = get_buffers(time_cursor).await?;
 
-        let mut send_next_update_at = self.start_time + self.config.update_interval;
+        let mut send_next_update_at = self.start_time + self.config.update_interval();
 
         self.status_manager.update(BacktestStatus::Running);
 
@@ -490,7 +436,7 @@ impl BacktestEngine {
                 // Ignore no-receivers errors
                 let _ = self.update_tx.send(trades_state.into());
 
-                send_next_update_at += self.config.update_interval;
+                send_next_update_at += self.config.update_interval();
             }
 
             time_cursor += Duration::seconds(1);
