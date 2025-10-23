@@ -2,7 +2,10 @@ use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
 use chrono::Duration;
-use tokio::{sync::broadcast, time};
+use tokio::{
+    sync::broadcast::{self, error::RecvError},
+    time,
+};
 
 use lnm_sdk::api::{ApiContext, rest::models::BoundedPercentage};
 
@@ -27,7 +30,10 @@ use super::{
         state::LiveTradeExecutorStatus,
         update::{LiveTradeExecutorReceiver, LiveTradeExecutorUpdate},
     },
-    process::{LiveProcess, OperatorRunning, error::LiveProcessFatalError},
+    process::{
+        LiveProcess, OperatorRunning,
+        error::{LiveProcessFatalError, LiveProcessRecoverableError},
+    },
     state::{LiveReader, LiveReceiver, LiveStatus, LiveStatusManager, LiveTransmiter, LiveUpdate},
 };
 
@@ -465,11 +471,13 @@ impl LiveEngine {
                             let _ = update_tx.send(LiveUpdate::ClosedTrade(closed_trade));
                         }
                     },
-                    Err(e) => {
-                        // TODO: Non-recoverable error
-                        // let new_status = LiveStatus::Failed(LiveError::ExecutorRecv(e));
-                        // status_manager.update(new_status);
-                        break;
+                    Err(RecvError::Lagged(skipped)) => {
+                        let err = LiveProcessRecoverableError::ExecutorRecvLagged { skipped };
+                        status_manager.update(err.into());
+                    }
+                    Err(RecvError::Closed) => {
+                        status_manager.update(LiveProcessFatalError::ExecutorRecvClosed.into());
+                        return;
                     }
                 }
             }
