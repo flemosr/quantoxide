@@ -13,7 +13,7 @@ use tokio::{
 use crate::{
     trade::{
         backtest::{
-            BacktestEngine,
+            engine::BacktestEngine,
             state::{BacktestReceiver, BacktestUpdate},
         },
         core::TradingState,

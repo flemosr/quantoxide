@@ -12,7 +12,7 @@ use crate::{
 pub use super::executor::error::SimulatedTradeExecutorError;
 use super::{
     super::error::{TradeCoreError, TradeExecutorError},
-    BacktestStatus,
+    state::BacktestStatus,
 };
 
 #[derive(Error, Debug)]
