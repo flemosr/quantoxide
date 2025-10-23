@@ -27,7 +27,7 @@ use super::{
         state::LiveTradeExecutorStatus,
         update::{LiveTradeExecutorReceiver, LiveTradeExecutorUpdate},
     },
-    process::{LiveProcess, OperatorRunning, error::LiveProcessError},
+    process::{LiveProcess, OperatorRunning, error::LiveProcessFatalError},
     state::{LiveReader, LiveReceiver, LiveStatus, LiveStatusManager, LiveTransmiter, LiveUpdate},
 };
 
@@ -113,18 +113,18 @@ impl LiveController {
 
         let shutdown_send_res = self.shutdown_tx.send(()).map_err(|e| {
             handle.abort();
-            LiveProcessError::SendShutdownFailed(e)
+            LiveProcessFatalError::SendShutdownSignalFailed(e)
         });
 
         let shutdown_res = match shutdown_send_res {
             Ok(_) => {
                 tokio::select! {
                     join_res = &mut handle => {
-                        join_res.map_err(LiveProcessError::TaskJoin)
+                        join_res.map_err(LiveProcessFatalError::LiveProcessTaskJoin)
                     }
                     _ = time::sleep(self.config.shutdown_timeout) => {
                         handle.abort();
-                        Err(LiveProcessError::ShutdownTimeout)
+                        Err(LiveProcessFatalError::ShutdownTimeout)
                     }
                 }
             }
@@ -135,13 +135,13 @@ impl LiveController {
             .trade_executor
             .shutdown()
             .await
-            .map_err(LiveProcessError::ExecutorShutdownError);
+            .map_err(LiveProcessFatalError::ExecutorShutdownError);
 
         let signal_shutdown_res = if let Some(signal_controller) = &self.signal_controller {
             signal_controller
                 .shutdown()
                 .await
-                .map_err(LiveProcessError::LiveSignalShutdown)
+                .map_err(LiveProcessFatalError::LiveSignalShutdown)
         } else {
             Ok(())
         };
@@ -150,7 +150,7 @@ impl LiveController {
             .sync_controller
             .shutdown()
             .await
-            .map_err(LiveProcessError::SyncShutdown);
+            .map_err(LiveProcessFatalError::SyncShutdown);
 
         // TODO: Handle fatal errors properly
         // shutdown_res
