@@ -14,8 +14,8 @@ use crate::{
 
 use super::{
     super::core::TradingState,
-    error::LiveError,
     executor::{state::LiveTradeExecutorStatusNotReady, update::LiveTradeExecutorUpdateOrder},
+    process::error::LiveProcessError,
 };
 
 #[derive(Debug)]
@@ -26,7 +26,7 @@ pub enum LiveStatus {
     WaitingForSignal(Arc<LiveSignalStatusNotRunning>),
     WaitingTradeExecutor(Arc<LiveTradeExecutorStatusNotReady>),
     Running,
-    Failed(LiveError),
+    Failed(LiveProcessError),
     Restarting,
     ShutdownInitiated,
     Shutdown,
