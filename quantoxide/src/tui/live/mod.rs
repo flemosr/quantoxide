@@ -13,7 +13,7 @@ use crate::{
     trade::{
         core::ClosedTradeHistory,
         live::{
-            LiveEngine,
+            engine::LiveEngine,
             state::{LiveReceiver, LiveUpdate},
         },
     },

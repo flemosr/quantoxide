@@ -8,7 +8,7 @@ use lnm_sdk::api::ApiContext;
 
 use crate::{
     db::DbContext,
-    trade::live::LiveConfig,
+    trade::live::engine::LiveConfig,
     tui::{Result as TuiResult, TuiControllerShutdown, TuiError},
     util::AbortOnDropHandle,
 };

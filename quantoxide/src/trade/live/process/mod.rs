@@ -15,7 +15,7 @@ use crate::{
 
 use super::{
     super::core::{WrappedRawOperator, WrappedSignalOperator},
-    LiveConfig,
+    engine::LiveConfig,
     error::{LiveError, Result},
     executor::{LiveTradeExecutor, state::LiveTradeExecutorStatus},
     state::{LiveStatus, LiveStatusManager, LiveTransmiter},
@@ -55,8 +55,8 @@ struct LiveProcessConfig {
 impl From<&LiveConfig> for LiveProcessConfig {
     fn from(value: &LiveConfig) -> Self {
         Self {
-            sync_update_timeout: value.sync_update_timeout,
-            restart_interval: value.restart_interval,
+            sync_update_timeout: value.sync_update_timeout(),
+            restart_interval: value.restart_interval(),
         }
     }
 }

@@ -9,7 +9,7 @@ use crate::{
         process::{LiveSignalProcess, error::SignalProcessFatalError},
     },
     sync::SyncReader,
-    trade::live::LiveConfig,
+    trade::live::engine::LiveConfig,
     util::AbortOnDropHandle,
 };
 

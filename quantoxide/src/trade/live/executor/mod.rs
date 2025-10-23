@@ -25,7 +25,7 @@ use super::{
         core::{Stoploss, TradeExecutor, TradingState},
         error::TradeExecutorResult,
     },
-    LiveConfig,
+    engine::LiveConfig,
 };
 
 pub mod error;
@@ -124,12 +124,12 @@ impl Default for LiveTradeExecutorConfig {
 impl From<&LiveConfig> for LiveTradeExecutorConfig {
     fn from(value: &LiveConfig) -> Self {
         Self {
-            tsl_step_size: value.tsl_step_size,
-            clean_up_trades_on_startup: value.clean_up_trades_on_startup,
-            recover_trades_on_startup: value.recover_trades_on_startup,
-            clean_up_trades_on_shutdown: value.clean_up_trades_on_shutdown,
-            estimated_fee_perc: value.estimated_fee_perc,
-            max_running_qtd: value.max_running_qtd,
+            tsl_step_size: value.trailing_stoploss_step_size(),
+            clean_up_trades_on_startup: value.clean_up_trades_on_startup(),
+            recover_trades_on_startup: value.recover_trades_on_startup(),
+            clean_up_trades_on_shutdown: value.clean_up_trades_on_shutdown(),
+            estimated_fee_perc: value.estimated_fee_perc(),
+            max_running_qtd: value.max_running_qtd(),
         }
     }
 }
