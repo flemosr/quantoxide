@@ -8,7 +8,7 @@ use lnm_sdk::api::ApiContext;
 
 use crate::{
     db::DbContext,
-    trade::live::engine::LiveConfig,
+    sync::config::{SyncConfig, SyncControllerConfig},
     tui::{Result as TuiResult, TuiControllerShutdown, TuiError},
     util::AbortOnDropHandle,
 };
@@ -18,19 +18,6 @@ use super::{
     process::{SyncProcess, SyncProcessFatalError},
     state::{SyncReader, SyncReceiver, SyncStatus, SyncStatusManager, SyncTransmiter, SyncUpdate},
 };
-
-#[derive(Debug)]
-struct SyncControllerConfig {
-    shutdown_timeout: time::Duration,
-}
-
-impl From<&SyncConfig> for SyncControllerConfig {
-    fn from(value: &SyncConfig) -> Self {
-        Self {
-            shutdown_timeout: value.shutdown_timeout,
-        }
-    }
-}
 
 #[derive(Debug)]
 pub struct SyncController {
@@ -97,7 +84,7 @@ impl SyncController {
                     join_res = &mut handle => {
                         join_res.map_err(SyncProcessFatalError::SyncProcessTaskJoin)
                     }
-                    _ = time::sleep(self.config.shutdown_timeout) => {
+                    _ = time::sleep(self.config.shutdown_timeout()) => {
                         handle.abort();
                         Err(SyncProcessFatalError::ShutdownTimeout)
                     }
@@ -122,122 +109,6 @@ impl SyncController {
 impl TuiControllerShutdown for SyncController {
     async fn tui_shutdown(&self) -> TuiResult<()> {
         self.shutdown().await.map_err(TuiError::SyncShutdownFailed)
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct SyncConfig {
-    api_cooldown: time::Duration,
-    api_error_cooldown: time::Duration,
-    api_error_max_trials: u32,
-    api_history_batch_size: usize,
-    sync_history_reach: Duration,
-    re_sync_history_interval: time::Duration,
-    restart_interval: time::Duration,
-    shutdown_timeout: time::Duration,
-}
-
-impl Default for SyncConfig {
-    fn default() -> Self {
-        Self {
-            api_cooldown: time::Duration::from_secs(2),
-            api_error_cooldown: time::Duration::from_secs(10),
-            api_error_max_trials: 3,
-            api_history_batch_size: 1000,
-            sync_history_reach: Duration::hours(24 * 7 * 4),
-            re_sync_history_interval: time::Duration::from_secs(300),
-            restart_interval: time::Duration::from_secs(10),
-            shutdown_timeout: time::Duration::from_secs(6),
-        }
-    }
-}
-
-impl SyncConfig {
-    pub fn api_cooldown(&self) -> time::Duration {
-        self.api_cooldown
-    }
-
-    pub fn api_error_cooldown(&self) -> time::Duration {
-        self.api_error_cooldown
-    }
-
-    pub fn api_error_max_trials(&self) -> u32 {
-        self.api_error_max_trials
-    }
-
-    pub fn api_history_batch_size(&self) -> usize {
-        self.api_history_batch_size
-    }
-
-    pub fn sync_history_reach(&self) -> Duration {
-        self.sync_history_reach
-    }
-
-    pub fn re_sync_history_interval(&self) -> time::Duration {
-        self.re_sync_history_interval
-    }
-
-    pub fn restart_interval(&self) -> time::Duration {
-        self.restart_interval
-    }
-
-    pub fn shutdown_timeout(&self) -> time::Duration {
-        self.shutdown_timeout
-    }
-
-    pub fn set_api_cooldown(mut self, secs: u64) -> Self {
-        self.api_cooldown = time::Duration::from_secs(secs);
-        self
-    }
-
-    pub fn set_api_error_cooldown(mut self, secs: u64) -> Self {
-        self.api_error_cooldown = time::Duration::from_secs(secs);
-        self
-    }
-
-    pub fn set_api_error_max_trials(mut self, max_trials: u32) -> Self {
-        self.api_error_max_trials = max_trials;
-        self
-    }
-
-    pub fn set_api_history_batch_size(mut self, size: usize) -> Self {
-        self.api_history_batch_size = size;
-        self
-    }
-
-    pub fn set_sync_history_reach(mut self, hours: u64) -> Self {
-        self.sync_history_reach = Duration::hours(hours as i64);
-        self
-    }
-
-    pub fn set_re_sync_history_interval(mut self, secs: u64) -> Self {
-        self.re_sync_history_interval = time::Duration::from_secs(secs);
-        self
-    }
-
-    pub fn set_restart_interval(mut self, secs: u64) -> Self {
-        self.restart_interval = time::Duration::from_secs(secs);
-        self
-    }
-
-    pub fn set_shutdown_timeout(mut self, secs: u64) -> Self {
-        self.shutdown_timeout = time::Duration::from_secs(secs);
-        self
-    }
-}
-
-impl From<&LiveConfig> for SyncConfig {
-    fn from(value: &LiveConfig) -> Self {
-        SyncConfig {
-            api_cooldown: value.api_cooldown(),
-            api_error_cooldown: value.api_error_cooldown(),
-            api_error_max_trials: value.api_error_max_trials(),
-            api_history_batch_size: value.api_history_batch_size(),
-            sync_history_reach: value.sync_history_reach(),
-            re_sync_history_interval: value.re_sync_history_interval(),
-            restart_interval: value.restart_interval(),
-            shutdown_timeout: value.shutdown_timeout(),
-        }
     }
 }
 

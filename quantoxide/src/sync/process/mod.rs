@@ -15,7 +15,8 @@ use crate::{
 };
 
 use super::{
-    engine::{SyncConfig, SyncMode},
+    config::{SyncConfig, SyncProcessConfig},
+    engine::SyncMode,
     state::{SyncStatus, SyncStatusManager, SyncStatusNotSynced, SyncTransmiter},
 };
 
@@ -31,31 +32,6 @@ use sync_price_history_task::{PriceHistoryStateTransmiter, SyncPriceHistoryTask}
 pub use error::{SyncProcessFatalError, SyncProcessRecoverableError};
 pub use real_time_collection_task::RealTimeCollectionError;
 pub use sync_price_history_task::{PriceHistoryState, SyncPriceHistoryError};
-
-#[derive(Clone)]
-struct SyncProcessConfig {
-    api_cooldown: time::Duration,
-    api_error_cooldown: time::Duration,
-    api_error_max_trials: u32,
-    api_history_batch_size: usize,
-    sync_history_reach: Duration,
-    re_sync_history_interval: time::Duration,
-    restart_interval: time::Duration,
-}
-
-impl From<&SyncConfig> for SyncProcessConfig {
-    fn from(value: &SyncConfig) -> Self {
-        Self {
-            api_cooldown: value.api_cooldown(),
-            api_error_cooldown: value.api_error_cooldown(),
-            api_error_max_trials: value.api_error_max_trials(),
-            api_history_batch_size: value.api_history_batch_size(),
-            sync_history_reach: value.sync_history_reach(),
-            re_sync_history_interval: value.re_sync_history_interval(),
-            restart_interval: value.restart_interval(),
-        }
-    }
-}
 
 pub struct SyncProcess {
     config: SyncProcessConfig,
@@ -167,7 +143,7 @@ impl SyncProcess {
             self.status_manager
                 .update(SyncStatusNotSynced::WaitingForResync.into());
 
-            time::sleep(self.config.re_sync_history_interval).await;
+            time::sleep(self.config.re_sync_history_interval()).await;
         }
     }
 
@@ -258,7 +234,7 @@ impl SyncProcess {
 
         let mut price_tick_rx = price_tick_tx.subscribe();
 
-        let new_re_sync_timer = || Box::pin(time::sleep(self.config.re_sync_history_interval));
+        let new_re_sync_timer = || Box::pin(time::sleep(self.config.re_sync_history_interval()));
         let mut re_sync_timer = new_re_sync_timer();
 
         loop {
@@ -330,7 +306,7 @@ impl SyncProcess {
                 // Handle shutdown signals while waiting for `restart_interval`
 
                 tokio::select! {
-                    _ = time::sleep(self.config.restart_interval) => {
+                    _ = time::sleep(self.config.restart_interval()) => {
                         // Continue with the restart loop
                     }
                     shutdown_res = shutdown_rx.recv() => {

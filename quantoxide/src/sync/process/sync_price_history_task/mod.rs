@@ -7,7 +7,7 @@ use lnm_sdk::api::{ApiContext, rest::models::PriceEntryLNM};
 
 use crate::db::DbContext;
 
-use super::SyncProcessConfig;
+use super::super::config::{SyncPriceHistoryTaskConfig, SyncProcessConfig};
 
 mod error;
 mod price_history_state;
@@ -18,27 +18,6 @@ pub use error::SyncPriceHistoryError;
 pub use price_history_state::PriceHistoryState;
 
 pub type PriceHistoryStateTransmiter = mpsc::Sender<PriceHistoryState>;
-
-#[derive(Clone)]
-pub struct SyncPriceHistoryTaskConfig {
-    api_cooldown: time::Duration,
-    api_error_cooldown: time::Duration,
-    api_error_max_trials: u32,
-    api_history_batch_size: usize,
-    sync_history_reach: Duration,
-}
-
-impl From<&SyncProcessConfig> for SyncPriceHistoryTaskConfig {
-    fn from(value: &SyncProcessConfig) -> Self {
-        Self {
-            api_cooldown: value.api_cooldown,
-            api_error_cooldown: value.api_error_cooldown,
-            api_error_max_trials: value.api_error_max_trials,
-            api_history_batch_size: value.api_history_batch_size,
-            sync_history_reach: value.sync_history_reach,
-        }
-    }
-}
 
 #[derive(Clone)]
 pub struct SyncPriceHistoryTask {
@@ -71,7 +50,7 @@ impl SyncPriceHistoryTask {
         let mut price_entries = {
             let mut trials = 0;
             loop {
-                time::sleep(self.config.api_cooldown).await;
+                time::sleep(self.config.api_cooldown()).await;
 
                 match self
                     .api
@@ -80,21 +59,21 @@ impl SyncPriceHistoryTask {
                     .price_history(
                         None,
                         to_observed_time,
-                        Some(self.config.api_history_batch_size),
+                        Some(self.config.api_history_batch_size()),
                     )
                     .await
                 {
                     Ok(price_entries) => break price_entries,
                     Err(error) => {
                         trials += 1;
-                        if trials >= self.config.api_error_max_trials {
+                        if trials >= self.config.api_error_max_trials() {
                             return Err(SyncPriceHistoryError::RestApiMaxTrialsReached {
                                 error,
-                                trials: self.config.api_error_max_trials,
+                                trials: self.config.api_error_max_trials(),
                             });
                         }
 
-                        time::sleep(self.config.api_error_cooldown).await;
+                        time::sleep(self.config.api_error_cooldown()).await;
                         continue;
                     }
                 };
@@ -194,7 +173,7 @@ impl SyncPriceHistoryTask {
 
     pub async fn backfill(self) -> Result<()> {
         let mut history_state =
-            PriceHistoryState::evaluate_with_reach(&self.db, self.config.sync_history_reach)
+            PriceHistoryState::evaluate_with_reach(&self.db, self.config.sync_history_reach())
                 .await?;
         self.handle_history_update(&history_state).await?;
 
@@ -216,17 +195,17 @@ impl SyncPriceHistoryTask {
             }
 
             history_state =
-                PriceHistoryState::evaluate_with_reach(&self.db, self.config.sync_history_reach)
+                PriceHistoryState::evaluate_with_reach(&self.db, self.config.sync_history_reach())
                     .await?;
             self.handle_history_update(&history_state).await?;
         }
     }
 
     pub async fn live(self, range: Duration) -> Result<()> {
-        if range > self.config.sync_history_reach {
+        if range > self.config.sync_history_reach() {
             return Err(SyncPriceHistoryError::InvalidLiveRange {
                 range,
-                sync_history_reach: self.config.sync_history_reach,
+                sync_history_reach: self.config.sync_history_reach(),
             });
         }
 
