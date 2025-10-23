@@ -1,7 +1,10 @@
 use std::{pin::Pin, sync::Arc};
 
 use chrono::Utc;
-use tokio::{sync::broadcast, time};
+use tokio::{
+    sync::broadcast::{self, error::RecvError},
+    time,
+};
 
 use crate::{
     db::DbContext,
@@ -151,8 +154,8 @@ impl LiveProcess {
                                         // Sync may take a long time when `sync_mode_full: true`
                                     }
                                 },
-                                Err(e) => return Err(LiveProcessError::SyncRecv(e))
-
+                                Err(RecvError::Lagged(skipped)) => return Err(LiveProcessError::SyncRecvLagged{skipped}.into()),
+                                Err(RecvError::Closed) => return Err(LiveProcessError::SyncRecvClosed.into())
                             }
                         }
                         _ = time::sleep(self.config.sync_update_timeout) => {
@@ -228,7 +231,10 @@ impl LiveProcess {
                             .map_err(LiveProcessError::OperatorError)?;
                     }
                 },
-                Err(e) => return Err(LiveProcessError::SignalRecv(e)),
+                Err(RecvError::Lagged(skipped)) => {
+                    return Err(LiveProcessError::SignalRecvLagged { skipped }.into());
+                }
+                Err(RecvError::Closed) => return Err(LiveProcessError::SignalRecvClosed.into()),
             }
         }
     }
@@ -262,7 +268,7 @@ impl LiveProcess {
                     shutdown_res = shutdown_rx.recv() => {
                         if let Err(e) = shutdown_res {
                             self.status_manager.update(LiveStatus::Failed(
-                                LiveProcessError::ShutdownRecv(e))
+                                LiveProcessError::ShutdownSignalRecv(e))
                             );
                         }
                         return;
@@ -280,7 +286,7 @@ impl LiveProcess {
                     shutdown_res = shutdown_rx.recv() => {
                         if let Err(e) = shutdown_res {
                             self.status_manager.update(LiveStatus::Failed(
-                                LiveProcessError::ShutdownRecv(e))
+                                LiveProcessError::ShutdownSignalRecv(e))
                             );
                         }
                         return;
