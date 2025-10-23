@@ -7,14 +7,14 @@ use tokio::sync::broadcast;
 
 use crate::sync::SyncStatusNotSynced;
 
-use super::{core::Signal, error::SignalError};
+use super::{core::Signal, process::error::SignalProcessError};
 
 #[derive(Debug)]
 pub enum LiveSignalStatusNotRunning {
     NotInitiated,
     Starting,
     WaitingForSync(Arc<SyncStatusNotSynced>),
-    Failed(SignalError),
+    Failed(SignalProcessError),
     Restarting,
 }
 
