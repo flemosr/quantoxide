@@ -20,13 +20,16 @@ pub enum LiveProcessError {
     Db(#[from] DbError),
 
     #[error("[TaskJoin] {0}")]
-    TaskJoin(JoinError),
+    LiveProcessTaskJoin(JoinError), // Not recoverable
 
     #[error("Operator error: {0}")]
     OperatorError(TradeCoreError),
 
-    #[error("`Sync` `RecvError` error: {0}")]
-    SyncRecv(RecvError), // TODO: Split
+    #[error("`SyncRecvClosed` error")]
+    SyncRecvClosed, // Not recoverable
+
+    #[error("`SyncRecvLagged` error, skipped: {skipped}")]
+    SyncRecvLagged { skipped: u64 },
 
     #[error("`Sync` process (dependency) was terminated with error: {0}")]
     SyncProcessTerminated(Arc<SyncProcessFatalError>), // Not recoverable
@@ -38,31 +41,31 @@ pub enum LiveProcessError {
     LiveSignalProcessTerminated(Arc<SignalProcessFatalError>), // Not recoverable
 
     #[error("`LiveSignal` process (dependency) was shutdown")]
-    LiveSignalProcessShutdown,
+    LiveSignalProcessShutdown, // Not recoverable
 
-    #[error("`LiveSignal` `RecvError` error: {0}")]
-    SignalRecv(RecvError), // Split
+    #[error("`SignalRecvClosed` error")]
+    SignalRecvClosed, // Not recoverable
 
-    #[error("`LiveTradeExecutor` `RecvError` error: {0}")]
-    ExecutorRecv(RecvError),
+    #[error("`SignalRecvLagged` error, skipped: {skipped}")]
+    SignalRecvLagged { skipped: u64 },
 
-    #[error("[ShutdownRecv] {0}")]
-    ShutdownRecv(RecvError),
+    #[error("Shutdown signal channel recv error: {0}")]
+    ShutdownSignalRecv(RecvError), // Not recoverable
 
-    #[error("Failed to send live trade process shutdown request error: {0}")]
-    SendShutdownFailed(SendError<()>),
+    #[error("Failed to send live trade process shutdown signal error: {0}")]
+    SendShutdownSignalFailed(SendError<()>),
 
-    #[error("Live shutdown timeout error")]
-    ShutdownTimeout,
+    #[error("Live shutdown process timeout error")]
+    ShutdownTimeout, // Not recoverable
 
     #[error("`LiveTradeExecutor` shutdown error: {0}")]
-    ExecutorShutdownError(LiveTradeExecutorError),
+    ExecutorShutdownError(LiveTradeExecutorError), // Not recoverable
 
     #[error("Error while shutting down `LiveSignal`: {0}")]
     LiveSignalShutdown(SignalError), // Not recoverable
 
     #[error("Error while shutting down `Sync`: {0}")]
-    SyncShutdown(SyncError),
+    SyncShutdown(SyncError), // Not recoverable
 
     #[error("Operator iteration time too long for iteration interval")]
     OperatorIterationTimeTooLong,
