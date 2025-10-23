@@ -28,6 +28,9 @@ pub enum LiveProcessRecoverableError {
     #[error("`SignalRecvLagged` error, skipped: {skipped}")]
     SignalRecvLagged { skipped: u64 },
 
+    #[error("`ExecutorRecvLagged` error, skipped: {skipped}")]
+    ExecutorRecvLagged { skipped: u64 },
+
     #[error("Operator iteration time too long for iteration interval")]
     OperatorIterationTimeTooLong,
 }
@@ -54,6 +57,9 @@ pub enum LiveProcessFatalError {
 
     #[error("`SignalRecvClosed` error")]
     SignalRecvClosed,
+
+    #[error("`ExecutorRecvClosed` error")]
+    ExecutorRecvClosed,
 
     #[error("Failed to send live trade process shutdown signal error: {0}")]
     SendShutdownSignalFailed(SendError<()>),
