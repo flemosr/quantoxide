@@ -103,14 +103,14 @@ impl LiveProcess {
         loop {
             let iteration_interval = raw_operator
                 .iteration_interval()
-                .map_err(LiveError::OperatorError)?;
+                .map_err(LiveProcessError::OperatorError)?;
 
             let now = {
                 let target_exec = (last_eval + iteration_interval).ceil_sec();
                 let now = Utc::now();
 
                 if now >= target_exec {
-                    return Err(LiveError::OperatorIterationTimeTooLong);
+                    return Err(LiveProcessError::OperatorIterationTimeTooLong);
                 }
 
                 let wait_duration = (target_exec - now).to_std().expect("valid duration");
@@ -139,10 +139,10 @@ impl LiveProcess {
                                         }
                                         SyncStatus::Synced => break,
                                         SyncStatus::Terminated(err) => {
-                                            return Err(LiveError::SyncProcessTerminated(err));
+                                            return Err(LiveProcessError::SyncProcessTerminated(err));
                                         }
                                         SyncStatus::ShutdownInitiated | SyncStatus::Shutdown => {
-                                            return Err(LiveError::SyncProcessShutdown);
+                                            return Err(LiveProcessError::SyncProcessShutdown);
                                         }
                                     },
                                     SyncUpdate::PriceTick(_) => break,
@@ -151,7 +151,7 @@ impl LiveProcess {
                                         // Sync may take a long time when `sync_mode_full: true`
                                     }
                                 },
-                                Err(e) => return Err(LiveError::SyncRecv(e))
+                                Err(e) => return Err(LiveProcessError::SyncRecv(e))
 
                             }
                         }
@@ -172,7 +172,7 @@ impl LiveProcess {
 
             let ctx_window = raw_operator
                 .context_window_secs()
-                .map_err(LiveError::OperatorError)?;
+                .map_err(LiveProcessError::OperatorError)?;
 
             let ctx_entries = db
                 .price_ticks
@@ -182,7 +182,7 @@ impl LiveProcess {
             raw_operator
                 .iterate(ctx_entries.as_slice())
                 .await
-                .map_err(LiveError::OperatorError)?;
+                .map_err(LiveProcessError::OperatorError)?;
         }
     }
 
@@ -201,10 +201,10 @@ impl LiveProcess {
                         }
                         LiveSignalStatus::Running => {}
                         LiveSignalStatus::Terminated(err) => {
-                            return Err(LiveError::LiveSignalProcessTerminated(err));
+                            return Err(LiveProcessError::LiveSignalProcessTerminated(err));
                         }
                         LiveSignalStatus::ShutdownInitiated | LiveSignalStatus::Shutdown => {
-                            return Err(LiveError::LiveSignalProcessShutdown);
+                            return Err(LiveProcessError::LiveSignalProcessShutdown);
                         }
                     },
                     LiveSignalUpdate::Signal(new_signal) => {
@@ -225,10 +225,10 @@ impl LiveProcess {
                         signal_operator
                             .process_signal(&new_signal)
                             .await
-                            .map_err(LiveError::OperatorError)?;
+                            .map_err(LiveProcessError::OperatorError)?;
                     }
                 },
-                Err(e) => return Err(LiveError::SignalRecv(e)),
+                Err(e) => return Err(LiveProcessError::SignalRecv(e)),
             }
         }
     }
@@ -262,7 +262,7 @@ impl LiveProcess {
                     shutdown_res = shutdown_rx.recv() => {
                         if let Err(e) = shutdown_res {
                             self.status_manager.update(LiveStatus::Failed(
-                                LiveError::ShutdownRecv(e))
+                                LiveProcessError::ShutdownRecv(e))
                             );
                         }
                         return;
@@ -280,7 +280,7 @@ impl LiveProcess {
                     shutdown_res = shutdown_rx.recv() => {
                         if let Err(e) = shutdown_res {
                             self.status_manager.update(LiveStatus::Failed(
-                                LiveError::ShutdownRecv(e))
+                                LiveProcessError::ShutdownRecv(e))
                             );
                         }
                         return;
