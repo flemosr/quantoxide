@@ -25,7 +25,7 @@ use super::{
         core::{Stoploss, TradeExecutor, TradingState},
         error::TradeExecutorResult,
     },
-    engine::LiveConfig,
+    config::LiveTradeExecutorConfig,
 };
 
 pub mod error;
@@ -41,98 +41,6 @@ use update::{
     LiveTradeExecutorReceiver, LiveTradeExecutorTransmiter, LiveTradeExecutorUpdate,
     WrappedApiContext,
 };
-
-pub struct LiveTradeExecutorConfig {
-    tsl_step_size: BoundedPercentage,
-    clean_up_trades_on_startup: bool,
-    recover_trades_on_startup: bool,
-    clean_up_trades_on_shutdown: bool,
-    estimated_fee_perc: BoundedPercentage,
-    max_running_qtd: usize,
-}
-
-impl LiveTradeExecutorConfig {
-    pub fn trailing_stoploss_step_size(&self) -> BoundedPercentage {
-        self.tsl_step_size
-    }
-
-    pub fn clean_up_trades_on_startup(&self) -> bool {
-        self.clean_up_trades_on_startup
-    }
-
-    pub fn recover_trades_on_startup(&self) -> bool {
-        self.recover_trades_on_startup
-    }
-
-    pub fn clean_up_trades_on_shutdown(&self) -> bool {
-        self.clean_up_trades_on_shutdown
-    }
-
-    pub fn estimated_fee_perc(&self) -> BoundedPercentage {
-        self.estimated_fee_perc
-    }
-
-    pub fn max_running_qtd(&self) -> usize {
-        self.max_running_qtd
-    }
-
-    pub fn set_trailing_stoploss_step_size(mut self, tsl_step_size: BoundedPercentage) -> Self {
-        self.tsl_step_size = tsl_step_size;
-        self
-    }
-
-    pub fn set_clean_up_trades_on_startup(mut self, clean_up_trades_on_startup: bool) -> Self {
-        self.clean_up_trades_on_startup = clean_up_trades_on_startup;
-        self
-    }
-
-    pub fn set_recover_trades_on_startup(mut self, recover_trades_on_startup: bool) -> Self {
-        self.recover_trades_on_startup = recover_trades_on_startup;
-        self
-    }
-
-    pub fn set_clean_up_trades_on_shutdown(mut self, clean_up_trades_on_shutdown: bool) -> Self {
-        self.clean_up_trades_on_shutdown = clean_up_trades_on_shutdown;
-        self
-    }
-
-    pub fn set_estimated_fee_perc(mut self, estimated_fee_perc: BoundedPercentage) -> Self {
-        self.estimated_fee_perc = estimated_fee_perc;
-        self
-    }
-
-    pub fn set_max_running_qtd(mut self, max_running_qtd: usize) -> Self {
-        self.max_running_qtd = max_running_qtd;
-        self
-    }
-}
-
-impl Default for LiveTradeExecutorConfig {
-    fn default() -> Self {
-        Self {
-            tsl_step_size: BoundedPercentage::MIN,
-            clean_up_trades_on_startup: true,
-            recover_trades_on_startup: false,
-            clean_up_trades_on_shutdown: true,
-            estimated_fee_perc: BoundedPercentage::try_from(0.1)
-                .expect("must be valid `BoundedPercentage`"),
-            max_running_qtd: 50,
-        }
-    }
-}
-
-impl From<&LiveConfig> for LiveTradeExecutorConfig {
-    fn from(value: &LiveConfig) -> Self {
-        Self {
-            tsl_step_size: value.trailing_stoploss_step_size(),
-            clean_up_trades_on_startup: value.clean_up_trades_on_startup(),
-            recover_trades_on_startup: value.recover_trades_on_startup(),
-            clean_up_trades_on_shutdown: value.clean_up_trades_on_shutdown(),
-            estimated_fee_perc: value.estimated_fee_perc(),
-            max_running_qtd: value.max_running_qtd(),
-        }
-    }
-}
 
 pub struct LiveTradeExecutor {
     config: LiveTradeExecutorConfig,
@@ -201,7 +109,11 @@ impl LiveTradeExecutor {
         let (stoploss_price, trade_tsl) = match stoploss {
             Some(stoploss) => {
                 let (stoploss_price, tsl) = stoploss
-                    .evaluate(self.config.tsl_step_size, side, market_price)
+                    .evaluate(
+                        self.config.trailing_stoploss_step_size(),
+                        side,
+                        market_price,
+                    )
                     .map_err(LiveTradeExecutorError::StoplossEvaluation)?;
                 (Some(stoploss_price), tsl)
             }
@@ -216,7 +128,7 @@ impl LiveTradeExecutor {
                 market_price,
                 stoploss_price,
                 takeprofit,
-                self.config.estimated_fee_perc,
+                self.config.estimated_fee_perc(),
             )
             .map_err(LiveTradeExecutorError::InvalidTradeParams)?;
 

@@ -18,7 +18,7 @@ use crate::{
 
 use super::{
     super::core::{WrappedRawOperator, WrappedSignalOperator},
-    engine::LiveConfig,
+    config::{LiveConfig, LiveProcessConfig},
     executor::{LiveTradeExecutor, state::LiveTradeExecutorStatus},
     state::{LiveStatus, LiveStatusManager, LiveTransmiter},
 };
@@ -49,20 +49,6 @@ impl OperatorRunning {
             Some(signal_controller.clone())
         } else {
             None
-        }
-    }
-}
-
-struct LiveProcessConfig {
-    sync_update_timeout: time::Duration,
-    restart_interval: time::Duration,
-}
-
-impl From<&LiveConfig> for LiveProcessConfig {
-    fn from(value: &LiveConfig) -> Self {
-        Self {
-            sync_update_timeout: value.sync_update_timeout(),
-            restart_interval: value.restart_interval(),
         }
     }
 }
@@ -158,7 +144,7 @@ impl LiveProcess {
                                 Err(RecvError::Closed) => return Err(LiveProcessFatalError::SyncRecvClosed.into())
                             }
                         }
-                        _ = time::sleep(self.config.sync_update_timeout) => {
+                        _ = time::sleep(self.config.sync_update_timeout()) => {
                             if matches!(sync_reader.status_snapshot(), SyncStatus::Synced) {
                                 break;
                             }
@@ -292,7 +278,7 @@ impl LiveProcess {
                 // Handle shutdown signals while waiting for `restart_interval`
 
                 tokio::select! {
-                    _ = time::sleep(self.config.restart_interval) => {
+                    _ = time::sleep(self.config.restart_interval()) => {
                         // Continue with the restart loop
                     }
                     shutdown_res = shutdown_rx.recv() => {

@@ -1,6 +1,6 @@
 use tokio::time;
 
-use crate::trade::live::engine::LiveConfig;
+use crate::trade::live::config::LiveConfig;
 
 #[derive(Clone, Debug)]
 pub struct LiveSignalConfig {
