@@ -17,7 +17,7 @@ use crate::{
     db::DbContext,
     signal::{
         core::{ConfiguredSignalEvaluator, Signal},
-        live::{LiveSignalController, LiveSignalEngine},
+        engine::{LiveSignalController, LiveSignalEngine},
         state::{LiveSignalStatus, LiveSignalStatusNotRunning, LiveSignalUpdate},
     },
     sync::{

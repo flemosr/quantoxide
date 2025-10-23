@@ -8,13 +8,13 @@ use tokio::{
 
 use crate::{
     db::DbContext,
-    signal::live::LiveSignalConfig,
     sync::{SyncReader, SyncStatus, SyncUpdate},
     util::{AbortOnDropHandle, DateTimeExt, Never},
 };
 
 use super::{
     core::{ConfiguredSignalEvaluator, Signal},
+    engine::LiveSignalConfig,
     error::{Result, SignalError},
     state::{LiveSignalStatusManager, LiveSignalStatusNotRunning, LiveSignalTransmiter},
 };
