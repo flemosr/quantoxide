@@ -6,7 +6,7 @@ use crate::{
     db::DbContext,
     signal::{
         error::SignalValidationError,
-        process::{LiveSignalProcess, error::SignalProcessError},
+        process::{LiveSignalProcess, error::SignalProcessFatalError},
     },
     sync::SyncReader,
     trade::live::LiveConfig,
@@ -92,18 +92,18 @@ impl LiveSignalController {
 
         let shutdown_send_res = self.shutdown_tx.send(()).map_err(|e| {
             handle.abort();
-            SignalProcessError::SendShutdownSignalFailed(e)
+            SignalProcessFatalError::SendShutdownSignalFailed(e)
         });
 
         let shutdown_res = match shutdown_send_res {
             Ok(_) => {
                 tokio::select! {
                     join_res = &mut handle => {
-                        join_res.map_err(SignalProcessError::LiveSignalProcessTaskJoin)
+                        join_res.map_err(SignalProcessFatalError::LiveSignalProcessTaskJoin)
                     }
                     _ = time::sleep(self.config.shutdown_timeout) => {
                         handle.abort();
-                        Err(SignalProcessError::ShutdownTimeout)
+                        Err(SignalProcessFatalError::ShutdownTimeout)
                     }
                 }
             }
