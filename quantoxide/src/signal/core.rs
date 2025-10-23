@@ -6,20 +6,23 @@ use futures::FutureExt;
 
 use crate::{db::models::PriceHistoryEntryLOCF, util::DateTimeExt};
 
-use super::error::{Result, SignalError};
+use super::{
+    error::{SignalValidationError, ValidationResult},
+    process::error::{ProcessResult, SignalProcessError},
+};
 
 #[derive(Debug, Clone)]
 pub struct SignalName(String);
 
 impl SignalName {
-    pub fn new<S>(name: S) -> Result<Self>
+    pub fn new<S>(name: S) -> ValidationResult<Self>
     where
         S: Into<String>,
     {
         let name = name.into();
 
         if name.is_empty() {
-            return Err(SignalError::InvalidSignalNameEmptyString);
+            return Err(SignalValidationError::InvalidSignalNameEmptyString);
         }
 
         Ok(Self(name))
@@ -98,10 +101,10 @@ impl<T: SignalActionEvaluator> SignalEvaluator<T> {
         evaluation_interval_secs: impl TryInto<NonZeroU64>,
         context_window_secs: usize,
         action_evaluator: T,
-    ) -> Result<Self> {
+    ) -> ValidationResult<Self> {
         let evaluation_interval_secs: NonZeroU64 = evaluation_interval_secs
             .try_into()
-            .map_err(|_| SignalError::InvalidEvaluationInterval)?;
+            .map_err(|_| SignalValidationError::InvalidEvaluationInterval)?;
 
         Ok(Self {
             name,
@@ -123,11 +126,11 @@ impl<T: SignalActionEvaluator> SignalEvaluator<T> {
         self.context_window_secs
     }
 
-    pub async fn evaluate(&self, entries: &[PriceHistoryEntryLOCF]) -> Result<SignalAction> {
+    pub async fn evaluate(&self, entries: &[PriceHistoryEntryLOCF]) -> ProcessResult<SignalAction> {
         FutureExt::catch_unwind(AssertUnwindSafe(self.action_evaluator.evaluate(entries)))
             .await
-            .map_err(|e| SignalError::EvaluatePanicked(e.into()))?
-            .map_err(|e| SignalError::EvaluateError(e.to_string()))
+            .map_err(|e| SignalProcessError::EvaluatePanicked(e.into()))?
+            .map_err(|e| SignalProcessError::EvaluateError(e.to_string()))
     }
 }
 
@@ -139,7 +142,7 @@ impl SignalEvaluator<Box<dyn SignalActionEvaluator>> {
         evaluation_interval_secs: impl TryInto<NonZeroU64>,
         context_window_secs: usize,
         action_evaluator: E,
-    ) -> Result<ConfiguredSignalEvaluator>
+    ) -> ValidationResult<ConfiguredSignalEvaluator>
     where
         E: SignalActionEvaluator + 'static,
     {
@@ -164,7 +167,7 @@ impl Signal {
         evaluator: &ConfiguredSignalEvaluator,
         time: DateTime<Utc>,
         entries: &[PriceHistoryEntryLOCF],
-    ) -> Result<Self> {
+    ) -> ProcessResult<Self> {
         let signal_action = evaluator.evaluate(entries).await?;
 
         Ok(Signal {
