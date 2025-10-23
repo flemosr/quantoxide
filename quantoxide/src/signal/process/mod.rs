@@ -13,8 +13,8 @@ use crate::{
 };
 
 use super::{
+    config::{LiveSignalConfig, LiveSignalProcessConfig},
     core::{ConfiguredSignalEvaluator, Signal},
-    engine::LiveSignalConfig,
     state::{LiveSignalStatusManager, LiveSignalStatusNotRunning, LiveSignalTransmiter},
 };
 
@@ -23,21 +23,6 @@ pub mod error;
 use error::{
     ProcessResult, SignalProcessError, SignalProcessFatalError, SignalProcessRecoverableError,
 };
-
-#[derive(Clone, Debug)]
-pub struct LiveSignalProcessConfig {
-    sync_update_timeout: time::Duration,
-    restart_interval: time::Duration,
-}
-
-impl From<&LiveSignalConfig> for LiveSignalProcessConfig {
-    fn from(value: &LiveSignalConfig) -> Self {
-        Self {
-            sync_update_timeout: value.sync_update_timeout(),
-            restart_interval: value.restart_interval(),
-        }
-    }
-}
 
 pub struct LiveSignalProcess {
     config: LiveSignalProcessConfig,
@@ -132,7 +117,7 @@ impl LiveSignalProcess {
                                 Err(RecvError::Closed) => return Err(SignalProcessFatalError::SyncRecvClosed.into())
                             }
                         }
-                        _ = time::sleep(self.config.sync_update_timeout) => {
+                        _ = time::sleep(self.config.sync_update_timeout()) => {
                             if matches!(self.sync_reader.status_snapshot(), SyncStatus::Synced) {
                                 break;
                             }
@@ -211,7 +196,7 @@ impl LiveSignalProcess {
                 // Handle shutdown signals while waiting for `restart_interval`
 
                 tokio::select! {
-                    _ = time::sleep(self.config.restart_interval) => {
+                    _ = time::sleep(self.config.restart_interval()) => {
                         // Continue with the restart loop
                     }
                     shutdown_res = shutdown_rx.recv() => {

@@ -5,11 +5,11 @@ use tokio::{sync::broadcast, time};
 use crate::{
     db::DbContext,
     signal::{
+        config::{LiveSignalConfig, LiveSignalControllerConfig},
         error::SignalValidationError,
         process::{LiveSignalProcess, error::SignalProcessFatalError},
     },
     sync::SyncReader,
-    trade::live::engine::LiveConfig,
     util::AbortOnDropHandle,
 };
 
@@ -21,19 +21,6 @@ use super::{
         LiveSignalTransmiter, LiveSignalUpdate,
     },
 };
-
-#[derive(Debug)]
-struct LiveSignalControllerConfig {
-    shutdown_timeout: time::Duration,
-}
-
-impl From<&LiveSignalConfig> for LiveSignalControllerConfig {
-    fn from(value: &LiveSignalConfig) -> Self {
-        Self {
-            shutdown_timeout: value.shutdown_timeout,
-        }
-    }
-}
 
 #[derive(Debug)]
 pub struct LiveSignalController {
@@ -101,7 +88,7 @@ impl LiveSignalController {
                     join_res = &mut handle => {
                         join_res.map_err(SignalProcessFatalError::LiveSignalProcessTaskJoin)
                     }
-                    _ = time::sleep(self.config.shutdown_timeout) => {
+                    _ = time::sleep(self.config.shutdown_timeout()) => {
                         handle.abort();
                         Err(SignalProcessFatalError::ShutdownTimeout)
                     }
@@ -119,62 +106,6 @@ impl LiveSignalController {
 
         self.status_manager.update(LiveSignalStatus::Shutdown);
         Ok(())
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct LiveSignalConfig {
-    sync_update_timeout: time::Duration,
-    restart_interval: time::Duration,
-    shutdown_timeout: time::Duration,
-}
-
-impl Default for LiveSignalConfig {
-    fn default() -> Self {
-        Self {
-            sync_update_timeout: time::Duration::from_secs(5),
-            restart_interval: time::Duration::from_secs(10),
-            shutdown_timeout: time::Duration::from_secs(6),
-        }
-    }
-}
-
-impl LiveSignalConfig {
-    pub fn sync_update_timeout(&self) -> time::Duration {
-        self.sync_update_timeout
-    }
-
-    pub fn restart_interval(&self) -> time::Duration {
-        self.restart_interval
-    }
-
-    pub fn shutdown_timeout(&self) -> time::Duration {
-        self.shutdown_timeout
-    }
-
-    pub fn set_sync_update_timeout(mut self, secs: u64) -> Self {
-        self.sync_update_timeout = time::Duration::from_secs(secs);
-        self
-    }
-
-    pub fn set_restart_interval(mut self, secs: u64) -> Self {
-        self.restart_interval = time::Duration::from_secs(secs);
-        self
-    }
-
-    pub fn set_shutdown_timeout(mut self, secs: u64) -> Self {
-        self.shutdown_timeout = time::Duration::from_secs(secs);
-        self
-    }
-}
-
-impl From<&LiveConfig> for LiveSignalConfig {
-    fn from(value: &LiveConfig) -> Self {
-        Self {
-            sync_update_timeout: value.sync_update_timeout(),
-            restart_interval: value.restart_interval(),
-            shutdown_timeout: value.shutdown_timeout(),
-        }
     }
 }
 
