@@ -554,7 +554,7 @@ impl BacktestEngine {
 
                         let signal = Signal::try_evaluate(evaluator, time_cursor, ctx_entries)
                             .await
-                            .map_err(BacktestError::SignalEvalutationError)?;
+                            .map_err(BacktestError::SignalEvaluationError)?;
 
                         signal_operator
                             .process_signal(&signal)

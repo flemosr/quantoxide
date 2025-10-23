@@ -4,7 +4,9 @@ use chrono::{DateTime, Utc};
 use thiserror::Error;
 use tokio::{sync::broadcast::error::SendError, task::JoinError};
 
-use crate::{db::error::DbError, signal::error::SignalError, sync::SyncPriceHistoryError};
+use crate::{
+    db::error::DbError, signal::process::error::SignalProcessError, sync::SyncPriceHistoryError,
+};
 
 pub use super::executor::error::SimulatedTradeExecutorError;
 use super::{
@@ -66,7 +68,7 @@ pub enum BacktestError {
     Db(#[from] DbError),
 
     #[error("Signal evaluation error: {0}")]
-    SignalEvalutationError(SignalError),
+    SignalEvaluationError(SignalProcessError),
 
     #[error("Signal processing error: {0}")]
     SignalProcessingError(TradeCoreError),
