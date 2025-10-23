@@ -20,7 +20,9 @@ use super::{
 
 pub mod error;
 
-use error::{ProcessResult, SignalProcessFatalError, SignalProcessRecoverableError};
+use error::{
+    ProcessResult, SignalProcessError, SignalProcessFatalError, SignalProcessRecoverableError,
+};
 
 #[derive(Clone, Debug)]
 pub struct LiveSignalProcessConfig {
@@ -192,9 +194,16 @@ impl LiveSignalProcess {
                     }
                 };
 
-                // self.status_manager.update(
-                //     LiveSignalStatusNotRunning::Failed(SignalProcessFatalError::ShutdownSignalRecv(e)).into()
-                // );
+                match signal_process_error {
+                    SignalProcessError::Fatal(err) => {
+                        self.status_manager.update(err.into());
+                        return;
+                    }
+                    SignalProcessError::Recoverable(err) => {
+                        self.status_manager
+                            .update(LiveSignalStatusNotRunning::Failed(err).into());
+                    }
+                }
 
                 self.status_manager
                     .update(LiveSignalStatusNotRunning::Restarting.into());
@@ -206,10 +215,9 @@ impl LiveSignalProcess {
                         // Continue with the restart loop
                     }
                     shutdown_res = shutdown_rx.recv() => {
-                        if let Err(e) = shutdown_res {
-                            // self.status_manager.update(
-                            //     LiveSignalStatusNotRunning::Failed(SignalProcessFatalError::ShutdownSignalRecv(e)).into()
-                            // );
+                        if let Err(err) = shutdown_res {
+                            let status = SignalProcessFatalError::ShutdownSignalRecv(err).into();
+                            self.status_manager.update(status);
                         }
                         return;
                     }
