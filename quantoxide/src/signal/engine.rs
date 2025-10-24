@@ -97,11 +97,11 @@ impl LiveSignalController {
             Err(e) => Err(e),
         };
 
-        if let Err(err) = shutdown_res {
-            let err_ref = Arc::new(err);
-            self.status_manager.update(err_ref.clone().into());
+        if let Err(e) = shutdown_res {
+            let e_ref = Arc::new(e);
+            self.status_manager.update(e_ref.clone().into());
 
-            return Err(SignalError::SignalShutdownFailed(err_ref));
+            return Err(SignalError::SignalShutdownFailed(e_ref));
         }
 
         self.status_manager.update(LiveSignalStatus::Shutdown);

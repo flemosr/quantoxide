@@ -280,12 +280,12 @@ impl SyncProcess {
                 let sync_process_error = tokio::select! {
                     Err(sync_error) = self.run_mode() => sync_error,
                     shutdown_res = shutdown_rx.recv() => {
-                        let Err(err) = shutdown_res else {
+                        let Err(e) = shutdown_res else {
                             // Shutdown signal received
                             return;
                         };
 
-                        SyncProcessFatalError::ShutdownSignalRecv(err).into()
+                        SyncProcessFatalError::ShutdownSignalRecv(e).into()
                     }
                 };
 
@@ -310,8 +310,8 @@ impl SyncProcess {
                         // Continue with the restart loop
                     }
                     shutdown_res = shutdown_rx.recv() => {
-                        if let Err(err) = shutdown_res {
-                            let status = SyncProcessFatalError::ShutdownSignalRecv(err).into();
+                        if let Err(e) = shutdown_res {
+                            let status = SyncProcessFatalError::ShutdownSignalRecv(e).into();
                             self.status_manager.update(status);
                         }
                         return;

@@ -200,8 +200,8 @@ impl LiveSignalProcess {
                         // Continue with the restart loop
                     }
                     shutdown_res = shutdown_rx.recv() => {
-                        if let Err(err) = shutdown_res {
-                            let status = SignalProcessFatalError::ShutdownSignalRecv(err).into();
+                        if let Err(e) = shutdown_res {
+                            let status = SignalProcessFatalError::ShutdownSignalRecv(e).into();
                             self.status_manager.update(status);
                         }
                         return;

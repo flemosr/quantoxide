@@ -151,11 +151,11 @@ impl LiveController {
             .and(signal_shutdown_res)
             .and(sync_shutdown_res);
 
-        if let Err(err) = shutdown_res {
-            let err_ref = Arc::new(err);
-            self.status_manager.update(err_ref.clone().into());
+        if let Err(e) = shutdown_res {
+            let e_ref = Arc::new(e);
+            self.status_manager.update(e_ref.clone().into());
 
-            return Err(LiveError::LiveShutdownFailed(err_ref));
+            return Err(LiveError::LiveShutdownFailed(e_ref));
         }
 
         self.status_manager.update(LiveStatus::Shutdown);
@@ -276,8 +276,8 @@ impl LiveEngine {
                         }
                     },
                     Err(RecvError::Lagged(skipped)) => {
-                        let err = LiveProcessRecoverableError::ExecutorRecvLagged { skipped };
-                        status_manager.update(err.into());
+                        let e = LiveProcessRecoverableError::ExecutorRecvLagged { skipped };
+                        status_manager.update(e.into());
                     }
                     Err(RecvError::Closed) => {
                         status_manager.update(LiveProcessFatalError::ExecutorRecvClosed.into());

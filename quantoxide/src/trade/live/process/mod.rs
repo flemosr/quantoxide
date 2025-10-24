@@ -252,14 +252,14 @@ impl LiveProcess {
                 let mut shutdown_rx = self.shutdown_tx.subscribe();
 
                 let live_process_error = tokio::select! {
-                    Err(err) = self.run_operator() => err,
+                    Err(e) = self.run_operator() => e,
                     shutdown_res = shutdown_rx.recv() => {
-                        let Err(err) = shutdown_res else {
+                        let Err(e) = shutdown_res else {
                             // Shutdown signal received
                             return;
                         };
 
-                        LiveProcessFatalError::ShutdownSignalRecv(err).into()
+                        LiveProcessFatalError::ShutdownSignalRecv(e).into()
                     }
                 };
 
@@ -282,8 +282,8 @@ impl LiveProcess {
                         // Continue with the restart loop
                     }
                     shutdown_res = shutdown_rx.recv() => {
-                        if let Err(err) = shutdown_res  {
-                            let status = LiveProcessFatalError::ShutdownSignalRecv(err).into();
+                        if let Err(e) = shutdown_res  {
+                            let status = LiveProcessFatalError::ShutdownSignalRecv(e).into();
                             self.status_manager.update(status);
                         };
                         return;

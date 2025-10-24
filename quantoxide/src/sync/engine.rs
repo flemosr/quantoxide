@@ -93,11 +93,11 @@ impl SyncController {
             Err(e) => Err(e),
         };
 
-        if let Err(err) = shutdown_res {
-            let err_ref = Arc::new(err);
-            self.status_manager.update(err_ref.clone().into());
+        if let Err(e) = shutdown_res {
+            let e_ref = Arc::new(e);
+            self.status_manager.update(e_ref.clone().into());
 
-            return Err(SyncError::SyncShutdownFailed(err_ref));
+            return Err(SyncError::SyncShutdownFailed(e_ref));
         }
 
         self.status_manager.update(SyncStatus::Shutdown);
