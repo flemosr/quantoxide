@@ -151,7 +151,7 @@ impl WebSocketEventLoop {
 
         let new_connection_status = match handler().await {
             Ok(_) => ConnectionStatus::Disconnected,
-            Err(err) => ConnectionStatus::Failed(err),
+            Err(e) => ConnectionStatus::Failed(e),
         };
 
         self.connection_status_manager.update(new_connection_status);
