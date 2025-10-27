@@ -12,13 +12,23 @@ use crate::{
         engine::LiveSignalController,
         state::{LiveSignalStatus, LiveSignalUpdate},
     },
-    sync::{SyncReader, SyncStatus, SyncUpdate},
+    sync::{SyncController, SyncEngine, SyncReader, SyncStatus, SyncUpdate},
+    trade::live::{
+        engine::OperatorPending,
+        error::LiveError,
+        executor::{
+            LiveTradeExecutorLauncher,
+            update::{LiveTradeExecutorReceiver, LiveTradeExecutorUpdate},
+        },
+        state::LiveUpdate,
+    },
     util::{AbortOnDropHandle, DateTimeExt, Never},
 };
 
 use super::{
     super::core::{WrappedRawOperator, WrappedSignalOperator},
     config::{LiveConfig, LiveProcessConfig},
+    error::Result as LiveResult,
     executor::{LiveTradeExecutor, state::LiveTradeExecutorStatus},
     state::{LiveStatus, LiveStatusManager, LiveTransmiter},
 };
@@ -56,29 +66,98 @@ impl OperatorRunning {
 pub struct LiveProcess {
     config: LiveProcessConfig,
     shutdown_tx: broadcast::Sender<()>,
-    operator: OperatorRunning,
+    sync_controller: Arc<SyncController>,
+    operator_running: OperatorRunning,
+    executor_updates_handle: AbortOnDropHandle<()>,
     trade_executor: Arc<LiveTradeExecutor>,
     status_manager: Arc<LiveStatusManager>,
     update_tx: LiveTransmiter,
 }
 
 impl LiveProcess {
-    pub fn new(
-        config: &LiveConfig,
-        shutdown_tx: broadcast::Sender<()>,
-        operator: OperatorRunning,
-        trade_executor: Arc<LiveTradeExecutor>,
+    fn spawn_executor_update_handler(
         status_manager: Arc<LiveStatusManager>,
         update_tx: LiveTransmiter,
-    ) -> Self {
-        Self {
+        mut executor_rx: LiveTradeExecutorReceiver,
+    ) -> AbortOnDropHandle<()> {
+        tokio::spawn(async move {
+            loop {
+                match executor_rx.recv().await {
+                    Ok(executor_update) => match executor_update {
+                        LiveTradeExecutorUpdate::Status(executor_status) => match executor_status {
+                            // TODO: We probably don't need to handle status updates here. we can
+                            // do so inside the operator iterations
+                            // This would avoid status overwrites that may lead to a
+                            // confusing output
+                            LiveTradeExecutorStatus::NotReady(executor_state_not_ready) => {
+                                let new_status =
+                                    LiveStatus::WaitingTradeExecutor(executor_state_not_ready);
+                                status_manager.update_if_running(new_status.into());
+                            }
+                            LiveTradeExecutorStatus::Ready => {
+                                // Update to running if waiting for the executor?
+                            }
+                        },
+                        LiveTradeExecutorUpdate::Order(executor_update_order) => {
+                            let _ = update_tx.send(executor_update_order.into());
+                        }
+                        LiveTradeExecutorUpdate::TradingState(trading_state) => {
+                            let _ = update_tx.send(trading_state.into());
+                        }
+                        LiveTradeExecutorUpdate::ClosedTrade(closed_trade) => {
+                            let _ = update_tx.send(LiveUpdate::ClosedTrade(closed_trade));
+                        }
+                    },
+                    Err(RecvError::Lagged(skipped)) => {
+                        let e = LiveProcessRecoverableError::ExecutorRecvLagged { skipped };
+                        status_manager.update(e.into());
+                    }
+                    Err(RecvError::Closed) => {
+                        status_manager.update(LiveProcessFatalError::ExecutorRecvClosed.into());
+                        return;
+                    }
+                }
+            }
+        })
+        .into()
+    }
+
+    pub async fn new(
+        config: &LiveConfig,
+        shutdown_tx: broadcast::Sender<()>,
+        sync_engine: SyncEngine,
+        operator_pending: OperatorPending,
+        trade_executor_launcher: LiveTradeExecutorLauncher,
+        status_manager: Arc<LiveStatusManager>,
+        update_tx: LiveTransmiter,
+    ) -> LiveResult<Self> {
+        let sync_controller = sync_engine.start();
+
+        let executor_rx = trade_executor_launcher.update_receiver();
+
+        let executor_updates_handle = Self::spawn_executor_update_handler(
+            status_manager.clone(),
+            update_tx.clone(),
+            executor_rx,
+        );
+
+        let trade_executor = trade_executor_launcher
+            .launch()
+            .await
+            .map_err(LiveError::LauchExecutor)?;
+
+        let operator_running = operator_pending.start(trade_executor.clone()).await?;
+
+        Ok(Self {
             config: config.into(),
             shutdown_tx,
-            operator,
+            sync_controller,
+            operator_running,
+            executor_updates_handle,
             trade_executor,
             status_manager,
             update_tx,
-        }
+        })
     }
 
     async fn handle_raw_entries(
@@ -156,6 +235,8 @@ impl LiveProcess {
                 continue;
             }
 
+            // TODO: Check executor status?
+
             self.status_manager
                 .update_if_not_running(LiveStatus::Running);
 
@@ -231,7 +312,7 @@ impl LiveProcess {
     }
 
     fn run_operator(&self) -> Pin<Box<dyn Future<Output = Result<Never>> + Send + '_>> {
-        match &self.operator {
+        match &self.operator_running {
             OperatorRunning::Raw {
                 db,
                 sync_reader,
@@ -244,7 +325,36 @@ impl LiveProcess {
         }
     }
 
-    pub fn spawn_recovery_loop(self) -> AbortOnDropHandle<()> {
+    async fn shutdown(self) -> Result<()> {
+        self.executor_updates_handle.abort();
+
+        let executor_shutdown_res = self
+            .trade_executor
+            .shutdown()
+            .await
+            .map_err(|e| LiveProcessFatalError::ExecutorShutdownError(e).into());
+
+        let signal_shutdown_res = match self.operator_running.signal_controller() {
+            Some(signal_controller) => signal_controller.shutdown().await,
+            None => Ok(()),
+        }
+        .map_err(|e| LiveProcessFatalError::LiveSignalShutdown(e).into());
+
+        let sync_shutdown_res = self
+            .sync_controller
+            .shutdown()
+            .await
+            .map_err(|e| LiveProcessFatalError::SyncShutdown(e).into());
+
+        executor_shutdown_res
+            .and(signal_shutdown_res)
+            .and(sync_shutdown_res)
+    }
+
+    // Only possibily returns errors if they took place during shutdown.
+    // Other `LiveProcessFatalError`s will result in `Ok` and should be accessed
+    // via `LiveStatus`.
+    pub fn spawn_recovery_loop(self) -> AbortOnDropHandle<Result<()>> {
         tokio::spawn(async move {
             loop {
                 self.status_manager.update(LiveStatus::Starting);
@@ -256,7 +366,8 @@ impl LiveProcess {
                     shutdown_res = shutdown_rx.recv() => {
                         let Err(e) = shutdown_res else {
                             // Shutdown signal received
-                            return;
+
+                            return self.shutdown().await;
                         };
 
                         LiveProcessFatalError::ShutdownSignalRecv(e).into()
@@ -264,12 +375,12 @@ impl LiveProcess {
                 };
 
                 match live_process_error {
-                    LiveProcessError::Fatal(err) => {
-                        self.status_manager.update(err.into());
-                        return;
+                    LiveProcessError::Fatal(e) => {
+                        self.status_manager.update(e.into());
+                        return Ok(());
                     }
-                    LiveProcessError::Recoverable(err) => {
-                        self.status_manager.update(err.into());
+                    LiveProcessError::Recoverable(e) => {
+                        self.status_manager.update(e.into());
                     }
                 }
 
@@ -278,15 +389,18 @@ impl LiveProcess {
                 // Handle shutdown signals while waiting for `restart_interval`
 
                 tokio::select! {
-                    _ = time::sleep(self.config.restart_interval()) => {
-                        // Continue with the restart loop
-                    }
+                    _ = time::sleep(self.config.restart_interval()) => {} // Loop restarts
                     shutdown_res = shutdown_rx.recv() => {
-                        if let Err(e) = shutdown_res  {
-                            let status = LiveProcessFatalError::ShutdownSignalRecv(e).into();
-                            self.status_manager.update(status);
+                        let Err(e) = shutdown_res else {
+                            // Shutdown signal received
+
+                            return self.shutdown().await;
                         };
-                        return;
+
+                        let status = LiveProcessFatalError::ShutdownSignalRecv(e).into();
+                        self.status_manager.update(status);
+
+                        return Ok(());
                     }
                 }
             }
