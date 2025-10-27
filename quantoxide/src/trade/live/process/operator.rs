@@ -4,12 +4,12 @@ use crate::{
     db::DbContext,
     signal::engine::{LiveSignalController, LiveSignalEngine},
     sync::SyncReader,
-    trade::{core::TradeExecutor, live::error::LiveError},
+    trade::core::TradeExecutor,
 };
 
-use super::super::{
-    super::core::{WrappedRawOperator, WrappedSignalOperator},
-    error::Result as LiveResult,
+use super::{
+    super::super::core::{WrappedRawOperator, WrappedSignalOperator},
+    error::{LiveProcessFatalError, LiveProcessFatalResult as Result},
 };
 
 pub enum OperatorPending {
@@ -44,10 +44,7 @@ impl OperatorPending {
         }
     }
 
-    pub async fn start(
-        self,
-        trade_executor: Arc<dyn TradeExecutor>,
-    ) -> LiveResult<OperatorRunning> {
+    pub async fn start(self, trade_executor: Arc<dyn TradeExecutor>) -> Result<OperatorRunning> {
         match self {
             OperatorPending::Signal {
                 signal_engine,
@@ -55,7 +52,7 @@ impl OperatorPending {
             } => {
                 signal_operator
                     .set_trade_executor(trade_executor.clone())
-                    .map_err(LiveError::SetupOperatorError)?;
+                    .map_err(LiveProcessFatalError::StartOperatorError)?;
 
                 let signal_controller = signal_engine.start();
 
@@ -71,7 +68,7 @@ impl OperatorPending {
             } => {
                 raw_operator
                     .set_trade_executor(trade_executor.clone())
-                    .map_err(LiveError::SetupOperatorError)?;
+                    .map_err(LiveProcessFatalError::StartOperatorError)?;
 
                 Ok(OperatorRunning::Raw {
                     db,
