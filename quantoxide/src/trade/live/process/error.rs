@@ -37,6 +37,12 @@ pub enum LiveProcessRecoverableError {
 
 #[derive(Error, Debug)]
 pub enum LiveProcessFatalError {
+    #[error("Launch executor error {0}")]
+    LaunchExecutor(LiveTradeExecutorError),
+
+    #[error("Setup operator error: {0}")]
+    StartOperatorError(TradeCoreError),
+
     #[error("[TaskJoin] {0}")]
     LiveProcessTaskJoin(JoinError),
 
@@ -79,6 +85,8 @@ pub enum LiveProcessFatalError {
     #[error("Error while shutting down `Sync`: {0}")]
     SyncShutdown(SyncError),
 }
+
+pub type LiveProcessFatalResult<T> = result::Result<T, LiveProcessFatalError>;
 
 #[derive(Error, Debug)]
 pub enum LiveProcessError {
