@@ -9,21 +9,20 @@ use lnm_sdk::api::ApiContext;
 use crate::{
     db::DbContext,
     signal::{core::ConfiguredSignalEvaluator, engine::LiveSignalEngine},
-    sync::{SyncEngine, SyncMode, SyncReader},
+    sync::{SyncEngine, SyncMode},
     tui::{Result as TuiResult, TuiControllerShutdown, TuiError},
     util::AbortOnDropHandle,
 };
 
 use super::{
-    super::core::{
-        RawOperator, SignalOperator, TradeExecutor, WrappedRawOperator, WrappedSignalOperator,
-    },
+    super::core::{RawOperator, SignalOperator, WrappedRawOperator},
     config::{LiveConfig, LiveControllerConfig},
     error::{LiveError, Result},
     executor::LiveTradeExecutorLauncher,
     process::{
-        LiveProcess, OperatorRunning,
+        LiveProcess,
         error::{LiveProcessFatalError, Result as LiveProcessResult},
+        operator::OperatorPending,
     },
     state::{LiveReader, LiveReceiver, LiveStatus, LiveStatusManager, LiveTransmiter, LiveUpdate},
 };
@@ -126,74 +125,6 @@ impl LiveController {
 impl TuiControllerShutdown for LiveController {
     async fn tui_shutdown(&self) -> TuiResult<()> {
         self.shutdown().await.map_err(TuiError::LiveShutdownFailed)
-    }
-}
-
-pub enum OperatorPending {
-    Signal {
-        signal_engine: LiveSignalEngine,
-        signal_operator: WrappedSignalOperator,
-    },
-    Raw {
-        db: Arc<DbContext>,
-        sync_reader: Arc<dyn SyncReader>,
-        raw_operator: WrappedRawOperator,
-    },
-}
-
-impl OperatorPending {
-    fn signal(signal_engine: LiveSignalEngine, signal_operator: WrappedSignalOperator) -> Self {
-        Self::Signal {
-            signal_engine,
-            signal_operator,
-        }
-    }
-
-    fn raw(
-        db: Arc<DbContext>,
-        sync_reader: Arc<dyn SyncReader>,
-        raw_operator: WrappedRawOperator,
-    ) -> Self {
-        Self::Raw {
-            db,
-            sync_reader,
-            raw_operator,
-        }
-    }
-
-    pub async fn start(self, trade_executor: Arc<dyn TradeExecutor>) -> Result<OperatorRunning> {
-        match self {
-            OperatorPending::Signal {
-                signal_engine,
-                mut signal_operator,
-            } => {
-                signal_operator
-                    .set_trade_executor(trade_executor.clone())
-                    .map_err(LiveError::SetupOperatorError)?;
-
-                let signal_controller = signal_engine.start();
-
-                Ok(OperatorRunning::Signal {
-                    signal_operator,
-                    signal_controller,
-                })
-            }
-            OperatorPending::Raw {
-                db,
-                sync_reader,
-                mut raw_operator,
-            } => {
-                raw_operator
-                    .set_trade_executor(trade_executor.clone())
-                    .map_err(LiveError::SetupOperatorError)?;
-
-                Ok(OperatorRunning::Raw {
-                    db,
-                    sync_reader,
-                    raw_operator,
-                })
-            }
-        }
     }
 }
 

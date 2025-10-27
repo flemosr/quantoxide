@@ -14,7 +14,6 @@ use crate::{
     },
     sync::{SyncController, SyncEngine, SyncReader, SyncStatus, SyncUpdate},
     trade::live::{
-        engine::OperatorPending,
         error::LiveError,
         executor::{
             LiveTradeExecutorLauncher,
@@ -34,34 +33,10 @@ use super::{
 };
 
 pub mod error;
+pub mod operator;
 
 use error::{LiveProcessError, LiveProcessFatalError, LiveProcessRecoverableError, Result};
-
-pub enum OperatorRunning {
-    Signal {
-        signal_controller: Arc<LiveSignalController>,
-        signal_operator: WrappedSignalOperator,
-    },
-    Raw {
-        db: Arc<DbContext>,
-        sync_reader: Arc<dyn SyncReader>,
-        raw_operator: WrappedRawOperator,
-    },
-}
-
-impl OperatorRunning {
-    pub fn signal_controller(&self) -> Option<Arc<LiveSignalController>> {
-        if let OperatorRunning::Signal {
-            signal_operator: _,
-            signal_controller,
-        } = self
-        {
-            Some(signal_controller.clone())
-        } else {
-            None
-        }
-    }
-}
+use operator::{OperatorPending, OperatorRunning};
 
 pub struct LiveProcess {
     config: LiveProcessConfig,
