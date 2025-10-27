@@ -11,8 +11,8 @@ use super::{
 
 #[derive(Error, Debug)]
 pub enum LiveError {
-    #[error("Launch executor error {0}")]
-    LauchExecutor(LiveTradeExecutorError),
+    #[error("Setup executor error {0}")]
+    SetupExecutor(LiveTradeExecutorError),
 
     #[error("Setup operator error: {0}")]
     SetupOperatorError(TradeCoreError),
