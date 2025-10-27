@@ -14,7 +14,6 @@ use crate::{
     },
     sync::{SyncController, SyncEngine, SyncReader, SyncStatus, SyncUpdate},
     trade::live::{
-        error::LiveError,
         executor::{
             LiveTradeExecutorLauncher,
             update::{LiveTradeExecutorReceiver, LiveTradeExecutorUpdate},
@@ -27,7 +26,6 @@ use crate::{
 use super::{
     super::core::{WrappedRawOperator, WrappedSignalOperator},
     config::{LiveConfig, LiveProcessConfig},
-    error::Result as LiveResult,
     executor::{LiveTradeExecutor, state::LiveTradeExecutorStatus},
     state::{LiveStatus, LiveStatusManager, LiveTransmiter},
 };
@@ -97,7 +95,7 @@ impl LiveProcess {
         .into()
     }
 
-    pub async fn spawn(
+    pub fn spawn(
         config: &LiveConfig,
         shutdown_tx: broadcast::Sender<()>,
         sync_engine: SyncEngine,
@@ -105,37 +103,50 @@ impl LiveProcess {
         trade_executor_launcher: LiveTradeExecutorLauncher,
         status_manager: Arc<LiveStatusManager>,
         update_tx: LiveTransmiter,
-    ) -> LiveResult<AbortOnDropHandle<Result<()>>> {
-        let sync_controller = sync_engine.start();
+    ) -> AbortOnDropHandle<Result<()>> {
+        let config = config.into();
 
-        let executor_rx = trade_executor_launcher.update_receiver();
+        tokio::spawn(async move {
+            let sync_controller = sync_engine.start();
 
-        let executor_updates_handle = Self::spawn_executor_update_handler(
-            status_manager.clone(),
-            update_tx.clone(),
-            executor_rx,
-        );
+            let executor_rx = trade_executor_launcher.update_receiver();
 
-        let trade_executor = trade_executor_launcher
-            .launch()
-            .await
-            .map_err(LiveError::LauchExecutor)?;
+            let executor_updates_handle = Self::spawn_executor_update_handler(
+                status_manager.clone(),
+                update_tx.clone(),
+                executor_rx,
+            );
 
-        let operator_running = operator_pending.start(trade_executor.clone()).await?;
+            let trade_executor = match trade_executor_launcher.launch().await {
+                Ok(tex) => tex,
+                Err(e) => {
+                    status_manager.update(LiveProcessFatalError::LaunchExecutor(e).into());
+                    return Ok(());
+                }
+            };
 
-        let handle = Self {
-            config: config.into(),
-            shutdown_tx,
-            sync_controller,
-            operator_running,
-            executor_updates_handle,
-            trade_executor,
-            status_manager,
-            update_tx,
-        }
-        .spawn_recovery_loop();
+            let operator_running = match operator_pending.start(trade_executor.clone()).await {
+                Ok(op) => op,
+                Err(e) => {
+                    status_manager.update(e.into());
+                    return Ok(());
+                }
+            };
 
-        Ok(handle)
+            let process = Self {
+                config,
+                shutdown_tx,
+                sync_controller,
+                operator_running,
+                executor_updates_handle,
+                trade_executor,
+                status_manager,
+                update_tx,
+            };
+
+            process.recovery_loop().await
+        })
+        .into()
     }
 
     async fn handle_raw_entries(
@@ -332,57 +343,54 @@ impl LiveProcess {
     // Only possibily returns errors if they took place during shutdown.
     // Other `LiveProcessFatalError`s will result in `Ok` and should be accessed
     // via `LiveStatus`.
-    fn spawn_recovery_loop(self) -> AbortOnDropHandle<Result<()>> {
-        tokio::spawn(async move {
-            loop {
-                self.status_manager.update(LiveStatus::Starting);
+    async fn recovery_loop(self) -> Result<()> {
+        loop {
+            self.status_manager.update(LiveStatus::Starting);
 
-                let mut shutdown_rx = self.shutdown_tx.subscribe();
+            let mut shutdown_rx = self.shutdown_tx.subscribe();
 
-                let live_process_error = tokio::select! {
-                    Err(e) = self.run_operator() => e,
-                    shutdown_res = shutdown_rx.recv() => {
-                        let Err(e) = shutdown_res else {
-                            // Shutdown signal received
+            let live_process_error = tokio::select! {
+                Err(e) = self.run_operator() => e,
+                shutdown_res = shutdown_rx.recv() => {
+                    let Err(e) = shutdown_res else {
+                        // Shutdown signal received
 
-                            return self.shutdown().await;
-                        };
+                        return self.shutdown().await;
+                    };
 
-                        LiveProcessFatalError::ShutdownSignalRecv(e).into()
-                    }
-                };
-
-                match live_process_error {
-                    LiveProcessError::Fatal(e) => {
-                        self.status_manager.update(e.into());
-                        return Ok(());
-                    }
-                    LiveProcessError::Recoverable(e) => {
-                        self.status_manager.update(e.into());
-                    }
+                    LiveProcessFatalError::ShutdownSignalRecv(e).into()
                 }
+            };
 
-                self.status_manager.update(LiveStatus::Restarting);
-
-                // Handle shutdown signals while waiting for `restart_interval`
-
-                tokio::select! {
-                    _ = time::sleep(self.config.restart_interval()) => {} // Loop restarts
-                    shutdown_res = shutdown_rx.recv() => {
-                        let Err(e) = shutdown_res else {
-                            // Shutdown signal received
-
-                            return self.shutdown().await;
-                        };
-
-                        let status = LiveProcessFatalError::ShutdownSignalRecv(e).into();
-                        self.status_manager.update(status);
-
-                        return Ok(());
-                    }
+            match live_process_error {
+                LiveProcessError::Fatal(e) => {
+                    self.status_manager.update(e.into());
+                    return Ok(());
+                }
+                LiveProcessError::Recoverable(e) => {
+                    self.status_manager.update(e.into());
                 }
             }
-        })
-        .into()
+
+            self.status_manager.update(LiveStatus::Restarting);
+
+            // Handle shutdown signals while waiting for `restart_interval`
+
+            tokio::select! {
+                _ = time::sleep(self.config.restart_interval()) => {} // Loop restarts
+                shutdown_res = shutdown_rx.recv() => {
+                    let Err(e) = shutdown_res else {
+                        // Shutdown signal received
+
+                        return self.shutdown().await;
+                    };
+
+                    let status = LiveProcessFatalError::ShutdownSignalRecv(e).into();
+                    self.status_manager.update(status);
+
+                    return Ok(());
+                }
+            }
+        }
     }
 }
