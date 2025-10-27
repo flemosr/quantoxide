@@ -111,20 +111,7 @@ impl LiveProcess {
             loop {
                 match executor_rx.recv().await {
                     Ok(executor_update) => match executor_update {
-                        LiveTradeExecutorUpdate::Status(executor_status) => match executor_status {
-                            // TODO: We probably don't need to handle status updates here. we can
-                            // do so inside the operator iterations
-                            // This would avoid status overwrites that may lead to a
-                            // confusing output
-                            LiveTradeExecutorStatus::NotReady(executor_state_not_ready) => {
-                                let new_status =
-                                    LiveStatus::WaitingTradeExecutor(executor_state_not_ready);
-                                status_manager.update_if_running(new_status.into());
-                            }
-                            LiveTradeExecutorStatus::Ready => {
-                                // Update to running if waiting for the executor?
-                            }
-                        },
+                        LiveTradeExecutorUpdate::Status(_) => {} // Handled in `run_operator`
                         LiveTradeExecutorUpdate::Order(executor_update_order) => {
                             let _ = update_tx.send(executor_update_order.into());
                         }
@@ -292,10 +279,21 @@ impl LiveProcess {
                 continue;
             }
 
-            // TODO: Check executor status?
+            let tex_state = self.trade_executor.state_snapshot().await;
+            let tex_status = tex_state.status();
 
-            self.status_manager
-                .update_if_not_running(LiveStatus::Running);
+            match tex_status {
+                LiveTradeExecutorStatus::Ready => {
+                    self.status_manager
+                        .update_if_not_running(LiveStatus::Running);
+                }
+                LiveTradeExecutorStatus::NotReady(tex_status_not_ready) => {
+                    self.status_manager.update(LiveStatus::WaitingTradeExecutor(
+                        tex_status_not_ready.clone(),
+                    ));
+                    continue;
+                }
+            }
 
             let ctx_window = raw_operator
                 .context_window_secs()
@@ -339,14 +337,19 @@ impl LiveProcess {
                     },
                     LiveSignalUpdate::Signal(new_signal) => {
                         let tex_state = self.trade_executor.state_snapshot().await;
+                        let tex_status = tex_state.status();
 
-                        if let LiveTradeExecutorStatus::Ready = tex_state.status() {
-                            // Sync is ok, signal is ok and trade controller is ok
-
-                            self.status_manager
-                                .update_if_not_running(LiveStatus::Running);
-                        } else {
-                            continue;
+                        match tex_status {
+                            LiveTradeExecutorStatus::Ready => {
+                                self.status_manager
+                                    .update_if_not_running(LiveStatus::Running);
+                            }
+                            LiveTradeExecutorStatus::NotReady(tex_status_not_ready) => {
+                                self.status_manager.update(LiveStatus::WaitingTradeExecutor(
+                                    tex_status_not_ready.clone(),
+                                ));
+                                continue;
+                            }
                         }
 
                         // Send Signal update
