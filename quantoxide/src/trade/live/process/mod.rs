@@ -97,7 +97,7 @@ impl LiveProcess {
         .into()
     }
 
-    pub async fn new(
+    pub async fn spawn(
         config: &LiveConfig,
         shutdown_tx: broadcast::Sender<()>,
         sync_engine: SyncEngine,
@@ -105,7 +105,7 @@ impl LiveProcess {
         trade_executor_launcher: LiveTradeExecutorLauncher,
         status_manager: Arc<LiveStatusManager>,
         update_tx: LiveTransmiter,
-    ) -> LiveResult<Self> {
+    ) -> LiveResult<AbortOnDropHandle<Result<()>>> {
         let sync_controller = sync_engine.start();
 
         let executor_rx = trade_executor_launcher.update_receiver();
@@ -123,7 +123,7 @@ impl LiveProcess {
 
         let operator_running = operator_pending.start(trade_executor.clone()).await?;
 
-        Ok(Self {
+        let handle = Self {
             config: config.into(),
             shutdown_tx,
             sync_controller,
@@ -132,7 +132,10 @@ impl LiveProcess {
             trade_executor,
             status_manager,
             update_tx,
-        })
+        }
+        .spawn_recovery_loop();
+
+        Ok(handle)
     }
 
     async fn handle_raw_entries(
@@ -329,7 +332,7 @@ impl LiveProcess {
     // Only possibily returns errors if they took place during shutdown.
     // Other `LiveProcessFatalError`s will result in `Ok` and should be accessed
     // via `LiveStatus`.
-    pub fn spawn_recovery_loop(self) -> AbortOnDropHandle<Result<()>> {
+    fn spawn_recovery_loop(self) -> AbortOnDropHandle<Result<()>> {
         tokio::spawn(async move {
             loop {
                 self.status_manager.update(LiveStatus::Starting);
