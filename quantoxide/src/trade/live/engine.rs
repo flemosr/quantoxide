@@ -177,7 +177,7 @@ impl LiveEngine {
 
         let trade_executor_launcher =
             LiveTradeExecutorLauncher::new(&config, db, api, sync_engine.update_receiver())
-                .map_err(LiveError::LauchExecutor)?;
+                .map_err(LiveError::SetupExecutor)?;
 
         let (update_tx, _) = broadcast::channel::<LiveUpdate>(100);
 
@@ -219,7 +219,7 @@ impl LiveEngine {
 
         let trade_executor_launcher =
             LiveTradeExecutorLauncher::new(&config, db, api, sync_engine.update_receiver())
-                .map_err(LiveError::LauchExecutor)?;
+                .map_err(LiveError::SetupExecutor)?;
 
         let (update_tx, _) = broadcast::channel::<LiveUpdate>(100);
 
@@ -251,7 +251,7 @@ impl LiveEngine {
         // Internal channel for shutdown signal
         let (shutdown_tx, _) = broadcast::channel::<()>(1);
 
-        let process_handle = LiveProcess::new(
+        let process_handle = LiveProcess::spawn(
             &self.config,
             shutdown_tx.clone(),
             self.sync_engine,
@@ -259,9 +259,7 @@ impl LiveEngine {
             self.trade_executor_launcher,
             self.status_manager.clone(),
             self.update_tx,
-        )
-        .await?
-        .spawn_recovery_loop();
+        );
 
         let controller = LiveController::new(
             &self.config,
