@@ -57,7 +57,7 @@ impl LiveController {
         self.status_manager.update_receiver()
     }
 
-    pub fn status_snapshot(&self) -> Arc<LiveStatus> {
+    pub fn status_snapshot(&self) -> LiveStatus {
         self.status_manager.status_snapshot()
     }
 
@@ -239,7 +239,7 @@ impl LiveEngine {
         self.status_manager.update_receiver()
     }
 
-    pub fn status_snapshot(&self) -> Arc<LiveStatus> {
+    pub fn status_snapshot(&self) -> LiveStatus {
         self.status_manager.status_snapshot()
     }
 
