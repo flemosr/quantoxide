@@ -71,6 +71,11 @@ impl SyncController {
             return Err(SyncError::SyncAlreadyShutdown);
         };
 
+        if handle.is_finished() {
+            let status = self.status_manager.status_snapshot();
+            return Err(SyncError::SyncAlreadyTerminated(status));
+        }
+
         self.status_manager.update(SyncStatus::ShutdownInitiated);
 
         let shutdown_send_res = self.shutdown_tx.send(()).map_err(|e| {
@@ -165,7 +170,7 @@ impl SyncEngine {
         // Internal channel for shutdown signal
         let (shutdown_tx, _) = broadcast::channel::<()>(1);
 
-        let handle = SyncProcess::new(
+        let handle = SyncProcess::spawn(
             &self.config,
             self.db,
             self.api,
@@ -173,8 +178,7 @@ impl SyncEngine {
             shutdown_tx.clone(),
             self.status_manager.clone(),
             self.update_tx,
-        )
-        .spawn_recovery_loop();
+        );
 
         SyncController::new(&self.config, handle, shutdown_tx, self.status_manager)
     }
