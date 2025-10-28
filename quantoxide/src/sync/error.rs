@@ -2,9 +2,7 @@ use std::{result, sync::Arc};
 
 use thiserror::Error;
 
-use crate::sync::SyncStatus;
-
-use super::process::SyncProcessFatalError;
+use super::{process::SyncProcessFatalError, state::SyncStatus};
 
 #[derive(Error, Debug)]
 pub enum SyncError {
