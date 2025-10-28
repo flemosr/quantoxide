@@ -44,7 +44,7 @@ pub struct SyncProcess {
 }
 
 impl SyncProcess {
-    pub fn new(
+    pub fn spawn(
         config: &SyncConfig,
         db: Arc<DbContext>,
         api: Arc<ApiContext>,
@@ -52,16 +52,23 @@ impl SyncProcess {
         shutdown_tx: broadcast::Sender<()>,
         status_manager: Arc<SyncStatusManager>,
         update_tx: SyncTransmiter,
-    ) -> Self {
-        Self {
-            config: config.into(),
-            db,
-            api,
-            mode,
-            shutdown_tx,
-            status_manager,
-            update_tx,
-        }
+    ) -> AbortOnDropHandle<()> {
+        let config = config.into();
+
+        tokio::spawn(async move {
+            let process = Self {
+                config,
+                db,
+                api,
+                mode,
+                shutdown_tx,
+                status_manager,
+                update_tx,
+            };
+
+            process.recovery_loop().await
+        })
+        .into()
     }
 
     async fn run_price_history_task_backfill(
@@ -269,56 +276,51 @@ impl SyncProcess {
         }
     }
 
-    pub fn spawn_recovery_loop(self) -> AbortOnDropHandle<()> {
-        tokio::spawn(async move {
-            loop {
-                self.status_manager
-                    .update(SyncStatusNotSynced::Starting.into());
+    async fn recovery_loop(self) {
+        loop {
+            self.status_manager
+                .update(SyncStatusNotSynced::Starting.into());
 
-                let mut shutdown_rx = self.shutdown_tx.subscribe();
+            let mut shutdown_rx = self.shutdown_tx.subscribe();
 
-                let sync_process_error = tokio::select! {
-                    Err(sync_error) = self.run_mode() => sync_error,
-                    shutdown_res = shutdown_rx.recv() => {
-                        let Err(e) = shutdown_res else {
-                            // Shutdown signal received
-                            return;
-                        };
-
-                        SyncProcessFatalError::ShutdownSignalRecv(e).into()
-                    }
-                };
-
-                match sync_process_error {
-                    SyncProcessError::Fatal(err) => {
-                        self.status_manager.update(err.into());
+            let sync_process_error = tokio::select! {
+                Err(sync_error) = self.run_mode() => sync_error,
+                shutdown_res = shutdown_rx.recv() => {
+                    let Err(e) = shutdown_res else {
+                        // Shutdown signal received
                         return;
-                    }
-                    SyncProcessError::Recoverable(err) => {
-                        self.status_manager
-                            .update(SyncStatusNotSynced::Failed(err).into());
-                    }
+                    };
+
+                    SyncProcessFatalError::ShutdownSignalRecv(e).into()
                 }
+            };
 
-                self.status_manager
-                    .update(SyncStatusNotSynced::Restarting.into());
-
-                // Handle shutdown signals while waiting for `restart_interval`
-
-                tokio::select! {
-                    _ = time::sleep(self.config.restart_interval()) => {
-                        // Continue with the restart loop
-                    }
-                    shutdown_res = shutdown_rx.recv() => {
-                        if let Err(e) = shutdown_res {
-                            let status = SyncProcessFatalError::ShutdownSignalRecv(e).into();
-                            self.status_manager.update(status);
-                        }
-                        return;
-                    }
+            match sync_process_error {
+                SyncProcessError::Fatal(err) => {
+                    self.status_manager.update(err.into());
+                    return;
+                }
+                SyncProcessError::Recoverable(err) => {
+                    self.status_manager
+                        .update(SyncStatusNotSynced::Failed(err).into());
                 }
             }
-        })
-        .into()
+
+            self.status_manager
+                .update(SyncStatusNotSynced::Restarting.into());
+
+            // Handle shutdown signals while waiting for `restart_interval`
+
+            tokio::select! {
+                _ = time::sleep(self.config.restart_interval()) => {} // Loop restarts
+                shutdown_res = shutdown_rx.recv() => {
+                    if let Err(e) = shutdown_res {
+                        let status = SyncProcessFatalError::ShutdownSignalRecv(e).into();
+                        self.status_manager.update(status);
+                    }
+                    return;
+                }
+            }
+        }
     }
 }
