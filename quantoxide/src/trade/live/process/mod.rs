@@ -13,27 +13,27 @@ use crate::{
         state::{LiveSignalStatus, LiveSignalUpdate},
     },
     sync::{SyncController, SyncEngine, SyncReader, SyncStatus, SyncUpdate},
-    trade::live::{
-        executor::{
-            LiveTradeExecutorLauncher,
-            update::{LiveTradeExecutorReceiver, LiveTradeExecutorUpdate},
-        },
-        state::LiveUpdate,
-    },
     util::{AbortOnDropHandle, DateTimeExt, Never},
 };
 
 use super::{
     super::core::{WrappedRawOperator, WrappedSignalOperator},
     config::{LiveConfig, LiveProcessConfig},
-    executor::{LiveTradeExecutor, state::LiveTradeExecutorStatus},
-    state::{LiveStatus, LiveStatusManager, LiveTransmiter},
+    executor::{
+        LiveTradeExecutor, LiveTradeExecutorLauncher,
+        state::LiveTradeExecutorStatus,
+        update::{LiveTradeExecutorReceiver, LiveTradeExecutorUpdate},
+    },
+    state::{LiveStatus, LiveStatusManager, LiveTransmiter, LiveUpdate},
 };
 
 pub mod error;
 pub mod operator;
 
-use error::{LiveProcessError, LiveProcessFatalError, LiveProcessRecoverableError, Result};
+use error::{
+    LiveProcessError, LiveProcessFatalError, LiveProcessFatalResult, LiveProcessRecoverableError,
+    Result,
+};
 use operator::{OperatorPending, OperatorRunning};
 
 pub struct LiveProcess {
@@ -56,7 +56,7 @@ impl LiveProcess {
         trade_executor_launcher: LiveTradeExecutorLauncher,
         status_manager: Arc<LiveStatusManager>,
         update_tx: LiveTransmiter,
-    ) -> AbortOnDropHandle<Result<()>> {
+    ) -> AbortOnDropHandle<LiveProcessFatalResult<()>> {
         let config = config.into();
 
         tokio::spawn(async move {
@@ -139,7 +139,7 @@ impl LiveProcess {
     // Only possibily returns errors if they took place during shutdown.
     // Other `LiveProcessFatalError`s will result in `Ok` and should be accessed
     // via `LiveStatus`.
-    async fn recovery_loop(self) -> Result<()> {
+    async fn recovery_loop(self) -> LiveProcessFatalResult<()> {
         loop {
             self.status_manager.update(LiveStatus::Starting);
 
@@ -371,7 +371,7 @@ impl LiveProcess {
         }
     }
 
-    async fn shutdown(self) -> Result<()> {
+    async fn shutdown(self) -> LiveProcessFatalResult<()> {
         self.executor_updates_handle.abort();
 
         let executor_shutdown_res = self
