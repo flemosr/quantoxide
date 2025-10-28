@@ -43,7 +43,7 @@ impl BacktestController {
         self.status_manager.receiver()
     }
 
-    pub fn status_snapshot(&self) -> Arc<BacktestStatus> {
+    pub fn status_snapshot(&self) -> BacktestStatus {
         self.status_manager.snapshot()
     }
 
@@ -498,7 +498,7 @@ impl BacktestEngine {
 
                     BacktestStatus::Finished
                 }
-                Err(e) => BacktestStatus::Failed(e),
+                Err(e) => BacktestStatus::Failed(Arc::new(e)),
             };
 
             status_manager.update(final_backtest_state);
