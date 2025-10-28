@@ -7,13 +7,13 @@ use tokio::sync::broadcast;
 
 use super::{super::core::TradingState, error::BacktestError};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum BacktestStatus {
     NotInitiated,
     Starting,
     Running,
     Finished,
-    Failed(BacktestError),
+    Failed(Arc<BacktestError>),
     Aborted,
 }
 
@@ -58,12 +58,12 @@ impl fmt::Display for BacktestStatus {
 
 #[derive(Clone)]
 pub enum BacktestUpdate {
-    Status(Arc<BacktestStatus>),
+    Status(BacktestStatus),
     TradingState(TradingState),
 }
 
-impl From<Arc<BacktestStatus>> for BacktestUpdate {
-    fn from(value: Arc<BacktestStatus>) -> Self {
+impl From<BacktestStatus> for BacktestUpdate {
+    fn from(value: BacktestStatus) -> Self {
         Self::Status(value)
     }
 }
@@ -79,24 +79,24 @@ pub type BacktestReceiver = broadcast::Receiver<BacktestUpdate>;
 
 #[derive(Debug)]
 pub struct BacktestStatusManager {
-    status: Mutex<Arc<BacktestStatus>>,
+    status: Mutex<BacktestStatus>,
     update_tx: BacktestTransmiter,
 }
 
 impl BacktestStatusManager {
     pub fn new(update_tx: BacktestTransmiter) -> Arc<Self> {
-        let status = Mutex::new(Arc::new(BacktestStatus::NotInitiated));
+        let status = Mutex::new(BacktestStatus::NotInitiated);
 
         Arc::new(Self { status, update_tx })
     }
 
-    fn lock_status(&self) -> MutexGuard<'_, Arc<BacktestStatus>> {
+    fn lock_status(&self) -> MutexGuard<'_, BacktestStatus> {
         self.status
             .lock()
             .expect("`BacktestStatusManager` mutex can't be poisoned")
     }
 
-    pub fn snapshot(&self) -> Arc<BacktestStatus> {
+    pub fn snapshot(&self) -> BacktestStatus {
         self.lock_status().clone()
     }
 
@@ -105,8 +105,6 @@ impl BacktestStatusManager {
     }
 
     pub fn update(&self, new_status: BacktestStatus) {
-        let new_status = Arc::new(new_status);
-
         let mut status_guard = self.lock_status();
         *status_guard = new_status.clone();
         drop(status_guard);
