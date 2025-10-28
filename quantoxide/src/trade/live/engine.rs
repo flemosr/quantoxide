@@ -21,7 +21,7 @@ use super::{
     executor::LiveTradeExecutorLauncher,
     process::{
         LiveProcess,
-        error::{LiveProcessFatalError, Result as LiveProcessResult},
+        error::{LiveProcessFatalError, LiveProcessFatalResult},
         operator::OperatorPending,
     },
     state::{LiveReader, LiveReceiver, LiveStatus, LiveStatusManager, LiveTransmiter, LiveUpdate},
@@ -29,7 +29,7 @@ use super::{
 
 pub struct LiveController {
     config: LiveControllerConfig,
-    process_handle: Mutex<Option<AbortOnDropHandle<LiveProcessResult<()>>>>,
+    process_handle: Mutex<Option<AbortOnDropHandle<LiveProcessFatalResult<()>>>>,
     shutdown_tx: broadcast::Sender<()>,
     status_manager: Arc<LiveStatusManager>,
 }
@@ -37,7 +37,7 @@ pub struct LiveController {
 impl LiveController {
     fn new(
         config: &LiveConfig,
-        process_handle: AbortOnDropHandle<LiveProcessResult<()>>,
+        process_handle: AbortOnDropHandle<LiveProcessFatalResult<()>>,
         shutdown_tx: broadcast::Sender<()>,
         status_manager: Arc<LiveStatusManager>,
     ) -> Arc<Self> {
@@ -61,7 +61,7 @@ impl LiveController {
         self.status_manager.status_snapshot()
     }
 
-    fn try_consume_handle(&self) -> Option<AbortOnDropHandle<LiveProcessResult<()>>> {
+    fn try_consume_handle(&self) -> Option<AbortOnDropHandle<LiveProcessFatalResult<()>>> {
         self.process_handle
             .lock()
             .expect("`LiveController` mutex can't be poisoned")
@@ -78,16 +78,12 @@ impl LiveController {
             return Err(LiveError::LiveAlreadyShutdown);
         };
 
-        // Handle may be finished due to fatal errors
-
         if handle.is_finished() {
             let status = self.status_manager.status_snapshot();
             return Err(LiveError::LiveAlreadyTerminated(status));
         }
 
         self.status_manager.update(LiveStatus::ShutdownInitiated);
-
-        // Stop live trade process
 
         let live_shutdown_send_res = self.shutdown_tx.send(()).map_err(|e| {
             handle.abort();
@@ -98,7 +94,7 @@ impl LiveController {
             Ok(_) => {
                 tokio::select! {
                     join_res = &mut handle => {
-                        join_res.map_err(LiveProcessFatalError::LiveProcessTaskJoin)
+                        join_res.map_err(LiveProcessFatalError::LiveProcessTaskJoin).and_then(|r| r)
                     }
                     _ = time::sleep(self.config.shutdown_timeout()) => {
                         handle.abort();
