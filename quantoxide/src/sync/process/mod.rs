@@ -71,68 +71,60 @@ impl SyncProcess {
         .into()
     }
 
-    async fn run_price_history_task_backfill(
-        &self,
-        history_state_tx: Option<PriceHistoryStateTransmiter>,
-    ) -> Result<()> {
-        SyncPriceHistoryTask::new(
-            &self.config,
-            self.db.clone(),
-            self.api.clone(),
-            history_state_tx,
-        )
-        .backfill()
-        .await
-        .map_err(|e| SyncProcessRecoverableError::SyncPriceHistory(e).into())
-    }
+    async fn recovery_loop(self) {
+        loop {
+            self.status_manager
+                .update(SyncStatusNotSynced::Starting.into());
 
-    async fn run_price_history_task_live(
-        &self,
-        history_state_tx: Option<PriceHistoryStateTransmiter>,
-        range: Duration,
-    ) -> Result<()> {
-        SyncPriceHistoryTask::new(
-            &self.config,
-            self.db.clone(),
-            self.api.clone(),
-            history_state_tx,
-        )
-        .live(range)
-        .await
-        .map_err(|e| SyncProcessRecoverableError::SyncPriceHistory(e).into())
-    }
+            let mut shutdown_rx = self.shutdown_tx.subscribe();
 
-    /// Clean up is not needed since the task is terminated when
-    /// `history_state_tx` is dropped.
-    pub fn spawn_history_state_update_handler(
-        &self,
-        mut history_state_rx: mpsc::Receiver<PriceHistoryState>,
-    ) {
-        let update_tx = self.update_tx.clone();
-        tokio::spawn(async move {
-            while let Some(new_history_state) = history_state_rx.recv().await {
-                // Ignore no-receivers errors
-                let _ = update_tx.send(new_history_state.into());
+            let sync_process_error = tokio::select! {
+                Err(sync_error) = self.run_mode() => sync_error,
+                shutdown_res = shutdown_rx.recv() => {
+                    let Err(e) = shutdown_res else {
+                        // Shutdown signal received
+                        return;
+                    };
+
+                    SyncProcessFatalError::ShutdownSignalRecv(e).into()
+                }
+            };
+
+            match sync_process_error {
+                SyncProcessError::Fatal(err) => {
+                    self.status_manager.update(err.into());
+                    return;
+                }
+                SyncProcessError::Recoverable(err) => {
+                    self.status_manager
+                        .update(SyncStatusNotSynced::Failed(err).into());
+                }
             }
-        });
+
+            self.status_manager
+                .update(SyncStatusNotSynced::Restarting.into());
+
+            // Handle shutdown signals while waiting for `restart_interval`
+
+            tokio::select! {
+                _ = time::sleep(self.config.restart_interval()) => {} // Loop restarts
+                shutdown_res = shutdown_rx.recv() => {
+                    if let Err(e) = shutdown_res {
+                        let status = SyncProcessFatalError::ShutdownSignalRecv(e).into();
+                        self.status_manager.update(status);
+                    }
+                    return;
+                }
+            }
+        }
     }
 
-    fn spawn_real_time_collection_task(
-        &self,
-        price_tick_tx: broadcast::Sender<PriceTick>,
-    ) -> AbortOnDropHandle<Result<()>> {
-        let task = RealTimeCollectionTask::new(
-            self.db.clone(),
-            self.api.clone(),
-            self.shutdown_tx.clone(),
-            price_tick_tx,
-        );
-
-        tokio::spawn(
-            task.run()
-                .map_err(|e| SyncProcessRecoverableError::RealTimeCollection(e).into()),
-        )
-        .into()
+    fn run_mode(&self) -> Pin<Box<dyn Future<Output = Result<Never>> + Send + '_>> {
+        match &self.mode {
+            SyncMode::Backfill => Box::pin(self.run_backfill()),
+            SyncMode::Live { range } => Box::pin(self.run_live(*range)),
+            SyncMode::Full => Box::pin(self.run_full()),
+        }
     }
 
     async fn run_backfill(&self) -> Result<Never> {
@@ -268,59 +260,67 @@ impl SyncProcess {
         }
     }
 
-    fn run_mode(&self) -> Pin<Box<dyn Future<Output = Result<Never>> + Send + '_>> {
-        match &self.mode {
-            SyncMode::Backfill => Box::pin(self.run_backfill()),
-            SyncMode::Live { range } => Box::pin(self.run_live(*range)),
-            SyncMode::Full => Box::pin(self.run_full()),
-        }
+    async fn run_price_history_task_backfill(
+        &self,
+        history_state_tx: Option<PriceHistoryStateTransmiter>,
+    ) -> Result<()> {
+        SyncPriceHistoryTask::new(
+            &self.config,
+            self.db.clone(),
+            self.api.clone(),
+            history_state_tx,
+        )
+        .backfill()
+        .await
+        .map_err(|e| SyncProcessRecoverableError::SyncPriceHistory(e).into())
     }
 
-    async fn recovery_loop(self) {
-        loop {
-            self.status_manager
-                .update(SyncStatusNotSynced::Starting.into());
+    async fn run_price_history_task_live(
+        &self,
+        history_state_tx: Option<PriceHistoryStateTransmiter>,
+        range: Duration,
+    ) -> Result<()> {
+        SyncPriceHistoryTask::new(
+            &self.config,
+            self.db.clone(),
+            self.api.clone(),
+            history_state_tx,
+        )
+        .live(range)
+        .await
+        .map_err(|e| SyncProcessRecoverableError::SyncPriceHistory(e).into())
+    }
 
-            let mut shutdown_rx = self.shutdown_tx.subscribe();
-
-            let sync_process_error = tokio::select! {
-                Err(sync_error) = self.run_mode() => sync_error,
-                shutdown_res = shutdown_rx.recv() => {
-                    let Err(e) = shutdown_res else {
-                        // Shutdown signal received
-                        return;
-                    };
-
-                    SyncProcessFatalError::ShutdownSignalRecv(e).into()
-                }
-            };
-
-            match sync_process_error {
-                SyncProcessError::Fatal(err) => {
-                    self.status_manager.update(err.into());
-                    return;
-                }
-                SyncProcessError::Recoverable(err) => {
-                    self.status_manager
-                        .update(SyncStatusNotSynced::Failed(err).into());
-                }
+    /// Clean up is not needed since the task is terminated when
+    /// `history_state_tx` is dropped.
+    pub fn spawn_history_state_update_handler(
+        &self,
+        mut history_state_rx: mpsc::Receiver<PriceHistoryState>,
+    ) {
+        let update_tx = self.update_tx.clone();
+        tokio::spawn(async move {
+            while let Some(new_history_state) = history_state_rx.recv().await {
+                // Ignore no-receivers errors
+                let _ = update_tx.send(new_history_state.into());
             }
+        });
+    }
 
-            self.status_manager
-                .update(SyncStatusNotSynced::Restarting.into());
+    fn spawn_real_time_collection_task(
+        &self,
+        price_tick_tx: broadcast::Sender<PriceTick>,
+    ) -> AbortOnDropHandle<Result<()>> {
+        let task = RealTimeCollectionTask::new(
+            self.db.clone(),
+            self.api.clone(),
+            self.shutdown_tx.clone(),
+            price_tick_tx,
+        );
 
-            // Handle shutdown signals while waiting for `restart_interval`
-
-            tokio::select! {
-                _ = time::sleep(self.config.restart_interval()) => {} // Loop restarts
-                shutdown_res = shutdown_rx.recv() => {
-                    if let Err(e) = shutdown_res {
-                        let status = SyncProcessFatalError::ShutdownSignalRecv(e).into();
-                        self.status_manager.update(status);
-                    }
-                    return;
-                }
-            }
-        }
+        tokio::spawn(
+            task.run()
+                .map_err(|e| SyncProcessRecoverableError::RealTimeCollection(e).into()),
+        )
+        .into()
     }
 }
