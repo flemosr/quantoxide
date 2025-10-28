@@ -13,12 +13,12 @@ mod live_trading_session;
 
 pub use live_trading_session::LiveTradingSession;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum LiveTradeExecutorStatusNotReady {
     Starting,
-    WaitingForSync(Arc<SyncStatusNotSynced>),
-    Failed(LiveTradeExecutorError),
-    NotViable(LiveTradeExecutorError),
+    WaitingForSync(SyncStatusNotSynced),
+    Failed(Arc<LiveTradeExecutorError>),
+    NotViable(Arc<LiveTradeExecutorError>),
     ShutdownInitiated,
     Shutdown,
 }
@@ -40,7 +40,7 @@ impl fmt::Display for LiveTradeExecutorStatusNotReady {
 
 #[derive(Debug, Clone)]
 pub enum LiveTradeExecutorStatus {
-    NotReady(Arc<LiveTradeExecutorStatusNotReady>),
+    NotReady(LiveTradeExecutorStatusNotReady),
     Ready,
 }
 
@@ -75,7 +75,7 @@ impl LiveTradeExecutorState {
 
 impl From<LiveTradeExecutorStatusNotReady> for LiveTradeExecutorStatus {
     fn from(value: LiveTradeExecutorStatusNotReady) -> Self {
-        Self::NotReady(Arc::new(value))
+        Self::NotReady(value)
     }
 }
 
