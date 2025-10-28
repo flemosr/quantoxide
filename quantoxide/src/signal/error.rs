@@ -2,7 +2,7 @@ use std::{result, sync::Arc};
 
 use thiserror::Error;
 
-use super::process::error::SignalProcessFatalError;
+use super::{process::error::SignalProcessFatalError, state::LiveSignalStatus};
 
 #[derive(Error, Debug)]
 pub enum SignalValidationError {
@@ -23,8 +23,11 @@ pub enum SignalError {
     #[error(transparent)]
     SignalValidation(#[from] SignalValidationError),
 
-    #[error("Live Signal already shutdown error")]
+    #[error("Live Signal process already shutdown error")]
     LiveSignalAlreadyShutdown,
+
+    #[error("Live Signal process already terminated error, status: {0}")]
+    LiveSignalAlreadyTerminated(LiveSignalStatus),
 
     #[error("Signal shutdown procedure failed: {0}")]
     SignalShutdownFailed(Arc<SignalProcessFatalError>),
