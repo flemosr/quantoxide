@@ -35,7 +35,7 @@ pub struct LiveSignalProcess {
 }
 
 impl LiveSignalProcess {
-    pub fn new(
+    pub fn spawn(
         config: &LiveSignalConfig,
         db: Arc<DbContext>,
         evaluators: Arc<Vec<ConfiguredSignalEvaluator>>,
@@ -43,16 +43,23 @@ impl LiveSignalProcess {
         sync_reader: Arc<dyn SyncReader>,
         status_manager: Arc<LiveSignalStatusManager>,
         update_tx: LiveSignalTransmiter,
-    ) -> Self {
-        Self {
-            config: config.into(),
-            db,
-            evaluators,
-            shutdown_tx,
-            sync_reader,
-            status_manager,
-            update_tx,
-        }
+    ) -> AbortOnDropHandle<()> {
+        let config = config.into();
+
+        tokio::spawn(async move {
+            let process = Self {
+                config,
+                db,
+                evaluators,
+                shutdown_tx,
+                sync_reader,
+                status_manager,
+                update_tx,
+            };
+
+            process.recovery_loop().await
+        })
+        .into()
     }
 
     async fn run(&self) -> ProcessResult<Never> {
@@ -159,56 +166,51 @@ impl LiveSignalProcess {
         }
     }
 
-    pub fn spawn_recovery_loop(self) -> AbortOnDropHandle<()> {
-        tokio::spawn(async move {
-            loop {
-                self.status_manager
-                    .update(LiveSignalStatusNotRunning::Starting.into());
+    async fn recovery_loop(self) {
+        loop {
+            self.status_manager
+                .update(LiveSignalStatusNotRunning::Starting.into());
 
-                let mut shutdown_rx = self.shutdown_tx.subscribe();
+            let mut shutdown_rx = self.shutdown_tx.subscribe();
 
-                let signal_process_error = tokio::select! {
-                    Err(signal_error) = self.run() => signal_error,
-                    shutdown_res = shutdown_rx.recv() => {
-                        let Err(e) = shutdown_res else {
-                           // Shutdown signal received
-                           return;
-                        };
+            let signal_process_error = tokio::select! {
+                Err(signal_error) = self.run() => signal_error,
+                shutdown_res = shutdown_rx.recv() => {
+                    let Err(e) = shutdown_res else {
+                       // Shutdown signal received
+                       return;
+                    };
 
-                        SignalProcessFatalError::ShutdownSignalRecv(e).into()
-                    }
-                };
-
-                match signal_process_error {
-                    SignalProcessError::Fatal(err) => {
-                        self.status_manager.update(err.into());
-                        return;
-                    }
-                    SignalProcessError::Recoverable(err) => {
-                        self.status_manager
-                            .update(LiveSignalStatusNotRunning::Failed(err).into());
-                    }
+                    SignalProcessFatalError::ShutdownSignalRecv(e).into()
                 }
+            };
 
-                self.status_manager
-                    .update(LiveSignalStatusNotRunning::Restarting.into());
-
-                // Handle shutdown signals while waiting for `restart_interval`
-
-                tokio::select! {
-                    _ = time::sleep(self.config.restart_interval()) => {
-                        // Continue with the restart loop
-                    }
-                    shutdown_res = shutdown_rx.recv() => {
-                        if let Err(e) = shutdown_res {
-                            let status = SignalProcessFatalError::ShutdownSignalRecv(e).into();
-                            self.status_manager.update(status);
-                        }
-                        return;
-                    }
+            match signal_process_error {
+                SignalProcessError::Fatal(err) => {
+                    self.status_manager.update(err.into());
+                    return;
+                }
+                SignalProcessError::Recoverable(err) => {
+                    self.status_manager
+                        .update(LiveSignalStatusNotRunning::Failed(err).into());
                 }
             }
-        })
-        .into()
+
+            self.status_manager
+                .update(LiveSignalStatusNotRunning::Restarting.into());
+
+            // Handle shutdown signals while waiting for `restart_interval`
+
+            tokio::select! {
+                _ = time::sleep(self.config.restart_interval()) => {} // Loop restarts
+                shutdown_res = shutdown_rx.recv() => {
+                    if let Err(e) = shutdown_res {
+                        let status = SignalProcessFatalError::ShutdownSignalRecv(e).into();
+                        self.status_manager.update(status);
+                    }
+                    return;
+                }
+            }
+        }
     }
 }
