@@ -20,8 +20,8 @@ pub enum LiveError {
     #[error("Live trade process already shutdown error")]
     LiveAlreadyShutdown,
 
-    #[error("Live trade process already terminated error, status? {0}")]
-    LiveAlreadyTerminated(Arc<LiveStatus>),
+    #[error("Live trade process already terminated error, status: {0}")]
+    LiveAlreadyTerminated(LiveStatus),
 
     #[error("Lauch `LiveSignal` error: {0}")]
     LaunchLiveSignalEngine(SignalError),
