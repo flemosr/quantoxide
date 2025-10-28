@@ -9,13 +9,13 @@ use crate::db::models::PriceTick;
 
 use super::{PriceHistoryState, SyncProcessFatalError, SyncProcessRecoverableError};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum SyncStatusNotSynced {
     NotInitiated,
     Starting,
     InProgress,
     WaitingForResync,
-    Failed(SyncProcessRecoverableError),
+    Failed(Arc<SyncProcessRecoverableError>),
     Restarting,
 }
 
@@ -34,7 +34,7 @@ impl fmt::Display for SyncStatusNotSynced {
 
 #[derive(Debug, Clone)]
 pub enum SyncStatus {
-    NotSynced(Arc<SyncStatusNotSynced>),
+    NotSynced(SyncStatusNotSynced),
     Synced,
     ShutdownInitiated,
     Shutdown,
@@ -55,7 +55,13 @@ impl fmt::Display for SyncStatus {
 
 impl From<SyncStatusNotSynced> for SyncStatus {
     fn from(value: SyncStatusNotSynced) -> Self {
-        Self::NotSynced(Arc::new(value))
+        Self::NotSynced(value)
+    }
+}
+
+impl From<SyncProcessRecoverableError> for SyncStatus {
+    fn from(value: SyncProcessRecoverableError) -> Self {
+        SyncStatusNotSynced::Failed(Arc::new(value)).into()
     }
 }
 
