@@ -249,7 +249,7 @@ impl LiveTradeExecutor {
                     Err(LiveTradeExecutorError::FailedToCloseTradesOnShutdown(
                         e.to_string(),
                     )),
-                    LiveTradeExecutorStatusNotReady::NotViable(e),
+                    LiveTradeExecutorStatusNotReady::NotViable(Arc::new(e)),
                 ),
             }
         } else {
@@ -489,45 +489,45 @@ impl LiveTradeExecutorLauncher {
             let refresh_trading_session = async || {
                 let locked_state = state_manager.lock_state().await;
 
-                let current_trading_session = if let Some(old_trading_session) =
-                    locked_state.trading_session()
-                {
-                    let mut restored_trading_session = old_trading_session.clone();
+                let current_trading_session =
+                    if let Some(old_trading_session) = locked_state.trading_session() {
+                        let mut restored_trading_session = old_trading_session.clone();
 
-                    match restored_trading_session.reevaluate(db.as_ref(), &api).await {
-                        Ok(closed_trades) => {
-                            for closed_trade in closed_trades.into_iter() {
-                                // Ignore no-receiver errors
-                                let _ = update_tx
-                                    .send(LiveTradeExecutorUpdate::ClosedTrade(closed_trade));
+                        match restored_trading_session.reevaluate(db.as_ref(), &api).await {
+                            Ok(closed_trades) => {
+                                for closed_trade in closed_trades.into_iter() {
+                                    // Ignore no-receiver errors
+                                    let _ = update_tx
+                                        .send(LiveTradeExecutorUpdate::ClosedTrade(closed_trade));
+                                }
+                            }
+                            Err(e) => {
+                                let new_status_not_ready =
+                                    LiveTradeExecutorStatusNotReady::Failed(Arc::new(e));
+                                locked_state.update_status_not_ready(new_status_not_ready);
+                                return;
                             }
                         }
-                        Err(e) => {
-                            let new_status_not_ready = LiveTradeExecutorStatusNotReady::Failed(e);
-                            locked_state.update_status_not_ready(new_status_not_ready);
-                            return;
-                        }
-                    }
 
-                    restored_trading_session
-                } else {
-                    match LiveTradingSession::new(
-                        recover_trades_on_startup,
-                        tsl_step_size,
-                        db.as_ref(),
-                        &api,
-                    )
-                    .await
-                    {
-                        Ok(new_trading_session) => new_trading_session,
-                        Err(e) => {
-                            locked_state.update_status_not_ready(
-                                LiveTradeExecutorStatusNotReady::Failed(e),
-                            );
-                            return;
+                        restored_trading_session
+                    } else {
+                        match LiveTradingSession::new(
+                            recover_trades_on_startup,
+                            tsl_step_size,
+                            db.as_ref(),
+                            &api,
+                        )
+                        .await
+                        {
+                            Ok(new_trading_session) => new_trading_session,
+                            Err(e) => {
+                                locked_state.update_status_not_ready(
+                                    LiveTradeExecutorStatusNotReady::Failed(Arc::new(e)),
+                                );
+                                return;
+                            }
                         }
-                    }
-                };
+                    };
 
                 locked_state.update_status_ready(current_trading_session);
             };
@@ -567,7 +567,7 @@ impl LiveTradeExecutorLauncher {
 
             let Err(e) = handler().await;
 
-            let new_status_not_ready = LiveTradeExecutorStatusNotReady::NotViable(e);
+            let new_status_not_ready = LiveTradeExecutorStatusNotReady::NotViable(Arc::new(e));
             state_manager
                 .update_status_not_ready(new_status_not_ready)
                 .await;
