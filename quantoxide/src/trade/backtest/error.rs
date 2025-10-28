@@ -1,25 +1,19 @@
-use std::{result, sync::Arc};
+use std::result;
 
 use chrono::{DateTime, Utc};
 use thiserror::Error;
-use tokio::{sync::broadcast::error::SendError, task::JoinError};
+use tokio::task::JoinError;
 
 use crate::{
     db::error::DbError, signal::process::error::SignalProcessRecoverableError,
     sync::SyncPriceHistoryError,
 };
 
+use super::super::error::{TradeCoreError, TradeExecutorError};
 pub use super::executor::error::SimulatedTradeExecutorError;
-use super::{
-    super::error::{TradeCoreError, TradeExecutorError},
-    state::BacktestStatus,
-};
 
 #[derive(Error, Debug)]
 pub enum BacktestError {
-    #[error("TransmiterFailed error {0}")]
-    TransmiterFailed(SendError<Arc<BacktestStatus>>),
-
     #[error("[TaskJoin] {0}")]
     TaskJoin(JoinError),
 
