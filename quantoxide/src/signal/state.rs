@@ -12,12 +12,12 @@ use super::{
     process::error::{SignalProcessFatalError, SignalProcessRecoverableError},
 };
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum LiveSignalStatusNotRunning {
     NotInitiated,
     Starting,
-    WaitingForSync(Arc<SyncStatusNotSynced>),
-    Failed(SignalProcessRecoverableError),
+    WaitingForSync(SyncStatusNotSynced),
+    Failed(Arc<SignalProcessRecoverableError>),
     Restarting,
 }
 
@@ -37,7 +37,7 @@ impl fmt::Display for LiveSignalStatusNotRunning {
 
 #[derive(Debug, Clone)]
 pub enum LiveSignalStatus {
-    NotRunning(Arc<LiveSignalStatusNotRunning>),
+    NotRunning(LiveSignalStatusNotRunning),
     Running,
     ShutdownInitiated,
     Shutdown,
@@ -58,7 +58,13 @@ impl fmt::Display for LiveSignalStatus {
 
 impl From<LiveSignalStatusNotRunning> for LiveSignalStatus {
     fn from(value: LiveSignalStatusNotRunning) -> Self {
-        Self::NotRunning(Arc::new(value))
+        Self::NotRunning(value)
+    }
+}
+
+impl From<SignalProcessRecoverableError> for LiveSignalStatus {
+    fn from(value: SignalProcessRecoverableError) -> Self {
+        LiveSignalStatusNotRunning::Failed(Arc::new(value)).into()
     }
 }
 
