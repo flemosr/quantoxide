@@ -191,8 +191,7 @@ impl LiveSignalProcess {
                     return;
                 }
                 SignalProcessError::Recoverable(err) => {
-                    self.status_manager
-                        .update(LiveSignalStatusNotRunning::Failed(err).into());
+                    self.status_manager.update(err.into());
                 }
             }
 
