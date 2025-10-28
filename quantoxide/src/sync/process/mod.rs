@@ -96,8 +96,7 @@ impl SyncProcess {
                     return;
                 }
                 SyncProcessError::Recoverable(err) => {
-                    self.status_manager
-                        .update(SyncStatusNotSynced::Failed(err).into());
+                    self.status_manager.update(err.into());
                 }
             }
 
