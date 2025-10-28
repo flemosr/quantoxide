@@ -74,6 +74,11 @@ impl LiveSignalController {
             return Err(SignalError::LiveSignalAlreadyShutdown);
         };
 
+        if handle.is_finished() {
+            let status = self.status_manager.status_snapshot();
+            return Err(SignalError::LiveSignalAlreadyTerminated(status));
+        }
+
         self.status_manager
             .update(LiveSignalStatus::ShutdownInitiated);
 
@@ -159,7 +164,7 @@ impl LiveSignalEngine {
         // Internal channel for shutdown signal
         let (shutdown_tx, _) = broadcast::channel::<()>(1);
 
-        let handle = LiveSignalProcess::new(
+        let handle = LiveSignalProcess::spawn(
             &self.config,
             self.db,
             self.evaluators,
@@ -167,8 +172,7 @@ impl LiveSignalEngine {
             self.sync_reader,
             self.status_manager.clone(),
             self.update_tx,
-        )
-        .spawn_recovery_loop();
+        );
 
         LiveSignalController::new(&self.config, handle, shutdown_tx, self.status_manager)
     }
