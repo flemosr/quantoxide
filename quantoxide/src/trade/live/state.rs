@@ -18,15 +18,15 @@ use super::{
     process::error::{LiveProcessFatalError, LiveProcessRecoverableError},
 };
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum LiveStatus {
     NotInitiated,
     Starting,
-    WaitingForSync(Arc<SyncStatusNotSynced>),
-    WaitingForSignal(Arc<LiveSignalStatusNotRunning>),
-    WaitingTradeExecutor(Arc<LiveTradeExecutorStatusNotReady>),
+    WaitingForSync(SyncStatusNotSynced),
+    WaitingForSignal(LiveSignalStatusNotRunning),
+    WaitingTradeExecutor(LiveTradeExecutorStatusNotReady),
     Running,
-    Failed(LiveProcessRecoverableError),
+    Failed(Arc<LiveProcessRecoverableError>),
     Restarting,
     ShutdownInitiated,
     Shutdown,
@@ -55,7 +55,7 @@ impl fmt::Display for LiveStatus {
 
 impl From<LiveProcessRecoverableError> for LiveStatus {
     fn from(value: LiveProcessRecoverableError) -> Self {
-        Self::Failed(value)
+        Self::Failed(Arc::new(value))
     }
 }
 
@@ -73,15 +73,15 @@ impl From<LiveProcessFatalError> for LiveStatus {
 
 #[derive(Clone)]
 pub enum LiveUpdate {
-    Status(Arc<LiveStatus>),
+    Status(LiveStatus),
     Signal(Signal),
     Order(LiveTradeExecutorUpdateOrder),
     TradingState(TradingState),
     ClosedTrade(LnmTrade),
 }
 
-impl From<Arc<LiveStatus>> for LiveUpdate {
-    fn from(value: Arc<LiveStatus>) -> Self {
+impl From<LiveStatus> for LiveUpdate {
+    fn from(value: LiveStatus) -> Self {
         Self::Status(value)
     }
 }
@@ -109,29 +109,27 @@ pub type LiveReceiver = broadcast::Receiver<LiveUpdate>;
 
 pub trait LiveReader: Send + Sync + 'static {
     fn update_receiver(&self) -> LiveReceiver;
-    fn status_snapshot(&self) -> Arc<LiveStatus>;
+    fn status_snapshot(&self) -> LiveStatus;
 }
 
 #[derive(Debug)]
 pub struct LiveStatusManager {
-    status: Mutex<Arc<LiveStatus>>,
+    status: Mutex<LiveStatus>,
     update_tx: LiveTransmiter,
 }
 
 impl LiveStatusManager {
     pub fn new(update_tx: LiveTransmiter) -> Arc<Self> {
-        let status = Mutex::new(Arc::new(LiveStatus::NotInitiated));
+        let status = Mutex::new(LiveStatus::NotInitiated);
 
         Arc::new(Self { status, update_tx })
     }
 
     fn update_status_guard(
         &self,
-        mut status_guard: MutexGuard<'_, Arc<LiveStatus>>,
+        mut status_guard: MutexGuard<'_, LiveStatus>,
         new_status: LiveStatus,
     ) {
-        let new_status = Arc::new(new_status);
-
         *status_guard = new_status.clone();
         drop(status_guard);
 
@@ -139,7 +137,7 @@ impl LiveStatusManager {
         let _ = self.update_tx.send(new_status.into());
     }
 
-    fn lock_status(&self) -> MutexGuard<'_, Arc<LiveStatus>> {
+    fn lock_status(&self) -> MutexGuard<'_, LiveStatus> {
         self.status
             .lock()
             .expect("`LiveStatusManager` mutex can't be poisoned")
@@ -153,7 +151,7 @@ impl LiveStatusManager {
     pub fn update_if_not_running(&self, new_status: LiveStatus) {
         let status_guard = self.lock_status();
 
-        if matches!(status_guard.as_ref(), LiveStatus::Running) {
+        if matches!(*status_guard, LiveStatus::Running) {
             return;
         }
 
@@ -163,7 +161,7 @@ impl LiveStatusManager {
     pub fn update_if_running(&self, new_status: LiveStatus) {
         let status_guard = self.lock_status();
 
-        if !matches!(status_guard.as_ref(), LiveStatus::Running) {
+        if !matches!(*status_guard, LiveStatus::Running) {
             return;
         }
 
@@ -176,7 +174,7 @@ impl LiveReader for LiveStatusManager {
         self.update_tx.subscribe()
     }
 
-    fn status_snapshot(&self) -> Arc<LiveStatus> {
+    fn status_snapshot(&self) -> LiveStatus {
         self.lock_status().clone()
     }
 }
