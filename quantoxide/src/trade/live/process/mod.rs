@@ -70,10 +70,14 @@ impl LiveProcess {
                 executor_rx,
             );
 
-            let trade_executor = match trade_executor_launcher.launch().await {
+            let trade_executor = match trade_executor_launcher
+                .launch()
+                .await
+                .map_err(LiveProcessFatalError::LaunchExecutor)
+            {
                 Ok(tex) => tex,
                 Err(e) => {
-                    status_manager.update(LiveProcessFatalError::LaunchExecutor(e).into());
+                    status_manager.update(e.into());
                     return Ok(());
                 }
             };
