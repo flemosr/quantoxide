@@ -21,7 +21,7 @@ use super::{
     config::{LiveConfig, LiveProcessConfig},
     executor::{
         LiveTradeExecutor, LiveTradeExecutorLauncher,
-        state::LiveTradeExecutorStatus,
+        state::{LiveTradeExecutorStatus, LiveTradeExecutorStatusNotReady},
         update::{LiveTradeExecutorReceiver, LiveTradeExecutorUpdate},
     },
     state::{LiveStatus, LiveStatusManager, LiveTransmiter, LiveUpdate},
@@ -292,10 +292,26 @@ impl LiveProcess {
                         .update_if_not_running(LiveStatus::Running);
                 }
                 LiveTradeExecutorStatus::NotReady(tex_status_not_ready) => {
-                    self.status_manager.update(LiveStatus::WaitingTradeExecutor(
-                        tex_status_not_ready.clone(),
-                    ));
-                    continue;
+                    match tex_status_not_ready {
+                        LiveTradeExecutorStatusNotReady::Terminated(e) => {
+                            return Err(LiveProcessFatalError::ExecutorProcessTerminated(
+                                e.clone(),
+                            )
+                            .into());
+                        }
+                        LiveTradeExecutorStatusNotReady::ShutdownInitiated
+                        | LiveTradeExecutorStatusNotReady::Shutdown => {
+                            return Err(LiveProcessFatalError::ExecutorProcessShutdown.into());
+                        }
+                        LiveTradeExecutorStatusNotReady::Starting
+                        | LiveTradeExecutorStatusNotReady::WaitingForSync(_)
+                        | LiveTradeExecutorStatusNotReady::Failed(_) => {
+                            self.status_manager.update(LiveStatus::WaitingTradeExecutor(
+                                tex_status_not_ready.clone(),
+                            ));
+                            continue;
+                        }
+                    }
                 }
             }
 
