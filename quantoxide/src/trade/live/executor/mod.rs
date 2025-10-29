@@ -228,10 +228,15 @@ impl LiveTradeExecutor {
 
     pub async fn shutdown(&self) -> LiveTradeExecutorResult<()> {
         let Some(handle) = self.try_consume_handle() else {
-            return Err(LiveTradeExecutorError::TradeExecutorProcessAlreadyConsumed);
+            return Err(LiveTradeExecutorError::ExecutorProcessAlreadyConsumed);
         };
 
-        // TODO: Check if terminated
+        if handle.is_finished() {
+            let status = self.state_manager.snapshot().await.status().clone();
+            return Err(LiveTradeExecutorError::ExecutorProcessAlreadyTerminated(
+                status,
+            ));
+        }
 
         self.state_manager
             .update_status_not_ready(LiveTradeExecutorStatusNotReady::ShutdownInitiated)
