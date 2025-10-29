@@ -140,7 +140,7 @@ impl SyncEngine {
         api: Arc<ApiContext>,
         mode: SyncMode,
     ) -> Self {
-        let (update_tx, _) = broadcast::channel::<SyncUpdate>(100);
+        let (update_tx, _) = broadcast::channel::<SyncUpdate>(1000);
 
         let status_manager = SyncStatusManager::new(update_tx.clone());
 
