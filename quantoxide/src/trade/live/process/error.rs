@@ -12,7 +12,10 @@ use crate::{
     sync::{SyncError, SyncProcessFatalError},
 };
 
-use super::super::{super::error::TradeCoreError, executor::error::LiveTradeExecutorError};
+use super::super::{
+    super::error::TradeCoreError,
+    executor::error::{ExecutorProcessFatalError, LiveTradeExecutorError},
+};
 
 #[derive(Error, Debug)]
 pub enum LiveProcessRecoverableError {
@@ -63,6 +66,12 @@ pub enum LiveProcessFatalError {
 
     #[error("`SignalRecvClosed` error")]
     SignalRecvClosed,
+
+    #[error("`LiveTradeExecutor` process (dependency) was terminated with error: {0}")]
+    ExecutorProcessTerminated(Arc<ExecutorProcessFatalError>),
+
+    #[error("`LiveTradeExecutor` process (dependency) was shutdown")]
+    ExecutorProcessShutdown,
 
     #[error("`ExecutorRecvClosed` error")]
     ExecutorRecvClosed,
