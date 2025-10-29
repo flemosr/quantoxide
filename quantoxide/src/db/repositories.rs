@@ -112,7 +112,7 @@ pub trait PriceHistoryRepository: Send + Sync {
     ///
     /// # Errors
     /// - Returns a database error if the query fails
-    /// - Returns a generic error if the query returns unexpected results
+    /// - Returns a database error if the query returns unexpected results
     async fn get_gaps(&self) -> Result<Vec<(DateTime<Utc>, DateTime<Utc>)>>;
 
     /// Adds multiple price entries to the history and updates related data structures.
