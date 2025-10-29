@@ -2,10 +2,12 @@ use std::{fmt, sync::Arc};
 
 use tokio::sync::{Mutex, MutexGuard};
 
-use crate::sync::SyncStatusNotSynced;
+use crate::{
+    sync::SyncStatusNotSynced, trade::live::executor::error::ExecutorProcessRecoverableError,
+};
 
 use super::{
-    error::{LiveTradeExecutorError, LiveTradeExecutorResult},
+    error::{ExecutorActionError, ExecutorActionResult, ExecutorProcessFatalError},
     update::LiveTradeExecutorTransmiter,
 };
 
@@ -17,8 +19,8 @@ pub use live_trading_session::LiveTradingSession;
 pub enum LiveTradeExecutorStatusNotReady {
     Starting,
     WaitingForSync(SyncStatusNotSynced),
-    Failed(Arc<LiveTradeExecutorError>),
-    NotViable(Arc<LiveTradeExecutorError>),
+    Failed(Arc<ExecutorProcessRecoverableError>),
+    NotViable(Arc<ExecutorProcessFatalError>),
     ShutdownInitiated,
     Shutdown,
 }
@@ -121,7 +123,7 @@ impl<'a> LockedLiveTradeExecutorState<'a> {
 pub struct LockedLiveTradeExecutorStateReady<'a>(LockedLiveTradeExecutorState<'a>);
 
 impl<'a> TryFrom<LockedLiveTradeExecutorState<'a>> for LockedLiveTradeExecutorStateReady<'a> {
-    type Error = LiveTradeExecutorError;
+    type Error = ExecutorActionError;
 
     /// Attempts to convert a generic locked state into a ready state.
     ///
@@ -135,7 +137,7 @@ impl<'a> TryFrom<LockedLiveTradeExecutorState<'a>> for LockedLiveTradeExecutorSt
             LiveTradeExecutorStatus::Ready if value.state_guard.trading_session.is_some() => {
                 Ok(Self(value))
             }
-            _ => Err(LiveTradeExecutorError::ExecutorNotReady),
+            _ => Err(ExecutorActionError::ExecutorNotReady),
         }
     }
 }
@@ -190,7 +192,7 @@ impl LiveTradeExecutorStateManager {
 
     pub async fn try_lock_ready_state(
         &self,
-    ) -> LiveTradeExecutorResult<LockedLiveTradeExecutorStateReady> {
+    ) -> ExecutorActionResult<LockedLiveTradeExecutorStateReady> {
         let locked_state = self.lock_state().await;
         LockedLiveTradeExecutorStateReady::try_from(locked_state)
     }
