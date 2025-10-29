@@ -1,7 +1,6 @@
 use std::{num::NonZeroU64, result, sync::Arc};
 
 use thiserror::Error;
-use tokio::sync::broadcast::error::RecvError;
 use uuid::Uuid;
 
 use lnm_sdk::api::rest::{
@@ -76,6 +75,9 @@ pub type ExecutorActionResult<T> = result::Result<T, ExecutorActionError>;
 pub enum ExecutorProcessRecoverableError {
     #[error("Live Trade Session evaluation error {0}")]
     LiveTradeSessionEvaluation(ExecutorActionError),
+
+    #[error("`SyncRecvLagged` error, skipped: {skipped}")]
+    SyncRecvLagged { skipped: u64 },
 }
 
 #[derive(Error, Debug)]
@@ -89,8 +91,8 @@ pub enum ExecutorProcessFatalError {
     #[error("`Sync` process (dependency) was shutdown")]
     SyncProcessShutdown,
 
-    #[error("`Sync` `RecvError` error: {0}")]
-    SyncRecv(RecvError),
+    #[error("`SyncRecvClosed` error")]
+    SyncRecvClosed,
 }
 
 pub type ExecutorProcessFatalResult<T> = result::Result<T, ExecutorProcessFatalError>;
