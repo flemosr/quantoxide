@@ -11,7 +11,7 @@ use lnm_sdk::api::rest::{
 
 use crate::{db::error::DbError, sync::SyncProcessFatalError};
 
-use super::super::super::error::TradeCoreError;
+use super::{super::super::error::TradeCoreError, state::LiveTradeExecutorStatus};
 
 #[derive(Error, Debug)]
 pub enum ExecutorActionError {
@@ -103,8 +103,11 @@ pub enum LiveTradeExecutorError {
     #[error("API credentials were not set")]
     ApiCredentialsNotSet,
 
-    #[error("Trade executor process already consumed")]
-    TradeExecutorProcessAlreadyConsumed,
+    #[error("Executor process already consumed")]
+    ExecutorProcessAlreadyConsumed,
+
+    #[error("Executor process already terminated error, status: {0}")]
+    ExecutorProcessAlreadyTerminated(LiveTradeExecutorStatus),
 
     #[error("Executor shutdown procedure failed: {0}")]
     ExecutorShutdownFailed(Arc<ExecutorProcessFatalError>),
