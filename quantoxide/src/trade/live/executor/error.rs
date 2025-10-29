@@ -14,15 +14,12 @@ use crate::{db::error::DbError, sync::SyncProcessFatalError};
 use super::super::super::error::TradeCoreError;
 
 #[derive(Error, Debug)]
-pub enum LiveTradeExecutorError {
+pub enum ExecutorActionError {
     #[error("[RestApi] {0}")]
     RestApi(#[from] RestApiError),
 
     #[error("Balance is too low error")]
     BalanceTooLow,
-
-    #[error("Balance is too high error")]
-    BalanceTooHigh,
 
     #[error("[Db] {0}")]
     Db(#[from] DbError),
@@ -53,7 +50,7 @@ pub enum LiveTradeExecutorError {
 
     #[error("Live trade executor is not ready")]
     ExecutorNotReady,
-    //
+
     #[error("[InvalidMarketPrice] {0}")]
     InvalidMarketPrice(PriceValidationError),
 
@@ -63,12 +60,6 @@ pub enum LiveTradeExecutorError {
     #[error("Max running trades ({max_qtd}) reached")]
     MaxRunningTradesReached { max_qtd: usize },
 
-    #[error("Trade executor process already consumed")]
-    TradeExecutorProcessAlreadyConsumed,
-
-    #[error("Failed to close trades on shutdown: {0}")]
-    FailedToCloseTradesOnShutdown(String),
-
     #[error("Margin amount {amount} exceeds maximum amount {max_amount} for trade")]
     MarginAmountExceedsMaxForTrade { amount: NonZeroU64, max_amount: u64 },
 
@@ -77,18 +68,46 @@ pub enum LiveTradeExecutorError {
         amount: NonZeroU64,
         max_cash_in: u64,
     },
+}
 
-    #[error("API credentials were not set")]
-    ApiCredentialsNotSet,
+pub type ExecutorActionResult<T> = result::Result<T, ExecutorActionError>;
 
+#[derive(Error, Debug)]
+pub enum ExecutorProcessRecoverableError {
+    #[error("Live Trade Session evaluation error {0}")]
+    LiveTradeSessionEvaluation(ExecutorActionError),
+}
+
+#[derive(Error, Debug)]
+pub enum ExecutorProcessFatalError {
     #[error("`Sync` process (dependency) was terminated with error: {0}")]
-    SyncProcessTerminated(Arc<SyncProcessFatalError>), // Not recoverable
+    SyncProcessTerminated(Arc<SyncProcessFatalError>),
+
+    #[error("Failed to close trades on shutdown: {0}")]
+    FailedToCloseTradesOnShutdown(ExecutorActionError),
 
     #[error("`Sync` process (dependency) was shutdown")]
     SyncProcessShutdown,
 
     #[error("`Sync` `RecvError` error: {0}")]
     SyncRecv(RecvError),
+}
+
+pub type ExecutorProcessFatalResult<T> = result::Result<T, ExecutorProcessFatalError>;
+
+#[derive(Error, Debug)]
+pub enum LiveTradeExecutorError {
+    #[error("Launch clean up error {0}")]
+    LaunchCleanUp(ExecutorActionError),
+
+    #[error("API credentials were not set")]
+    ApiCredentialsNotSet,
+
+    #[error("Trade executor process already consumed")]
+    TradeExecutorProcessAlreadyConsumed,
+
+    #[error("Executor shutdown procedure failed: {0}")]
+    ExecutorShutdownFailed(Arc<ExecutorProcessFatalError>),
 }
 
 pub type LiveTradeExecutorResult<T> = result::Result<T, LiveTradeExecutorError>;
