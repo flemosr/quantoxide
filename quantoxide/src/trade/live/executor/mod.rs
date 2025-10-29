@@ -6,7 +6,7 @@ use std::{
 
 use async_trait::async_trait;
 use futures::future;
-use tokio::sync::broadcast;
+use tokio::sync::broadcast::{self, error::RecvError};
 use uuid::Uuid;
 
 use lnm_sdk::api::{
@@ -584,7 +584,18 @@ impl LiveTradeExecutorLauncher {
                             SyncUpdate::PriceTick(_) => refresh_trading_session().await,
                             SyncUpdate::PriceHistoryState(_) => {}
                         },
-                        Err(e) => return Err(ExecutorProcessFatalError::SyncRecv(e)),
+                        Err(RecvError::Lagged(skipped)) => {
+                            state_manager
+                                .update_status_not_ready(LiveTradeExecutorStatusNotReady::Failed(
+                                    Arc::new(ExecutorProcessRecoverableError::SyncRecvLagged {
+                                        skipped,
+                                    }),
+                                ))
+                                .await;
+                        }
+                        Err(RecvError::Closed) => {
+                            return Err(ExecutorProcessFatalError::SyncRecvClosed);
+                        }
                     }
                 }
             };
