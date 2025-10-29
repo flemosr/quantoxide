@@ -10,7 +10,7 @@ use lnm_sdk::api::rest::models::{
 use crate::util::PanicPayload;
 
 use super::{
-    backtest::error::SimulatedTradeExecutorError, live::executor::error::LiveTradeExecutorError,
+    backtest::error::SimulatedTradeExecutorError, live::executor::error::ExecutorActionError,
 };
 
 #[derive(Error, Debug)]
@@ -19,7 +19,7 @@ pub enum TradeExecutorError {
     Simulated(#[from] SimulatedTradeExecutorError),
 
     #[error("[Live] {0}")]
-    Live(#[from] LiveTradeExecutorError),
+    Live(#[from] ExecutorActionError),
 }
 
 pub type TradeExecutorResult<T> = result::Result<T, TradeExecutorError>;
