@@ -265,7 +265,7 @@ impl LiveTradeExecutor {
                         Err(LiveTradeExecutorError::ExecutorShutdownFailed(
                             e_ref.clone(),
                         )),
-                        LiveTradeExecutorStatusNotReady::NotViable(e_ref),
+                        LiveTradeExecutorStatusNotReady::Terminated(e_ref),
                     )
                 }
             }
@@ -591,7 +591,7 @@ impl LiveTradeExecutorLauncher {
 
             let Err(e) = handler().await;
 
-            let new_status_not_ready = LiveTradeExecutorStatusNotReady::NotViable(Arc::new(e));
+            let new_status_not_ready = LiveTradeExecutorStatusNotReady::Terminated(Arc::new(e));
             state_manager
                 .update_status_not_ready(new_status_not_ready)
                 .await;
