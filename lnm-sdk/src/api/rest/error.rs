@@ -23,8 +23,11 @@ pub enum RestApiError {
     #[error("Invalid secret HMAC error: {0}")]
     InvalidSecretHmac(InvalidLength),
 
-    #[error("Generic `reqwest` error: {0}")]
-    GenericReqwest(reqwest::Error),
+    #[error("HTTP client `reqwest` error: {0}")]
+    HttpClient(reqwest::Error),
+
+    #[error("Response decoding `reqwest` error: {0}")]
+    ResponseDecoding(reqwest::Error),
 
     #[error("Authentication required for request but no credentials provided")]
     MissingRequestCredentials,
