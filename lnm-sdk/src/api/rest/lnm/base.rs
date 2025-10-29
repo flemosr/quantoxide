@@ -137,7 +137,7 @@ impl LnmApiBase {
         let client = Client::builder()
             .timeout(config.timeout)
             .build()
-            .map_err(RestApiError::GenericReqwest)?;
+            .map_err(RestApiError::HttpClient)?;
 
         Ok(Arc::new(Self {
             domain,
@@ -226,7 +226,7 @@ impl LnmApiBase {
             let text = response
                 .text()
                 .await
-                .map_err(RestApiError::GenericReqwest)?;
+                .map_err(RestApiError::ResponseDecoding)?;
 
             return Err(RestApiError::ErrorResponse { status, text });
         }
@@ -234,7 +234,7 @@ impl LnmApiBase {
         let raw_response = response
             .text()
             .await
-            .map_err(RestApiError::GenericReqwest)?;
+            .map_err(RestApiError::ResponseDecoding)?;
 
         let response_data = serde_json::from_str::<T>(&raw_response)
             .map_err(|e| RestApiError::ResponseJsonDeserializeFailed { raw_response, e })?;
