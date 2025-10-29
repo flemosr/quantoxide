@@ -20,7 +20,7 @@ pub enum LiveTradeExecutorStatusNotReady {
     Starting,
     WaitingForSync(SyncStatusNotSynced),
     Failed(Arc<ExecutorProcessRecoverableError>),
-    NotViable(Arc<ExecutorProcessFatalError>),
+    Terminated(Arc<ExecutorProcessFatalError>),
     ShutdownInitiated,
     Shutdown,
 }
@@ -33,7 +33,7 @@ impl fmt::Display for LiveTradeExecutorStatusNotReady {
                 write!(f, "Waiting for sync ({status})")
             }
             Self::Failed(error) => write!(f, "Failed: {error}"),
-            Self::NotViable(error) => write!(f, "Not viable: {error}"),
+            Self::Terminated(error) => write!(f, "Terminated: {error}"),
             Self::ShutdownInitiated => write!(f, "Shutdown initiated"),
             Self::Shutdown => write!(f, "Shutdown"),
         }
