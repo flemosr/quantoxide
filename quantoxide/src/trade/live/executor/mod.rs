@@ -506,8 +506,8 @@ impl LiveTradeExecutorLauncher {
             let refresh_trading_session = async || {
                 let locked_state = state_manager.lock_state().await;
 
-                let current_trading_session =
-                    if let Some(old_trading_session) = locked_state.trading_session() {
+                let current_trading_session = match locked_state.trading_session() {
+                    Some(old_trading_session) if old_trading_session.is_fresh() => {
                         let mut restored_trading_session = old_trading_session.clone();
 
                         match restored_trading_session
@@ -531,7 +531,8 @@ impl LiveTradeExecutorLauncher {
                         }
 
                         restored_trading_session
-                    } else {
+                    }
+                    _ => {
                         match LiveTradingSession::new(
                             recover_trades_on_startup,
                             tsl_step_size,
@@ -549,7 +550,8 @@ impl LiveTradeExecutorLauncher {
                                 return;
                             }
                         }
-                    };
+                    }
+                };
 
                 locked_state.update_status_ready(current_trading_session);
             };
