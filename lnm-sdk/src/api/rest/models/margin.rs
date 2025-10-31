@@ -3,8 +3,12 @@ use std::{convert::TryFrom, fmt, num::NonZeroU64, ops::Add};
 use serde::{Deserialize, Serialize, de};
 
 use super::{
-    Leverage, Price, Quantity, SATS_PER_BTC, TradeSide,
+    SATS_PER_BTC,
     error::{MarginValidationError, TradeValidationError},
+    leverage::Leverage,
+    price::Price,
+    quantity::Quantity,
+    trade::TradeSide,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -158,7 +162,7 @@ impl<'de> Deserialize<'de> for Margin {
 
 #[cfg(test)]
 mod tests {
-    use super::super::trade_util;
+    use super::super::trade::util as trade_util;
 
     use super::*;
 
