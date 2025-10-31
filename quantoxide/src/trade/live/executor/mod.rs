@@ -39,7 +39,7 @@ use error::{
 };
 use state::{
     LiveTradeExecutorState, LiveTradeExecutorStateManager, LiveTradeExecutorStatusNotReady,
-    LiveTradingSession,
+    LiveTradingSession, TradingSessionRefreshOffset,
 };
 use update::{
     LiveTradeExecutorReceiver, LiveTradeExecutorTransmiter, LiveTradeExecutorUpdate,
@@ -496,6 +496,7 @@ impl LiveTradeExecutorLauncher {
     fn spawn_sync_processor(
         recover_trades_on_startup: bool,
         tsl_step_size: BoundedPercentage,
+        session_refresh_offset: TradingSessionRefreshOffset,
         db: Arc<DbContext>,
         api: WrappedApiContext,
         update_tx: LiveTradeExecutorTransmiter,
@@ -507,7 +508,7 @@ impl LiveTradeExecutorLauncher {
                 let locked_state = state_manager.lock_state().await;
 
                 let current_trading_session = match locked_state.trading_session() {
-                    Some(old_trading_session) if old_trading_session.is_fresh() => {
+                    Some(old_trading_session) if !old_trading_session.is_expired() => {
                         let mut restored_trading_session = old_trading_session.clone();
 
                         match restored_trading_session
@@ -536,6 +537,7 @@ impl LiveTradeExecutorLauncher {
                         match LiveTradingSession::new(
                             recover_trades_on_startup,
                             tsl_step_size,
+                            session_refresh_offset,
                             db.as_ref(),
                             &api,
                         )
@@ -622,6 +624,7 @@ impl LiveTradeExecutorLauncher {
         let handle = Self::spawn_sync_processor(
             self.config.recover_trades_on_startup(),
             self.config.trailing_stoploss_step_size(),
+            self.config.session_refresh_offset(),
             self.db.clone(),
             self.api.clone(),
             self.update_tx.clone(),
