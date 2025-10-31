@@ -1,6 +1,7 @@
+use std::collections::HashMap;
+
 use chrono::{DateTime, Utc, serde::ts_milliseconds};
 use serde::Deserialize;
-use std::collections::HashMap;
 
 use super::price::Price;
 
