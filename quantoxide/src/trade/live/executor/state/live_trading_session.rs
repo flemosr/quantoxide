@@ -19,6 +19,30 @@ use super::super::super::{
     },
 };
 
+#[derive(Debug, Clone, Copy)]
+pub struct TradingSessionRefreshOffset(Duration);
+
+impl TradingSessionRefreshOffset {
+    pub const MIN: Duration = Duration::hours(1);
+}
+
+impl TryFrom<Duration> for TradingSessionRefreshOffset {
+    type Error = ExecutorActionError;
+    fn try_from(value: Duration) -> Result<Self, Self::Error> {
+        if value < Self::MIN {
+            return Err(ExecutorActionError::InvalidTradingSessionRefreshOffset { value });
+        }
+
+        Ok(Self(value))
+    }
+}
+
+impl From<TradingSessionRefreshOffset> for Duration {
+    fn from(value: TradingSessionRefreshOffset) -> Self {
+        value.0
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct LiveTradingSession {
     created_at: DateTime<Utc>,

@@ -13,7 +13,7 @@ use super::{
 
 mod live_trading_session;
 
-pub use live_trading_session::LiveTradingSession;
+pub use live_trading_session::{LiveTradingSession, TradingSessionRefreshOffset};
 
 #[derive(Debug, Clone)]
 pub enum LiveTradeExecutorStatusNotReady {

@@ -1,5 +1,6 @@
 use std::{num::NonZeroU64, result, sync::Arc};
 
+use chrono::Duration;
 use thiserror::Error;
 use uuid::Uuid;
 
@@ -10,7 +11,10 @@ use lnm_sdk::api::rest::{
 
 use crate::{db::error::DbError, sync::SyncProcessFatalError};
 
-use super::{super::super::error::TradeCoreError, state::LiveTradeExecutorStatus};
+use super::{
+    super::super::error::TradeCoreError,
+    state::{LiveTradeExecutorStatus, TradingSessionRefreshOffset},
+};
 
 #[derive(Error, Debug)]
 pub enum ExecutorActionError {
@@ -67,6 +71,12 @@ pub enum ExecutorActionError {
         amount: NonZeroU64,
         max_cash_in: u64,
     },
+
+    #[error(
+        "`TradingSessionRefreshOffset` must be at least {}. Value: {value}",
+        TradingSessionRefreshOffset::MIN
+    )]
+    InvalidTradingSessionRefreshOffset { value: Duration },
 }
 
 pub type ExecutorActionResult<T> = result::Result<T, ExecutorActionError>;
