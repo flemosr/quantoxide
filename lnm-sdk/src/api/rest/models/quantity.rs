@@ -1,8 +1,10 @@
-use serde::{Deserialize, Serialize, de};
 use std::{convert::TryFrom, fmt};
 
+use serde::{Deserialize, Serialize, de};
+
 use super::{
-    BoundedPercentage, Leverage, Margin, Price, SATS_PER_BTC, error::QuantityValidationError,
+    SATS_PER_BTC, error::QuantityValidationError, leverage::Leverage, margin::Margin,
+    price::BoundedPercentage, price::Price,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
