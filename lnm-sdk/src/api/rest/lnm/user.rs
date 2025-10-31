@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use hyper::Method;
 
 use super::{
-    super::{error::Result, models::User, repositories::UserRepository},
+    super::{error::Result, models::user::User, repositories::UserRepository},
     base::{ApiPath, LnmApiBase},
 };
 
