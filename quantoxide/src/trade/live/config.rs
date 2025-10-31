@@ -3,6 +3,8 @@ use tokio::time;
 
 use lnm_sdk::api::rest::models::BoundedPercentage;
 
+use super::executor::state::TradingSessionRefreshOffset;
+
 #[derive(Clone, Debug)]
 pub struct LiveConfig {
     api_cooldown: time::Duration,
@@ -16,6 +18,7 @@ pub struct LiveConfig {
     tsl_step_size: BoundedPercentage,
     clean_up_trades_on_startup: bool,
     recover_trades_on_startup: bool,
+    session_refresh_offset: TradingSessionRefreshOffset,
     clean_up_trades_on_shutdown: bool,
     estimated_fee_perc: BoundedPercentage,
     max_running_qtd: usize,
@@ -25,6 +28,10 @@ pub struct LiveConfig {
 
 impl Default for LiveConfig {
     fn default() -> Self {
+        let session_refresh_offset = (Duration::hours(1) + Duration::minutes(5))
+            .try_into()
+            .expect("must be valid `LiveTradingSessionRefreshOffset`");
+
         Self {
             api_cooldown: time::Duration::from_secs(2),
             api_error_cooldown: time::Duration::from_secs(10),
@@ -37,6 +44,7 @@ impl Default for LiveConfig {
             tsl_step_size: BoundedPercentage::MIN,
             clean_up_trades_on_startup: true,
             recover_trades_on_startup: false,
+            session_refresh_offset,
             clean_up_trades_on_shutdown: true,
             estimated_fee_perc: BoundedPercentage::try_from(0.1)
                 .expect("must be valid `BoundedPercentage`"),
@@ -90,6 +98,10 @@ impl LiveConfig {
 
     pub fn recover_trades_on_startup(&self) -> bool {
         self.recover_trades_on_startup
+    }
+
+    pub fn session_refresh_offset(&self) -> TradingSessionRefreshOffset {
+        self.session_refresh_offset
     }
 
     pub fn clean_up_trades_on_shutdown(&self) -> bool {
@@ -167,6 +179,14 @@ impl LiveConfig {
         self
     }
 
+    pub fn set_session_refresh_offset(
+        mut self,
+        session_refresh_offset: TradingSessionRefreshOffset,
+    ) -> Self {
+        self.session_refresh_offset = session_refresh_offset;
+        self
+    }
+
     pub fn set_clean_up_trades_on_shutdown(mut self, clean_up_trades_on_shutdown: bool) -> Self {
         self.clean_up_trades_on_shutdown = clean_up_trades_on_shutdown;
         self
@@ -241,6 +261,7 @@ pub struct LiveTradeExecutorConfig {
     tsl_step_size: BoundedPercentage,
     clean_up_trades_on_startup: bool,
     recover_trades_on_startup: bool,
+    session_refresh_offset: TradingSessionRefreshOffset,
     clean_up_trades_on_shutdown: bool,
     estimated_fee_perc: BoundedPercentage,
     max_running_qtd: usize,
@@ -257,6 +278,10 @@ impl LiveTradeExecutorConfig {
 
     pub fn recover_trades_on_startup(&self) -> bool {
         self.recover_trades_on_startup
+    }
+
+    pub fn session_refresh_offset(&self) -> TradingSessionRefreshOffset {
+        self.session_refresh_offset
     }
 
     pub fn clean_up_trades_on_shutdown(&self) -> bool {
@@ -286,6 +311,14 @@ impl LiveTradeExecutorConfig {
         self
     }
 
+    pub fn set_session_refresh_offset(
+        mut self,
+        session_refresh_offset: TradingSessionRefreshOffset,
+    ) -> Self {
+        self.session_refresh_offset = session_refresh_offset;
+        self
+    }
+
     pub fn set_clean_up_trades_on_shutdown(mut self, clean_up_trades_on_shutdown: bool) -> Self {
         self.clean_up_trades_on_shutdown = clean_up_trades_on_shutdown;
         self
@@ -304,10 +337,15 @@ impl LiveTradeExecutorConfig {
 
 impl Default for LiveTradeExecutorConfig {
     fn default() -> Self {
+        let session_refresh_offset = (Duration::hours(1) + Duration::minutes(5))
+            .try_into()
+            .expect("must be valid `LiveTradingSessionRefreshOffset`");
+
         Self {
             tsl_step_size: BoundedPercentage::MIN,
             clean_up_trades_on_startup: true,
             recover_trades_on_startup: false,
+            session_refresh_offset,
             clean_up_trades_on_shutdown: true,
             estimated_fee_perc: BoundedPercentage::try_from(0.1)
                 .expect("must be valid `BoundedPercentage`"),
@@ -322,6 +360,7 @@ impl From<&LiveConfig> for LiveTradeExecutorConfig {
             tsl_step_size: value.trailing_stoploss_step_size(),
             clean_up_trades_on_startup: value.clean_up_trades_on_startup(),
             recover_trades_on_startup: value.recover_trades_on_startup(),
+            session_refresh_offset: value.session_refresh_offset(),
             clean_up_trades_on_shutdown: value.clean_up_trades_on_shutdown(),
             estimated_fee_perc: value.estimated_fee_perc(),
             max_running_qtd: value.max_running_qtd(),
