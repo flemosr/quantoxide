@@ -1,19 +1,18 @@
-use std::{
-    fmt::{self},
-    result::Result,
-};
+use std::{fmt, result::Result};
 
 use chrono::{
     DateTime, Utc,
     serde::{ts_milliseconds, ts_milliseconds_option},
 };
 use serde::{Deserialize, Serialize};
-
-pub use uuid::Uuid;
+use uuid::Uuid;
 
 use super::{
-    Leverage, Margin, Price, Quantity,
     error::{FuturesTradeRequestValidationError, QuantityValidationError, TradeValidationError},
+    leverage::Leverage,
+    margin::Margin,
+    price::Price,
+    quantity::Quantity,
     serde_util,
 };
 
@@ -114,7 +113,7 @@ impl From<Price> for TradeExecution {
 }
 
 #[derive(Serialize, Debug)]
-pub struct FuturesTradeRequestBody {
+pub(crate) struct FuturesTradeRequestBody {
     leverage: Leverage,
     #[serde(skip_serializing_if = "Option::is_none")]
     stoploss: Option<Price>,
@@ -433,28 +432,19 @@ impl TradeClosed for LnmTrade {
 }
 
 #[derive(Deserialize)]
-pub struct NestedTradesResponse {
+pub(crate) struct NestedTradesResponse {
     pub trades: Vec<LnmTrade>,
 }
 
 #[derive(Serialize, Debug)]
 #[serde(rename_all = "lowercase")]
-pub enum TradeUpdateType {
+pub(crate) enum TradeUpdateType {
     Stoploss,
     Takeprofit,
 }
 
-impl TradeUpdateType {
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            TradeUpdateType::Stoploss => "stoploss",
-            TradeUpdateType::Takeprofit => "takeprofit",
-        }
-    }
-}
-
 #[derive(Serialize, Debug)]
-pub struct FuturesUpdateTradeRequestBody {
+pub(crate) struct FuturesUpdateTradeRequestBody {
     id: Uuid,
     #[serde(rename = "type")]
     update_type: TradeUpdateType,
