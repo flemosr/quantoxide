@@ -45,7 +45,7 @@ impl From<TradingSessionRefreshOffset> for Duration {
 
 #[derive(Debug, Clone)]
 pub struct LiveTradingSession {
-    created_at: DateTime<Utc>,
+    expires_at: DateTime<Utc>,
     tsl_step_size: BoundedPercentage,
     last_trade_time: Option<DateTime<Utc>>,
     balance: u64,
@@ -62,6 +62,7 @@ impl LiveTradingSession {
     pub async fn new(
         recover_trades_on_startup: bool,
         tsl_step_size: BoundedPercentage,
+        refresh_offset: TradingSessionRefreshOffset,
         db: &DbContext,
         api: &WrappedApiContext,
     ) -> ExecutorActionResult<Self> {
@@ -73,8 +74,18 @@ impl LiveTradingSession {
 
         let user = api.get_user().await?;
 
+        let created_at_hour = Utc::now()
+            .with_minute(0)
+            .expect("Setting `DateTime<Utc>` minute to 0 should not fail")
+            .with_second(0)
+            .expect("Setting `DateTime<Utc>` second to 0 should not fail")
+            .with_nanosecond(0)
+            .expect("Setting `DateTime<Utc>` nanosecond to 0 should not fail");
+
+        let expires_at = created_at_hour + Duration::from(refresh_offset);
+
         let mut session = Self {
-            created_at: Utc::now(),
+            expires_at,
             tsl_step_size,
             last_trade_time: None,
             balance: user.balance(),
@@ -120,23 +131,8 @@ impl LiveTradingSession {
         Ok(session)
     }
 
-    pub fn created_at(&self) -> DateTime<Utc> {
-        self.created_at
-    }
-
-    pub fn is_fresh(&self) -> bool {
-        let created_at_hour = self
-            .created_at
-            .with_minute(0)
-            .expect("Setting `DateTime<Utc>` minute to 0 should not fail")
-            .with_second(0)
-            .expect("Setting `DateTime<Utc>` second to 0 should not fail")
-            .with_nanosecond(0)
-            .expect("Setting `DateTime<Utc>` nanosecond to 0 should not fail");
-
-        let next_refresh = created_at_hour + Duration::hours(1) + Duration::minutes(5);
-
-        Utc::now() < next_refresh
+    pub fn is_expired(&self) -> bool {
+        Utc::now() >= self.expires_at
     }
 
     pub fn last_trade_time(&self) -> Option<DateTime<Utc>> {
