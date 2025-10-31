@@ -1,5 +1,6 @@
-use serde::{Deserialize, Serialize, de};
 use std::{cmp::Ordering, convert::TryFrom, fmt};
+
+use serde::{Deserialize, Serialize, de};
 
 use super::{
     error::{
