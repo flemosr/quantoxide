@@ -4,9 +4,9 @@ use chrono::{DateTime, Utc};
 use thiserror::Error;
 use uuid::Uuid;
 
-use lnm_sdk::api::rest::models::{
-    TradeSide,
+use lnm_sdk::{
     error::{PriceValidationError, TradeValidationError},
+    models::TradeSide,
 };
 
 use crate::{

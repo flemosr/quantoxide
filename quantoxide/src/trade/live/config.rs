@@ -1,7 +1,7 @@
 use chrono::Duration;
 use tokio::time;
 
-use lnm_sdk::api::rest::models::BoundedPercentage;
+use lnm_sdk::models::BoundedPercentage;
 
 use super::executor::state::TradingSessionRefreshOffset;
 

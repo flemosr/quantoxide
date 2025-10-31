@@ -3,10 +3,8 @@ use std::{fmt, num::NonZeroU64, sync::Arc};
 use tokio::sync::broadcast;
 use uuid::Uuid;
 
-use lnm_sdk::api::{
-    ApiContext,
-    rest::models::{Leverage, LnmTrade, Price, TradeExecution, TradeSide, TradeSize, User},
-};
+use lnm_sdk::api::ApiContext;
+use lnm_sdk::models::{Leverage, LnmTrade, Price, TradeExecution, TradeSide, TradeSize, User};
 
 use super::{
     super::super::core::TradingState,

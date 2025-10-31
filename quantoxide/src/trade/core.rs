@@ -11,7 +11,7 @@ use chrono::{DateTime, Duration, Utc};
 use futures::FutureExt;
 use uuid::Uuid;
 
-use lnm_sdk::api::rest::models::{
+use lnm_sdk::models::{
     BoundedPercentage, Leverage, LowerBoundedPercentage, Price, Trade, TradeClosed, TradeRunning,
     TradeSide, TradeSize,
 };

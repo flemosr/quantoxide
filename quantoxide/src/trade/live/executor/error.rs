@@ -4,10 +4,8 @@ use chrono::Duration;
 use thiserror::Error;
 use uuid::Uuid;
 
-use lnm_sdk::api::rest::{
-    error::RestApiError,
-    models::error::{PriceValidationError, TradeValidationError},
-};
+use lnm_sdk::api::rest::error::RestApiError;
+use lnm_sdk::error::{PriceValidationError, TradeValidationError};
 
 use crate::{db::error::DbError, sync::SyncProcessFatalError};
 

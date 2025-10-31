@@ -5,7 +5,7 @@ use std::{
 
 use tokio::sync::broadcast;
 
-use lnm_sdk::api::rest::models::LnmTrade;
+use lnm_sdk::models::LnmTrade;
 
 use crate::{
     signal::{core::Signal, state::LiveSignalStatusNotRunning},

@@ -3,7 +3,7 @@ use std::{num::NonZeroU64, sync::Arc};
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
-use lnm_sdk::api::rest::models::{
+use lnm_sdk::models::{
     BoundedPercentage, Leverage, Margin, Price, Quantity, Trade, TradeClosed, TradeExecutionType,
     TradeRunning, TradeSide, TradeSize, trade_util,
 };

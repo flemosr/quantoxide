@@ -9,9 +9,9 @@ use futures::future;
 use tokio::sync::broadcast::{self, error::RecvError};
 use uuid::Uuid;
 
-use lnm_sdk::api::{
-    ApiContext,
-    rest::models::{BoundedPercentage, Leverage, Price, Trade, TradeSide, TradeSize, trade_util},
+use lnm_sdk::api::ApiContext;
+use lnm_sdk::models::{
+    BoundedPercentage, Leverage, Price, Trade, TradeSide, TradeSize, trade_util,
 };
 
 use crate::{

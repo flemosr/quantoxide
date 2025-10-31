@@ -3,8 +3,9 @@ use std::result;
 use thiserror::Error;
 use uuid::Uuid;
 
-use lnm_sdk::api::rest::models::{
-    BoundedPercentage, LowerBoundedPercentage, Price, error::PriceValidationError,
+use lnm_sdk::{
+    error::PriceValidationError,
+    models::{BoundedPercentage, LowerBoundedPercentage, Price},
 };
 
 use crate::util::PanicPayload;

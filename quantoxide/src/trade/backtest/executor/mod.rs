@@ -5,9 +5,7 @@ use chrono::{DateTime, Utc};
 use tokio::sync::Mutex;
 use uuid::Uuid;
 
-use lnm_sdk::api::rest::models::{
-    Leverage, Price, Trade, TradeClosed, TradeRunning, TradeSide, TradeSize,
-};
+use lnm_sdk::models::{Leverage, Price, Trade, TradeClosed, TradeRunning, TradeSide, TradeSize};
 
 use super::{
     super::{
