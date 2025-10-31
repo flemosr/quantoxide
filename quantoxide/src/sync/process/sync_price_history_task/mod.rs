@@ -3,7 +3,8 @@ use std::{collections::HashSet, sync::Arc};
 use chrono::{DateTime, Duration, Utc};
 use tokio::{sync::mpsc, time};
 
-use lnm_sdk::api::{ApiContext, rest::models::PriceEntryLNM};
+use lnm_sdk::api::ApiContext;
+use lnm_sdk::models::PriceEntryLNM;
 
 use crate::db::DbContext;
 
