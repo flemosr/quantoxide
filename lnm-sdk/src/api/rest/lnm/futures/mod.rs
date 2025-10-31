@@ -1,19 +1,25 @@
+use std::{num::NonZeroU64, sync::Arc};
+
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use reqwest::{self, Method};
 use serde_json::json;
-use std::{num::NonZeroU64, sync::Arc};
 use uuid::Uuid;
-
-use crate::api::rest::models::{
-    FuturesUpdateTradeRequestBody, Leverage, NestedTradesResponse, Price, Ticker, TradeExecution,
-    TradeSize, TradeStatus, TradeUpdateType,
-};
 
 use super::{
     super::{
         error::{RestApiError, Result},
-        models::{FuturesTradeRequestBody, LnmTrade, PriceEntryLNM, TradeSide},
+        models::{
+            leverage::Leverage,
+            price::Price,
+            price_history::PriceEntryLNM,
+            ticker::Ticker,
+            trade::{
+                FuturesTradeRequestBody, FuturesUpdateTradeRequestBody, LnmTrade,
+                NestedTradesResponse, TradeExecution, TradeSide, TradeSize, TradeStatus,
+                TradeUpdateType,
+            },
+        },
         repositories::FuturesRepository,
     },
     base::{ApiPath, LnmApiBase},

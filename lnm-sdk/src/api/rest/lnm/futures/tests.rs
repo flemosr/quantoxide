@@ -2,12 +2,15 @@ use std::{env, time::Instant};
 
 use dotenv::dotenv;
 
-use crate::api::rest::{
+use super::super::super::{
     RestApiContextConfig,
-    models::{BoundedPercentage, LowerBoundedPercentage},
+    models::{
+        margin::Margin,
+        price::{BoundedPercentage, LowerBoundedPercentage},
+        quantity::Quantity,
+        trade::Trade,
+    },
 };
-
-use super::super::super::models::{Margin, Quantity, Trade};
 use super::*;
 
 fn init_repository_from_env() -> LnmFuturesRepository {
