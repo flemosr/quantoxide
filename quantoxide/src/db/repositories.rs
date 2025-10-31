@@ -4,7 +4,8 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
-use lnm_sdk::api::{rest::models::PriceEntryLNM, websocket::models::PriceTickLNM};
+use lnm_sdk::api::websocket::models::PriceTickLNM;
+use lnm_sdk::models::PriceEntryLNM;
 
 use crate::trade::core::TradeTrailingStoploss;
 
