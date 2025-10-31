@@ -1,4 +1,4 @@
-pub mod float_without_decimal {
+pub(crate) mod float_without_decimal {
     use serde::Serializer;
 
     pub fn serialize<S>(value: &f64, serializer: S) -> Result<S::Ok, S::Error>
@@ -13,10 +13,10 @@ pub mod float_without_decimal {
     }
 }
 
-pub mod price_option {
+pub(crate) mod price_option {
     use serde::{Deserialize, de};
 
-    use super::super::Price;
+    use super::super::price::Price;
 
     pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<Price>, D::Error>
     where
