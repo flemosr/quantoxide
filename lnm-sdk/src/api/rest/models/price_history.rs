@@ -1,7 +1,7 @@
 use chrono::{DateTime, Utc, serde::ts_milliseconds};
 use serde::Deserialize;
 
-use super::Price;
+use super::price::Price;
 
 #[derive(Debug, Deserialize)]
 pub struct PriceEntryLNM {
