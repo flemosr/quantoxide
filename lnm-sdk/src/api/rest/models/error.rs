@@ -1,6 +1,6 @@
 use thiserror::Error;
 
-use super::{BoundedPercentage, LowerBoundedPercentage, Price};
+use super::price::{BoundedPercentage, LowerBoundedPercentage, Price};
 
 #[derive(Debug, Error)]
 pub enum BoundedPercentageValidationError {
