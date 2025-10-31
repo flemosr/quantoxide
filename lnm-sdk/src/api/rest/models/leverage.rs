@@ -1,7 +1,11 @@
-use serde::{Deserialize, Serialize, de};
 use std::{cmp::Ordering, convert::TryFrom, fmt};
 
-use super::{Margin, Price, Quantity, SATS_PER_BTC, error::LeverageValidationError, serde_util};
+use serde::{Deserialize, Serialize, de};
+
+use super::{
+    SATS_PER_BTC, error::LeverageValidationError, margin::Margin, price::Price, quantity::Quantity,
+    serde_util,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 pub struct Leverage(f64);
