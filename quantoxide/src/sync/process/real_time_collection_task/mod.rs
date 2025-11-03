@@ -3,7 +3,7 @@ use std::sync::Arc;
 use tokio::sync::broadcast::{self, error::RecvError};
 
 use lnm_sdk::{
-    ApiContext,
+    ApiClient,
     models::{LnmWebSocketChannel, WebSocketUpdate},
 };
 
@@ -17,7 +17,7 @@ pub use error::RealTimeCollectionError;
 
 pub struct RealTimeCollectionTask {
     db: Arc<DbContext>,
-    api: Arc<ApiContext>,
+    api: Arc<ApiClient>,
     shutdown_tx: broadcast::Sender<()>,
     price_tick_tx: broadcast::Sender<PriceTick>,
 }
@@ -25,7 +25,7 @@ pub struct RealTimeCollectionTask {
 impl RealTimeCollectionTask {
     pub fn new(
         db: Arc<DbContext>,
-        api: Arc<ApiContext>,
+        api: Arc<ApiClient>,
         shutdown_tx: broadcast::Sender<()>,
         price_tick_tx: broadcast::Sender<PriceTick>,
     ) -> Self {

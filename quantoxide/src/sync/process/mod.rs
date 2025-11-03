@@ -7,7 +7,7 @@ use tokio::{
     time,
 };
 
-use lnm_sdk::ApiContext;
+use lnm_sdk::ApiClient;
 
 use crate::{
     db::{DbContext, models::PriceTick},
@@ -36,7 +36,7 @@ pub use sync_price_history_task::{PriceHistoryState, SyncPriceHistoryError};
 pub struct SyncProcess {
     config: SyncProcessConfig,
     db: Arc<DbContext>,
-    api: Arc<ApiContext>,
+    api: Arc<ApiClient>,
     mode: SyncMode,
     shutdown_tx: broadcast::Sender<()>,
     status_manager: Arc<SyncStatusManager>,
@@ -47,7 +47,7 @@ impl SyncProcess {
     pub fn spawn(
         config: &SyncConfig,
         db: Arc<DbContext>,
-        api: Arc<ApiContext>,
+        api: Arc<ApiClient>,
         mode: SyncMode,
         shutdown_tx: broadcast::Sender<()>,
         status_manager: Arc<SyncStatusManager>,

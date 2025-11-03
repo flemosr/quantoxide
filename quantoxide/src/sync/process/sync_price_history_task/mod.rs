@@ -3,7 +3,7 @@ use std::{collections::HashSet, sync::Arc};
 use chrono::{DateTime, Duration, Utc};
 use tokio::{sync::mpsc, time};
 
-use lnm_sdk::{ApiContext, models::PriceEntryLNM};
+use lnm_sdk::{ApiClient, models::PriceEntryLNM};
 
 use crate::db::DbContext;
 
@@ -23,7 +23,7 @@ pub type PriceHistoryStateTransmiter = mpsc::Sender<PriceHistoryState>;
 pub struct SyncPriceHistoryTask {
     config: SyncPriceHistoryTaskConfig,
     db: Arc<DbContext>,
-    api: Arc<ApiContext>,
+    api: Arc<ApiClient>,
     history_state_tx: Option<PriceHistoryStateTransmiter>,
 }
 
@@ -31,7 +31,7 @@ impl SyncPriceHistoryTask {
     pub fn new(
         config: &SyncProcessConfig,
         db: Arc<DbContext>,
-        api: Arc<ApiContext>,
+        api: Arc<ApiClient>,
         history_state_tx: Option<PriceHistoryStateTransmiter>,
     ) -> Self {
         Self {

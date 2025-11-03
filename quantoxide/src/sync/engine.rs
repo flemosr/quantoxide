@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use chrono::Duration;
 use tokio::{sync::broadcast, time};
 
-use lnm_sdk::ApiContext;
+use lnm_sdk::ApiClient;
 
 use crate::{
     db::DbContext,
@@ -127,7 +127,7 @@ pub enum SyncMode {
 pub struct SyncEngine {
     config: SyncConfig,
     db: Arc<DbContext>,
-    api: Arc<ApiContext>,
+    api: Arc<ApiClient>,
     mode: SyncMode,
     status_manager: Arc<SyncStatusManager>,
     update_tx: SyncTransmiter,
@@ -137,7 +137,7 @@ impl SyncEngine {
     pub fn new(
         config: impl Into<SyncConfig>,
         db: Arc<DbContext>,
-        api: Arc<ApiContext>,
+        api: Arc<ApiClient>,
         mode: SyncMode,
     ) -> Self {
         let (update_tx, _) = broadcast::channel::<SyncUpdate>(1000);
