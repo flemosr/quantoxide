@@ -12,7 +12,7 @@ use repositories::{FuturesRepository, UserRepository};
 use super::ApiContextConfig;
 
 #[derive(Clone, Debug)]
-pub struct RestApiContextConfig {
+pub(crate) struct RestApiContextConfig {
     timeout: Duration,
 }
 
@@ -49,13 +49,13 @@ impl RestApiContext {
         }
     }
 
-    pub fn new(config: impl Into<RestApiContextConfig>, domain: String) -> Result<Self> {
+    pub(crate) fn new(config: impl Into<RestApiContextConfig>, domain: String) -> Result<Self> {
         let base = LnmApiBase::new(config.into(), domain)?;
 
         Ok(Self::new_inner(base))
     }
 
-    pub fn with_credentials(
+    pub(crate) fn with_credentials(
         config: impl Into<RestApiContextConfig>,
         domain: String,
         key: String,
