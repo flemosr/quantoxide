@@ -8,7 +8,7 @@ use super::{
     base::{ApiPath, LnmApiBase},
 };
 
-pub struct LnmUserRepository {
+pub(crate) struct LnmUserRepository {
     base: Arc<LnmApiBase>,
 }
 
