@@ -3,7 +3,7 @@ use std::{sync::Arc, time::Duration};
 use tokio::sync::Mutex;
 
 pub(crate) mod rest;
-pub mod websocket;
+pub(crate) mod websocket;
 
 use rest::RestApiContext;
 use websocket::{WebSocketApiContext, error::Result};
