@@ -22,15 +22,15 @@ use super::{
         },
         repositories::FuturesRepository,
     },
-    base::{ApiPath, LnmApiBase},
+    base::{ApiPath, LnmRestBase},
 };
 
 pub(crate) struct LnmFuturesRepository {
-    base: Arc<LnmApiBase>,
+    base: Arc<LnmRestBase>,
 }
 
 impl LnmFuturesRepository {
-    pub fn new(base: Arc<LnmApiBase>) -> Self {
+    pub fn new(base: Arc<LnmRestBase>) -> Self {
         Self { base }
     }
 

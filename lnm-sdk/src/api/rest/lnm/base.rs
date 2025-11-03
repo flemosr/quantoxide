@@ -122,13 +122,13 @@ impl LnmApiCredentials {
     }
 }
 
-pub(crate) struct LnmApiBase {
+pub(crate) struct LnmRestBase {
     domain: String,
     credentials: Option<LnmApiCredentials>,
     client: Client,
 }
 
-impl LnmApiBase {
+impl LnmRestBase {
     fn new_inner(
         config: RestApiContextConfig,
         domain: String,

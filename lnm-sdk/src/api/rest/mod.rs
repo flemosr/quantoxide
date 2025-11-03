@@ -6,7 +6,7 @@ pub(crate) mod models;
 mod repositories;
 
 use error::Result;
-use lnm::{base::LnmApiBase, futures::LnmFuturesRepository, user::LnmUserRepository};
+use lnm::{base::LnmRestBase, futures::LnmFuturesRepository, user::LnmUserRepository};
 use repositories::{FuturesRepository, UserRepository};
 
 use super::ApiContextConfig;
@@ -37,7 +37,7 @@ pub struct RestApiContext {
 }
 
 impl RestApiContext {
-    fn new_inner(base: Arc<LnmApiBase>) -> Self {
+    fn new_inner(base: Arc<LnmRestBase>) -> Self {
         let has_credentials = base.has_credentials();
         let futures = Box::new(LnmFuturesRepository::new(base.clone()));
         let user = Box::new(LnmUserRepository::new(base));
@@ -50,7 +50,7 @@ impl RestApiContext {
     }
 
     pub(crate) fn new(config: impl Into<RestApiContextConfig>, domain: String) -> Result<Self> {
-        let base = LnmApiBase::new(config.into(), domain)?;
+        let base = LnmRestBase::new(config.into(), domain)?;
 
         Ok(Self::new_inner(base))
     }
@@ -62,7 +62,7 @@ impl RestApiContext {
         secret: String,
         passphrase: String,
     ) -> Result<Self> {
-        let base = LnmApiBase::with_credentials(config.into(), domain, key, secret, passphrase)?;
+        let base = LnmRestBase::with_credentials(config.into(), domain, key, secret, passphrase)?;
 
         Ok(Self::new_inner(base))
     }

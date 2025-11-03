@@ -24,7 +24,7 @@ fn init_repository_from_env() -> LnmFuturesRepository {
     let passphrase = env::var("LNM_API_PASSPHRASE")
         .expect("LNM_API_PASSPHRASE environment variable must be set");
 
-    let base = LnmApiBase::with_credentials(
+    let base = LnmRestBase::with_credentials(
         RestApiContextConfig::default(),
         domain,
         key,

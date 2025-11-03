@@ -5,15 +5,15 @@ use hyper::Method;
 
 use super::{
     super::{error::Result, models::user::User, repositories::UserRepository},
-    base::{ApiPath, LnmApiBase},
+    base::{ApiPath, LnmRestBase},
 };
 
 pub(crate) struct LnmUserRepository {
-    base: Arc<LnmApiBase>,
+    base: Arc<LnmRestBase>,
 }
 
 impl LnmUserRepository {
-    pub fn new(base: Arc<LnmApiBase>) -> Self {
+    pub fn new(base: Arc<LnmRestBase>) -> Self {
         Self { base }
     }
 }
@@ -34,7 +34,7 @@ mod tests {
     use dotenv::dotenv;
 
     use super::*;
-    use super::{super::super::RestApiContextConfig, LnmApiBase};
+    use super::{super::super::RestApiContextConfig, LnmRestBase};
 
     fn init_repository_from_env() -> LnmUserRepository {
         dotenv().ok();
@@ -47,7 +47,7 @@ mod tests {
         let passphrase = env::var("LNM_API_PASSPHRASE")
             .expect("LNM_API_PASSPHRASE environment variable must be set");
 
-        let base = LnmApiBase::with_credentials(
+        let base = LnmRestBase::with_credentials(
             RestApiContextConfig::default(),
             domain,
             key,
