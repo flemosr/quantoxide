@@ -7,7 +7,7 @@ use tokio::{
     time,
 };
 
-use lnm_sdk::api::ApiContext;
+use lnm_sdk::ApiContext;
 
 use crate::{
     db::{DbContext, models::PriceTick},

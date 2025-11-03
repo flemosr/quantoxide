@@ -2,9 +2,9 @@ use std::sync::Arc;
 
 use tokio::sync::broadcast::{self, error::RecvError};
 
-use lnm_sdk::api::{
+use lnm_sdk::{
     ApiContext,
-    websocket::models::{LnmWebSocketChannel, WebSocketUpdate},
+    models::{LnmWebSocketChannel, WebSocketUpdate},
 };
 
 use crate::db::{DbContext, models::PriceTick};

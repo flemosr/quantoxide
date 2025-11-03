@@ -3,7 +3,7 @@ use std::{result, sync::Arc};
 use thiserror::Error;
 use tokio::sync::broadcast::error::RecvError;
 
-use lnm_sdk::api::websocket::{error::WebSocketApiError, state::ConnectionStatus};
+use lnm_sdk::{ConnectionStatus, error::WebSocketApiError};
 
 use crate::db::error::DbError;
 
