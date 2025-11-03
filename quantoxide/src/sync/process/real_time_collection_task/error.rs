@@ -1,4 +1,4 @@
-use std::{result, sync::Arc};
+use std::result;
 
 use thiserror::Error;
 use tokio::sync::broadcast::error::RecvError;
@@ -13,7 +13,7 @@ pub enum RealTimeCollectionError {
     WebSocketApi(#[from] WebSocketApiError),
 
     #[error("BadConnectionUpdate error: {0}")]
-    BadConnectionUpdate(Arc<WsConnectionStatus>),
+    BadConnectionUpdate(WsConnectionStatus),
 
     #[error("[Db] {0}")]
     Db(#[from] DbError),
