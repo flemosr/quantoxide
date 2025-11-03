@@ -99,7 +99,7 @@ impl WebSocketRepository for LnmWebSocketRepo {
         self.connection_status_manager.is_connected()
     }
 
-    async fn connection_status(&self) -> Arc<WsConnectionStatus> {
+    async fn connection_status(&self) -> WsConnectionStatus {
         self.connection_status_manager.snapshot()
     }
 
