@@ -23,6 +23,26 @@ impl Default for ApiContextConfig {
     }
 }
 
+impl ApiContextConfig {
+    pub fn rest_timeout(&self) -> Duration {
+        self.rest_timeout
+    }
+
+    pub fn ws_disconnect_timeout(&self) -> Duration {
+        self.ws_disconnect_timeout
+    }
+
+    pub fn with_rest_timeout(mut self, timeout: Duration) -> Self {
+        self.rest_timeout = timeout;
+        self
+    }
+
+    pub fn with_ws_disconnect_timeout(mut self, timeout: Duration) -> Self {
+        self.ws_disconnect_timeout = timeout;
+        self
+    }
+}
+
 pub struct ApiContext {
     config: ApiContextConfig,
     domain: String,
