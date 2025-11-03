@@ -9,15 +9,15 @@ use error::Result;
 use lnm::{base::LnmRestBase, futures::LnmFuturesRepository, user::LnmUserRepository};
 use repositories::{FuturesRepository, UserRepository};
 
-use super::ApiContextConfig;
+use super::ApiClientConfig;
 
 #[derive(Clone, Debug)]
 pub(crate) struct RestClientConfig {
     timeout: Duration,
 }
 
-impl From<&ApiContextConfig> for RestClientConfig {
-    fn from(value: &ApiContextConfig) -> Self {
+impl From<&ApiClientConfig> for RestClientConfig {
+    fn from(value: &ApiClientConfig) -> Self {
         Self {
             timeout: value.rest_timeout,
         }
@@ -26,7 +26,7 @@ impl From<&ApiContextConfig> for RestClientConfig {
 
 impl Default for RestClientConfig {
     fn default() -> Self {
-        (&ApiContextConfig::default()).into()
+        (&ApiClientConfig::default()).into()
     }
 }
 

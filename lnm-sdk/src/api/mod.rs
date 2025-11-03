@@ -9,12 +9,12 @@ use rest::RestClient;
 use websocket::{WebSocketClient, error::Result};
 
 #[derive(Clone, Debug)]
-pub struct ApiContextConfig {
+pub struct ApiClientConfig {
     rest_timeout: Duration,
     ws_disconnect_timeout: Duration,
 }
 
-impl Default for ApiContextConfig {
+impl Default for ApiClientConfig {
     fn default() -> Self {
         Self {
             rest_timeout: Duration::from_secs(20),
@@ -23,7 +23,7 @@ impl Default for ApiContextConfig {
     }
 }
 
-impl ApiContextConfig {
+impl ApiClientConfig {
     pub fn rest_timeout(&self) -> Duration {
         self.rest_timeout
     }
@@ -43,15 +43,15 @@ impl ApiContextConfig {
     }
 }
 
-pub struct ApiContext {
-    config: ApiContextConfig,
+pub struct ApiClient {
+    config: ApiClientConfig,
     domain: String,
     pub rest: RestClient,
     ws: Mutex<Option<WebSocketClient>>,
 }
 
-impl ApiContext {
-    fn new_inner(config: ApiContextConfig, domain: String, rest: RestClient) -> Arc<Self> {
+impl ApiClient {
+    fn new_inner(config: ApiClientConfig, domain: String, rest: RestClient) -> Arc<Self> {
         Arc::new(Self {
             config,
             domain,
@@ -60,14 +60,14 @@ impl ApiContext {
         })
     }
 
-    pub fn new(config: ApiContextConfig, domain: String) -> rest::error::Result<Arc<Self>> {
+    pub fn new(config: ApiClientConfig, domain: String) -> rest::error::Result<Arc<Self>> {
         let rest = RestClient::new(&config, domain.clone())?;
 
         Ok(Self::new_inner(config, domain, rest))
     }
 
     pub fn with_credentials(
-        config: ApiContextConfig,
+        config: ApiClientConfig,
         domain: String,
         key: String,
         secret: String,
