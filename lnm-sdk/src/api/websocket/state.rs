@@ -5,12 +5,12 @@ use std::{
 
 use super::error::WebSocketConnectionError;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum WsConnectionStatus {
     Connected,
     DisconnectInitiated,
     Disconnected,
-    Failed(WebSocketConnectionError),
+    Failed(Arc<WebSocketConnectionError>),
 }
 
 impl WsConnectionStatus {
@@ -30,14 +30,14 @@ impl fmt::Display for WsConnectionStatus {
     }
 }
 
-pub(super) struct WsConnectionStatusManager(Mutex<Arc<WsConnectionStatus>>);
+pub(super) struct WsConnectionStatusManager(Mutex<WsConnectionStatus>);
 
 impl WsConnectionStatusManager {
     pub fn new() -> Arc<Self> {
-        Arc::new(Self(Mutex::new(Arc::new(WsConnectionStatus::Connected))))
+        Arc::new(Self(Mutex::new(WsConnectionStatus::Connected)))
     }
 
-    fn lock_status(&self) -> MutexGuard<'_, Arc<WsConnectionStatus>> {
+    fn lock_status(&self) -> MutexGuard<'_, WsConnectionStatus> {
         self.0
             .lock()
             .expect("`WsConnectionStatusManager` mutex can't be poisoned")
@@ -46,10 +46,10 @@ impl WsConnectionStatusManager {
     pub fn update(&self, new_status: WsConnectionStatus) {
         let mut status_guard = self.lock_status();
 
-        *status_guard = Arc::new(new_status)
+        *status_guard = new_status
     }
 
-    pub fn snapshot(&self) -> Arc<WsConnectionStatus> {
+    pub fn snapshot(&self) -> WsConnectionStatus {
         self.lock_status().clone()
     }
 
