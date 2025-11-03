@@ -9,7 +9,7 @@ use tokio::{
 use super::super::{
     error::{ConnectionResult, WebSocketConnectionError},
     models::{LnmJsonRpcRequest, LnmJsonRpcResponse, WebSocketUpdate},
-    state::{ConnectionStatus, ConnectionStatusManager},
+    state::{WsConnectionStatus, WsConnectionStatusManager},
 };
 
 mod connection;
@@ -34,7 +34,7 @@ pub(super) struct WebSocketEventLoop {
     disconnect_rx: DisconnectReceiver,
     request_rx: RequestReceiver,
     response_tx: ResponseTransmiter,
-    connection_status_manager: Arc<ConnectionStatusManager>,
+    connection_status_manager: Arc<WsConnectionStatusManager>,
 }
 
 impl WebSocketEventLoop {
@@ -43,7 +43,7 @@ impl WebSocketEventLoop {
         disconnect_rx: DisconnectReceiver,
         request_rx: RequestReceiver,
         response_tx: ResponseTransmiter,
-        connection_status_manager: Arc<ConnectionStatusManager>,
+        connection_status_manager: Arc<WsConnectionStatusManager>,
     ) -> ConnectionResult<Self> {
         let ws = WebSocketApiConnection::new(api_domain).await?;
 
@@ -150,8 +150,8 @@ impl WebSocketEventLoop {
         };
 
         let new_connection_status = match handler().await {
-            Ok(_) => ConnectionStatus::Disconnected,
-            Err(e) => ConnectionStatus::Failed(e),
+            Ok(_) => WsConnectionStatus::Disconnected,
+            Err(e) => WsConnectionStatus::Failed(e),
         };
 
         self.connection_status_manager.update(new_connection_status);
@@ -173,8 +173,8 @@ impl WebSocketEventLoop {
         disconnect_rx: DisconnectReceiver,
         request_rx: RequestReceiver,
         response_tx: ResponseTransmiter,
-    ) -> ConnectionResult<(JoinHandle<()>, Arc<ConnectionStatusManager>)> {
-        let connection_status_manager = ConnectionStatusManager::new();
+    ) -> ConnectionResult<(JoinHandle<()>, Arc<WsConnectionStatusManager>)> {
+        let connection_status_manager = WsConnectionStatusManager::new();
 
         let event_loop = Self::new(
             api_domain,

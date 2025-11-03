@@ -12,7 +12,7 @@ use tokio_rustls::rustls::pki_types::InvalidDnsNameError;
 use super::{
     lnm::ChannelStatus,
     models::{JsonRpcResponse, LnmJsonRpcRequest, LnmWebSocketChannel, WebSocketUpdate},
-    state::ConnectionStatus,
+    state::WsConnectionStatus,
 };
 
 #[derive(Error, Debug)]
@@ -71,7 +71,7 @@ pub enum WebSocketApiError {
     FailedToSpawnEventLoop(WebSocketConnectionError),
 
     #[error("BadConnectionStatus error, {0:?}")]
-    BadConnectionStatus(Arc<ConnectionStatus>),
+    BadConnectionStatus(Arc<WsConnectionStatus>),
 
     #[error("SendConnectionUpdate error, {0}")]
     SendConnectionUpdate(broadcast::error::SendError<WebSocketUpdate>),
@@ -113,7 +113,7 @@ pub enum WebSocketApiError {
     TaskJoin(JoinError),
 
     #[error("WebSocket is not connected, status: {0}")]
-    WebSocketNotConnected(Arc<ConnectionStatus>),
+    WebSocketNotConnected(Arc<WsConnectionStatus>),
 
     #[error("WebSocket disconnect timeout")]
     DisconnectTimeout,

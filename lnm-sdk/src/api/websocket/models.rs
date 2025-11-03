@@ -7,7 +7,7 @@ use serde_json::Value;
 
 use super::{
     error::{ConnectionResult, Result, WebSocketApiError, WebSocketConnectionError},
-    state::ConnectionStatus,
+    state::WsConnectionStatus,
 };
 
 #[derive(Serialize, Debug, PartialEq, Eq)]
@@ -306,11 +306,11 @@ impl<'de> Deserialize<'de> for LnmJsonRpcResponse {
 pub enum WebSocketUpdate {
     PriceTick(PriceTickLNM),
     PriceIndex(PriceIndexLNM),
-    ConnectionStatus(Arc<ConnectionStatus>),
+    ConnectionStatus(Arc<WsConnectionStatus>),
 }
 
-impl From<Arc<ConnectionStatus>> for WebSocketUpdate {
-    fn from(value: Arc<ConnectionStatus>) -> Self {
+impl From<Arc<WsConnectionStatus>> for WebSocketUpdate {
+    fn from(value: Arc<WsConnectionStatus>) -> Self {
         Self::ConnectionStatus(value)
     }
 }

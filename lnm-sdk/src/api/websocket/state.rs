@@ -6,50 +6,50 @@ use std::{
 use super::error::WebSocketConnectionError;
 
 #[derive(Debug)]
-pub enum ConnectionStatus {
+pub enum WsConnectionStatus {
     Connected,
     DisconnectInitiated,
     Disconnected,
     Failed(WebSocketConnectionError),
 }
 
-impl ConnectionStatus {
+impl WsConnectionStatus {
     pub fn is_connected(&self) -> bool {
-        matches!(self, ConnectionStatus::Connected)
+        matches!(self, WsConnectionStatus::Connected)
     }
 }
 
-impl fmt::Display for ConnectionStatus {
+impl fmt::Display for WsConnectionStatus {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ConnectionStatus::Connected => write!(f, "Connected"),
-            ConnectionStatus::DisconnectInitiated => write!(f, "Disconnect Initiated"),
-            ConnectionStatus::Disconnected => write!(f, "Disconnected"),
-            ConnectionStatus::Failed(err) => write!(f, "Failed: {}", err),
+            WsConnectionStatus::Connected => write!(f, "Connected"),
+            WsConnectionStatus::DisconnectInitiated => write!(f, "Disconnect Initiated"),
+            WsConnectionStatus::Disconnected => write!(f, "Disconnected"),
+            WsConnectionStatus::Failed(err) => write!(f, "Failed: {}", err),
         }
     }
 }
 
-pub(super) struct ConnectionStatusManager(Mutex<Arc<ConnectionStatus>>);
+pub(super) struct WsConnectionStatusManager(Mutex<Arc<WsConnectionStatus>>);
 
-impl ConnectionStatusManager {
+impl WsConnectionStatusManager {
     pub fn new() -> Arc<Self> {
-        Arc::new(Self(Mutex::new(Arc::new(ConnectionStatus::Connected))))
+        Arc::new(Self(Mutex::new(Arc::new(WsConnectionStatus::Connected))))
     }
 
-    fn lock_status(&self) -> MutexGuard<'_, Arc<ConnectionStatus>> {
+    fn lock_status(&self) -> MutexGuard<'_, Arc<WsConnectionStatus>> {
         self.0
             .lock()
-            .expect("`ConnectionStatusManager` mutex can't be poisoned")
+            .expect("`WsConnectionStatusManager` mutex can't be poisoned")
     }
 
-    pub fn update(&self, new_status: ConnectionStatus) {
+    pub fn update(&self, new_status: WsConnectionStatus) {
         let mut status_guard = self.lock_status();
 
         *status_guard = Arc::new(new_status)
     }
 
-    pub fn snapshot(&self) -> Arc<ConnectionStatus> {
+    pub fn snapshot(&self) -> Arc<WsConnectionStatus> {
         self.lock_status().clone()
     }
 

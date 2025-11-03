@@ -15,7 +15,7 @@ use super::{
     error::{Result, WebSocketApiError},
     models::{LnmJsonRpcReqMethod, LnmJsonRpcRequest, LnmWebSocketChannel, WebSocketUpdate},
     repositories::WebSocketRepository,
-    state::{ConnectionStatus, ConnectionStatusManager},
+    state::{WsConnectionStatus, WsConnectionStatusManager},
 };
 
 mod event_loop;
@@ -39,7 +39,7 @@ pub(super) struct LnmWebSocketRepo {
     disconnect_tx: DisconnectTransmiter,
     request_tx: RequestTransmiter,
     response_tx: ResponseTransmiter,
-    connection_status_manager: Arc<ConnectionStatusManager>,
+    connection_status_manager: Arc<WsConnectionStatusManager>,
     subscriptions: AsyncMutex<HashMap<LnmWebSocketChannel, ChannelStatus>>,
 }
 
@@ -99,7 +99,7 @@ impl WebSocketRepository for LnmWebSocketRepo {
         self.connection_status_manager.is_connected()
     }
 
-    async fn connection_status(&self) -> Arc<ConnectionStatus> {
+    async fn connection_status(&self) -> Arc<WsConnectionStatus> {
         self.connection_status_manager.snapshot()
     }
 
@@ -291,7 +291,7 @@ impl WebSocketRepository for LnmWebSocketRepo {
         };
 
         self.connection_status_manager
-            .update(ConnectionStatus::DisconnectInitiated);
+            .update(WsConnectionStatus::DisconnectInitiated);
 
         self.disconnect_tx.send(()).await.map_err(|e| {
             handle.abort();
