@@ -12,7 +12,7 @@ use sha2::Sha256;
 use uuid::Uuid;
 
 use super::super::{
-    RestApiContextConfig,
+    RestClientConfig,
     error::{RestApiError, Result},
 };
 
@@ -130,7 +130,7 @@ pub(crate) struct LnmRestBase {
 
 impl LnmRestBase {
     fn new_inner(
-        config: RestApiContextConfig,
+        config: RestClientConfig,
         domain: String,
         credentials: Option<LnmApiCredentials>,
     ) -> Result<Arc<Self>> {
@@ -146,12 +146,12 @@ impl LnmRestBase {
         }))
     }
 
-    pub fn new(config: RestApiContextConfig, domain: String) -> Result<Arc<Self>> {
+    pub fn new(config: RestClientConfig, domain: String) -> Result<Arc<Self>> {
         Self::new_inner(config, domain, None)
     }
 
     pub fn with_credentials(
-        config: RestApiContextConfig,
+        config: RestClientConfig,
         domain: String,
         key: String,
         secret: String,

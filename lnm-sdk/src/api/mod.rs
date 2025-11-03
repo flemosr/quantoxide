@@ -5,7 +5,7 @@ use tokio::sync::Mutex;
 pub(crate) mod rest;
 pub(crate) mod websocket;
 
-use rest::RestApiContext;
+use rest::RestClient;
 use websocket::{WebSocketApiContext, error::Result};
 
 #[derive(Clone, Debug)]
@@ -46,12 +46,12 @@ impl ApiContextConfig {
 pub struct ApiContext {
     config: ApiContextConfig,
     domain: String,
-    pub rest: RestApiContext,
+    pub rest: RestClient,
     ws: Mutex<Option<WebSocketApiContext>>,
 }
 
 impl ApiContext {
-    fn new_inner(config: ApiContextConfig, domain: String, rest: RestApiContext) -> Arc<Self> {
+    fn new_inner(config: ApiContextConfig, domain: String, rest: RestClient) -> Arc<Self> {
         Arc::new(Self {
             config,
             domain,
@@ -61,7 +61,7 @@ impl ApiContext {
     }
 
     pub fn new(config: ApiContextConfig, domain: String) -> rest::error::Result<Arc<Self>> {
-        let rest = RestApiContext::new(&config, domain.clone())?;
+        let rest = RestClient::new(&config, domain.clone())?;
 
         Ok(Self::new_inner(config, domain, rest))
     }
@@ -73,8 +73,7 @@ impl ApiContext {
         secret: String,
         passphrase: String,
     ) -> rest::error::Result<Arc<Self>> {
-        let rest =
-            RestApiContext::with_credentials(&config, domain.clone(), key, secret, passphrase)?;
+        let rest = RestClient::with_credentials(&config, domain.clone(), key, secret, passphrase)?;
 
         Ok(Self::new_inner(config, domain, rest))
     }

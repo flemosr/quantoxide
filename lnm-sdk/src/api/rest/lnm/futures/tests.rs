@@ -3,7 +3,7 @@ use std::{env, time::Instant};
 use dotenv::dotenv;
 
 use super::super::super::{
-    RestApiContextConfig,
+    RestClientConfig,
     models::{
         margin::Margin,
         price::{BoundedPercentage, LowerBoundedPercentage},
@@ -24,14 +24,9 @@ fn init_repository_from_env() -> LnmFuturesRepository {
     let passphrase = env::var("LNM_API_PASSPHRASE")
         .expect("LNM_API_PASSPHRASE environment variable must be set");
 
-    let base = LnmRestBase::with_credentials(
-        RestApiContextConfig::default(),
-        domain,
-        key,
-        secret,
-        passphrase,
-    )
-    .expect("Can create `LnmApiBase`");
+    let base =
+        LnmRestBase::with_credentials(RestClientConfig::default(), domain, key, secret, passphrase)
+            .expect("Can create `LnmApiBase`");
 
     LnmFuturesRepository::new(base)
 }

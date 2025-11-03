@@ -12,11 +12,11 @@ use repositories::{FuturesRepository, UserRepository};
 use super::ApiContextConfig;
 
 #[derive(Clone, Debug)]
-pub(crate) struct RestApiContextConfig {
+pub(crate) struct RestClientConfig {
     timeout: Duration,
 }
 
-impl From<&ApiContextConfig> for RestApiContextConfig {
+impl From<&ApiContextConfig> for RestClientConfig {
     fn from(value: &ApiContextConfig) -> Self {
         Self {
             timeout: value.rest_timeout,
@@ -24,19 +24,19 @@ impl From<&ApiContextConfig> for RestApiContextConfig {
     }
 }
 
-impl Default for RestApiContextConfig {
+impl Default for RestClientConfig {
     fn default() -> Self {
         (&ApiContextConfig::default()).into()
     }
 }
 
-pub struct RestApiContext {
+pub struct RestClient {
     pub has_credentials: bool,
     pub futures: Box<dyn FuturesRepository>,
     pub user: Box<dyn UserRepository>,
 }
 
-impl RestApiContext {
+impl RestClient {
     fn new_inner(base: Arc<LnmRestBase>) -> Self {
         let has_credentials = base.has_credentials();
         let futures = Box::new(LnmFuturesRepository::new(base.clone()));
@@ -49,14 +49,14 @@ impl RestApiContext {
         }
     }
 
-    pub(crate) fn new(config: impl Into<RestApiContextConfig>, domain: String) -> Result<Self> {
+    pub(crate) fn new(config: impl Into<RestClientConfig>, domain: String) -> Result<Self> {
         let base = LnmRestBase::new(config.into(), domain)?;
 
         Ok(Self::new_inner(base))
     }
 
     pub(crate) fn with_credentials(
-        config: impl Into<RestApiContextConfig>,
+        config: impl Into<RestClientConfig>,
         domain: String,
         key: String,
         secret: String,

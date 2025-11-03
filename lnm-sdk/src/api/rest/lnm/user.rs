@@ -34,7 +34,7 @@ mod tests {
     use dotenv::dotenv;
 
     use super::*;
-    use super::{super::super::RestApiContextConfig, LnmRestBase};
+    use super::{super::super::RestClientConfig, LnmRestBase};
 
     fn init_repository_from_env() -> LnmUserRepository {
         dotenv().ok();
@@ -48,7 +48,7 @@ mod tests {
             .expect("LNM_API_PASSPHRASE environment variable must be set");
 
         let base = LnmRestBase::with_credentials(
-            RestApiContextConfig::default(),
+            RestClientConfig::default(),
             domain,
             key,
             secret,
