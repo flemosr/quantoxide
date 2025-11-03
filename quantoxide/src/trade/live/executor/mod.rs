@@ -10,7 +10,7 @@ use tokio::sync::broadcast::{self, error::RecvError};
 use uuid::Uuid;
 
 use lnm_sdk::{
-    ApiContext,
+    ApiClient,
     models::{BoundedPercentage, Leverage, Price, Trade, TradeSide, TradeSize, trade_util},
 };
 
@@ -466,7 +466,7 @@ impl LiveTradeExecutorLauncher {
     pub fn new(
         config: impl Into<LiveTradeExecutorConfig>,
         db: Arc<DbContext>,
-        api: Arc<ApiContext>,
+        api: Arc<ApiClient>,
         sync_rx: SyncReceiver,
     ) -> LiveTradeExecutorResult<Self> {
         if !api.rest.has_credentials {

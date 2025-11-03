@@ -4,7 +4,7 @@ use tokio::sync::broadcast;
 use uuid::Uuid;
 
 use lnm_sdk::{
-    ApiContext,
+    ApiClient,
     models::{Leverage, LnmTrade, Price, TradeExecution, TradeSide, TradeSize, User},
 };
 
@@ -121,12 +121,12 @@ pub type LiveTradeExecutorReceiver = broadcast::Receiver<LiveTradeExecutorUpdate
 
 #[derive(Clone)]
 pub struct WrappedApiContext {
-    api: Arc<ApiContext>,
+    api: Arc<ApiClient>,
     update_tx: LiveTradeExecutorTransmiter,
 }
 
 impl WrappedApiContext {
-    pub fn new(api: Arc<ApiContext>, update_tx: LiveTradeExecutorTransmiter) -> Self {
+    pub fn new(api: Arc<ApiClient>, update_tx: LiveTradeExecutorTransmiter) -> Self {
         Self { api, update_tx }
     }
 

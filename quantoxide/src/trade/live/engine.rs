@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use chrono::Duration;
 use tokio::{sync::broadcast, time};
 
-use lnm_sdk::ApiContext;
+use lnm_sdk::ApiClient;
 
 use crate::{
     db::DbContext,
@@ -137,7 +137,7 @@ impl LiveEngine {
     pub fn with_signal_operator(
         config: LiveConfig,
         db: Arc<DbContext>,
-        api: Arc<ApiContext>,
+        api: Arc<ApiClient>,
         evaluators: Vec<ConfiguredSignalEvaluator>,
         operator: Box<dyn SignalOperator>,
     ) -> Result<Self> {
@@ -192,7 +192,7 @@ impl LiveEngine {
     pub fn with_raw_operator(
         config: LiveConfig,
         db: Arc<DbContext>,
-        api: Arc<ApiContext>,
+        api: Arc<ApiClient>,
         operator: Box<dyn RawOperator>,
     ) -> Result<Self> {
         let operator = WrappedRawOperator::from(operator);
