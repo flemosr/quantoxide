@@ -11,7 +11,7 @@ use tokio::{
 };
 
 use super::{
-    WebSocketApiConfig,
+    WebSocketClientConfig,
     error::{Result, WebSocketApiError},
     models::{LnmJsonRpcReqMethod, LnmJsonRpcRequest, LnmWebSocketChannel, WebSocketUpdate},
     repositories::WebSocketRepository,
@@ -33,7 +33,7 @@ pub enum ChannelStatus {
 }
 
 pub(super) struct LnmWebSocketRepo {
-    config: WebSocketApiConfig,
+    config: WebSocketClientConfig,
     // Consumed in `disconnect` or `Drop`
     event_loop_handle: SyncMutex<Option<JoinHandle<()>>>,
     disconnect_tx: DisconnectTransmiter,
@@ -44,7 +44,7 @@ pub(super) struct LnmWebSocketRepo {
 }
 
 impl LnmWebSocketRepo {
-    pub async fn new(config: WebSocketApiConfig, api_domain: String) -> Result<Arc<Self>> {
+    pub async fn new(config: WebSocketClientConfig, api_domain: String) -> Result<Arc<Self>> {
         // Internal channel for disconnect signal
         let (disconnect_tx, disconnect_rx) = mpsc::channel::<()>(1);
 

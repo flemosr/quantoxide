@@ -14,11 +14,11 @@ use tokio::time;
 use super::ApiContextConfig;
 
 #[derive(Clone, Debug)]
-pub(crate) struct WebSocketApiConfig {
+pub(crate) struct WebSocketClientConfig {
     disconnect_timeout: time::Duration,
 }
 
-impl From<&ApiContextConfig> for WebSocketApiConfig {
+impl From<&ApiContextConfig> for WebSocketClientConfig {
     fn from(value: &ApiContextConfig) -> Self {
         Self {
             disconnect_timeout: value.ws_disconnect_timeout,
@@ -26,18 +26,18 @@ impl From<&ApiContextConfig> for WebSocketApiConfig {
     }
 }
 
-impl WebSocketApiConfig {
+impl WebSocketClientConfig {
     pub fn disconnect_timeout(&self) -> time::Duration {
         self.disconnect_timeout
     }
 }
 
-pub type WebSocketApiContext = Arc<dyn WebSocketRepository>;
+pub type WebSocketClient = Arc<dyn WebSocketRepository>;
 
 pub(crate) async fn new(
-    config: impl Into<WebSocketApiConfig>,
+    config: impl Into<WebSocketClientConfig>,
     api_domain: String,
-) -> Result<WebSocketApiContext> {
+) -> Result<WebSocketClient> {
     let lnm_websocket_repo = LnmWebSocketRepo::new(config.into(), api_domain).await?;
 
     Ok(lnm_websocket_repo)

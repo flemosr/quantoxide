@@ -6,7 +6,7 @@ pub(crate) mod rest;
 pub(crate) mod websocket;
 
 use rest::RestClient;
-use websocket::{WebSocketApiContext, error::Result};
+use websocket::{WebSocketClient, error::Result};
 
 #[derive(Clone, Debug)]
 pub struct ApiContextConfig {
@@ -47,7 +47,7 @@ pub struct ApiContext {
     config: ApiContextConfig,
     domain: String,
     pub rest: RestClient,
-    ws: Mutex<Option<WebSocketApiContext>>,
+    ws: Mutex<Option<WebSocketClient>>,
 }
 
 impl ApiContext {
@@ -78,7 +78,7 @@ impl ApiContext {
         Ok(Self::new_inner(config, domain, rest))
     }
 
-    pub async fn connect_ws(&self) -> Result<WebSocketApiContext> {
+    pub async fn connect_ws(&self) -> Result<WebSocketClient> {
         let mut ws_guard = self.ws.lock().await;
 
         if let Some(ws) = ws_guard.as_ref() {
