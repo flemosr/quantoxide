@@ -32,7 +32,7 @@ pub enum ChannelStatus {
     UnsubscriptionPending,
 }
 
-pub struct LnmWebSocketRepo {
+pub(super) struct LnmWebSocketRepo {
     config: WebSocketApiConfig,
     // Consumed in `disconnect` or `Drop`
     event_loop_handle: SyncMutex<Option<JoinHandle<()>>>,
