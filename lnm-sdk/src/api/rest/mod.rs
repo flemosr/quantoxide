@@ -1,8 +1,8 @@
 use std::{sync::Arc, time::Duration};
 
-pub mod error;
+pub(crate) mod error;
 mod lnm;
-pub mod models;
+pub(crate) mod models;
 mod repositories;
 
 use error::Result;
