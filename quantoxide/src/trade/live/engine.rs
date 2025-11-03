@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use chrono::Duration;
 use tokio::{sync::broadcast, time};
 
-use lnm_sdk::api::ApiContext;
+use lnm_sdk::ApiContext;
 
 use crate::{
     db::DbContext,
