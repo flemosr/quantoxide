@@ -1,10 +1,13 @@
 pub mod api;
 
 pub mod error {
-    pub use super::api::rest::models::error::{
-        BoundedPercentageValidationError, FuturesTradeRequestValidationError,
-        LeverageValidationError, LowerBoundedPercentageValidationError, MarginValidationError,
-        PriceValidationError, QuantityValidationError, TradeValidationError, ValidationError,
+    pub use super::api::rest::{
+        error::RestApiError,
+        models::error::{
+            BoundedPercentageValidationError, FuturesTradeRequestValidationError,
+            LeverageValidationError, LowerBoundedPercentageValidationError, MarginValidationError,
+            PriceValidationError, QuantityValidationError, TradeValidationError, ValidationError,
+        },
     };
 }
 
