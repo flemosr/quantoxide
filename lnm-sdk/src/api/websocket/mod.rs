@@ -1,10 +1,10 @@
 use std::sync::Arc;
 
-pub mod error;
+pub(crate) mod error;
 mod lnm;
-pub mod models;
+pub(crate) mod models;
 mod repositories;
-pub mod state;
+pub mod state; // TODO
 
 use error::Result;
 use lnm::LnmWebSocketRepo;
@@ -37,10 +37,10 @@ impl WebSocketApiConfig {
         self.disconnect_timeout
     }
 
-    pub fn set_disconnect_timeout(mut self, secs: u64) -> Self {
-        self.disconnect_timeout = time::Duration::from_secs(secs);
-        self
-    }
+    // pub fn set_disconnect_timeout(mut self, secs: u64) -> Self {
+    //     self.disconnect_timeout = time::Duration::from_secs(secs);
+    //     self
+    // }
 }
 
 pub type WebSocketApiContext = Arc<dyn WebSocketRepository>;
