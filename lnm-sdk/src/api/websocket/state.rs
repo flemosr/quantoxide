@@ -30,7 +30,7 @@ impl fmt::Display for ConnectionStatus {
     }
 }
 
-pub struct ConnectionStatusManager(Mutex<Arc<ConnectionStatus>>);
+pub(super) struct ConnectionStatusManager(Mutex<Arc<ConnectionStatus>>);
 
 impl ConnectionStatusManager {
     pub fn new() -> Arc<Self> {
