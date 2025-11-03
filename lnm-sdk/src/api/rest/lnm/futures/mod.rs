@@ -25,10 +25,7 @@ use super::{
     base::{ApiPath, LnmApiBase},
 };
 
-#[cfg(test)]
-mod tests;
-
-pub struct LnmFuturesRepository {
+pub(crate) struct LnmFuturesRepository {
     base: Arc<LnmApiBase>,
 }
 
@@ -234,3 +231,6 @@ impl FuturesRepository for LnmFuturesRepository {
             .await
     }
 }
+
+#[cfg(test)]
+mod tests;
