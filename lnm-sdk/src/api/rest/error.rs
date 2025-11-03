@@ -51,4 +51,4 @@ pub enum RestApiError {
     RequestJsonSerializeFailed(serde_json::Error),
 }
 
-pub type Result<T> = result::Result<T, RestApiError>;
+pub(crate) type Result<T> = result::Result<T, RestApiError>;
