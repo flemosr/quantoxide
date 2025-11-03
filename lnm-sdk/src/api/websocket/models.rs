@@ -1,4 +1,4 @@
-use std::{collections::HashSet, fmt, sync::Arc};
+use std::{collections::HashSet, fmt};
 
 use chrono::{DateTime, Utc};
 use rand::Rng;
@@ -306,11 +306,11 @@ impl<'de> Deserialize<'de> for LnmJsonRpcResponse {
 pub enum WebSocketUpdate {
     PriceTick(PriceTickLNM),
     PriceIndex(PriceIndexLNM),
-    ConnectionStatus(Arc<WsConnectionStatus>),
+    ConnectionStatus(WsConnectionStatus),
 }
 
-impl From<Arc<WsConnectionStatus>> for WebSocketUpdate {
-    fn from(value: Arc<WsConnectionStatus>) -> Self {
+impl From<WsConnectionStatus> for WebSocketUpdate {
+    fn from(value: WsConnectionStatus) -> Self {
         Self::ConnectionStatus(value)
     }
 }
