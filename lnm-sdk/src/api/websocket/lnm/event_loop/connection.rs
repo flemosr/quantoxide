@@ -22,7 +22,7 @@ use super::super::super::{
 };
 
 #[derive(Clone, Debug)]
-pub enum LnmWebSocketResponse {
+pub(super) enum LnmWebSocketResponse {
     Close,
     JsonRpc(LnmJsonRpcResponse),
     Ping(Vec<u8>),
@@ -41,7 +41,7 @@ where
     }
 }
 
-pub struct WebSocketApiConnection(FragmentCollector<TokioIo<Upgraded>>);
+pub(super) struct WebSocketApiConnection(FragmentCollector<TokioIo<Upgraded>>);
 
 impl WebSocketApiConnection {
     pub async fn new(api_domain: String) -> ConnectionResult<Self> {

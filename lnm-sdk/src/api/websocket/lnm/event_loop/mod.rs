@@ -20,16 +20,16 @@ const WS_HEARTBEAT_SECS: u64 = 5;
 
 type PendingMap = HashMap<String, (LnmJsonRpcRequest, oneshot::Sender<bool>)>;
 
-pub type DisconnectTransmiter = mpsc::Sender<()>;
+pub(super) type DisconnectTransmiter = mpsc::Sender<()>;
 type DisconnectReceiver = mpsc::Receiver<()>;
 
-pub type RequestTransmiter = mpsc::Sender<(LnmJsonRpcRequest, oneshot::Sender<bool>)>;
+pub(super) type RequestTransmiter = mpsc::Sender<(LnmJsonRpcRequest, oneshot::Sender<bool>)>;
 type RequestReceiver = mpsc::Receiver<(LnmJsonRpcRequest, oneshot::Sender<bool>)>;
 
-pub type ResponseTransmiter = broadcast::Sender<WebSocketUpdate>;
-pub type ResponseReceiver = broadcast::Receiver<WebSocketUpdate>;
+pub(super) type ResponseTransmiter = broadcast::Sender<WebSocketUpdate>;
+pub(super) type ResponseReceiver = broadcast::Receiver<WebSocketUpdate>;
 
-pub struct WebSocketEventLoop {
+pub(super) struct WebSocketEventLoop {
     ws: WebSocketApiConnection,
     disconnect_rx: DisconnectReceiver,
     request_rx: RequestReceiver,
