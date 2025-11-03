@@ -1,4 +1,4 @@
-use std::{io, result, string::FromUtf8Error, sync::Arc};
+use std::{io, result, string::FromUtf8Error};
 
 use fastwebsockets::{OpCode, WebSocketError};
 use hyper::http;
@@ -70,8 +70,8 @@ pub enum WebSocketApiError {
     #[error("Failed to spawn event loop: {0}")]
     FailedToSpawnEventLoop(WebSocketConnectionError),
 
-    #[error("BadConnectionStatus error, {0:?}")]
-    BadConnectionStatus(Arc<WsConnectionStatus>),
+    #[error("BadConnectionStatus error, {0}")]
+    BadConnectionStatus(WsConnectionStatus),
 
     #[error("SendConnectionUpdate error, {0}")]
     SendConnectionUpdate(broadcast::error::SendError<WebSocketUpdate>),
@@ -113,7 +113,7 @@ pub enum WebSocketApiError {
     TaskJoin(JoinError),
 
     #[error("WebSocket is not connected, status: {0}")]
-    WebSocketNotConnected(Arc<WsConnectionStatus>),
+    WebSocketNotConnected(WsConnectionStatus),
 
     #[error("WebSocket disconnect timeout")]
     DisconnectTimeout,
