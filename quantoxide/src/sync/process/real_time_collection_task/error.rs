@@ -3,7 +3,7 @@ use std::{result, sync::Arc};
 use thiserror::Error;
 use tokio::sync::broadcast::error::RecvError;
 
-use lnm_sdk::{ConnectionStatus, error::WebSocketApiError};
+use lnm_sdk::{WsConnectionStatus, error::WebSocketApiError};
 
 use crate::db::error::DbError;
 
@@ -13,7 +13,7 @@ pub enum RealTimeCollectionError {
     WebSocketApi(#[from] WebSocketApiError),
 
     #[error("BadConnectionUpdate error: {0}")]
-    BadConnectionUpdate(Arc<ConnectionStatus>),
+    BadConnectionUpdate(Arc<WsConnectionStatus>),
 
     #[error("[Db] {0}")]
     Db(#[from] DbError),
