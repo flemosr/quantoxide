@@ -17,7 +17,7 @@ use super::super::{
 };
 
 #[derive(Clone)]
-pub enum ApiPath {
+pub(crate) enum ApiPath {
     FuturesPriceHistory,
     FuturesTrade,
     FuturesGetTrade(Uuid),
@@ -122,7 +122,7 @@ impl LnmApiCredentials {
     }
 }
 
-pub struct LnmApiBase {
+pub(crate) struct LnmApiBase {
     domain: String,
     credentials: Option<LnmApiCredentials>,
     client: Client,
