@@ -151,7 +151,7 @@ impl WebSocketEventLoop {
 
         let new_connection_status = match handler().await {
             Ok(_) => WsConnectionStatus::Disconnected,
-            Err(e) => WsConnectionStatus::Failed(e),
+            Err(e) => WsConnectionStatus::Failed(Arc::new(e)),
         };
 
         self.connection_status_manager.update(new_connection_status);
@@ -162,10 +162,10 @@ impl WebSocketEventLoop {
             let _ = oneshot_tx.send(false);
         }
 
-        let connection_update = self.connection_status_manager.snapshot();
+        let connection_status = self.connection_status_manager.snapshot();
 
         // Ignore no-receivers errors
-        let _ = self.response_tx.send(connection_update.into());
+        let _ = self.response_tx.send(connection_status.into());
     }
 
     pub async fn try_spawn(
