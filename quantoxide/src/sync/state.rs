@@ -7,7 +7,10 @@ use tokio::sync::broadcast;
 
 use crate::db::models::PriceTick;
 
-use super::{PriceHistoryState, SyncProcessFatalError, SyncProcessRecoverableError};
+use super::process::{
+    error::{SyncProcessFatalError, SyncProcessRecoverableError},
+    sync_price_history_task::price_history_state::PriceHistoryState,
+};
 
 #[derive(Debug, Clone)]
 pub enum SyncStatusNotSynced {
@@ -102,7 +105,7 @@ impl From<PriceHistoryState> for SyncUpdate {
     }
 }
 
-pub type SyncTransmiter = broadcast::Sender<SyncUpdate>;
+pub(super) type SyncTransmiter = broadcast::Sender<SyncUpdate>;
 pub type SyncReceiver = broadcast::Receiver<SyncUpdate>;
 
 pub trait SyncReader: Send + Sync + 'static {
@@ -111,7 +114,7 @@ pub trait SyncReader: Send + Sync + 'static {
 }
 
 #[derive(Debug)]
-pub struct SyncStatusManager {
+pub(super) struct SyncStatusManager {
     status: Mutex<SyncStatus>,
     update_tx: SyncTransmiter,
 }
