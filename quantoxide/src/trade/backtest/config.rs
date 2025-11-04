@@ -77,7 +77,7 @@ impl BacktestConfig {
     }
 }
 
-pub struct SimulatedTradeExecutorConfig {
+pub(super) struct SimulatedTradeExecutorConfig {
     max_running_qtd: usize,
     fee_perc: BoundedPercentage,
     tsl_step_size: BoundedPercentage,
