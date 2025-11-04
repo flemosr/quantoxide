@@ -6,7 +6,10 @@ use tokio::{
     task::JoinError,
 };
 
-use super::{RealTimeCollectionError, SyncPriceHistoryError};
+use super::{
+    real_time_collection_task::error::RealTimeCollectionError,
+    sync_price_history_task::error::SyncPriceHistoryError,
+};
 
 #[derive(Error, Debug)]
 pub enum SyncProcessRecoverableError {
@@ -50,4 +53,4 @@ pub enum SyncProcessError {
     Fatal(#[from] SyncProcessFatalError),
 }
 
-pub type Result<T> = result::Result<T, SyncProcessError>;
+pub(super) type Result<T> = result::Result<T, SyncProcessError>;
