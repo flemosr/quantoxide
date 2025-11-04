@@ -8,6 +8,12 @@ pub(crate) mod util;
 
 pub mod error {
     pub use super::db::error::DbError;
+    pub use super::signal::{
+        error::{SignalError, SignalValidationError},
+        process::error::{
+            SignalProcessError, SignalProcessFatalError, SignalProcessRecoverableError,
+        },
+    };
     pub use super::sync::{
         error::SyncError,
         process::{
