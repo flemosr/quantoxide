@@ -8,6 +8,14 @@ pub(crate) mod util;
 
 pub mod error {
     pub use super::db::error::DbError;
+    pub use super::sync::{
+        error::SyncError,
+        process::{
+            error::{SyncProcessFatalError, SyncProcessRecoverableError},
+            real_time_collection_task::error::RealTimeCollectionError,
+            sync_price_history_task::error::SyncPriceHistoryError,
+        },
+    };
     pub use super::util::PanicPayload;
 }
 
