@@ -23,6 +23,7 @@ pub mod error {
         },
     };
     pub use super::trade::{
+        backtest::error::BacktestError,
         error::{TradeCoreError, TradeExecutorError},
         live::{
             error::LiveError,
