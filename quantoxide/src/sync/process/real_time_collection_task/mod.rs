@@ -9,13 +9,11 @@ use lnm_sdk::{
 
 use crate::db::{DbContext, models::PriceTick};
 
-mod error;
+pub(crate) mod error;
 
-use error::Result;
+use error::{RealTimeCollectionError, Result};
 
-pub use error::RealTimeCollectionError;
-
-pub struct RealTimeCollectionTask {
+pub(super) struct RealTimeCollectionTask {
     db: Arc<DbContext>,
     api: Arc<ApiClient>,
     shutdown_tx: broadcast::Sender<()>,
