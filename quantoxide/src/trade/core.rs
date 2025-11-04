@@ -26,7 +26,7 @@ pub struct RunningTradesMap<T: TradeRunning + ?Sized> {
     id_to_time: HashMap<Uuid, DateTime<Utc>>,
 }
 
-pub type DynRunningTradesMap = RunningTradesMap<dyn TradeRunning>;
+pub(super) type DynRunningTradesMap = RunningTradesMap<dyn TradeRunning>;
 
 impl<T: TradeRunning + ?Sized> RunningTradesMap<T> {
     pub(crate) fn new() -> Self {
@@ -633,7 +633,7 @@ pub trait SignalOperator: Send + Sync {
     ) -> std::result::Result<(), Box<dyn std::error::Error>>;
 }
 
-pub(crate) struct WrappedSignalOperator(Box<dyn SignalOperator>);
+pub(super) struct WrappedSignalOperator(Box<dyn SignalOperator>);
 
 impl WrappedSignalOperator {
     pub fn set_trade_executor(
@@ -678,7 +678,7 @@ pub trait RawOperator: Send + Sync {
     ) -> std::result::Result<(), Box<dyn std::error::Error>>;
 }
 
-pub(crate) struct WrappedRawOperator(Box<dyn RawOperator>);
+pub(super) struct WrappedRawOperator(Box<dyn RawOperator>);
 
 impl WrappedRawOperator {
     pub fn set_trade_executor(
@@ -900,7 +900,7 @@ pub trait TradeExt: Trade {
 impl<T: Trade + ?Sized> TradeExt for T {}
 
 #[derive(Debug, Clone)]
-pub enum PriceTrigger {
+pub(super) enum PriceTrigger {
     NotSet,
     Set { min: Price, max: Price },
 }
