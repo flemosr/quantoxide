@@ -18,13 +18,13 @@ use super::{
 };
 
 #[derive(Debug, PartialEq, EnumIter)]
-pub enum LiveTuiPane {
+pub(in crate::tui) enum LiveTuiPane {
     TradesPane,
     SummaryPane,
     LogPane,
 }
 
-pub struct LiveTuiViewState {
+pub(in crate::tui) struct LiveTuiViewState {
     log_file: Option<File>,
     active_pane: LiveTuiPane,
 
@@ -47,7 +47,7 @@ pub struct LiveTuiViewState {
     log_h_scroll: usize,
 }
 
-pub struct LiveTuiView {
+pub(in crate::tui) struct LiveTuiView {
     max_tui_log_len: usize,
     state: Mutex<LiveTuiViewState>,
 }
