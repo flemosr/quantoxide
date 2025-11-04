@@ -42,4 +42,4 @@ pub enum IndicatorError {
     },
 }
 
-pub type Result<T> = result::Result<T, IndicatorError>;
+pub(super) type Result<T> = result::Result<T, IndicatorError>;
