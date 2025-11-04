@@ -12,11 +12,11 @@ use tokio::{
 
 use crate::{
     trade::{
+        TradingState,
         backtest::{
             engine::BacktestEngine,
             state::{BacktestReceiver, BacktestUpdate},
         },
-        core::TradingState,
     },
     util::AbortOnDropHandle,
 };
