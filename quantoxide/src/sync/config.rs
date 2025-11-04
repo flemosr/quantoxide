@@ -120,7 +120,7 @@ impl From<&LiveConfig> for SyncConfig {
 }
 
 #[derive(Debug)]
-pub struct SyncControllerConfig {
+pub(crate) struct SyncControllerConfig {
     shutdown_timeout: time::Duration,
 }
 
@@ -139,7 +139,7 @@ impl From<&SyncConfig> for SyncControllerConfig {
 }
 
 #[derive(Clone)]
-pub struct SyncProcessConfig {
+pub(crate) struct SyncProcessConfig {
     api_cooldown: time::Duration,
     api_error_cooldown: time::Duration,
     api_error_max_trials: u32,
@@ -174,7 +174,7 @@ impl From<&SyncConfig> for SyncProcessConfig {
 }
 
 #[derive(Clone)]
-pub struct SyncPriceHistoryTaskConfig {
+pub(crate) struct SyncPriceHistoryTaskConfig {
     api_cooldown: time::Duration,
     api_error_cooldown: time::Duration,
     api_error_max_trials: u32,
