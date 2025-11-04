@@ -1,5 +1,5 @@
 mod db;
-pub mod indicators;
+pub(crate) mod indicators;
 pub mod signal;
 pub mod sync;
 pub mod trade;
