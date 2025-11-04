@@ -10,7 +10,7 @@ use crate::{db::error::DbError, sync::process::error::SyncProcessFatalError};
 
 use super::{
     super::super::error::TradeCoreError,
-    state::{LiveTradeExecutorStatus, TradingSessionRefreshOffset},
+    state::{LiveTradeExecutorStatus, live_trading_session::TradingSessionRefreshOffset},
 };
 
 #[derive(Error, Debug)]
@@ -76,7 +76,7 @@ pub enum ExecutorActionError {
     InvalidTradingSessionRefreshOffset { value: Duration },
 }
 
-pub type ExecutorActionResult<T> = result::Result<T, ExecutorActionError>;
+pub(super) type ExecutorActionResult<T> = result::Result<T, ExecutorActionError>;
 
 #[derive(Error, Debug)]
 pub enum ExecutorProcessRecoverableError {
@@ -102,7 +102,7 @@ pub enum ExecutorProcessFatalError {
     SyncRecvClosed,
 }
 
-pub type ExecutorProcessFatalResult<T> = result::Result<T, ExecutorProcessFatalError>;
+pub(super) type ExecutorProcessFatalResult<T> = result::Result<T, ExecutorProcessFatalError>;
 
 #[derive(Error, Debug)]
 pub enum LiveTradeExecutorError {
@@ -122,4 +122,4 @@ pub enum LiveTradeExecutorError {
     ExecutorShutdownFailed(Arc<ExecutorProcessFatalError>),
 }
 
-pub type LiveTradeExecutorResult<T> = result::Result<T, LiveTradeExecutorError>;
+pub(super) type LiveTradeExecutorResult<T> = result::Result<T, LiveTradeExecutorError>;
