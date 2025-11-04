@@ -9,7 +9,7 @@ use crate::{
     signal::{ConfiguredSignalEvaluator, Signal},
     sync::PriceHistoryState,
     trade::backtest::config::BacktestConfig,
-    tui::{Result as TuiResult, TuiControllerShutdown},
+    tui::{TuiControllerShutdown, error::Result as TuiResult},
     util::{AbortOnDropHandle, DateTimeExt},
 };
 
