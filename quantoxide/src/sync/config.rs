@@ -63,42 +63,42 @@ impl SyncConfig {
         self.shutdown_timeout
     }
 
-    pub fn set_api_cooldown(mut self, secs: u64) -> Self {
+    pub fn with_api_cooldown(mut self, secs: u64) -> Self {
         self.api_cooldown = time::Duration::from_secs(secs);
         self
     }
 
-    pub fn set_api_error_cooldown(mut self, secs: u64) -> Self {
+    pub fn with_api_error_cooldown(mut self, secs: u64) -> Self {
         self.api_error_cooldown = time::Duration::from_secs(secs);
         self
     }
 
-    pub fn set_api_error_max_trials(mut self, max_trials: u32) -> Self {
+    pub fn with_api_error_max_trials(mut self, max_trials: u32) -> Self {
         self.api_error_max_trials = max_trials;
         self
     }
 
-    pub fn set_api_history_batch_size(mut self, size: usize) -> Self {
+    pub fn with_api_history_batch_size(mut self, size: usize) -> Self {
         self.api_history_batch_size = size;
         self
     }
 
-    pub fn set_sync_history_reach(mut self, hours: u64) -> Self {
+    pub fn with_sync_history_reach(mut self, hours: u64) -> Self {
         self.sync_history_reach = Duration::hours(hours as i64);
         self
     }
 
-    pub fn set_re_sync_history_interval(mut self, secs: u64) -> Self {
+    pub fn with_re_sync_history_interval(mut self, secs: u64) -> Self {
         self.re_sync_history_interval = time::Duration::from_secs(secs);
         self
     }
 
-    pub fn set_restart_interval(mut self, secs: u64) -> Self {
+    pub fn with_restart_interval(mut self, secs: u64) -> Self {
         self.restart_interval = time::Duration::from_secs(secs);
         self
     }
 
-    pub fn set_shutdown_timeout(mut self, secs: u64) -> Self {
+    pub fn with_shutdown_timeout(mut self, secs: u64) -> Self {
         self.shutdown_timeout = time::Duration::from_secs(secs);
         self
     }
