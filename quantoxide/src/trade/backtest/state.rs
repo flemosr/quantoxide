@@ -74,11 +74,11 @@ impl From<TradingState> for BacktestUpdate {
     }
 }
 
-pub type BacktestTransmiter = broadcast::Sender<BacktestUpdate>;
+pub(super) type BacktestTransmiter = broadcast::Sender<BacktestUpdate>;
 pub type BacktestReceiver = broadcast::Receiver<BacktestUpdate>;
 
 #[derive(Debug)]
-pub struct BacktestStatusManager {
+pub(super) struct BacktestStatusManager {
     status: Mutex<BacktestStatus>,
     update_tx: BacktestTransmiter,
 }
