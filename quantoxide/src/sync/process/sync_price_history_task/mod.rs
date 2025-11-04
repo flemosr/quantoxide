@@ -5,7 +5,7 @@ use tokio::{sync::mpsc, time};
 
 use lnm_sdk::{ApiClient, models::PriceEntryLNM};
 
-use crate::db::DbContext;
+use crate::db::Database;
 
 use super::super::config::{SyncPriceHistoryTaskConfig, SyncProcessConfig};
 
@@ -20,7 +20,7 @@ pub(super) type PriceHistoryStateTransmiter = mpsc::Sender<PriceHistoryState>;
 #[derive(Clone)]
 pub(super) struct SyncPriceHistoryTask {
     config: SyncPriceHistoryTaskConfig,
-    db: Arc<DbContext>,
+    db: Arc<Database>,
     api: Arc<ApiClient>,
     history_state_tx: Option<PriceHistoryStateTransmiter>,
 }
@@ -28,7 +28,7 @@ pub(super) struct SyncPriceHistoryTask {
 impl SyncPriceHistoryTask {
     pub fn new(
         config: &SyncProcessConfig,
-        db: Arc<DbContext>,
+        db: Arc<Database>,
         api: Arc<ApiClient>,
         history_state_tx: Option<PriceHistoryStateTransmiter>,
     ) -> Self {

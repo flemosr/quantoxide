@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::{
-    db::DbContext,
+    db::Database,
     signal::{LiveSignalController, LiveSignalEngine},
     sync::SyncReader,
 };
@@ -17,7 +17,7 @@ pub(in crate::trade) enum OperatorPending {
         signal_operator: WrappedSignalOperator,
     },
     Raw {
-        db: Arc<DbContext>,
+        db: Arc<Database>,
         sync_reader: Arc<dyn SyncReader>,
         raw_operator: WrappedRawOperator,
     },
@@ -32,7 +32,7 @@ impl OperatorPending {
     }
 
     pub fn raw(
-        db: Arc<DbContext>,
+        db: Arc<Database>,
         sync_reader: Arc<dyn SyncReader>,
         raw_operator: WrappedRawOperator,
     ) -> Self {
@@ -85,7 +85,7 @@ pub(in crate::trade) enum OperatorRunning {
         signal_operator: WrappedSignalOperator,
     },
     Raw {
-        db: Arc<DbContext>,
+        db: Arc<Database>,
         sync_reader: Arc<dyn SyncReader>,
         raw_operator: WrappedRawOperator,
     },

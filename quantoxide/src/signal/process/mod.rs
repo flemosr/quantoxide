@@ -7,7 +7,7 @@ use tokio::{
 };
 
 use crate::{
-    db::DbContext,
+    db::Database,
     sync::{SyncReader, SyncStatus, SyncUpdate},
     util::{AbortOnDropHandle, DateTimeExt, Never},
 };
@@ -26,7 +26,7 @@ use error::{
 
 pub(super) struct LiveSignalProcess {
     config: LiveSignalProcessConfig,
-    db: Arc<DbContext>,
+    db: Arc<Database>,
     evaluators: Arc<Vec<ConfiguredSignalEvaluator>>,
     shutdown_tx: broadcast::Sender<()>,
     sync_reader: Arc<dyn SyncReader>,
@@ -37,7 +37,7 @@ pub(super) struct LiveSignalProcess {
 impl LiveSignalProcess {
     pub fn spawn(
         config: &LiveSignalConfig,
-        db: Arc<DbContext>,
+        db: Arc<Database>,
         evaluators: Arc<Vec<ConfiguredSignalEvaluator>>,
         shutdown_tx: broadcast::Sender<()>,
         sync_reader: Arc<dyn SyncReader>,

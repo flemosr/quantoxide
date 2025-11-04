@@ -15,7 +15,7 @@ use lnm_sdk::{
 };
 
 use crate::{
-    db::DbContext,
+    db::Database,
     sync::{SyncReceiver, SyncStatus, SyncUpdate},
     util::{AbortOnDropHandle, Never},
 };
@@ -48,7 +48,7 @@ use update::{
 
 pub struct LiveTradeExecutor {
     config: LiveTradeExecutorConfig,
-    db: Arc<DbContext>,
+    db: Arc<Database>,
     api: WrappedApiContext,
     update_tx: LiveTradeExecutorTransmiter,
     state_manager: Arc<LiveTradeExecutorStateManager>,
@@ -58,7 +58,7 @@ pub struct LiveTradeExecutor {
 impl LiveTradeExecutor {
     fn new(
         config: LiveTradeExecutorConfig,
-        db: Arc<DbContext>,
+        db: Arc<Database>,
         api: WrappedApiContext,
         update_tx: LiveTradeExecutorTransmiter,
         state_manager: Arc<LiveTradeExecutorStateManager>,
@@ -455,7 +455,7 @@ impl TradeExecutor for LiveTradeExecutor {
 
 pub struct LiveTradeExecutorLauncher {
     config: LiveTradeExecutorConfig,
-    db: Arc<DbContext>,
+    db: Arc<Database>,
     api: WrappedApiContext,
     update_tx: LiveTradeExecutorTransmiter,
     state_manager: Arc<LiveTradeExecutorStateManager>,
@@ -465,7 +465,7 @@ pub struct LiveTradeExecutorLauncher {
 impl LiveTradeExecutorLauncher {
     pub fn new(
         config: impl Into<LiveTradeExecutorConfig>,
-        db: Arc<DbContext>,
+        db: Arc<Database>,
         api: Arc<ApiClient>,
         sync_rx: SyncReceiver,
     ) -> LiveTradeExecutorResult<Self> {
@@ -497,7 +497,7 @@ impl LiveTradeExecutorLauncher {
         recover_trades_on_startup: bool,
         tsl_step_size: BoundedPercentage,
         session_refresh_offset: TradingSessionRefreshOffset,
-        db: Arc<DbContext>,
+        db: Arc<Database>,
         api: WrappedApiContext,
         update_tx: LiveTradeExecutorTransmiter,
         state_manager: Arc<LiveTradeExecutorStateManager>,

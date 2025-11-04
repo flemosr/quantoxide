@@ -3,7 +3,7 @@ use std::sync::{Arc, Mutex};
 use tokio::{sync::broadcast, time};
 
 use crate::{
-    db::DbContext,
+    db::Database,
     signal::{
         config::{LiveSignalConfig, LiveSignalControllerConfig},
         error::SignalValidationError,
@@ -116,7 +116,7 @@ impl LiveSignalController {
 
 pub struct LiveSignalEngine {
     config: LiveSignalConfig,
-    db: Arc<DbContext>,
+    db: Arc<Database>,
     sync_reader: Arc<dyn SyncReader>,
     evaluators: Arc<Vec<ConfiguredSignalEvaluator>>,
     status_manager: Arc<LiveSignalStatusManager>,
@@ -126,7 +126,7 @@ pub struct LiveSignalEngine {
 impl LiveSignalEngine {
     pub fn new(
         config: impl Into<LiveSignalConfig>,
-        db: Arc<DbContext>,
+        db: Arc<Database>,
         sync_reader: Arc<dyn SyncReader>,
         evaluators: Arc<Vec<ConfiguredSignalEvaluator>>,
     ) -> Result<Self> {

@@ -10,7 +10,7 @@ use tokio::{
 use lnm_sdk::ApiClient;
 
 use crate::{
-    db::{DbContext, models::PriceTick},
+    db::{Database, models::PriceTick},
     util::{AbortOnDropHandle, Never},
 };
 
@@ -32,7 +32,7 @@ use sync_price_history_task::{
 
 pub(super) struct SyncProcess {
     config: SyncProcessConfig,
-    db: Arc<DbContext>,
+    db: Arc<Database>,
     api: Arc<ApiClient>,
     mode: SyncMode,
     shutdown_tx: broadcast::Sender<()>,
@@ -43,7 +43,7 @@ pub(super) struct SyncProcess {
 impl SyncProcess {
     pub fn spawn(
         config: &SyncConfig,
-        db: Arc<DbContext>,
+        db: Arc<Database>,
         api: Arc<ApiClient>,
         mode: SyncMode,
         shutdown_tx: broadcast::Sender<()>,

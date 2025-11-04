@@ -7,14 +7,14 @@ use lnm_sdk::{
     models::{LnmWebSocketChannel, WebSocketUpdate},
 };
 
-use crate::db::{DbContext, models::PriceTick};
+use crate::db::{Database, models::PriceTick};
 
 pub(crate) mod error;
 
 use error::{RealTimeCollectionError, Result};
 
 pub(super) struct RealTimeCollectionTask {
-    db: Arc<DbContext>,
+    db: Arc<Database>,
     api: Arc<ApiClient>,
     shutdown_tx: broadcast::Sender<()>,
     price_tick_tx: broadcast::Sender<PriceTick>,
@@ -22,7 +22,7 @@ pub(super) struct RealTimeCollectionTask {
 
 impl RealTimeCollectionTask {
     pub fn new(
-        db: Arc<DbContext>,
+        db: Arc<Database>,
         api: Arc<ApiClient>,
         shutdown_tx: broadcast::Sender<()>,
         price_tick_tx: broadcast::Sender<PriceTick>,

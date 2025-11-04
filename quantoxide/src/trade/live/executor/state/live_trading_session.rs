@@ -6,7 +6,7 @@ use uuid::Uuid;
 
 use lnm_sdk::models::{BoundedPercentage, LnmTrade, Price, Trade};
 
-use crate::db::DbContext;
+use crate::db::Database;
 
 use super::super::super::{
     super::core::{
@@ -63,7 +63,7 @@ impl LiveTradingSession {
         recover_trades_on_startup: bool,
         tsl_step_size: BoundedPercentage,
         refresh_offset: TradingSessionRefreshOffset,
-        db: &DbContext,
+        db: &Database,
         api: &WrappedApiContext,
     ) -> ExecutorActionResult<Self> {
         let (lastest_entry_time, lastest_entry_price) = db
@@ -145,7 +145,7 @@ impl LiveTradingSession {
 
     pub async fn reevaluate(
         &mut self,
-        db: &DbContext,
+        db: &Database,
         api: &WrappedApiContext,
     ) -> ExecutorActionResult<Vec<LnmTrade>> {
         let (range_min, range_max, lastest_entry_time, latest_entry_price) = db

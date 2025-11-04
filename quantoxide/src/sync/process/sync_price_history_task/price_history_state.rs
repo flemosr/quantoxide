@@ -2,7 +2,7 @@ use std::fmt;
 
 use chrono::{DateTime, Duration, Utc};
 
-use crate::{db::DbContext, util::DateTimeExt};
+use crate::{db::Database, util::DateTimeExt};
 
 use super::error::{Result, SyncPriceHistoryError};
 
@@ -14,7 +14,7 @@ pub struct PriceHistoryState {
 }
 
 impl PriceHistoryState {
-    async fn new(db: &DbContext, reach_opt: Option<Duration>) -> Result<Self> {
+    async fn new(db: &Database, reach_opt: Option<Duration>) -> Result<Self> {
         let reach_time = reach_opt.map_or(None, |reach| Some(Utc::now() - reach));
 
         let Some(earliest_entry) = db.price_history.get_earliest_entry().await? else {
@@ -70,11 +70,11 @@ impl PriceHistoryState {
         })
     }
 
-    pub async fn evaluate(db: &DbContext) -> Result<Self> {
+    pub async fn evaluate(db: &Database) -> Result<Self> {
         Self::new(db, None).await
     }
 
-    pub(crate) async fn evaluate_with_reach(db: &DbContext, reach: Duration) -> Result<Self> {
+    pub(crate) async fn evaluate_with_reach(db: &Database, reach: Duration) -> Result<Self> {
         Self::new(db, Some(reach)).await
     }
 

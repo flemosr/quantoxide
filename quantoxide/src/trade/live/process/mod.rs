@@ -7,7 +7,7 @@ use tokio::{
 };
 
 use crate::{
-    db::DbContext,
+    db::Database,
     signal::{LiveSignalController, LiveSignalStatus, LiveSignalUpdate},
     sync::{SyncController, SyncEngine, SyncReader, SyncStatus, SyncUpdate},
     util::{AbortOnDropHandle, DateTimeExt, Never},
@@ -207,7 +207,7 @@ impl LiveProcess {
 
     async fn handle_raw_entries(
         &self,
-        db: &DbContext,
+        db: &Database,
         sync_reader: &dyn SyncReader,
         raw_operator: &WrappedRawOperator,
     ) -> Result<Never> {

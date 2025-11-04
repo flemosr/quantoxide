@@ -18,13 +18,13 @@ use postgres::{
 };
 use repositories::{PriceHistoryRepository, PriceTicksRepository, RunningTradesRepository};
 
-pub struct DbContext {
+pub struct Database {
     pub(crate) price_history: Box<dyn PriceHistoryRepository>,
     pub(crate) price_ticks: Box<dyn PriceTicksRepository>,
     pub(crate) running_trades: Box<dyn RunningTradesRepository>,
 }
 
-impl DbContext {
+impl Database {
     pub async fn new(postgres_db_url: &str) -> Result<Arc<Self>> {
         let pool = PgPoolOptions::new()
             .max_connections(5)

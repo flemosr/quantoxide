@@ -7,7 +7,7 @@ use tokio::{sync::broadcast, time};
 use lnm_sdk::ApiClient;
 
 use crate::{
-    db::DbContext,
+    db::Database,
     signal::{ConfiguredSignalEvaluator, LiveSignalEngine},
     sync::{SyncEngine, SyncMode},
     tui::{TuiControllerShutdown, TuiError, error::Result as TuiResult},
@@ -136,7 +136,7 @@ pub struct LiveEngine {
 impl LiveEngine {
     pub fn with_signal_operator(
         config: LiveConfig,
-        db: Arc<DbContext>,
+        db: Arc<Database>,
         api: Arc<ApiClient>,
         evaluators: Vec<ConfiguredSignalEvaluator>,
         operator: Box<dyn SignalOperator>,
@@ -191,7 +191,7 @@ impl LiveEngine {
 
     pub fn with_raw_operator(
         config: LiveConfig,
-        db: Arc<DbContext>,
+        db: Arc<Database>,
         api: Arc<ApiClient>,
         operator: Box<dyn RawOperator>,
     ) -> Result<Self> {

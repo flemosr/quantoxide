@@ -5,7 +5,7 @@ use chrono::{DateTime, Duration, Utc};
 use tokio::sync::broadcast;
 
 use crate::{
-    db::DbContext,
+    db::Database,
     signal::{ConfiguredSignalEvaluator, Signal},
     sync::PriceHistoryState,
     trade::backtest::config::BacktestConfig,
@@ -179,7 +179,7 @@ impl Operator {
 
 pub struct BacktestEngine {
     config: BacktestConfig,
-    db: Arc<DbContext>,
+    db: Arc<Database>,
     operator: Operator,
     start_time: DateTime<Utc>,
     start_balance: u64,
@@ -191,7 +191,7 @@ pub struct BacktestEngine {
 impl BacktestEngine {
     async fn new(
         config: BacktestConfig,
-        db: Arc<DbContext>,
+        db: Arc<Database>,
         operator: Operator,
         start_time: DateTime<Utc>,
         start_balance: u64,
@@ -247,7 +247,7 @@ impl BacktestEngine {
 
     pub async fn with_signal_operator(
         config: BacktestConfig,
-        db: Arc<DbContext>,
+        db: Arc<Database>,
         evaluators: Vec<ConfiguredSignalEvaluator>,
         signal_operator: Box<dyn SignalOperator>,
         start_time: DateTime<Utc>,
@@ -261,7 +261,7 @@ impl BacktestEngine {
 
     pub async fn with_raw_operator(
         config: BacktestConfig,
-        db: Arc<DbContext>,
+        db: Arc<Database>,
         raw_operator: Box<dyn RawOperator>,
         start_time: DateTime<Utc>,
         start_balance: u64,
