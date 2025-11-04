@@ -178,7 +178,7 @@ impl PriceHistoryState {
         Some(history_bounds.1 - history_bounds.0)
     }
 
-    pub(crate) fn has_gaps(&self) -> Result<bool> {
+    pub fn has_gaps(&self) -> Result<bool> {
         let Some(reach_time) = self.reach_time else {
             return Err(SyncPriceHistoryError::PriceHistoryStateReachNotSet);
         };
