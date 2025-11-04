@@ -15,7 +15,7 @@ use super::{
     config::SimulatedTradeExecutorConfig,
 };
 
-pub mod error;
+pub(crate) mod error;
 mod models;
 
 use error::{SimulatedTradeExecutorError, SimulatedTradeExecutorResult};
@@ -46,7 +46,7 @@ struct SimulatedTradeExecutorState {
     closed_fees: u64,
 }
 
-pub struct SimulatedTradeExecutor {
+pub(super) struct SimulatedTradeExecutor {
     config: SimulatedTradeExecutorConfig,
     state: Arc<Mutex<SimulatedTradeExecutorState>>,
 }
