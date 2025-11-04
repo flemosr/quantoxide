@@ -6,7 +6,7 @@ use tokio::sync::broadcast;
 
 use crate::{
     db::DbContext,
-    signal::core::{ConfiguredSignalEvaluator, Signal},
+    signal::{ConfiguredSignalEvaluator, Signal},
     sync::PriceHistoryState,
     trade::backtest::config::BacktestConfig,
     tui::{Result as TuiResult, TuiControllerShutdown},

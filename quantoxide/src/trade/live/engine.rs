@@ -8,7 +8,7 @@ use lnm_sdk::ApiClient;
 
 use crate::{
     db::DbContext,
-    signal::{core::ConfiguredSignalEvaluator, engine::LiveSignalEngine},
+    signal::{ConfiguredSignalEvaluator, LiveSignalEngine},
     sync::{SyncEngine, SyncMode},
     tui::{Result as TuiResult, TuiControllerShutdown, TuiError},
     util::AbortOnDropHandle,

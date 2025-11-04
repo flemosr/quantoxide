@@ -8,7 +8,7 @@ use tokio::sync::broadcast;
 use lnm_sdk::models::LnmTrade;
 
 use crate::{
-    signal::{core::Signal, state::LiveSignalStatusNotRunning},
+    signal::{LiveSignalStatusNotRunning, Signal},
     sync::SyncStatusNotSynced,
 };
 

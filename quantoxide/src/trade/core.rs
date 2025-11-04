@@ -16,7 +16,7 @@ use lnm_sdk::models::{
     TradeSide, TradeSize,
 };
 
-use crate::{db::models::PriceHistoryEntryLOCF, signal::core::Signal, util::DateTimeExt};
+use crate::{db::models::PriceHistoryEntryLOCF, signal::Signal, util::DateTimeExt};
 
 use super::error::{TradeCoreError, TradeCoreResult, TradeExecutorResult};
 

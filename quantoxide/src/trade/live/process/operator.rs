@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use crate::{
     db::DbContext,
-    signal::engine::{LiveSignalController, LiveSignalEngine},
+    signal::{LiveSignalController, LiveSignalEngine},
     sync::SyncReader,
     trade::core::TradeExecutor,
 };
