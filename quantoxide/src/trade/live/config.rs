@@ -3,7 +3,7 @@ use tokio::time;
 
 use lnm_sdk::models::BoundedPercentage;
 
-use super::executor::state::TradingSessionRefreshOffset;
+use super::executor::state::live_trading_session::TradingSessionRefreshOffset;
 
 #[derive(Clone, Debug)]
 pub struct LiveConfig {
@@ -214,7 +214,7 @@ impl LiveConfig {
 }
 
 #[derive(Debug)]
-pub struct LiveControllerConfig {
+pub(super) struct LiveControllerConfig {
     shutdown_timeout: time::Duration,
 }
 
@@ -233,7 +233,7 @@ impl From<&LiveConfig> for LiveControllerConfig {
 }
 
 #[derive(Debug)]
-pub struct LiveProcessConfig {
+pub(super) struct LiveProcessConfig {
     sync_update_timeout: time::Duration,
     restart_interval: time::Duration,
 }
