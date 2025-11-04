@@ -23,7 +23,7 @@ pub enum SignalProcessRecoverableError {
     SyncRecvLagged { skipped: u64 },
 }
 
-pub type ProcessRecoverableResult<T> = result::Result<T, SignalProcessRecoverableError>;
+pub(crate) type ProcessRecoverableResult<T> = result::Result<T, SignalProcessRecoverableError>;
 
 #[derive(Error, Debug)]
 pub enum SignalProcessFatalError {
@@ -58,4 +58,4 @@ pub enum SignalProcessError {
     Fatal(#[from] SignalProcessFatalError),
 }
 
-pub type ProcessResult<T> = result::Result<T, SignalProcessError>;
+pub(crate) type ProcessResult<T> = result::Result<T, SignalProcessError>;
