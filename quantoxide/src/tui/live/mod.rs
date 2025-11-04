@@ -10,13 +10,7 @@ use tokio::{
 };
 
 use crate::{
-    trade::{
-        core::ClosedTradeHistory,
-        live::{
-            engine::LiveEngine,
-            state::{LiveReceiver, LiveUpdate},
-        },
-    },
+    trade::{ClosedTradeHistory, LiveEngine, LiveReceiver, LiveUpdate},
     util::AbortOnDropHandle,
 };
 
