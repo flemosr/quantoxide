@@ -9,18 +9,16 @@ use crate::db::DbContext;
 
 use super::super::config::{SyncPriceHistoryTaskConfig, SyncProcessConfig};
 
-mod error;
-mod price_history_state;
+pub(crate) mod error;
+pub(crate) mod price_history_state;
 
-use error::Result;
+use error::{Result, SyncPriceHistoryError};
+use price_history_state::PriceHistoryState;
 
-pub use error::SyncPriceHistoryError;
-pub use price_history_state::PriceHistoryState;
-
-pub type PriceHistoryStateTransmiter = mpsc::Sender<PriceHistoryState>;
+pub(super) type PriceHistoryStateTransmiter = mpsc::Sender<PriceHistoryState>;
 
 #[derive(Clone)]
-pub struct SyncPriceHistoryTask {
+pub(super) struct SyncPriceHistoryTask {
     config: SyncPriceHistoryTaskConfig,
     db: Arc<DbContext>,
     api: Arc<ApiClient>,
