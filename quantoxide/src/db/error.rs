@@ -45,4 +45,4 @@ pub enum DbError {
     IndicatorEvaluation(#[from] IndicatorError),
 }
 
-pub type Result<T> = result::Result<T, DbError>;
+pub(super) type Result<T> = result::Result<T, DbError>;
