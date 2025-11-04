@@ -28,9 +28,9 @@ use super::{
     config::LiveTradeExecutorConfig,
 };
 
-pub mod error;
-pub mod state;
-pub mod update;
+pub(crate) mod error;
+pub(in crate::trade) mod state;
+pub(in crate::trade) mod update;
 
 use error::{
     ExecutorActionError, ExecutorActionResult, ExecutorProcessFatalError,
@@ -39,7 +39,7 @@ use error::{
 };
 use state::{
     LiveTradeExecutorState, LiveTradeExecutorStateManager, LiveTradeExecutorStatusNotReady,
-    LiveTradingSession, TradingSessionRefreshOffset,
+    live_trading_session::{LiveTradingSession, TradingSessionRefreshOffset},
 };
 use update::{
     LiveTradeExecutorReceiver, LiveTradeExecutorTransmiter, LiveTradeExecutorUpdate,
@@ -78,7 +78,7 @@ impl LiveTradeExecutor {
         self.update_tx.subscribe()
     }
 
-    pub async fn state_snapshot(&self) -> LiveTradeExecutorState {
+    pub(in crate::trade) async fn state_snapshot(&self) -> LiveTradeExecutorState {
         self.state_manager.snapshot().await
     }
 
