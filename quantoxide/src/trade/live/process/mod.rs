@@ -24,8 +24,8 @@ use super::{
     state::{LiveStatus, LiveStatusManager, LiveTransmiter, LiveUpdate},
 };
 
-pub mod error;
-pub mod operator;
+pub(crate) mod error;
+pub(in crate::trade) mod operator;
 
 use error::{
     LiveProcessError, LiveProcessFatalError, LiveProcessFatalResult, LiveProcessRecoverableError,
@@ -33,7 +33,7 @@ use error::{
 };
 use operator::{OperatorPending, OperatorRunning};
 
-pub struct LiveProcess {
+pub(super) struct LiveProcess {
     config: LiveProcessConfig,
     shutdown_tx: broadcast::Sender<()>,
     sync_controller: Arc<SyncController>,
