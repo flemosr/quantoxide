@@ -4,15 +4,14 @@ use crate::{
     db::DbContext,
     signal::{LiveSignalController, LiveSignalEngine},
     sync::SyncReader,
-    trade::core::TradeExecutor,
 };
 
 use super::{
-    super::super::core::{WrappedRawOperator, WrappedSignalOperator},
+    super::super::core::{TradeExecutor, WrappedRawOperator, WrappedSignalOperator},
     error::{LiveProcessFatalError, LiveProcessFatalResult as Result},
 };
 
-pub enum OperatorPending {
+pub(in crate::trade) enum OperatorPending {
     Signal {
         signal_engine: LiveSignalEngine,
         signal_operator: WrappedSignalOperator,
@@ -80,7 +79,7 @@ impl OperatorPending {
     }
 }
 
-pub enum OperatorRunning {
+pub(in crate::trade) enum OperatorRunning {
     Signal {
         signal_controller: Arc<LiveSignalController>,
         signal_operator: WrappedSignalOperator,
