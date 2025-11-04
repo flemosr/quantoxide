@@ -9,7 +9,7 @@ use tokio::{
 use crate::{
     db::error::DbError,
     signal::{error::SignalError, process::error::SignalProcessFatalError},
-    sync::{SyncError, SyncProcessFatalError},
+    sync::{error::SyncError, process::error::SyncProcessFatalError},
 };
 
 use super::super::{

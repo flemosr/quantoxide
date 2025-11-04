@@ -6,7 +6,7 @@ use uuid::Uuid;
 
 use lnm_sdk::error::{PriceValidationError, RestApiError, TradeValidationError};
 
-use crate::{db::error::DbError, sync::SyncProcessFatalError};
+use crate::{db::error::DbError, sync::process::error::SyncProcessFatalError};
 
 use super::{
     super::super::error::TradeCoreError,

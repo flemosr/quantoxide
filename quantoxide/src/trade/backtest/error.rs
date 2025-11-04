@@ -6,7 +6,7 @@ use tokio::task::JoinError;
 
 use crate::{
     db::error::DbError, signal::process::error::SignalProcessRecoverableError,
-    sync::SyncPriceHistoryError,
+    sync::process::sync_price_history_task::error::SyncPriceHistoryError,
 };
 
 use super::super::error::{TradeCoreError, TradeExecutorError};
