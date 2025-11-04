@@ -6,7 +6,7 @@ use uuid::Uuid;
 
 use lnm_sdk::models::BoundedPercentage;
 
-use crate::trade::core::TradeTrailingStoploss;
+use crate::trade::TradeTrailingStoploss;
 
 use super::super::{
     error::{DbError, Result},

@@ -6,7 +6,7 @@ use uuid::Uuid;
 
 use lnm_sdk::models::{PriceEntryLNM, PriceTickLNM};
 
-use crate::trade::core::TradeTrailingStoploss;
+use crate::trade::TradeTrailingStoploss;
 
 use super::{
     error::Result,
