@@ -2,7 +2,7 @@ use std::{result, sync::Arc};
 
 use thiserror::Error;
 
-use super::{process::SyncProcessFatalError, state::SyncStatus};
+use super::{process::error::SyncProcessFatalError, state::SyncStatus};
 
 #[derive(Error, Debug)]
 pub enum SyncError {
@@ -16,4 +16,4 @@ pub enum SyncError {
     SyncShutdownFailed(Arc<SyncProcessFatalError>),
 }
 
-pub type Result<T> = result::Result<T, SyncError>;
+pub(super) type Result<T> = result::Result<T, SyncError>;
