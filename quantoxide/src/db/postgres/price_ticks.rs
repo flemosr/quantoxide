@@ -14,7 +14,7 @@ use super::super::{
     repositories::PriceTicksRepository,
 };
 
-pub struct PgPriceTicksRepo {
+pub(crate) struct PgPriceTicksRepo {
     pool: Arc<Pool<Postgres>>,
 }
 
