@@ -59,7 +59,7 @@ impl From<&LiveConfig> for LiveSignalConfig {
 }
 
 #[derive(Debug)]
-pub struct LiveSignalControllerConfig {
+pub(super) struct LiveSignalControllerConfig {
     shutdown_timeout: time::Duration,
 }
 
@@ -78,7 +78,7 @@ impl From<&LiveSignalConfig> for LiveSignalControllerConfig {
 }
 
 #[derive(Clone, Debug)]
-pub struct LiveSignalProcessConfig {
+pub(super) struct LiveSignalProcessConfig {
     sync_update_timeout: time::Duration,
     restart_interval: time::Duration,
 }
