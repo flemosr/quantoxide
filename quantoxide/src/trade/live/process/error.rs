@@ -95,7 +95,7 @@ pub enum LiveProcessFatalError {
     SyncShutdown(SyncError),
 }
 
-pub type LiveProcessFatalResult<T> = result::Result<T, LiveProcessFatalError>;
+pub(crate) type LiveProcessFatalResult<T> = result::Result<T, LiveProcessFatalError>;
 
 #[derive(Error, Debug)]
 pub enum LiveProcessError {
@@ -106,4 +106,4 @@ pub enum LiveProcessError {
     Fatal(#[from] LiveProcessFatalError),
 }
 
-pub type Result<T> = result::Result<T, LiveProcessError>;
+pub(super) type Result<T> = result::Result<T, LiveProcessError>;
