@@ -14,7 +14,7 @@ use super::super::{
     repositories::PriceHistoryRepository,
 };
 
-pub struct PgPriceHistoryRepo {
+pub(crate) struct PgPriceHistoryRepo {
     pool: Arc<Pool<Postgres>>,
 }
 
@@ -34,16 +34,6 @@ impl PgPriceHistoryRepo {
 
 #[async_trait]
 impl PriceHistoryRepository for PgPriceHistoryRepo {
-    async fn get_earliest_entry_gap(&self) -> Result<Option<PriceHistoryEntry>> {
-        sqlx::query_as!(
-            PriceHistoryEntry,
-            "SELECT * FROM price_history WHERE next IS NULL ORDER BY time ASC LIMIT 1"
-        )
-        .fetch_optional(self.pool())
-        .await
-        .map_err(DbError::Query)
-    }
-
     async fn get_latest_entry(&self) -> Result<Option<PriceHistoryEntry>> {
         sqlx::query_as!(
             PriceHistoryEntry,
@@ -72,44 +62,6 @@ impl PriceHistoryRepository for PgPriceHistoryRepo {
             PriceHistoryEntry,
             "SELECT * FROM price_history WHERE time <= $1 ORDER BY time DESC LIMIT 1",
             time
-        )
-        .fetch_optional(self.pool())
-        .await
-        .map_err(DbError::Query)
-    }
-
-    async fn get_earliest_entry_after(
-        &self,
-        time: DateTime<Utc>,
-    ) -> Result<Option<PriceHistoryEntry>> {
-        sqlx::query_as!(
-            PriceHistoryEntry,
-            "SELECT * FROM price_history WHERE time > $1 ORDER BY time ASC LIMIT 1",
-            time
-        )
-        .fetch_optional(self.pool())
-        .await
-        .map_err(DbError::Query)
-    }
-
-    async fn get_first_entry_reaching_bounds(
-        &self,
-        start: DateTime<Utc>,
-        end: DateTime<Utc>,
-        min: f64,
-        max: f64,
-    ) -> Result<Option<PriceHistoryEntry>> {
-        sqlx::query_as!(
-            PriceHistoryEntry,
-            "SELECT * FROM price_history
-             WHERE time >= $1 AND time <= $2
-             AND (value <= $3 OR value >= $4)
-             ORDER BY time ASC
-             LIMIT 1",
-            start,
-            end,
-            min,
-            max
         )
         .fetch_optional(self.pool())
         .await
