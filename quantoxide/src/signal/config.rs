@@ -32,17 +32,17 @@ impl LiveSignalConfig {
         self.shutdown_timeout
     }
 
-    pub fn set_sync_update_timeout(mut self, secs: u64) -> Self {
+    pub fn with_sync_update_timeout(mut self, secs: u64) -> Self {
         self.sync_update_timeout = time::Duration::from_secs(secs);
         self
     }
 
-    pub fn set_restart_interval(mut self, secs: u64) -> Self {
+    pub fn with_restart_interval(mut self, secs: u64) -> Self {
         self.restart_interval = time::Duration::from_secs(secs);
         self
     }
 
-    pub fn set_shutdown_timeout(mut self, secs: u64) -> Self {
+    pub fn with_shutdown_timeout(mut self, secs: u64) -> Self {
         self.shutdown_timeout = time::Duration::from_secs(secs);
         self
     }
