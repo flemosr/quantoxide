@@ -14,16 +14,7 @@ use super::{
 };
 
 #[async_trait]
-pub trait PriceHistoryRepository: Send + Sync {
-    /// Retrieves the earliest price history entry that has no successor.
-    /// This represents a gap in the continuity of price history data.
-    ///
-    /// Returns:
-    ///   - `Ok(Some(entry))` if a gap exists
-    ///   - `Ok(None)` if no gaps are found
-    ///   - `Err` on database errors
-    async fn get_earliest_entry_gap(&self) -> Result<Option<PriceHistoryEntry>>;
-
+pub(crate) trait PriceHistoryRepository: Send + Sync {
     /// Retrieves the most recent price history entry.
     ///
     /// Returns:
@@ -52,28 +43,6 @@ pub trait PriceHistoryRepository: Send + Sync {
     async fn get_latest_entry_at_or_before(
         &self,
         time: DateTime<Utc>,
-    ) -> Result<Option<PriceHistoryEntry>>;
-
-    /// Retrieves the first price history entry that occurs after the specified time.
-    ///
-    /// Parameters:
-    ///   - `time`: The timestamp to find entries after
-    ///
-    /// Returns:
-    ///   - `Ok(Some(entry))` with the next entry after the given time
-    ///   - `Ok(None)` if no entries exist after the specified time
-    ///   - `Err` on database errors
-    async fn get_earliest_entry_after(
-        &self,
-        time: DateTime<Utc>,
-    ) -> Result<Option<PriceHistoryEntry>>;
-
-    async fn get_first_entry_reaching_bounds(
-        &self,
-        start: DateTime<Utc>,
-        end: DateTime<Utc>,
-        min: f64,
-        max: f64,
     ) -> Result<Option<PriceHistoryEntry>>;
 
     /// Retrieves price history entries within a specified time range.
@@ -153,7 +122,7 @@ pub trait PriceHistoryRepository: Send + Sync {
 }
 
 #[async_trait]
-pub trait PriceTicksRepository: Send + Sync {
+pub(crate) trait PriceTicksRepository: Send + Sync {
     /// Adds a new price tick to the database.
     /// Uses INSERT ON CONFLICT DO NOTHING to avoid duplicate entries for the same timestamp.
     ///
@@ -209,7 +178,7 @@ pub trait PriceTicksRepository: Send + Sync {
 }
 
 #[async_trait]
-pub trait RunningTradesRepository: Send + Sync {
+pub(crate) trait RunningTradesRepository: Send + Sync {
     async fn add_running_trade(
         &self,
         trade_id: Uuid,
@@ -219,6 +188,4 @@ pub trait RunningTradesRepository: Send + Sync {
     async fn get_running_trades_map(&self) -> Result<HashMap<Uuid, Option<TradeTrailingStoploss>>>;
 
     async fn remove_running_trades(&self, trade_ids: &[Uuid]) -> Result<()>;
-
-    async fn remove_all_running_trades(&self) -> Result<()>;
 }
