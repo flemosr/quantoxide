@@ -45,7 +45,7 @@ impl BacktestConfig {
         self.update_interval
     }
 
-    pub fn set_buffer_size(mut self, size: usize) -> Result<Self> {
+    pub fn with_buffer_size(mut self, size: usize) -> Result<Self> {
         if size < 100 {
             return Err(BacktestError::InvalidConfigurationBufferSize { size });
         }
@@ -53,7 +53,7 @@ impl BacktestConfig {
         Ok(self)
     }
 
-    pub fn set_max_running_qtd(mut self, max: usize) -> Result<Self> {
+    pub fn with_max_running_qtd(mut self, max: usize) -> Result<Self> {
         if max == 0 {
             return Err(BacktestError::InvalidConfigurationMaxRunningQtd { max });
         }
@@ -61,17 +61,17 @@ impl BacktestConfig {
         Ok(self)
     }
 
-    pub fn set_fee_perc(mut self, fee_perc: BoundedPercentage) -> Self {
+    pub fn with_fee_perc(mut self, fee_perc: BoundedPercentage) -> Self {
         self.fee_perc = fee_perc;
         self
     }
 
-    pub fn set_trailing_stoploss_step_size(mut self, tsl_step_size: BoundedPercentage) -> Self {
+    pub fn with_trailing_stoploss_step_size(mut self, tsl_step_size: BoundedPercentage) -> Self {
         self.tsl_step_size = tsl_step_size;
         self
     }
 
-    pub fn set_update_interval(mut self, hours: u32) -> Self {
+    pub fn with_update_interval(mut self, hours: u32) -> Self {
         self.update_interval = Duration::hours(hours as i64);
         self
     }
