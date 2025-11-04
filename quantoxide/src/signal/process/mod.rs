@@ -18,13 +18,13 @@ use super::{
     state::{LiveSignalStatusManager, LiveSignalStatusNotRunning, LiveSignalTransmiter},
 };
 
-pub mod error;
+pub(crate) mod error;
 
 use error::{
     ProcessResult, SignalProcessError, SignalProcessFatalError, SignalProcessRecoverableError,
 };
 
-pub(crate) struct LiveSignalProcess {
+pub(super) struct LiveSignalProcess {
     config: LiveSignalProcessConfig,
     db: Arc<DbContext>,
     evaluators: Arc<Vec<ConfiguredSignalEvaluator>>,
