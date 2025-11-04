@@ -11,7 +11,7 @@ use lnm_sdk::{
 use super::{
     super::super::core::TradingState,
     error::{ExecutorActionError, ExecutorActionResult},
-    state::{LiveTradeExecutorStatus, LiveTradingSession},
+    state::{LiveTradeExecutorStatus, live_trading_session::LiveTradingSession},
 };
 
 #[derive(Debug, Clone)]
@@ -116,11 +116,11 @@ impl From<LiveTradingSession> for LiveTradeExecutorUpdate {
     }
 }
 
-pub type LiveTradeExecutorTransmiter = broadcast::Sender<LiveTradeExecutorUpdate>;
+pub(super) type LiveTradeExecutorTransmiter = broadcast::Sender<LiveTradeExecutorUpdate>;
 pub type LiveTradeExecutorReceiver = broadcast::Receiver<LiveTradeExecutorUpdate>;
 
 #[derive(Clone)]
-pub struct WrappedApiContext {
+pub(in crate::trade) struct WrappedApiContext {
     api: Arc<ApiClient>,
     update_tx: LiveTradeExecutorTransmiter,
 }
