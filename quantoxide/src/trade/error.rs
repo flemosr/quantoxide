@@ -11,7 +11,8 @@ use lnm_sdk::{
 use crate::util::PanicPayload;
 
 use super::{
-    backtest::error::SimulatedTradeExecutorError, live::executor::error::ExecutorActionError,
+    backtest::executor::error::SimulatedTradeExecutorError,
+    live::executor::error::ExecutorActionError,
 };
 
 #[derive(Error, Debug)]
