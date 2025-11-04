@@ -5,8 +5,8 @@ use sqlx::postgres::{PgPool, PgPoolOptions};
 
 use crate::{indicators::IndicatorsEvaluator, util::DateTimeExt};
 
-pub mod error;
-pub mod models;
+pub(crate) mod error;
+pub(crate) mod models;
 mod postgres;
 mod repositories;
 
@@ -19,9 +19,9 @@ use postgres::{
 use repositories::{PriceHistoryRepository, PriceTicksRepository, RunningTradesRepository};
 
 pub struct DbContext {
-    pub price_history: Box<dyn PriceHistoryRepository>,
-    pub price_ticks: Box<dyn PriceTicksRepository>,
-    pub running_trades: Box<dyn RunningTradesRepository>,
+    pub(crate) price_history: Box<dyn PriceHistoryRepository>,
+    pub(crate) price_ticks: Box<dyn PriceTicksRepository>,
+    pub(crate) running_trades: Box<dyn RunningTradesRepository>,
 }
 
 impl DbContext {
