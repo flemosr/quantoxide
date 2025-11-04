@@ -1,5 +1,3 @@
-use std::f64;
-
 use chrono::{DateTime, Utc};
 use ratatui::{
     style::{Color, Style},
@@ -8,7 +6,7 @@ use ratatui::{
     widgets::{Axis, Block, Borders, Chart, Dataset, GraphType},
 };
 
-pub struct NetValueChartData {
+pub(super) struct NetValueChartData {
     title: String,
     data: Vec<(f64, f64)>,
     start_time: f64,

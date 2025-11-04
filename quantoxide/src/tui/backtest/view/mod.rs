@@ -23,12 +23,12 @@ mod net_value_chart;
 use net_value_chart::NetValueChartData;
 
 #[derive(Debug, PartialEq, EnumIter)]
-pub enum BacktestTuiPane {
+pub(in crate::tui) enum BacktestTuiPane {
     TradingStatePane,
     LogPane,
 }
 
-pub struct BacktestTuiViewState {
+pub(in crate::tui) struct BacktestTuiViewState {
     log_file: Option<File>,
     active_pane: BacktestTuiPane,
 
@@ -47,7 +47,7 @@ pub struct BacktestTuiViewState {
     log_h_scroll: usize,
 }
 
-pub struct BacktestTuiView {
+pub(in crate::tui) struct BacktestTuiView {
     max_tui_log_len: usize,
     state: Mutex<BacktestTuiViewState>,
 }
