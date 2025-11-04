@@ -9,7 +9,7 @@ use lnm_sdk::ApiClient;
 use crate::{
     db::DbContext,
     sync::config::{SyncConfig, SyncControllerConfig},
-    tui::{Result as TuiResult, TuiControllerShutdown, TuiError},
+    tui::{TuiControllerShutdown, TuiError, error::Result as TuiResult},
     util::AbortOnDropHandle,
 };
 
