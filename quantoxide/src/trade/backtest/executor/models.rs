@@ -11,7 +11,7 @@ use lnm_sdk::models::{
 use super::error::{SimulatedTradeExecutorError, SimulatedTradeExecutorResult};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SimulatedTradeRunning {
+pub(super) struct SimulatedTradeRunning {
     id: Uuid,
     side: TradeSide,
     opening_fee: u64,
@@ -289,7 +289,7 @@ impl TradeRunning for SimulatedTradeRunning {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SimulatedTradeClosed {
+pub(super) struct SimulatedTradeClosed {
     id: Uuid,
     side: TradeSide,
     entry_time: DateTime<Utc>,
