@@ -6,6 +6,7 @@ use uuid::Uuid;
 
 use crate::util::DateTimeExt;
 
+#[allow(dead_code)]
 #[derive(Debug, FromRow)]
 pub struct PriceHistoryEntry {
     pub time: DateTime<Utc>,
@@ -24,7 +25,7 @@ pub struct PriceHistoryEntryLOCF {
 }
 
 #[derive(Debug, FromRow, Clone)]
-pub struct PartialPriceHistoryEntryLOCF {
+pub(crate) struct PartialPriceHistoryEntryLOCF {
     pub time: DateTime<Utc>,
     pub value: f64,
 }
@@ -57,7 +58,7 @@ impl fmt::Display for PriceTick {
 }
 
 #[derive(Debug, Clone, FromRow, PartialEq)]
-pub struct RunningTrade {
+pub(crate) struct RunningTrade {
     pub trade_id: Uuid,
     pub trailing_stoploss: Option<f64>,
     pub created_at: DateTime<Utc>,
