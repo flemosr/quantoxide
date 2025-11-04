@@ -100,4 +100,4 @@ pub enum TuiError {
     BacktestEngineAlreadyCoupled,
 }
 
-pub type Result<T> = result::Result<T, TuiError>;
+pub(crate) type Result<T> = result::Result<T, TuiError>;
