@@ -104,7 +104,7 @@ impl From<TradingState> for LiveUpdate {
     }
 }
 
-pub type LiveTransmiter = broadcast::Sender<LiveUpdate>;
+pub(super) type LiveTransmiter = broadcast::Sender<LiveUpdate>;
 pub type LiveReceiver = broadcast::Receiver<LiveUpdate>;
 
 pub trait LiveReader: Send + Sync + 'static {
@@ -113,7 +113,7 @@ pub trait LiveReader: Send + Sync + 'static {
 }
 
 #[derive(Debug)]
-pub struct LiveStatusManager {
+pub(super) struct LiveStatusManager {
     status: Mutex<LiveStatus>,
     update_tx: LiveTransmiter,
 }
@@ -158,15 +158,15 @@ impl LiveStatusManager {
         self.update_status_guard(status_guard, new_status);
     }
 
-    pub fn update_if_running(&self, new_status: LiveStatus) {
-        let status_guard = self.lock_status();
+    // pub fn update_if_running(&self, new_status: LiveStatus) {
+    //     let status_guard = self.lock_status();
 
-        if !matches!(*status_guard, LiveStatus::Running) {
-            return;
-        }
+    //     if !matches!(*status_guard, LiveStatus::Running) {
+    //         return;
+    //     }
 
-        self.update_status_guard(status_guard, new_status);
-    }
+    //     self.update_status_guard(status_guard, new_status);
+    // }
 }
 
 impl LiveReader for LiveStatusManager {
