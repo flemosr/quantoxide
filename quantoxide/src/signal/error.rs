@@ -33,4 +33,4 @@ pub enum SignalError {
     SignalShutdownFailed(Arc<SignalProcessFatalError>),
 }
 
-pub type Result<T> = result::Result<T, SignalError>;
+pub(super) type Result<T> = result::Result<T, SignalError>;
