@@ -30,17 +30,17 @@ impl TuiConfig {
         self.shutdown_timeout
     }
 
-    pub fn set_event_check_interval(mut self, millis: u64) -> Self {
+    pub fn with_event_check_interval(mut self, millis: u64) -> Self {
         self.event_check_interval = Duration::from_millis(millis);
         self
     }
 
-    pub fn set_max_tui_log_len(mut self, len: usize) -> Self {
+    pub fn with_max_tui_log_len(mut self, len: usize) -> Self {
         self.max_tui_log_len = len;
         self
     }
 
-    pub fn set_shutdown_timeout(mut self, secs: u64) -> Self {
+    pub fn with_shutdown_timeout(mut self, secs: u64) -> Self {
         self.shutdown_timeout = Duration::from_secs(secs);
         self
     }
