@@ -28,4 +28,4 @@ pub enum RealTimeCollectionError {
     ShutdownSignalRecv(RecvError),
 }
 
-pub type Result<T> = result::Result<T, RealTimeCollectionError>;
+pub(super) type Result<T> = result::Result<T, RealTimeCollectionError>;
