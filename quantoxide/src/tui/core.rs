@@ -24,7 +24,7 @@ use super::{
     view::{TuiLogManager, TuiView},
 };
 
-pub fn open_log_file(log_file_path: Option<&str>) -> Result<Option<File>> {
+pub(super) fn open_log_file(log_file_path: Option<&str>) -> Result<Option<File>> {
     log_file_path
         .map(|log_file_path| {
             if let Some(parent) = Path::new(log_file_path).parent() {
@@ -104,7 +104,7 @@ where
     }
 }
 
-pub fn spawn_ui_task<TView, TMessage>(
+pub(super) fn spawn_ui_task<TView, TMessage>(
     event_check_interval: Duration,
     tui_view: Arc<TView>,
     status_manager: Arc<TuiStatusManager<TView>>,
@@ -135,11 +135,11 @@ where
 }
 
 #[async_trait]
-pub trait TuiControllerShutdown: Sync + Send + 'static {
+pub(crate) trait TuiControllerShutdown: Sync + Send + 'static {
     async fn tui_shutdown(&self) -> Result<()>;
 }
 
-pub async fn shutdown_inner<TView, TMessage, Fut, F>(
+pub(super) async fn shutdown_inner<TView, TMessage, Fut, F>(
     shutdown_timeout: Duration,
     status_manager: Arc<TuiStatusManager<TView>>,
     ui_task_handle: Arc<Mutex<Option<AbortOnDropHandle<()>>>>,
@@ -212,7 +212,7 @@ where
     }
 }
 
-pub fn spawn_shutdown_signal_listener<TView, TMessage, Fut, F>(
+pub(super) fn spawn_shutdown_signal_listener<TView, TMessage, Fut, F>(
     shutdown_timeout: Duration,
     status_manager: Arc<TuiStatusManager<TView>>,
     mut shutdown_rx: mpsc::Receiver<()>,
