@@ -124,62 +124,62 @@ impl LiveConfig {
         self.shutdown_timeout
     }
 
-    pub fn set_api_cooldown(mut self, secs: u64) -> Self {
+    pub fn with_api_cooldown(mut self, secs: u64) -> Self {
         self.api_cooldown = time::Duration::from_secs(secs);
         self
     }
 
-    pub fn set_api_error_cooldown(mut self, secs: u64) -> Self {
+    pub fn with_api_error_cooldown(mut self, secs: u64) -> Self {
         self.api_error_cooldown = time::Duration::from_secs(secs);
         self
     }
 
-    pub fn set_api_error_max_trials(mut self, max_trials: u32) -> Self {
+    pub fn with_api_error_max_trials(mut self, max_trials: u32) -> Self {
         self.api_error_max_trials = max_trials;
         self
     }
 
-    pub fn set_api_history_batch_size(mut self, size: usize) -> Self {
+    pub fn with_api_history_batch_size(mut self, size: usize) -> Self {
         self.api_history_batch_size = size;
         self
     }
 
-    pub fn set_sync_mode_full(mut self, sync_mode_full: bool) -> Self {
+    pub fn with_sync_mode_full(mut self, sync_mode_full: bool) -> Self {
         self.sync_mode_full = sync_mode_full;
         self
     }
 
-    pub fn set_sync_history_reach(mut self, hours: u64) -> Self {
+    pub fn with_sync_history_reach(mut self, hours: u64) -> Self {
         self.sync_history_reach = Duration::hours(hours as i64);
         self
     }
 
-    pub fn set_re_sync_history_interval(mut self, secs: u64) -> Self {
+    pub fn with_re_sync_history_interval(mut self, secs: u64) -> Self {
         self.re_sync_history_interval = time::Duration::from_secs(secs);
         self
     }
 
-    pub fn set_sync_update_timeout(mut self, secs: u64) -> Self {
+    pub fn with_sync_update_timeout(mut self, secs: u64) -> Self {
         self.sync_update_timeout = time::Duration::from_secs(secs);
         self
     }
 
-    pub fn set_trailing_stoploss_step_size(mut self, tsl_step_size: BoundedPercentage) -> Self {
+    pub fn with_trailing_stoploss_step_size(mut self, tsl_step_size: BoundedPercentage) -> Self {
         self.tsl_step_size = tsl_step_size;
         self
     }
 
-    pub fn set_clean_up_trades_on_startup(mut self, clean_up_trades_on_startup: bool) -> Self {
+    pub fn with_clean_up_trades_on_startup(mut self, clean_up_trades_on_startup: bool) -> Self {
         self.clean_up_trades_on_startup = clean_up_trades_on_startup;
         self
     }
 
-    pub fn set_recover_trades_on_startup(mut self, recover_trades_on_startup: bool) -> Self {
+    pub fn with_recover_trades_on_startup(mut self, recover_trades_on_startup: bool) -> Self {
         self.recover_trades_on_startup = recover_trades_on_startup;
         self
     }
 
-    pub fn set_session_refresh_offset(
+    pub fn with_session_refresh_offset(
         mut self,
         session_refresh_offset: TradingSessionRefreshOffset,
     ) -> Self {
@@ -187,27 +187,27 @@ impl LiveConfig {
         self
     }
 
-    pub fn set_clean_up_trades_on_shutdown(mut self, clean_up_trades_on_shutdown: bool) -> Self {
+    pub fn with_clean_up_trades_on_shutdown(mut self, clean_up_trades_on_shutdown: bool) -> Self {
         self.clean_up_trades_on_shutdown = clean_up_trades_on_shutdown;
         self
     }
 
-    pub fn set_estimated_fee_perc(mut self, estimated_fee_perc: BoundedPercentage) -> Self {
+    pub fn with_estimated_fee_perc(mut self, estimated_fee_perc: BoundedPercentage) -> Self {
         self.estimated_fee_perc = estimated_fee_perc;
         self
     }
 
-    pub fn set_max_running_qtd(mut self, max_running_qtd: usize) -> Self {
+    pub fn with_max_running_qtd(mut self, max_running_qtd: usize) -> Self {
         self.max_running_qtd = max_running_qtd;
         self
     }
 
-    pub fn set_restart_interval(mut self, secs: u64) -> Self {
+    pub fn with_restart_interval(mut self, secs: u64) -> Self {
         self.restart_interval = time::Duration::from_secs(secs);
         self
     }
 
-    pub fn set_shutdown_timeout(mut self, secs: u64) -> Self {
+    pub fn with_shutdown_timeout(mut self, secs: u64) -> Self {
         self.shutdown_timeout = time::Duration::from_secs(secs);
         self
     }
@@ -296,22 +296,22 @@ impl LiveTradeExecutorConfig {
         self.max_running_qtd
     }
 
-    pub fn set_trailing_stoploss_step_size(mut self, tsl_step_size: BoundedPercentage) -> Self {
+    pub fn with_trailing_stoploss_step_size(mut self, tsl_step_size: BoundedPercentage) -> Self {
         self.tsl_step_size = tsl_step_size;
         self
     }
 
-    pub fn set_clean_up_trades_on_startup(mut self, clean_up_trades_on_startup: bool) -> Self {
+    pub fn with_clean_up_trades_on_startup(mut self, clean_up_trades_on_startup: bool) -> Self {
         self.clean_up_trades_on_startup = clean_up_trades_on_startup;
         self
     }
 
-    pub fn set_recover_trades_on_startup(mut self, recover_trades_on_startup: bool) -> Self {
+    pub fn with_recover_trades_on_startup(mut self, recover_trades_on_startup: bool) -> Self {
         self.recover_trades_on_startup = recover_trades_on_startup;
         self
     }
 
-    pub fn set_session_refresh_offset(
+    pub fn with_session_refresh_offset(
         mut self,
         session_refresh_offset: TradingSessionRefreshOffset,
     ) -> Self {
@@ -319,17 +319,17 @@ impl LiveTradeExecutorConfig {
         self
     }
 
-    pub fn set_clean_up_trades_on_shutdown(mut self, clean_up_trades_on_shutdown: bool) -> Self {
+    pub fn with_clean_up_trades_on_shutdown(mut self, clean_up_trades_on_shutdown: bool) -> Self {
         self.clean_up_trades_on_shutdown = clean_up_trades_on_shutdown;
         self
     }
 
-    pub fn set_estimated_fee_perc(mut self, estimated_fee_perc: BoundedPercentage) -> Self {
+    pub fn with_estimated_fee_perc(mut self, estimated_fee_perc: BoundedPercentage) -> Self {
         self.estimated_fee_perc = estimated_fee_perc;
         self
     }
 
-    pub fn set_max_running_qtd(mut self, max_running_qtd: usize) -> Self {
+    pub fn with_max_running_qtd(mut self, max_running_qtd: usize) -> Self {
         self.max_running_qtd = max_running_qtd;
         self
     }
