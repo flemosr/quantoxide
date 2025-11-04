@@ -11,9 +11,9 @@ use chrono::{DateTime, Duration, Local, SubsecRound, Utc};
 use tokio::task::{JoinError, JoinHandle};
 
 /// A type that can not be instantiated
-pub enum Never {}
+pub(crate) enum Never {}
 
-pub trait DateTimeExt {
+pub(crate) trait DateTimeExt {
     fn ceil_sec(&self) -> DateTime<Utc>;
 
     fn is_round(&self) -> bool;
@@ -80,7 +80,7 @@ impl DateTimeExt for DateTime<Utc> {
 /// } // Task is aborted here
 /// ```
 #[derive(Debug)]
-pub struct AbortOnDropHandle<T>(JoinHandle<T>);
+pub(crate) struct AbortOnDropHandle<T>(JoinHandle<T>);
 
 impl<T> From<JoinHandle<T>> for AbortOnDropHandle<T> {
     fn from(handle: JoinHandle<T>) -> Self {
