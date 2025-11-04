@@ -9,8 +9,10 @@ use crate::{
     sync::process::sync_price_history_task::error::SyncPriceHistoryError,
 };
 
-use super::super::error::{TradeCoreError, TradeExecutorError};
-pub use super::executor::error::SimulatedTradeExecutorError;
+use super::{
+    super::error::{TradeCoreError, TradeExecutorError},
+    executor::error::SimulatedTradeExecutorError,
+};
 
 #[derive(Error, Debug)]
 pub enum BacktestError {
@@ -78,4 +80,4 @@ pub enum BacktestError {
     ExecutorStateEvaluation(TradeExecutorError),
 }
 
-pub type Result<T> = result::Result<T, BacktestError>;
+pub(super) type Result<T> = result::Result<T, BacktestError>;
