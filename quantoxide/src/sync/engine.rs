@@ -15,7 +15,7 @@ use crate::{
 
 use super::{
     error::{Result, SyncError},
-    process::{SyncProcess, SyncProcessFatalError},
+    process::{SyncProcess, error::SyncProcessFatalError},
     state::{SyncReader, SyncReceiver, SyncStatus, SyncStatusManager, SyncTransmiter, SyncUpdate},
 };
 
