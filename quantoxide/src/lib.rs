@@ -1,10 +1,10 @@
 pub mod db;
-pub(crate) mod indicators;
+mod indicators;
 pub mod signal;
 pub mod sync;
-pub mod trade; // WIP
-pub mod tui; // TODO
-pub(crate) mod util;
+pub mod trade;
+pub mod tui;
+mod util;
 
 pub mod error {
     pub use super::db::error::DbError;
@@ -36,6 +36,7 @@ pub mod error {
             },
         },
     };
+    pub use super::tui::error::TuiError;
     pub use super::util::PanicPayload;
 }
 
