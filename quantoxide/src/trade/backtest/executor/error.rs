@@ -9,10 +9,9 @@ use lnm_sdk::{
     models::TradeSide,
 };
 
-use crate::{
-    db::{error::DbError, models::PriceHistoryEntry},
-    trade::error::TradeCoreError,
-};
+use crate::db::{error::DbError, models::PriceHistoryEntry};
+
+use super::super::super::error::TradeCoreError;
 
 #[derive(Error, Debug)]
 pub enum SimulatedTradeExecutorError {
