@@ -1,7 +1,7 @@
 use chrono::Duration;
 use tokio::time;
 
-use crate::trade::live::config::LiveConfig;
+use crate::trade::LiveConfig;
 
 #[derive(Clone, Debug)]
 pub struct SyncConfig {
