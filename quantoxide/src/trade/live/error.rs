@@ -33,4 +33,4 @@ pub enum LiveError {
     LiveShutdownFailed(Arc<LiveProcessFatalError>),
 }
 
-pub type Result<T> = result::Result<T, LiveError>;
+pub(super) type Result<T> = result::Result<T, LiveError>;
