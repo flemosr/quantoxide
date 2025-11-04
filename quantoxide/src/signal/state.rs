@@ -98,7 +98,7 @@ impl From<Signal> for LiveSignalUpdate {
     }
 }
 
-pub type LiveSignalTransmiter = broadcast::Sender<LiveSignalUpdate>;
+pub(super) type LiveSignalTransmiter = broadcast::Sender<LiveSignalUpdate>;
 pub type LiveSignalReceiver = broadcast::Receiver<LiveSignalUpdate>;
 
 pub trait LiveSignalReader: Send + Sync + 'static {
@@ -107,7 +107,7 @@ pub trait LiveSignalReader: Send + Sync + 'static {
 }
 
 #[derive(Debug)]
-pub struct LiveSignalStatusManager {
+pub(super) struct LiveSignalStatusManager {
     status: Mutex<LiveSignalStatus>,
     update_tx: LiveSignalTransmiter,
 }
