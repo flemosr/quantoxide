@@ -14,7 +14,7 @@ use super::super::{
     repositories::RunningTradesRepository,
 };
 
-pub struct PgRunningTradesRepo {
+pub(crate) struct PgRunningTradesRepo {
     pool: Arc<Pool<Postgres>>,
 }
 
@@ -93,15 +93,6 @@ impl RunningTradesRepository for PgRunningTradesRepo {
         .execute(self.pool())
         .await
         .map_err(DbError::Query)?;
-
-        Ok(())
-    }
-
-    async fn remove_all_running_trades(&self) -> Result<()> {
-        sqlx::query!("DELETE FROM running_trades")
-            .execute(self.pool())
-            .await
-            .map_err(DbError::Query)?;
 
         Ok(())
     }
