@@ -10,7 +10,7 @@ use crate::db::DbContext;
 use super::super::config::{SyncPriceHistoryTaskConfig, SyncProcessConfig};
 
 pub(crate) mod error;
-pub(crate) mod price_history_state;
+pub(in crate::sync) mod price_history_state;
 
 use error::{Result, SyncPriceHistoryError};
 use price_history_state::PriceHistoryState;
