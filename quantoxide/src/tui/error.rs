@@ -7,7 +7,7 @@ use tokio::{
 };
 
 use crate::{
-    sync::SyncError,
+    sync::error::SyncError,
     trade::{error::TradeCoreError, live::error::LiveError},
 };
 
