@@ -22,6 +22,7 @@ pub mod models {
 
     pub use super::api::{
         rest::models::{
+            SATS_PER_BTC,
             leverage::Leverage,
             margin::Margin,
             price::{BoundedPercentage, LowerBoundedPercentage, Price},
