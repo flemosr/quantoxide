@@ -1,11 +1,16 @@
-pub mod core;
+mod config;
+mod core;
+mod engine;
+pub(crate) mod error;
+pub(crate) mod process;
+mod state;
 
-pub mod engine;
-
-pub mod error;
-
-pub mod state;
-
-pub mod process;
-
-pub mod config;
+pub use config::LiveSignalConfig;
+pub use core::{
+    ConfiguredSignalEvaluator, Signal, SignalAction, SignalActionEvaluator, SignalEvaluator,
+    SignalName,
+};
+pub use engine::{LiveSignalController, LiveSignalEngine};
+pub use state::{
+    LiveSignalReceiver, LiveSignalStatus, LiveSignalStatusNotRunning, LiveSignalUpdate,
+};
