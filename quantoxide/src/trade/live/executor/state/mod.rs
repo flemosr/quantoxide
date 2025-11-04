@@ -2,18 +2,19 @@ use std::{fmt, sync::Arc};
 
 use tokio::sync::{Mutex, MutexGuard};
 
-use crate::{
-    sync::SyncStatusNotSynced, trade::live::executor::error::ExecutorProcessRecoverableError,
-};
+use crate::sync::SyncStatusNotSynced;
 
 use super::{
-    error::{ExecutorActionError, ExecutorActionResult, ExecutorProcessFatalError},
+    error::{
+        ExecutorActionError, ExecutorActionResult, ExecutorProcessFatalError,
+        ExecutorProcessRecoverableError,
+    },
     update::LiveTradeExecutorTransmiter,
 };
 
-mod live_trading_session;
+pub(in crate::trade) mod live_trading_session;
 
-pub use live_trading_session::{LiveTradingSession, TradingSessionRefreshOffset};
+use live_trading_session::LiveTradingSession;
 
 #[derive(Debug, Clone)]
 pub enum LiveTradeExecutorStatusNotReady {
@@ -56,7 +57,7 @@ impl fmt::Display for LiveTradeExecutorStatus {
 }
 
 #[derive(Debug, Clone)]
-pub struct LiveTradeExecutorState {
+pub(in crate::trade) struct LiveTradeExecutorState {
     status: LiveTradeExecutorStatus,
     trading_session: Option<LiveTradingSession>,
 }
@@ -69,10 +70,6 @@ impl LiveTradeExecutorState {
     pub fn trading_session(&self) -> Option<&LiveTradingSession> {
         self.trading_session.as_ref()
     }
-
-    pub fn has_active_session(&self) -> bool {
-        self.trading_session.is_some()
-    }
 }
 
 impl From<LiveTradeExecutorStatusNotReady> for LiveTradeExecutorStatus {
@@ -81,16 +78,12 @@ impl From<LiveTradeExecutorStatusNotReady> for LiveTradeExecutorStatus {
     }
 }
 
-pub struct LockedLiveTradeExecutorState<'a> {
+pub(super) struct LockedLiveTradeExecutorState<'a> {
     state_guard: MutexGuard<'a, LiveTradeExecutorState>,
     update_tx: LiveTradeExecutorTransmiter,
 }
 
 impl<'a> LockedLiveTradeExecutorState<'a> {
-    pub fn status(&self) -> &LiveTradeExecutorStatus {
-        self.state_guard.status()
-    }
-
     pub fn trading_session(&self) -> Option<&LiveTradingSession> {
         self.state_guard.trading_session()
     }
@@ -120,7 +113,7 @@ impl<'a> LockedLiveTradeExecutorState<'a> {
 
 /// Represents a locked live trade executor in the Ready state with an active
 /// trading session.
-pub struct LockedLiveTradeExecutorStateReady<'a>(LockedLiveTradeExecutorState<'a>);
+pub(super) struct LockedLiveTradeExecutorStateReady<'a>(LockedLiveTradeExecutorState<'a>);
 
 impl<'a> TryFrom<LockedLiveTradeExecutorState<'a>> for LockedLiveTradeExecutorStateReady<'a> {
     type Error = ExecutorActionError;
@@ -159,13 +152,9 @@ impl<'a> LockedLiveTradeExecutorStateReady<'a> {
     pub async fn update_trading_session(self, new_trading_session: LiveTradingSession) {
         self.0.update_status_ready(new_trading_session)
     }
-
-    pub fn update_status_not_ready(self, new_status_not_ready: LiveTradeExecutorStatusNotReady) {
-        self.0.update_status_not_ready(new_status_not_ready)
-    }
 }
 
-pub struct LiveTradeExecutorStateManager {
+pub(super) struct LiveTradeExecutorStateManager {
     state: Mutex<LiveTradeExecutorState>,
     update_tx: LiveTradeExecutorTransmiter,
 }
@@ -208,12 +197,6 @@ impl LiveTradeExecutorStateManager {
         self.lock_state()
             .await
             .update_status_not_ready(new_status_not_ready)
-    }
-
-    pub async fn update_status_ready(&self, new_trading_session: LiveTradingSession) {
-        self.lock_state()
-            .await
-            .update_status_ready(new_trading_session)
     }
 
     pub async fn has_registered_running_trades(&self) -> bool {

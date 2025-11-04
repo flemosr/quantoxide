@@ -44,7 +44,7 @@ impl From<TradingSessionRefreshOffset> for Duration {
 }
 
 #[derive(Debug, Clone)]
-pub struct LiveTradingSession {
+pub(in crate::trade) struct LiveTradingSession {
     expires_at: DateTime<Utc>,
     tsl_step_size: BoundedPercentage,
     last_trade_time: Option<DateTime<Utc>>,
@@ -133,10 +133,6 @@ impl LiveTradingSession {
 
     pub fn is_expired(&self) -> bool {
         Utc::now() >= self.expires_at
-    }
-
-    pub fn last_trade_time(&self) -> Option<DateTime<Utc>> {
-        self.last_trade_time
     }
 
     pub fn balance(&self) -> u64 {
