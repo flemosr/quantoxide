@@ -7,35 +7,9 @@ use crate::{
     util::DateTimeExt,
 };
 
-pub mod error;
+pub(crate) mod error;
 
 use error::{IndicatorError, Result};
-
-#[derive(Debug)]
-pub struct IndicatorValues {
-    time: DateTime<Utc>,
-    ma_5: Option<f64>,
-    ma_60: Option<f64>,
-    ma_300: Option<f64>,
-}
-
-impl IndicatorValues {
-    pub fn time(&self) -> DateTime<Utc> {
-        self.time
-    }
-
-    pub fn ma_5(&self) -> Option<f64> {
-        self.ma_5
-    }
-
-    pub fn ma_60(&self) -> Option<f64> {
-        self.ma_60
-    }
-
-    pub fn ma_300(&self) -> Option<f64> {
-        self.ma_300
-    }
-}
 
 struct MovingAverageEvaluator {
     window: VecDeque<f64>,
@@ -69,7 +43,7 @@ impl MovingAverageEvaluator {
     }
 }
 
-pub struct IndicatorsEvaluator;
+pub(crate) struct IndicatorsEvaluator;
 
 impl IndicatorsEvaluator {
     const WINDOW_SIZE_SEC: usize = 300; // From MovingAverage 300
