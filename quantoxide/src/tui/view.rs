@@ -12,7 +12,7 @@ use strum::IntoEnumIterator;
 
 use super::error::{Result, TuiError};
 
-pub trait TuiLogManager: Sync + Send + 'static {
+pub(super) trait TuiLogManager: Sync + Send + 'static {
     type State;
 
     fn get_max_tui_log_len(&self) -> usize;
@@ -102,7 +102,7 @@ pub trait TuiLogManager: Sync + Send + 'static {
     }
 }
 
-pub trait TuiView: TuiLogManager {
+pub(super) trait TuiView: TuiLogManager {
     type UiMessage;
 
     type TuiPane: IntoEnumIterator;
