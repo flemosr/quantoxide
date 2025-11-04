@@ -20,20 +20,17 @@ use super::{
     state::{SyncStatus, SyncStatusManager, SyncStatusNotSynced, SyncTransmiter},
 };
 
-mod error;
+pub(crate) mod error;
+pub(crate) mod real_time_collection_task;
+pub(crate) mod sync_price_history_task;
 
-mod real_time_collection_task;
-mod sync_price_history_task;
-
-use error::{Result, SyncProcessError};
+use error::{Result, SyncProcessError, SyncProcessFatalError, SyncProcessRecoverableError};
 use real_time_collection_task::RealTimeCollectionTask;
-use sync_price_history_task::{PriceHistoryStateTransmiter, SyncPriceHistoryTask};
+use sync_price_history_task::{
+    PriceHistoryStateTransmiter, SyncPriceHistoryTask, price_history_state::PriceHistoryState,
+};
 
-pub use error::{SyncProcessFatalError, SyncProcessRecoverableError};
-pub use real_time_collection_task::RealTimeCollectionError;
-pub use sync_price_history_task::{PriceHistoryState, SyncPriceHistoryError};
-
-pub struct SyncProcess {
+pub(super) struct SyncProcess {
     config: SyncProcessConfig,
     db: Arc<DbContext>,
     api: Arc<ApiClient>,
