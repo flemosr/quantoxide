@@ -52,4 +52,4 @@ pub enum SyncPriceHistoryError {
     PriceHistoryStateReachNotSet,
 }
 
-pub type Result<T> = result::Result<T, SyncPriceHistoryError>;
+pub(super) type Result<T> = result::Result<T, SyncPriceHistoryError>;
