@@ -74,7 +74,7 @@ impl From<Arc<TuiStatusStopped>> for TuiStatus {
     }
 }
 
-pub struct TuiStatusManager<TView: TuiLogManager> {
+pub(super) struct TuiStatusManager<TView: TuiLogManager> {
     logger: Arc<TView>,
     status: Mutex<TuiStatus>,
 }
