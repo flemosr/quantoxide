@@ -23,7 +23,7 @@ pub enum TradeExecutorError {
     Live(#[from] ExecutorActionError),
 }
 
-pub type TradeExecutorResult<T> = result::Result<T, TradeExecutorError>;
+pub(super) type TradeExecutorResult<T> = result::Result<T, TradeExecutorError>;
 
 #[derive(Error, Debug)]
 pub enum TradeCoreError {
@@ -87,4 +87,4 @@ pub enum TradeCoreError {
     NoNextTriggerTradeStoplossNotSet { trade_id: Uuid },
 }
 
-pub type TradeCoreResult<T> = result::Result<T, TradeCoreError>;
+pub(super) type TradeCoreResult<T> = result::Result<T, TradeCoreError>;
