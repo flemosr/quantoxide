@@ -6,7 +6,7 @@ use tokio::{
     task::JoinError,
 };
 
-use crate::{db::error::DbError, sync::SyncProcessFatalError, util::PanicPayload};
+use crate::{db::error::DbError, sync::process::error::SyncProcessFatalError, util::PanicPayload};
 
 #[derive(Error, Debug)]
 pub enum SignalProcessRecoverableError {

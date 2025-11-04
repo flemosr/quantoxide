@@ -24,7 +24,7 @@ use error::{
     ProcessResult, SignalProcessError, SignalProcessFatalError, SignalProcessRecoverableError,
 };
 
-pub struct LiveSignalProcess {
+pub(crate) struct LiveSignalProcess {
     config: LiveSignalProcessConfig,
     db: Arc<DbContext>,
     evaluators: Arc<Vec<ConfiguredSignalEvaluator>>,
