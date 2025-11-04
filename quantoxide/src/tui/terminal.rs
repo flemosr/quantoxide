@@ -23,7 +23,7 @@ struct TerminalState {
     restored: bool,
 }
 
-pub struct TuiTerminal(Mutex<TerminalState>);
+pub(super) struct TuiTerminal(Mutex<TerminalState>);
 
 impl TuiTerminal {
     pub fn new() -> Result<Arc<Self>> {
