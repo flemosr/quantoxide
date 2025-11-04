@@ -1,9 +1,13 @@
+pub(crate) mod backtest;
 mod core;
 pub(crate) mod error;
-
-pub mod backtest;
 pub(crate) mod live;
 
+pub use backtest::{
+    config::BacktestConfig,
+    engine::{BacktestController, BacktestEngine},
+    state::{BacktestReceiver, BacktestStatus, BacktestUpdate},
+};
 pub use core::{
     ClosedTradeHistory, RawOperator, RunningTradesMap, SignalOperator, Stoploss, TradeExecutor,
     TradeExt, TradeTrailingStoploss, TradingState,
