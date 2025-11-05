@@ -65,6 +65,7 @@ impl LiveTradingSession {
         refresh_offset: TradingSessionRefreshOffset,
         db: &Database,
         api: &WrappedApiContext,
+        prev_trading_session: Option<Self>,
     ) -> ExecutorActionResult<Self> {
         let (lastest_entry_time, lastest_entry_price) = db
             .price_ticks
@@ -93,9 +94,9 @@ impl LiveTradingSession {
             last_price: lastest_entry_price,
             trigger: PriceTrigger::NotSet,
             running_map: RunningTradesMap::new(),
-            closed_len: 0,
-            closed_pl: 0,
-            closed_fees: 0,
+            closed_len: prev_trading_session.as_ref().map_or(0, |ps| ps.closed_len),
+            closed_pl: prev_trading_session.as_ref().map_or(0, |ps| ps.closed_pl),
+            closed_fees: prev_trading_session.as_ref().map_or(0, |ps| ps.closed_fees),
         };
 
         if !recover_trades_on_startup {
