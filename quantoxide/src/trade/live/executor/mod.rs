@@ -507,9 +507,9 @@ impl LiveTradeExecutorLauncher {
             let refresh_trading_session = async || {
                 let locked_state = state_manager.lock_state().await;
 
-                let current_trading_session = match locked_state.trading_session() {
+                let current_trading_session = match locked_state.trading_session().cloned() {
                     Some(old_trading_session) if !old_trading_session.is_expired() => {
-                        let mut restored_trading_session = old_trading_session.clone();
+                        let mut restored_trading_session = old_trading_session;
 
                         match restored_trading_session
                             .reevaluate(db.as_ref(), &api)
@@ -533,13 +533,14 @@ impl LiveTradeExecutorLauncher {
 
                         restored_trading_session
                     }
-                    _ => {
+                    prev_session => {
                         match LiveTradingSession::new(
                             recover_trades_on_startup,
                             tsl_step_size,
                             session_refresh_offset,
                             db.as_ref(),
                             &api,
+                            prev_session,
                         )
                         .await
                         .map_err(ExecutorProcessRecoverableError::LiveTradeSessionEvaluation)
