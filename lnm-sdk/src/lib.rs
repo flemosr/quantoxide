@@ -1,6 +1,10 @@
 mod api;
 
-pub use api::{ApiClient, ApiClientConfig, websocket::state::WsConnectionStatus};
+pub use api::{
+    ApiClient, ApiClientConfig,
+    rest::RestClient,
+    websocket::{WebSocketClient, repositories::WebSocketRepository, state::WsConnectionStatus},
+};
 
 pub mod error {
     pub use super::api::{
