@@ -3,7 +3,7 @@ use std::sync::Arc;
 pub(crate) mod error;
 mod lnm;
 pub(crate) mod models;
-mod repositories;
+pub(crate) mod repositories;
 pub(crate) mod state;
 
 use error::Result;
