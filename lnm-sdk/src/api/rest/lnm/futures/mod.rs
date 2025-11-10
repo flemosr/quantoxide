@@ -48,6 +48,8 @@ impl LnmFuturesRepository {
     }
 }
 
+impl crate::sealed::Sealed for LnmFuturesRepository {}
+
 #[async_trait]
 impl FuturesRepository for LnmFuturesRepository {
     async fn get_trades(
