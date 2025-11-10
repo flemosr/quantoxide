@@ -83,11 +83,13 @@ impl ApiClientConfig {
     }
 }
 
-/// Client for interacting with the LNM's v2 API via REST and WebSocket.
+/// Client for interacting with the [LNM's v2 API] via REST and WebSocket.
 ///
 /// `ApiClient` provides a unified interface for making REST API calls and establishing WebSocket
 /// connections. It manages the WebSocket connection lifecycle and, when credentials are provided,
 /// authentication.
+///
+/// [LNM's v2 API]: https://docs.lnmarkets.com/api/#overview
 pub struct ApiClient {
     config: ApiClientConfig,
     domain: String,
