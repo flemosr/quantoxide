@@ -42,3 +42,7 @@ pub mod models {
         },
     };
 }
+
+mod sealed {
+    pub trait Sealed {}
+}
