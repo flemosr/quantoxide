@@ -18,6 +18,8 @@ impl LnmUserRepository {
     }
 }
 
+impl crate::sealed::Sealed for LnmUserRepository {}
+
 #[async_trait]
 impl UserRepository for LnmUserRepository {
     async fn get_user(&self) -> Result<User> {

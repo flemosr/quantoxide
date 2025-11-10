@@ -714,7 +714,32 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     async fn cash_in(&self, id: Uuid, amount: NonZeroU64) -> Result<LnmTrade>;
 }
 
+/// Methods for interacting with [LNM's v2 API]'s REST User endpoints.
+///
+/// This trait is sealed and not meant to be implemented outside of `lnm-sdk`.
+///
+/// [LNM's v2 API]: https://docs.lnmarkets.com/api/#overview
 #[async_trait]
-pub trait UserRepository: Send + Sync {
+pub trait UserRepository: crate::sealed::Sealed + Send + Sync {
+    /// **Requires credentials**. Get user information.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// use std::env;
+    /// use lnm_sdk::{ApiClient, ApiClientConfig, models::User};
+    ///
+    /// let domain = env::var("LNM_API_DOMAIN").unwrap();
+    /// let key = env::var("LNM_API_KEY").unwrap();
+    /// let secret = env::var("LNM_API_SECRET").unwrap();
+    /// let pphrase = env::var("LNM_API_PASSPHRASE").unwrap();
+    /// let config = ApiClientConfig::default();
+    /// let api = ApiClient::with_credentials(config, domain, key, secret, pphrase)?;
+    ///
+    /// let user: User = api.rest.user.get_user().await?;
+    /// # Ok(())
+    /// # }
+    /// ```
     async fn get_user(&self) -> Result<User>;
 }
