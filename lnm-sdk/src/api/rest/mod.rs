@@ -3,7 +3,7 @@ use std::{sync::Arc, time::Duration};
 pub(crate) mod error;
 mod lnm;
 pub(crate) mod models;
-mod repositories;
+pub(crate) mod repositories;
 
 use error::Result;
 use lnm::{base::LnmRestBase, futures::LnmFuturesRepository, user::LnmUserRepository};
