@@ -1,5 +1,8 @@
 use std::{sync::Arc, time::Duration};
 
+#[allow(unused_imports)]
+use super::ApiClient; // Used in docs
+
 pub(crate) mod error;
 mod lnm;
 pub(crate) mod models;
@@ -30,9 +33,20 @@ impl Default for RestClientConfig {
     }
 }
 
+/// Client for interacting with the [LNM's v2 API] via REST.
+///
+/// [LNM's v2 API]: https://docs.lnmarkets.com/api/#overview
 pub struct RestClient {
+    /// Will be `true` if LNM credentials were provided, and `false` otherwise.
+    /// See [`ApiClient::with_credentials`].
     pub has_credentials: bool,
+    /// Methods for interacting with [LNM's v2 API]'s REST Futures endpoints.
+    ///
+    /// [LNM's v2 API]: https://docs.lnmarkets.com/api/#overview
     pub futures: Box<dyn FuturesRepository>,
+    /// Methods for interacting with [LNM's v2 API]'s REST User endpoints.
+    ///
+    /// [LNM's v2 API]: https://docs.lnmarkets.com/api/#overview
     pub user: Box<dyn UserRepository>,
 }
 
