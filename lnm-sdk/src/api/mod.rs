@@ -19,7 +19,7 @@ use websocket::{WebSocketClient, error::Result};
 /// // Use default configuration
 /// let config = ApiClientConfig::default();
 ///
-/// // Customize timeouts
+/// // Customize configuration
 /// let config = ApiClientConfig::default()
 ///     .with_rest_timeout(Duration::from_secs(20))
 ///     .with_ws_disconnect_timeout(Duration::from_secs(6));
@@ -116,9 +116,9 @@ impl ApiClient {
     /// use std::env;
     /// use lnm_sdk::{ApiClient, ApiClientConfig};
     ///
-    /// let api_domain = env::var("LNM_API_DOMAIN").unwrap();
+    /// let domain = env::var("LNM_API_DOMAIN").unwrap();
     ///
-    /// let client = ApiClient::new(ApiClientConfig::default(), api_domain)?;
+    /// let api = ApiClient::new(ApiClientConfig::default(), domain)?;
     /// # Ok(())
     /// # }
     /// ```
@@ -139,18 +139,13 @@ impl ApiClient {
     /// use std::env;
     /// use lnm_sdk::{ApiClient, ApiClientConfig};
     ///
-    /// let api_domain = env::var("LNM_API_DOMAIN").unwrap();
-    /// let api_key = env::var("LNM_API_KEY").unwrap();
-    /// let api_secret = env::var("LNM_API_SECRET").unwrap();
-    /// let api_passphrase = env::var("LNM_API_PASSPHRASE").unwrap();
+    /// let domain = env::var("LNM_API_DOMAIN").unwrap();
+    /// let key = env::var("LNM_API_KEY").unwrap();
+    /// let secret = env::var("LNM_API_SECRET").unwrap();
+    /// let pphrase = env::var("LNM_API_PASSPHRASE").unwrap();
     ///
-    /// let client = ApiClient::with_credentials(
-    ///     ApiClientConfig::default(),
-    ///     api_domain,
-    ///     api_key,
-    ///     api_secret,
-    ///     api_passphrase
-    /// )?;
+    /// let config = ApiClientConfig::default();
+    /// let api = ApiClient::with_credentials(config, domain, key, secret, pphrase)?;
     /// # Ok(())
     /// # }
     /// ```
@@ -179,12 +174,10 @@ impl ApiClient {
     /// use std::env;
     /// use lnm_sdk::{ApiClient, ApiClientConfig};
     ///
-    /// let api_domain = env::var("LNM_API_DOMAIN").unwrap();
+    /// let domain = env::var("LNM_API_DOMAIN").unwrap();
+    /// let api = ApiClient::new(ApiClientConfig::default(), domain)?;
     ///
-    /// let client = ApiClient::new(ApiClientConfig::default(), api_domain)?;
-    ///
-    /// // Connect to WebSocket
-    /// let ws = client.connect_ws().await?;
+    /// let ws = api.connect_ws().await?;
     /// # Ok(())
     /// # }
     /// ```
