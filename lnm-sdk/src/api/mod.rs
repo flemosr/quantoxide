@@ -8,6 +8,22 @@ pub(crate) mod websocket;
 use rest::RestClient;
 use websocket::{WebSocketClient, error::Result};
 
+/// Configuration for LNM's [`ApiClient`].
+///
+/// # Examples
+///
+/// ```
+/// use std::time::Duration;
+/// use lnm_sdk::ApiClientConfig;
+///
+/// // Use default configuration
+/// let config = ApiClientConfig::default();
+///
+/// // Customize timeouts
+/// let config = ApiClientConfig::default()
+///     .with_rest_timeout(Duration::from_secs(20))
+///     .with_ws_disconnect_timeout(Duration::from_secs(6));
+/// ```
 #[derive(Clone, Debug)]
 pub struct ApiClientConfig {
     rest_timeout: Duration,
@@ -24,25 +40,54 @@ impl Default for ApiClientConfig {
 }
 
 impl ApiClientConfig {
+    /// Returns the configured timeout for REST API requests.
     pub fn rest_timeout(&self) -> Duration {
         self.rest_timeout
     }
 
+    /// Returns the configured timeout for WebSocket disconnect operations.
     pub fn ws_disconnect_timeout(&self) -> Duration {
         self.ws_disconnect_timeout
     }
 
+    /// Sets the REST API request timeout. The default is 20 seconds.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::time::Duration;
+    /// use lnm_sdk::ApiClientConfig;
+    ///
+    /// let config = ApiClientConfig::default()
+    ///     .with_rest_timeout(Duration::from_secs(20));
+    /// ```
     pub fn with_rest_timeout(mut self, timeout: Duration) -> Self {
         self.rest_timeout = timeout;
         self
     }
 
+    /// Sets the WebSocket disconnect timeout. The default is 6 seconds.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::time::Duration;
+    /// use lnm_sdk::ApiClientConfig;
+    ///
+    /// let config = ApiClientConfig::default()
+    ///     .with_ws_disconnect_timeout(Duration::from_secs(6));
+    /// ```
     pub fn with_ws_disconnect_timeout(mut self, timeout: Duration) -> Self {
         self.ws_disconnect_timeout = timeout;
         self
     }
 }
 
+/// Client for interacting with the LNM's v2 API via REST and WebSocket.
+///
+/// `ApiClient` provides a unified interface for making REST API calls and establishing WebSocket
+/// connections. It manages the WebSocket connection lifecycle and, when credentials are provided,
+/// authentication.
 pub struct ApiClient {
     config: ApiClientConfig,
     domain: String,
@@ -60,12 +105,55 @@ impl ApiClient {
         })
     }
 
+    /// Creates a new unauthenticated API client.
+    ///
+    /// For authenticated endpoints, use [`ApiClient::with_credentials`].
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// use lnm_sdk::{ApiClient, ApiClientConfig};
+    ///
+    /// let client = ApiClient::new(
+    ///     ApiClientConfig::default(),
+    ///     "https://api.lnmarkets.com".to_string()
+    /// )?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn new(config: ApiClientConfig, domain: String) -> rest::error::Result<Arc<Self>> {
         let rest = RestClient::new(&config, domain.clone())?;
 
         Ok(Self::new_inner(config, domain, rest))
     }
 
+    /// Creates a new authenticated API client with credentials.
+    ///
+    /// If not accessing authenticated endpoints, consider using [`ApiClient::new`].
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// use std::env;
+    /// use lnm_sdk::{ApiClient, ApiClientConfig};
+    ///
+    /// let api_domain = env::var("LNM_API_DOMAIN").unwrap();
+    /// let api_key = env::var("LNM_API_KEY").unwrap();
+    /// let api_secret = env::var("LNM_API_SECRET").unwrap();
+    /// let api_passphrase = env::var("LNM_API_PASSPHRASE").unwrap();
+    ///
+    /// let client = ApiClient::with_credentials(
+    ///     ApiClientConfig::default(),
+    ///     api_domain,
+    ///     api_key,
+    ///     api_secret,
+    ///     api_passphrase
+    /// )?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn with_credentials(
         config: ApiClientConfig,
         domain: String,
@@ -78,6 +166,28 @@ impl ApiClient {
         Ok(Self::new_inner(config, domain, rest))
     }
 
+    /// Connects to the WebSocket API or returns an existing connection.
+    ///
+    /// This method manages WebSocket connection lifecycle automatically:
+    /// + If a connection already exists and is active, it returns that connection
+    /// + If no connection exists or the existing one is disconnected, it creates a new one
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// use std::env;
+    /// use lnm_sdk::{ApiClient, ApiClientConfig};
+    ///
+    /// let api_domain = env::var("LNM_API_DOMAIN").unwrap();
+    ///
+    /// let client = ApiClient::new(ApiClientConfig::default(), api_domain)?;
+    ///
+    /// // Connect to WebSocket
+    /// let ws = client.connect_ws().await?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub async fn connect_ws(&self) -> Result<WebSocketClient> {
         let mut ws_guard = self.ws.lock().await;
 
