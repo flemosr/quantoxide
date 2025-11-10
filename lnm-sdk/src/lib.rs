@@ -2,7 +2,10 @@ mod api;
 
 pub use api::{
     ApiClient, ApiClientConfig,
-    rest::RestClient,
+    rest::{
+        RestClient,
+        repositories::{FuturesRepository, UserRepository},
+    },
     websocket::{WebSocketClient, repositories::WebSocketRepository, state::WsConnectionStatus},
 };
 
