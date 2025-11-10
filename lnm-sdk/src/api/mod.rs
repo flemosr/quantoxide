@@ -113,12 +113,12 @@ impl ApiClient {
     ///
     /// ```no_run
     /// # fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// use std::env;
     /// use lnm_sdk::{ApiClient, ApiClientConfig};
     ///
-    /// let client = ApiClient::new(
-    ///     ApiClientConfig::default(),
-    ///     "https://api.lnmarkets.com".to_string()
-    /// )?;
+    /// let api_domain = env::var("LNM_API_DOMAIN").unwrap();
+    ///
+    /// let client = ApiClient::new(ApiClientConfig::default(), api_domain)?;
     /// # Ok(())
     /// # }
     /// ```
