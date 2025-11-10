@@ -11,11 +11,13 @@ use super::{
         price::Price,
         price_history::PriceEntryLNM,
         ticker::Ticker,
-        trade::LnmTrade,
-        trade::{TradeExecution, TradeSide, TradeSize, TradeStatus},
+        trade::{LnmTrade, TradeExecution, TradeSide, TradeSize, TradeStatus},
         user::User,
     },
 };
+
+#[allow(unused_imports)]
+use super::models::trade::TradeRunning; // Used in docs
 
 /// Methods for interacting with [LNM's v2 API]'s REST Futures endpoints.
 ///
@@ -594,9 +596,10 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// **Requires credentials**. Adds margin to an open/running trade, increasing the collateral
     /// and therefore reducing the leverage.
     ///
-    /// The resulting [`Leverage`] must be valid (≥ 1) after the update.
+    /// The resulting [`Leverage`] must be valid (≥ 1) after the update. To target a specific
+    /// liquidation price, see [`TradeRunning::est_collateral_delta_for_liquidation`].
     ///
-    /// [`Leverage`] = [`Quantity`] x [`SATS_PER_BTC`] / [`Margin`] / [`Price`]
+    /// leverage = (quantity * SATS_PER_BTC) / (margin * price)
     ///
     /// Beware of potential rounding issues when evaluating the new leverage.
     ///
@@ -656,9 +659,10 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     ///
     /// Funds are first removed from the trade's PL, if positive, by adjusting the trade's entry
     /// price. Then, they are removed from the trade's margin.
-    /// The resulting [`Leverage`] must be valid (≥ 1 and ≤ 100) after the update.
+    /// The resulting [`Leverage`] must be valid (≥ 1 and ≤ 100) after the update. To target a
+    /// specific liquidation price, see [`TradeRunning::est_collateral_delta_for_liquidation`].
     ///
-    /// [`Leverage`] = [`Quantity`] x [`SATS_PER_BTC`] / [`Margin`] / [`Price`]
+    /// leverage = (quantity * SATS_PER_BTC) / (margin * price)
     ///
     /// Beware of potential rounding issues when evaluating the new leverage.
     ///
