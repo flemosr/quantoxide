@@ -32,6 +32,7 @@ impl WebSocketClientConfig {
     }
 }
 
+/// Thread-safe handle to a [`WebSocketRepository`].
 pub type WebSocketClient = Arc<dyn WebSocketRepository>;
 
 pub(crate) async fn new(

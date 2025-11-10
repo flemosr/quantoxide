@@ -93,6 +93,8 @@ impl LnmWebSocketRepo {
     }
 }
 
+impl crate::sealed::Sealed for LnmWebSocketRepo {}
+
 #[async_trait]
 impl WebSocketRepository for LnmWebSocketRepo {
     async fn is_connected(&self) -> bool {
