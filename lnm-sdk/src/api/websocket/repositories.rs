@@ -9,14 +9,16 @@ use super::{
     state::WsConnectionStatus,
 };
 
-/// Methods to interacting with LNM's WebSocket API.
+/// Methods for interacting with [LNM's v2 API]'s WebSocket.
 ///
 /// This trait is sealed and not meant to be implemented outside of `lnm-sdk`.
+///
+/// [LNM's v2 API]: https://docs.lnmarkets.com/api/#overview
 #[async_trait]
 pub trait WebSocketRepository: crate::sealed::Sealed + Send + Sync {
     /// Returns whether the WebSocket connection is currently established.
     ///
-    /// This is a convenience method that checks if the current is `Connected`.
+    /// This is a convenience method that checks if the current status is `Connected`.
     ///
     /// # Examples
     ///
@@ -25,14 +27,14 @@ pub trait WebSocketRepository: crate::sealed::Sealed + Send + Sync {
     /// use std::env;
     /// use lnm_sdk::{ApiClient, ApiClientConfig};
     ///
-    /// let api_domain = env::var("LNM_API_DOMAIN").unwrap();
-    /// let client = ApiClient::new(ApiClientConfig::default(), api_domain)?;
-    /// let ws = client.connect_ws().await?;
+    /// let domain = env::var("LNM_API_DOMAIN").unwrap();
+    /// let api = ApiClient::new(ApiClientConfig::default(), domain)?;
+    /// let ws = api.connect_ws().await?;
     ///
     /// if ws.is_connected().await {
-    ///     // WebSocket is connected
+    ///     // ...
     /// } else {
-    ///     // WebSocket is not connected
+    ///     // ...
     /// }
     /// # Ok(())
     /// # }
@@ -48,9 +50,9 @@ pub trait WebSocketRepository: crate::sealed::Sealed + Send + Sync {
     /// use std::env;
     /// use lnm_sdk::{ApiClient, ApiClientConfig, WsConnectionStatus};
     ///
-    /// let api_domain = env::var("LNM_API_DOMAIN").unwrap();
-    /// let client = ApiClient::new(ApiClientConfig::default(), api_domain)?;
-    /// let ws = client.connect_ws().await?;
+    /// let domain = env::var("LNM_API_DOMAIN").unwrap();
+    /// let api = ApiClient::new(ApiClientConfig::default(), domain)?;
+    /// let ws = api.connect_ws().await?;
     ///
     /// match ws.connection_status().await {
     ///     WsConnectionStatus::Connected => {
@@ -80,9 +82,9 @@ pub trait WebSocketRepository: crate::sealed::Sealed + Send + Sync {
     /// use std::env;
     /// use lnm_sdk::{ApiClient, ApiClientConfig, models::LnmWebSocketChannel};
     ///
-    /// let api_domain = env::var("LNM_API_DOMAIN").unwrap();
-    /// let client = ApiClient::new(ApiClientConfig::default(), api_domain)?;
-    /// let ws = client.connect_ws().await?;
+    /// let domain = env::var("LNM_API_DOMAIN").unwrap();
+    /// let api = ApiClient::new(ApiClientConfig::default(), domain)?;
+    /// let ws = api.connect_ws().await?;
     ///
     /// ws.subscribe(vec![
     ///     LnmWebSocketChannel::FuturesBtcUsdIndex,
@@ -104,9 +106,9 @@ pub trait WebSocketRepository: crate::sealed::Sealed + Send + Sync {
     /// use std::env;
     /// use lnm_sdk::{ApiClient, ApiClientConfig, models::LnmWebSocketChannel};
     ///
-    /// let api_domain = env::var("LNM_API_DOMAIN").unwrap();
-    /// let client = ApiClient::new(ApiClientConfig::default(), api_domain)?;
-    /// let ws = client.connect_ws().await?;
+    /// let domain = env::var("LNM_API_DOMAIN").unwrap();
+    /// let api = ApiClient::new(ApiClientConfig::default(), domain)?;
+    /// let ws = api.connect_ws().await?;
     ///
     /// ws.subscribe(vec![LnmWebSocketChannel::FuturesBtcUsdIndex]).await?;
     /// ws.unsubscribe(vec![LnmWebSocketChannel::FuturesBtcUsdIndex]).await?;
@@ -126,9 +128,9 @@ pub trait WebSocketRepository: crate::sealed::Sealed + Send + Sync {
     /// use std::env;
     /// use lnm_sdk::{ApiClient, ApiClientConfig, models::LnmWebSocketChannel};
     ///
-    /// let api_domain = env::var("LNM_API_DOMAIN").unwrap();
-    /// let client = ApiClient::new(ApiClientConfig::default(), api_domain)?;
-    /// let ws = client.connect_ws().await?;
+    /// let domain = env::var("LNM_API_DOMAIN").unwrap();
+    /// let api = ApiClient::new(ApiClientConfig::default(), domain)?;
+    /// let ws = api.connect_ws().await?;
     ///
     /// ws.subscribe(vec![
     ///     LnmWebSocketChannel::FuturesBtcUsdIndex,
@@ -150,9 +152,9 @@ pub trait WebSocketRepository: crate::sealed::Sealed + Send + Sync {
     /// use std::env;
     /// use lnm_sdk::{ApiClient, ApiClientConfig, models::LnmWebSocketChannel};
     ///
-    /// let api_domain = env::var("LNM_API_DOMAIN").unwrap();
-    /// let client = ApiClient::new(ApiClientConfig::default(), api_domain)?;
-    /// let ws = client.connect_ws().await?;
+    /// let domain = env::var("LNM_API_DOMAIN").unwrap();
+    /// let api = ApiClient::new(ApiClientConfig::default(), domain)?;
+    /// let ws = api.connect_ws().await?;
     ///
     /// let mut ws_rx = ws.receiver().await?;
     ///
@@ -166,8 +168,8 @@ pub trait WebSocketRepository: crate::sealed::Sealed + Send + Sync {
     /// ```
     async fn receiver(&self) -> Result<Receiver<WebSocketUpdate>>;
 
-    /// Disconnects the WebSocket connection. After disconnection, all receivers will stop receiving
-    /// updates and the connection status will change to `Disconnected`.
+    /// Disconnects the WebSocket. After disconnection, receivers stop receiving updates and the
+    /// connection status changes to `Disconnected`.
     ///
     /// # Examples
     ///
@@ -176,15 +178,18 @@ pub trait WebSocketRepository: crate::sealed::Sealed + Send + Sync {
     /// use std::env;
     /// use lnm_sdk::{ApiClient, ApiClientConfig, WsConnectionStatus};
     ///
-    /// let api_domain = env::var("LNM_API_DOMAIN").unwrap();
-    /// let client = ApiClient::new(ApiClientConfig::default(), api_domain)?;
-    /// let ws = client.connect_ws().await?;
+    /// let domain = env::var("LNM_API_DOMAIN").unwrap();
+    /// let api = ApiClient::new(ApiClientConfig::default(), domain)?;
+    /// let ws = api.connect_ws().await?;
     ///
     /// assert!(matches!(ws.connection_status().await, WsConnectionStatus::Connected));
     ///
     /// ws.disconnect().await?;
     ///
-    /// assert!(matches!(ws.connection_status().await, WsConnectionStatus::Disconnected));
+    /// assert!(matches!(
+    ///     ws.connection_status().await,
+    ///     WsConnectionStatus::Disconnected
+    /// ));
     /// # Ok(())
     /// # }
     /// ```
