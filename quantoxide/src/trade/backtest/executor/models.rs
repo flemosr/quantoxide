@@ -4,8 +4,7 @@ use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
 use lnm_sdk::models::{
-    BoundedPercentage, Leverage, Margin, Price, Quantity, TradeExecutionType, TradeSide, TradeSize,
-    trade_util,
+    BoundedPercentage, Leverage, Margin, Price, Quantity, TradeSide, TradeSize, trade_util,
 };
 
 use super::{
@@ -196,10 +195,6 @@ impl Trade for SimulatedTradeRunning {
         self.id
     }
 
-    fn trade_type(&self) -> TradeExecutionType {
-        TradeExecutionType::Market
-    }
-
     fn side(&self) -> TradeSide {
         self.side
     }
@@ -260,26 +255,6 @@ impl Trade for SimulatedTradeRunning {
         None
     }
 
-    fn entry_price(&self) -> Option<Price> {
-        Some(self.entry_price)
-    }
-
-    fn entry_margin(&self) -> Option<Margin> {
-        Some(self.margin)
-    }
-
-    fn open(&self) -> bool {
-        false
-    }
-
-    fn running(&self) -> bool {
-        true
-    }
-
-    fn canceled(&self) -> bool {
-        false
-    }
-
     fn closed(&self) -> bool {
         false
     }
@@ -316,10 +291,6 @@ pub(super) struct SimulatedTradeClosed {
 impl Trade for SimulatedTradeClosed {
     fn id(&self) -> Uuid {
         self.id
-    }
-
-    fn trade_type(&self) -> TradeExecutionType {
-        TradeExecutionType::Market
     }
 
     fn side(&self) -> TradeSide {
@@ -380,26 +351,6 @@ impl Trade for SimulatedTradeClosed {
 
     fn closed_ts(&self) -> Option<DateTime<Utc>> {
         Some(self.close_time)
-    }
-
-    fn entry_price(&self) -> Option<Price> {
-        Some(self.entry_price)
-    }
-
-    fn entry_margin(&self) -> Option<Margin> {
-        Some(self.margin)
-    }
-
-    fn open(&self) -> bool {
-        false
-    }
-
-    fn running(&self) -> bool {
-        false
-    }
-
-    fn canceled(&self) -> bool {
-        false
     }
 
     fn closed(&self) -> bool {

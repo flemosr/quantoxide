@@ -15,7 +15,7 @@ use lnm_sdk::{
     error::TradeValidationError,
     models::{
         BoundedPercentage, Leverage, LnmTrade, LowerBoundedPercentage, Margin, Price, Quantity,
-        TradeExecutionType, TradeSide, TradeSize, trade_util,
+        TradeSide, TradeSize, trade_util,
     },
 };
 
@@ -25,16 +25,10 @@ use super::error::{TradeCoreError, TradeCoreResult, TradeExecutorResult};
 
 impl crate::sealed::Sealed for LnmTrade {}
 
-/// Core trait for trade implementations.
-///
-/// Provides access to common trade properties including identification, execution details,
-/// risk management parameters, and lifecycle status.
+/// Generic trade interface. Not publically exported.
 pub trait Trade: Send + Sync + fmt::Debug + 'static {
     /// Returns the unique identifier for this trade.
     fn id(&self) -> Uuid;
-
-    /// Returns the execution type (Market or Limit).
-    fn trade_type(&self) -> TradeExecutionType;
 
     /// Returns the side of the trade (Buy or Sell).
     fn side(&self) -> TradeSide;
@@ -81,21 +75,6 @@ pub trait Trade: Send + Sync + fmt::Debug + 'static {
     /// Returns the timestamp when the trade was closed, if applicable.
     fn closed_ts(&self) -> Option<DateTime<Utc>>;
 
-    /// Returns the actual entry price when the trade was filled.
-    fn entry_price(&self) -> Option<Price>;
-
-    /// Returns the actual margin at entry, which may differ from the requested margin.
-    fn entry_margin(&self) -> Option<Margin>;
-
-    /// Returns `true` if the trade is open (limit order not yet filled).
-    fn open(&self) -> bool;
-
-    /// Returns `true` if the trade is currently running (filled and active).
-    fn running(&self) -> bool;
-
-    /// Returns `true` if the trade was canceled before being filled.
-    fn canceled(&self) -> bool;
-
     /// Returns `true` if the trade has been closed.
     fn closed(&self) -> bool;
 }
@@ -103,10 +82,6 @@ pub trait Trade: Send + Sync + fmt::Debug + 'static {
 impl Trade for LnmTrade {
     fn id(&self) -> Uuid {
         self.id()
-    }
-
-    fn trade_type(&self) -> TradeExecutionType {
-        self.trade_type()
     }
 
     fn side(&self) -> TradeSide {
@@ -167,26 +142,6 @@ impl Trade for LnmTrade {
 
     fn closed_ts(&self) -> Option<DateTime<Utc>> {
         self.closed_ts()
-    }
-
-    fn entry_price(&self) -> Option<Price> {
-        self.entry_price()
-    }
-
-    fn entry_margin(&self) -> Option<Margin> {
-        self.entry_margin()
-    }
-
-    fn open(&self) -> bool {
-        self.open()
-    }
-
-    fn running(&self) -> bool {
-        self.running()
-    }
-
-    fn canceled(&self) -> bool {
-        self.canceled()
     }
 
     fn closed(&self) -> bool {
