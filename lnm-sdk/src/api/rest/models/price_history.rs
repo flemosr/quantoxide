@@ -3,6 +3,31 @@ use serde::Deserialize;
 
 use super::price::Price;
 
+/// A historical price entry from the LNMarkets futures API.
+///
+/// This type represents a single price observation at a specific point in time,
+/// as returned by the price history endpoint. Each entry contains a timestamp
+/// and the corresponding Bitcoin price in USD.
+///
+/// # Examples
+///
+/// ```no_run
+/// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+/// # use lnm_sdk::models::PriceEntryLNM;
+/// let price_history: Vec<PriceEntryLNM> = api
+///     .rest
+///     .futures
+///     .price_history(None, None, None)
+///     .await?;
+///
+/// for entry in price_history {
+///     println!("Price at {}: {}", entry.time(), entry.value());
+/// }
+/// # Ok(())
+/// # }
+/// ```
+///
+/// [`futures.price_history`]: crate::api::rest::repositories::FuturesRepository::price_history
 #[derive(Debug, Deserialize)]
 pub struct PriceEntryLNM {
     #[serde(with = "ts_milliseconds")]
@@ -11,10 +36,50 @@ pub struct PriceEntryLNM {
 }
 
 impl PriceEntryLNM {
+    /// Returns the timestamp when this price was observed.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// # use lnm_sdk::models::PriceEntryLNM;
+    /// let price_history: Vec<PriceEntryLNM> = api
+    ///     .rest
+    ///     .futures
+    ///     .price_history(None, None, None)
+    ///     .await?;
+    ///
+    /// if let Some(entry) = price_history.first() {
+    ///     let timestamp = entry.time();
+    ///     println!("Price observed at: {}", timestamp);
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn time(&self) -> DateTime<Utc> {
         self.time
     }
 
+    /// Returns the Bitcoin price in USD for this entry.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// # use lnm_sdk::models::PriceEntryLNM;
+    /// let price_history: Vec<PriceEntryLNM> = api
+    ///     .rest
+    ///     .futures
+    ///     .price_history(None, None, None)
+    ///     .await?;
+    ///
+    /// if let Some(entry) = price_history.first() {
+    ///     let price = entry.value();
+    ///     println!("Bitcoin price: ${}", price.into_f64());
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn value(&self) -> Price {
         self.value
     }
