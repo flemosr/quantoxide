@@ -4,12 +4,12 @@ use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
 use lnm_sdk::models::{
-    BoundedPercentage, Leverage, Margin, Price, Quantity, Trade, TradeExecutionType, TradeSide,
-    TradeSize, trade_util,
+    BoundedPercentage, Leverage, Margin, Price, Quantity, TradeExecutionType, TradeSide, TradeSize,
+    trade_util,
 };
 
 use super::{
-    super::super::core::{TradeClosed, TradeRunning},
+    super::super::core::{Trade, TradeClosed, TradeRunning},
     error::{SimulatedTradeExecutorError, SimulatedTradeExecutorResult},
 };
 

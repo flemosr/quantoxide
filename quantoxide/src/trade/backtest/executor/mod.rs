@@ -5,12 +5,12 @@ use chrono::{DateTime, Utc};
 use tokio::sync::Mutex;
 use uuid::Uuid;
 
-use lnm_sdk::models::{Leverage, Price, Trade, TradeSide, TradeSize};
+use lnm_sdk::models::{Leverage, Price, TradeSide, TradeSize};
 
 use super::{
     super::{
         core::{
-            PriceTrigger, RunningTradesMap, Stoploss, TradeClosed, TradeExecutor, TradeExt,
+            PriceTrigger, RunningTradesMap, Stoploss, Trade, TradeClosed, TradeExecutor, TradeExt,
             TradeRunning, TradingState,
         },
         error::TradeExecutorResult,
