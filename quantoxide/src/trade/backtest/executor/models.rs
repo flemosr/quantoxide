@@ -8,7 +8,7 @@ use lnm_sdk::models::{
 };
 
 use super::{
-    super::super::core::{Trade, TradeClosed, TradeRunning},
+    super::super::core::{TradeClosed, TradeCore, TradeRunning},
     error::{SimulatedTradeExecutorError, SimulatedTradeExecutorResult},
 };
 
@@ -190,7 +190,7 @@ impl SimulatedTradeRunning {
     }
 }
 
-impl Trade for SimulatedTradeRunning {
+impl TradeCore for SimulatedTradeRunning {
     fn id(&self) -> Uuid {
         self.id
     }
@@ -288,7 +288,7 @@ pub(super) struct SimulatedTradeClosed {
     closing_fee: u64,
 }
 
-impl Trade for SimulatedTradeClosed {
+impl TradeCore for SimulatedTradeClosed {
     fn id(&self) -> Uuid {
         self.id
     }

@@ -25,8 +25,11 @@ use super::error::{TradeCoreError, TradeCoreResult, TradeExecutorResult};
 
 impl crate::sealed::Sealed for LnmTrade {}
 
-/// Generic trade interface. Not publically exported.
-pub trait Trade: Send + Sync + fmt::Debug + 'static {
+/// Generic trade interface used in extension traits.
+///
+/// Not publically exported. Public access via the sealed [`TradeRunning`] and [`TradeClosed`]
+/// traits.
+pub trait TradeCore: Send + Sync + fmt::Debug + 'static {
     /// Returns the unique identifier for this trade.
     fn id(&self) -> Uuid;
 
@@ -79,7 +82,7 @@ pub trait Trade: Send + Sync + fmt::Debug + 'static {
     fn closed(&self) -> bool;
 }
 
-impl Trade for LnmTrade {
+impl TradeCore for LnmTrade {
     fn id(&self) -> Uuid {
         self.id()
     }
@@ -188,7 +191,7 @@ impl Trade for LnmTrade {
 /// # Ok(())
 /// # }
 /// ```
-pub trait TradeRunning: crate::sealed::Sealed + Trade {
+pub trait TradeRunning: crate::sealed::Sealed + TradeCore {
     /// Estimates the profit/loss for the trade at a given market price.
     ///
     /// Returns the estimated profit or loss in satoshis if the trade were closed at the specified
@@ -343,7 +346,7 @@ impl TradeRunning for LnmTrade {
 /// [`Trade`] trait with functionality specific to completed positions.
 ///
 /// This trait is sealed and not meant to be implemented outside of `quantoxide`.
-pub trait TradeClosed: crate::sealed::Sealed + Trade {
+pub trait TradeClosed: crate::sealed::Sealed + TradeCore {
     /// Returns the realized profit/loss of the closed trade in satoshis.
     ///
     /// A positive value indicates profit, while a negative value indicates a loss.
@@ -1068,7 +1071,7 @@ impl From<Box<dyn RawOperator>> for WrappedRawOperator {
     }
 }
 
-pub trait TradeExt: Trade {
+pub trait TradeExt: TradeCore {
     fn next_stoploss_update_trigger(
         &self,
         tsl_step_size: BoundedPercentage,
@@ -1246,7 +1249,7 @@ pub trait TradeExt: Trade {
 }
 
 // Implement `TradeExt` for any type that implements `Trade`
-impl<T: Trade + ?Sized> TradeExt for T {}
+impl<T: TradeCore + ?Sized> TradeExt for T {}
 
 #[derive(Debug, Clone)]
 pub(super) enum PriceTrigger {

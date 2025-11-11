@@ -10,8 +10,8 @@ use lnm_sdk::models::{Leverage, Price, TradeSide, TradeSize};
 use super::{
     super::{
         core::{
-            PriceTrigger, RunningTradesMap, Stoploss, Trade, TradeClosed, TradeExecutor, TradeExt,
-            TradeRunning, TradingState,
+            PriceTrigger, RunningTradesMap, Stoploss, TradeClosed, TradeCore, TradeExecutor,
+            TradeExt, TradeRunning, TradingState,
         },
         error::TradeExecutorResult,
     },
