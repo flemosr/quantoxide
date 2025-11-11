@@ -40,8 +40,8 @@ pub mod models {
             quantity::Quantity,
             ticker::Ticker,
             trade::{
-                LnmTrade, Trade, TradeClosed, TradeExecution, TradeExecutionType, TradeRunning,
-                TradeSide, TradeSize, TradeStatus, util as trade_util,
+                LnmTrade, Trade, TradeClosed, TradeExecution, TradeExecutionType, TradeSide,
+                TradeSize, TradeStatus, util as trade_util,
             },
             user::{User, UserRole},
         },
