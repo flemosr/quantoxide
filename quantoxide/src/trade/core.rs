@@ -14,14 +14,183 @@ use uuid::Uuid;
 use lnm_sdk::{
     error::TradeValidationError,
     models::{
-        BoundedPercentage, Leverage, LnmTrade, LowerBoundedPercentage, Margin, Price, Trade,
-        TradeSide, TradeSize, trade_util,
+        BoundedPercentage, Leverage, LnmTrade, LowerBoundedPercentage, Margin, Price, Quantity,
+        TradeExecutionType, TradeSide, TradeSize, trade_util,
     },
 };
 
 use crate::{db::models::PriceHistoryEntryLOCF, signal::Signal, util::DateTimeExt};
 
 use super::error::{TradeCoreError, TradeCoreResult, TradeExecutorResult};
+
+/// Core trait for trade implementations.
+///
+/// Provides access to common trade properties including identification, execution details,
+/// risk management parameters, and lifecycle status.
+pub trait Trade: Send + Sync + fmt::Debug + 'static {
+    /// Returns the unique identifier for this trade.
+    fn id(&self) -> Uuid;
+
+    /// Returns the execution type (Market or Limit).
+    fn trade_type(&self) -> TradeExecutionType;
+
+    /// Returns the side of the trade (Buy or Sell).
+    fn side(&self) -> TradeSide;
+
+    /// Returns the opening fee charged when the trade was created (in satoshis).
+    fn opening_fee(&self) -> u64;
+
+    /// Returns the closing fee that will be charged when the trade closes (in satoshis).
+    fn closing_fee(&self) -> u64;
+
+    /// Returns the maintenance margin requirement (in satoshis).
+    fn maintenance_margin(&self) -> i64;
+
+    /// Returns the quantity (notional value in USD) of the trade.
+    fn quantity(&self) -> Quantity;
+
+    /// Returns the margin (collateral in satoshis) allocated to the trade.
+    fn margin(&self) -> Margin;
+
+    /// Returns the leverage multiplier applied to the trade.
+    fn leverage(&self) -> Leverage;
+
+    /// Returns the trade price.
+    fn price(&self) -> Price;
+
+    /// Returns the liquidation price at which the position will be automatically closed.
+    fn liquidation(&self) -> Price;
+
+    /// Returns the stop loss price, if set.
+    fn stoploss(&self) -> Option<Price>;
+
+    /// Returns the take profit price, if set.
+    fn takeprofit(&self) -> Option<Price>;
+
+    /// Returns the price at which the trade was closed, if applicable.
+    fn exit_price(&self) -> Option<Price>;
+
+    /// Returns the timestamp when the trade was created.
+    fn creation_ts(&self) -> DateTime<Utc>;
+
+    /// Returns the timestamp when the trade was filled, if applicable.
+    fn market_filled_ts(&self) -> Option<DateTime<Utc>>;
+
+    /// Returns the timestamp when the trade was closed, if applicable.
+    fn closed_ts(&self) -> Option<DateTime<Utc>>;
+
+    /// Returns the actual entry price when the trade was filled.
+    fn entry_price(&self) -> Option<Price>;
+
+    /// Returns the actual margin at entry, which may differ from the requested margin.
+    fn entry_margin(&self) -> Option<Margin>;
+
+    /// Returns `true` if the trade is open (limit order not yet filled).
+    fn open(&self) -> bool;
+
+    /// Returns `true` if the trade is currently running (filled and active).
+    fn running(&self) -> bool;
+
+    /// Returns `true` if the trade was canceled before being filled.
+    fn canceled(&self) -> bool;
+
+    /// Returns `true` if the trade has been closed.
+    fn closed(&self) -> bool;
+}
+
+impl Trade for LnmTrade {
+    fn id(&self) -> Uuid {
+        self.id()
+    }
+
+    fn trade_type(&self) -> TradeExecutionType {
+        self.trade_type()
+    }
+
+    fn side(&self) -> TradeSide {
+        self.side()
+    }
+
+    fn opening_fee(&self) -> u64 {
+        self.opening_fee()
+    }
+
+    fn closing_fee(&self) -> u64 {
+        self.closing_fee()
+    }
+
+    fn maintenance_margin(&self) -> i64 {
+        self.maintenance_margin()
+    }
+
+    fn quantity(&self) -> Quantity {
+        self.quantity()
+    }
+
+    fn margin(&self) -> Margin {
+        self.margin()
+    }
+
+    fn leverage(&self) -> Leverage {
+        self.leverage()
+    }
+
+    fn price(&self) -> Price {
+        self.price()
+    }
+
+    fn liquidation(&self) -> Price {
+        self.liquidation()
+    }
+
+    fn stoploss(&self) -> Option<Price> {
+        self.stoploss()
+    }
+
+    fn takeprofit(&self) -> Option<Price> {
+        self.takeprofit()
+    }
+
+    fn exit_price(&self) -> Option<Price> {
+        self.exit_price()
+    }
+
+    fn creation_ts(&self) -> DateTime<Utc> {
+        self.creation_ts()
+    }
+
+    fn market_filled_ts(&self) -> Option<DateTime<Utc>> {
+        self.market_filled_ts()
+    }
+
+    fn closed_ts(&self) -> Option<DateTime<Utc>> {
+        self.closed_ts()
+    }
+
+    fn entry_price(&self) -> Option<Price> {
+        self.entry_price()
+    }
+
+    fn entry_margin(&self) -> Option<Margin> {
+        self.entry_margin()
+    }
+
+    fn open(&self) -> bool {
+        self.open()
+    }
+
+    fn running(&self) -> bool {
+        self.running()
+    }
+
+    fn canceled(&self) -> bool {
+        self.canceled()
+    }
+
+    fn closed(&self) -> bool {
+        self.closed()
+    }
+}
 
 /// Extension trait for running trades with profit/loss and margin calculations.
 ///
