@@ -5,10 +5,13 @@ use uuid::Uuid;
 
 use lnm_sdk::models::{
     BoundedPercentage, Leverage, Margin, Price, Quantity, Trade, TradeClosed, TradeExecutionType,
-    TradeRunning, TradeSide, TradeSize, trade_util,
+    TradeSide, TradeSize, trade_util,
 };
 
-use super::error::{SimulatedTradeExecutorError, SimulatedTradeExecutorResult};
+use super::{
+    super::super::core::TradeRunning,
+    error::{SimulatedTradeExecutorError, SimulatedTradeExecutorResult},
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct SimulatedTradeRunning {
