@@ -63,8 +63,8 @@ impl DateTimeExt for DateTime<Utc> {
 ///
 /// # Examples
 ///
-/// ```
-/// use quantoxide::util::AbortOnDropHandle;
+/// ```ignore
+/// use crate::util::AbortOnDropHandle;
 ///
 /// async fn example() {
 ///     // Task will be aborted when handle goes out of scope
