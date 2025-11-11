@@ -21,9 +21,9 @@ pub mod util;
 /// The side of a trade position.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Copy)]
 pub enum TradeSide {
-    #[serde(rename = "b")]
+    #[serde(rename = "b", alias = "buy")]
     Buy,
-    #[serde(rename = "s")]
+    #[serde(rename = "s", alias = "sell")]
     Sell,
 }
 
