@@ -11,7 +11,7 @@ use super::{
     super::{
         core::{
             PriceTrigger, RunningTradesMap, Stoploss, TradeClosed, TradeCore, TradeExecutor,
-            TradeExt, TradeRunning, TradingState,
+            TradeRunning, TradeRunningExt, TradingState,
         },
         error::TradeExecutorResult,
     },

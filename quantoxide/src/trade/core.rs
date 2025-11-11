@@ -1071,7 +1071,7 @@ impl From<Box<dyn RawOperator>> for WrappedRawOperator {
     }
 }
 
-pub trait TradeExt: TradeCore {
+pub trait TradeRunningExt: TradeRunning {
     fn next_stoploss_update_trigger(
         &self,
         tsl_step_size: BoundedPercentage,
@@ -1248,8 +1248,8 @@ pub trait TradeExt: TradeCore {
     }
 }
 
-// Implement `TradeExt` for any type that implements `Trade`
-impl<T: TradeCore + ?Sized> TradeExt for T {}
+// Implement `TradeRunningExt` for any type that implements `TradeRunning`
+impl<T: TradeRunning + ?Sized> TradeRunningExt for T {}
 
 #[derive(Debug, Clone)]
 pub(super) enum PriceTrigger {
@@ -1262,7 +1262,7 @@ impl PriceTrigger {
         Self::NotSet
     }
 
-    pub fn update<T: TradeExt + ?Sized>(
+    pub fn update<T: TradeRunningExt + ?Sized>(
         &mut self,
         tsl_step_size: BoundedPercentage,
         trade: &T,

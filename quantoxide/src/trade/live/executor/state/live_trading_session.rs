@@ -10,8 +10,8 @@ use crate::db::Database;
 
 use super::super::super::{
     super::core::{
-        DynRunningTradesMap, PriceTrigger, RunningTradesMap, TradeExt, TradeTrailingStoploss,
-        TradingState,
+        DynRunningTradesMap, PriceTrigger, RunningTradesMap, TradeRunningExt,
+        TradeTrailingStoploss, TradingState,
     },
     executor::{
         WrappedApiContext,
