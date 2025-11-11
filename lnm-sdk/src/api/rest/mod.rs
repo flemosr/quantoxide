@@ -1,8 +1,5 @@
 use std::{sync::Arc, time::Duration};
 
-#[allow(unused_imports)]
-use super::ApiClient; // Used in docs
-
 pub(crate) mod error;
 mod lnm;
 pub(crate) mod models;
@@ -39,6 +36,8 @@ impl Default for RestClientConfig {
 pub struct RestClient {
     /// Will be `true` if LNM credentials were provided, and `false` otherwise.
     /// See [`ApiClient::with_credentials`].
+    ///
+    /// [`ApiClient::with_credentials`]: crate::ApiClient::with_credentials
     pub has_credentials: bool,
     /// Methods for interacting with [LNM's v2 API]'s REST Futures endpoints.
     ///
