@@ -8,7 +8,6 @@ use super::super::super::{
         margin::Margin,
         price::{BoundedPercentage, LowerBoundedPercentage},
         quantity::Quantity,
-        trade::Trade,
     },
 };
 use super::*;
