@@ -563,17 +563,8 @@ pub trait UserRepository: crate::sealed::Sealed + Send + Sync {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-    /// use std::env;
-    /// use lnm_sdk::{ApiClient, ApiClientConfig, models::User};
-    ///
-    /// let domain = env::var("LNM_API_DOMAIN").unwrap();
-    /// let key = env::var("LNM_API_KEY").unwrap();
-    /// let secret = env::var("LNM_API_SECRET").unwrap();
-    /// let pphrase = env::var("LNM_API_PASSPHRASE").unwrap();
-    /// let config = ApiClientConfig::default();
-    /// let api = ApiClient::with_credentials(config, domain, key, secret, pphrase)?;
-    ///
+    /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// # use lnm_sdk::models::User;
     /// let user: User = api.rest.user.get_user().await?;
     /// # Ok(())
     /// # }
