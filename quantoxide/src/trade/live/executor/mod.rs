@@ -11,7 +11,7 @@ use uuid::Uuid;
 
 use lnm_sdk::{
     ApiClient,
-    models::{BoundedPercentage, Leverage, Price, Trade, TradeSide, TradeSize, trade_util},
+    models::{BoundedPercentage, Leverage, Price, TradeSide, TradeSize, trade_util},
 };
 
 use crate::{
