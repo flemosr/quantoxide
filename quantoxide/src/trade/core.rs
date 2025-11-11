@@ -1071,7 +1071,7 @@ impl From<Box<dyn RawOperator>> for WrappedRawOperator {
     }
 }
 
-pub trait TradeRunningExt: TradeRunning {
+pub(super) trait TradeRunningExt: TradeRunning {
     fn next_stoploss_update_trigger(
         &self,
         tsl_step_size: BoundedPercentage,
