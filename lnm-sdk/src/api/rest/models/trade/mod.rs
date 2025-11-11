@@ -370,68 +370,6 @@ pub trait Trade: Send + Sync + fmt::Debug + 'static {
     fn closed(&self) -> bool;
 }
 
-/// Extension trait for closed trades.
-///
-/// Provides access to the final profit/loss of a trade that has been closed. This trait extends the
-/// [`Trade`] trait with functionality specific to completed positions.
-///
-/// # Examples
-///
-/// ```no_run
-/// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
-/// use lnm_sdk::models::{TradeClosed, Trade};
-/// # use lnm_sdk::models::{TradeExecution, TradeSide, TradeSize, Leverage, Margin};
-/// # let trade = api.rest.futures.create_new_trade(
-/// #     TradeSide::Buy,
-/// #     TradeSize::from(Margin::try_from(10_000).unwrap()),
-/// #     Leverage::try_from(10.0).unwrap(),
-/// #     TradeExecution::Market,
-/// #     None,
-/// #     None,
-/// # ).await?;
-///
-/// let closed_trade = api.rest.futures.close_trade(trade.id()).await?;
-///
-/// let profit_loss = closed_trade.pl();
-///
-/// if profit_loss > 0 {
-///     println!("Trade closed with profit: {} sats", profit_loss);
-/// } else {
-///     println!("Trade closed with loss: {} sats", profit_loss.abs());
-/// }
-/// # Ok(())
-/// # }
-/// ```
-pub trait TradeClosed: Trade {
-    /// Returns the realized profit/loss of the closed trade in satoshis.
-    ///
-    /// A positive value indicates profit, while a negative value indicates a loss.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
-    /// use lnm_sdk::models::TradeClosed;
-    /// # use lnm_sdk::models::{TradeExecution, TradeSide, TradeSize, Leverage, Margin, Trade};
-    /// # let trade = api.rest.futures.create_new_trade(
-    /// #     TradeSide::Buy,
-    /// #     TradeSize::from(Margin::try_from(10_000).unwrap()),
-    /// #     Leverage::try_from(10.0).unwrap(),
-    /// #     TradeExecution::Market,
-    /// #     None,
-    /// #     None,
-    /// # ).await?;
-    /// # let closed_trade = api.rest.futures.close_trade(trade.id()).await?;
-    ///
-    /// let pl = closed_trade.pl();
-    ///
-    /// println!("Realized P/L: {} sats", pl);
-    /// # Ok(())
-    /// # }
-    /// ```
-    fn pl(&self) -> i64;
-}
-
 /// A trade returned from the LNMarkets API.
 ///
 /// Represents a complete trade object with all associated data including execution details, risk
@@ -683,12 +621,6 @@ impl Trade for LnmTrade {
 
     fn closed(&self) -> bool {
         self.closed
-    }
-}
-
-impl TradeClosed for LnmTrade {
-    fn pl(&self) -> i64 {
-        self.pl
     }
 }
 
