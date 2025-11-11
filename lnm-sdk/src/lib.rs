@@ -20,7 +20,10 @@ pub mod error {
                 TradeValidationError, ValidationError,
             },
         },
-        websocket::error::{WebSocketApiError, WebSocketConnectionError},
+        websocket::{
+            error::{WebSocketApiError, WebSocketConnectionError},
+            models::{JsonRpcResponse, LnmJsonRpcRequest},
+        },
     };
 }
 
@@ -43,9 +46,7 @@ pub mod models {
             user::{User, UserRole},
         },
         websocket::models::{
-            JsonRpcResponse, LastTickDirection, LnmJsonRpcReqMethod, LnmJsonRpcRequest,
-            LnmJsonRpcResponse, LnmWebSocketChannel, PriceIndexLNM, PriceTickLNM, SubscriptionData,
-            WebSocketUpdate,
+            LastTickDirection, LnmWebSocketChannel, PriceIndexLNM, PriceTickLNM, WebSocketUpdate,
         },
     };
 }
