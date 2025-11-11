@@ -8,6 +8,11 @@ use super::{
     TradeSide,
 };
 
+/// Estimates the liquidation price for a trade position.
+///
+/// Calculates the price at which a position would be liquidated based on the trade parameters.
+/// Uses a conservative calculation with floored margin to understate the margin, resulting in a
+/// more conservative liquidation price that matches values from the LNM platform.
 pub fn estimate_liquidation_price(
     side: TradeSide,
     quantity: Quantity,
@@ -40,6 +45,11 @@ pub fn estimate_liquidation_price(
     Price::clamp_from(liquidation_calc)
 }
 
+/// Evaluates and validates parameters for opening a new trade.
+///
+/// Validates all trade parameters including stop-loss and take-profit levels against the
+/// liquidation price and entry price. Calculates the quantity, margin, liquidation price, and
+/// trading fees.
 pub fn evaluate_open_trade_params(
     side: TradeSide,
     size: TradeSize,
@@ -120,6 +130,10 @@ pub fn evaluate_open_trade_params(
     ))
 }
 
+/// Estimates the profit/loss for a position between two prices.
+///
+/// Calculates the profit or loss in satoshis for a position moving from a start price to an end
+/// price.
 pub fn estimate_pl(
     side: TradeSide,
     quantity: Quantity,
@@ -137,6 +151,10 @@ pub fn estimate_pl(
     quantity.into_f64() * inverse_price_delta
 }
 
+/// Estimates the price corresponding to a specific profit/loss amount.
+///
+/// Given a starting price and a target P/L in satoshis, calculates what the end price would need to
+/// be to achieve that profit or loss.
 pub fn estimate_price_from_pl(
     side: TradeSide,
     quantity: Quantity,
@@ -156,6 +174,10 @@ pub fn estimate_price_from_pl(
     Price::clamp_from(SATS_PER_BTC / inverse_end_price)
 }
 
+/// Validates a new stop-loss price for an existing trade.
+///
+/// Ensures the new stop-loss price is valid relative to the liquidation price, current market
+/// price, and any existing take-profit level.
 pub fn evaluate_new_stoploss(
     side: TradeSide,
     liquidation: Price,
@@ -215,6 +237,10 @@ pub fn evaluate_new_stoploss(
     Ok(())
 }
 
+/// Evaluates the impact of adding margin to an existing trade.
+///
+/// Calculates the new margin, leverage, and liquidation price that would result from adding
+/// additional collateral to a position.
 pub fn evaluate_added_margin(
     side: TradeSide,
     quantity: Quantity,
@@ -232,6 +258,11 @@ pub fn evaluate_added_margin(
     Ok((new_margin, new_leverage, new_liquidation))
 }
 
+/// Evaluates the impact of cashing in profit and/or margin from a trade.
+///
+/// Calculates how extracting a specified amount affects the trade's entry price, margin,
+/// leverage, and liquidation price. First extracts available profit, then margin if needed.
+/// Updates or clears the stop-loss if it becomes invalid after the cash-in.
 pub fn evaluate_cash_in(
     side: TradeSide,
     quantity: Quantity,
@@ -289,6 +320,10 @@ pub fn evaluate_cash_in(
     ))
 }
 
+/// Calculates the collateral change needed to reach a target liquidation price.
+///
+/// Determines how much collateral needs to be added (positive) or removed (negative) to move the
+/// liquidation price to a target level, accounting for current profit/loss.
 pub fn evaluate_collateral_delta_for_liquidation(
     side: TradeSide,
     quantity: Quantity,
@@ -314,6 +349,10 @@ pub fn evaluate_collateral_delta_for_liquidation(
     Ok(colateral_diff)
 }
 
+/// Calculates the closing fee for a trade at a given price.
+///
+/// Computes the trading fee in satoshis that would be charged for closing a position at the
+/// specified price.
 pub fn evaluate_closing_fee(
     fee_perc: BoundedPercentage,
     quantity: Quantity,
