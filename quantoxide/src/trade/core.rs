@@ -11,14 +11,203 @@ use chrono::{DateTime, Duration, Utc};
 use futures::FutureExt;
 use uuid::Uuid;
 
-use lnm_sdk::models::{
-    BoundedPercentage, Leverage, LowerBoundedPercentage, Price, Trade, TradeClosed, TradeRunning,
-    TradeSide, TradeSize,
+use lnm_sdk::{
+    error::TradeValidationError,
+    models::{
+        BoundedPercentage, Leverage, LnmTrade, LowerBoundedPercentage, Margin, Price, Trade,
+        TradeClosed, TradeSide, TradeSize, trade_util,
+    },
 };
 
 use crate::{db::models::PriceHistoryEntryLOCF, signal::Signal, util::DateTimeExt};
 
 use super::error::{TradeCoreError, TradeCoreResult, TradeExecutorResult};
+
+/// Extension trait for running trades with profit/loss and margin calculations.
+///
+/// Provides methods for estimating profit/loss and calculating margin adjustments for trades that
+/// are currently active (running). This trait extends the [`Trade`] trait with functionality
+/// specific to active positions.
+///
+/// # Examples
+///
+/// ```no_run
+/// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+/// use lnm_sdk::models::{
+///     LnmTrade, TradeExecution, TradeSide, TradeSize, Leverage, Margin, Price
+/// };
+/// use quantoxide::trade::TradeRunning;
+///
+/// let trade: LnmTrade = api
+///     .rest
+///     .futures
+///     .create_new_trade(
+///         TradeSide::Buy,
+///         TradeSize::from(Margin::try_from(10_000).unwrap()),
+///         Leverage::try_from(10.0).unwrap(),
+///         TradeExecution::Market,
+///         None,
+///         None,
+///     )
+///     .await?;
+///
+/// let market_price = Price::try_from(101_000.0).unwrap();
+/// let estimated_pl = trade.est_pl(market_price);
+/// let max_cash_in = trade.est_max_cash_in(market_price);
+///
+/// println!("Estimated P/L: {} sats", estimated_pl);
+/// println!("Max cash-in: {} sats", max_cash_in);
+/// # Ok(())
+/// # }
+/// ```
+pub trait TradeRunning: Trade {
+    /// Estimates the profit/loss for the trade at a given market price.
+    ///
+    /// Returns the estimated profit or loss in satoshis if the trade were closed at the specified
+    /// market price.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # fn example(trade: lnm_sdk::models::LnmTrade) -> Result<(), Box<dyn std::error::Error>> {
+    /// // Assuming `trade` impl `TradeRunning`
+    ///
+    /// use lnm_sdk::models::Price;
+    /// use quantoxide::trade::TradeRunning;
+    ///
+    /// let market_price = Price::try_from(101_000.0).unwrap();
+    /// let pl = trade.est_pl(market_price);
+    ///
+    /// if pl > 0.0 {
+    ///     println!("Profit: {} sats", pl);
+    /// } else {
+    ///     println!("Loss: {} sats", pl.abs());
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    fn est_pl(&self, market_price: Price) -> f64;
+
+    /// Estimates the maximum additional margin that can be added to the trade.
+    ///
+    /// Returns the maximum amount of margin (in satoshis) that can be added to reduce leverage to
+    /// the minimum level (1x). Returns 0 if the trade is already at minimum leverage.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # fn example(trade: lnm_sdk::models::LnmTrade) -> Result<(), Box<dyn std::error::Error>> {
+    /// // Assuming `trade` impl `TradeRunning`
+    ///
+    /// use quantoxide::trade::TradeRunning;
+    ///
+    /// let max_additional = trade.est_max_additional_margin();
+    ///
+    /// println!("Can add up to {} sats margin", max_additional);
+    /// # Ok(())
+    /// # }
+    /// ```
+    fn est_max_additional_margin(&self) -> u64 {
+        if self.leverage() == Leverage::MIN {
+            return 0;
+        }
+
+        let max_margin = Margin::calculate(self.quantity(), self.price(), Leverage::MIN);
+
+        let max_add_margin = max_margin
+            .into_u64()
+            .saturating_sub(self.margin().into_u64());
+
+        return max_add_margin;
+    }
+
+    /// Estimates the maximum margin that can be withdrawn from the trade.
+    ///
+    /// Returns the maximum amount of margin (in satoshis) that can be withdrawn while maintaining
+    /// the position at maximum leverage. Includes any extractable profit.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # fn example(trade: lnm_sdk::models::LnmTrade) -> Result<(), Box<dyn std::error::Error>> {
+    /// // Assuming `trade` impl `TradeRunning`
+    ///
+    /// use lnm_sdk::models::Price;
+    /// use quantoxide::trade::TradeRunning;
+    ///
+    /// let market_price = Price::try_from(101_000.0).unwrap();
+    /// let max_withdrawal = trade.est_max_cash_in(market_price);
+    ///
+    /// println!("Can withdraw up to {} sats", max_withdrawal);
+    /// # Ok(())
+    /// # }
+    /// ```
+    fn est_max_cash_in(&self, market_price: Price) -> u64 {
+        let extractable_pl = self.est_pl(market_price).max(0.) as u64;
+
+        let min_margin = Margin::calculate(self.quantity(), self.price(), Leverage::MAX);
+
+        let max_cash_in = self
+            .margin()
+            .into_u64()
+            .saturating_sub(min_margin.into_u64())
+            + extractable_pl;
+
+        return max_cash_in;
+    }
+
+    /// Calculates the collateral adjustment needed to achieve a target liquidation price.
+    ///
+    /// Returns a positive value if margin needs to be added, or a negative value if margin can be
+    /// withdrawn to reach the target liquidation price.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # fn example(trade: lnm_sdk::models::LnmTrade) -> Result<(), Box<dyn std::error::Error>>  {
+    /// // Assuming `trade` impl `TradeRunning`
+    ///
+    /// use lnm_sdk::models::Price;
+    /// use quantoxide::trade::TradeRunning;
+    ///
+    /// let target_liquidation = Price::try_from(95_000.0).unwrap();
+    /// let market_price = Price::try_from(100_000.0).unwrap();
+    ///
+    /// let delta = trade.est_collateral_delta_for_liquidation(
+    ///     target_liquidation,
+    ///     market_price
+    /// )?;
+    ///
+    /// if delta > 0 {
+    ///     println!("Add {} sats to reach target liquidation", delta);
+    /// } else {
+    ///     println!("Remove {} sats to reach target liquidation", delta.abs());
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    fn est_collateral_delta_for_liquidation(
+        &self,
+        target_liquidation: Price,
+        market_price: Price,
+    ) -> Result<i64, TradeValidationError> {
+        trade_util::evaluate_collateral_delta_for_liquidation(
+            self.side(),
+            self.quantity(),
+            self.margin(),
+            self.price(),
+            self.liquidation(),
+            target_liquidation,
+            market_price,
+        )
+    }
+}
+
+impl TradeRunning for LnmTrade {
+    fn est_pl(&self, market_price: Price) -> f64 {
+        trade_util::estimate_pl(self.side(), self.quantity(), self.price(), market_price)
+    }
+}
 
 #[derive(Debug)]
 pub struct RunningTradesMap<T: TradeRunning + ?Sized> {
@@ -26,10 +215,10 @@ pub struct RunningTradesMap<T: TradeRunning + ?Sized> {
     id_to_time: HashMap<Uuid, DateTime<Utc>>,
 }
 
-pub(super) type DynRunningTradesMap = RunningTradesMap<dyn TradeRunning>;
+pub type DynRunningTradesMap = RunningTradesMap<dyn TradeRunning>;
 
 impl<T: TradeRunning + ?Sized> RunningTradesMap<T> {
-    pub(crate) fn new() -> Self {
+    pub(super) fn new() -> Self {
         Self {
             trades: BTreeMap::new(),
             id_to_time: HashMap::new(),
@@ -40,7 +229,7 @@ impl<T: TradeRunning + ?Sized> RunningTradesMap<T> {
         self.trades.is_empty()
     }
 
-    pub(crate) fn add(&mut self, trade: Arc<T>, trade_tsl: Option<TradeTrailingStoploss>) {
+    pub(super) fn add(&mut self, trade: Arc<T>, trade_tsl: Option<TradeTrailingStoploss>) {
         self.id_to_time.insert(trade.id(), trade.creation_ts());
         self.trades
             .insert((trade.creation_ts(), trade.id()), (trade, trade_tsl));
@@ -60,7 +249,7 @@ impl<T: TradeRunning + ?Sized> RunningTradesMap<T> {
             .and_then(|creation_ts| self.trades.get(&(*creation_ts, id)))
     }
 
-    pub(crate) fn get_trade_by_id_mut(
+    pub(super) fn get_trade_by_id_mut(
         &mut self,
         id: Uuid,
     ) -> Option<&mut (Arc<T>, Option<TradeTrailingStoploss>)> {
@@ -73,7 +262,7 @@ impl<T: TradeRunning + ?Sized> RunningTradesMap<T> {
         self.trades.iter().rev().map(|(_, trade_tuple)| trade_tuple)
     }
 
-    pub(crate) fn trades_desc_mut(
+    pub(super) fn trades_desc_mut(
         &mut self,
     ) -> impl Iterator<Item = &mut (Arc<T>, Option<TradeTrailingStoploss>)> {
         self.trades
@@ -84,7 +273,7 @@ impl<T: TradeRunning + ?Sized> RunningTradesMap<T> {
 }
 
 impl<T: TradeRunning> RunningTradesMap<T> {
-    pub(crate) fn into_dyn(self) -> DynRunningTradesMap {
+    pub(super) fn into_dyn(self) -> DynRunningTradesMap {
         let dyn_trades = self
             .trades
             .into_iter()
@@ -136,7 +325,7 @@ pub struct TradingState {
 }
 
 impl TradingState {
-    pub(crate) fn new(
+    pub(super) fn new(
         last_tick_time: DateTime<Utc>,
         balance: u64,
         market_price: Price,
@@ -497,7 +686,7 @@ pub enum Stoploss {
 }
 
 impl Stoploss {
-    pub(crate) fn evaluate(
+    pub(super) fn evaluate(
         &self,
         tsl_step_size: BoundedPercentage,
         side: TradeSide,
