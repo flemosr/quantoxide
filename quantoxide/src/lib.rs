@@ -43,3 +43,7 @@ pub mod error {
 pub mod models {
     pub use super::db::models::{PriceHistoryEntry, PriceHistoryEntryLOCF, PriceTick};
 }
+
+mod sealed {
+    pub trait Sealed {}
+}

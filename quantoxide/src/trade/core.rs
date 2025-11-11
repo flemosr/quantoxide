@@ -23,6 +23,8 @@ use crate::{db::models::PriceHistoryEntryLOCF, signal::Signal, util::DateTimeExt
 
 use super::error::{TradeCoreError, TradeCoreResult, TradeExecutorResult};
 
+impl crate::sealed::Sealed for LnmTrade {}
+
 /// Core trait for trade implementations.
 ///
 /// Provides access to common trade properties including identification, execution details,
@@ -198,6 +200,8 @@ impl Trade for LnmTrade {
 /// are currently active (running). This trait extends the [`Trade`] trait with functionality
 /// specific to active positions.
 ///
+/// This trait is sealed and not meant to be implemented outside of `quantoxide`.
+///
 /// # Examples
 ///
 /// ```no_run
@@ -229,7 +233,7 @@ impl Trade for LnmTrade {
 /// # Ok(())
 /// # }
 /// ```
-pub trait TradeRunning: Trade {
+pub trait TradeRunning: crate::sealed::Sealed + Trade {
     /// Estimates the profit/loss for the trade at a given market price.
     ///
     /// Returns the estimated profit or loss in satoshis if the trade were closed at the specified
@@ -382,7 +386,9 @@ impl TradeRunning for LnmTrade {
 ///
 /// Provides access to the final profit/loss of a trade that has been closed. This trait extends the
 /// [`Trade`] trait with functionality specific to completed positions.
-pub trait TradeClosed: Trade {
+///
+/// This trait is sealed and not meant to be implemented outside of `quantoxide`.
+pub trait TradeClosed: crate::sealed::Sealed + Trade {
     /// Returns the realized profit/loss of the closed trade in satoshis.
     ///
     /// A positive value indicates profit, while a negative value indicates a loss.

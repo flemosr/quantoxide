@@ -285,6 +285,8 @@ impl Trade for SimulatedTradeRunning {
     }
 }
 
+impl crate::sealed::Sealed for SimulatedTradeRunning {}
+
 impl TradeRunning for SimulatedTradeRunning {
     fn est_pl(&self, market_price: Price) -> f64 {
         trade_util::estimate_pl(self.side(), self.quantity(), self.price(), market_price)
@@ -404,6 +406,8 @@ impl Trade for SimulatedTradeClosed {
         true
     }
 }
+
+impl crate::sealed::Sealed for SimulatedTradeClosed {}
 
 impl TradeClosed for SimulatedTradeClosed {
     fn pl(&self) -> i64 {
