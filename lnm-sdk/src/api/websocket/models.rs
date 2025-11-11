@@ -61,7 +61,7 @@ impl fmt::Display for LnmWebSocketChannel {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum LnmJsonRpcReqMethod {
+pub(super) enum LnmJsonRpcReqMethod {
     Subscribe,
     Unsubscribe,
 }
@@ -81,6 +81,7 @@ impl fmt::Display for LnmJsonRpcReqMethod {
     }
 }
 
+/// Added to pub errors for context
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LnmJsonRpcRequest {
     method: LnmJsonRpcReqMethod,
@@ -89,7 +90,7 @@ pub struct LnmJsonRpcRequest {
 }
 
 impl LnmJsonRpcRequest {
-    pub fn new(method: LnmJsonRpcReqMethod, channels: Vec<LnmWebSocketChannel>) -> Self {
+    pub(super) fn new(method: LnmJsonRpcReqMethod, channels: Vec<LnmWebSocketChannel>) -> Self {
         let mut random_bytes = [0u8; 16];
         rand::rng().fill(&mut random_bytes);
         let id = hex::encode(random_bytes);
@@ -101,15 +102,15 @@ impl LnmJsonRpcRequest {
         }
     }
 
-    pub fn id(&self) -> &String {
+    pub(super) fn id(&self) -> &String {
         &self.id
     }
 
-    pub fn channels(&self) -> &Vec<LnmWebSocketChannel> {
+    pub(super) fn channels(&self) -> &Vec<LnmWebSocketChannel> {
         &self.channels
     }
 
-    pub fn check_confirmation(&self, id: &String, channels: &[LnmWebSocketChannel]) -> bool {
+    pub(super) fn check_confirmation(&self, id: &String, channels: &[LnmWebSocketChannel]) -> bool {
         if self.id() != id {
             return false;
         }
@@ -119,7 +120,7 @@ impl LnmJsonRpcRequest {
         set_a == set_b
     }
 
-    pub fn try_into_bytes(self) -> ConnectionResult<Vec<u8>> {
+    pub(super) fn try_into_bytes(self) -> ConnectionResult<Vec<u8>> {
         JsonRpcRequest::from(self).try_to_bytes()
     }
 }
@@ -141,6 +142,7 @@ impl From<LnmJsonRpcRequest> for JsonRpcRequest {
     }
 }
 
+/// Added to pub errors for context
 #[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct JsonRpcResponse {
     jsonrpc: String,
@@ -165,7 +167,7 @@ pub enum LastTickDirection {
 pub struct PriceTickLNM {
     time: DateTime<Utc>,
     last_price: f64,
-    // As of Jul 4 2025, some ticks may be received without the
+    // As of Nov 11 2025, some ticks may be received without the
     // `last_tick_direction` property when subscribing to
     // LNM's 'futures:btc_usd:last-price' channel.
     last_tick_direction: Option<LastTickDirection>,
@@ -202,13 +204,13 @@ impl PriceIndexLNM {
 }
 
 #[derive(Debug, Clone)]
-pub enum SubscriptionData {
+pub(super) enum SubscriptionData {
     PriceTick(PriceTickLNM),
     PriceIndex(PriceIndexLNM),
 }
 
 #[derive(Clone, Debug)]
-pub enum LnmJsonRpcResponse {
+pub(super) enum LnmJsonRpcResponse {
     Confirmation {
         id: String,
         channels: Vec<LnmWebSocketChannel>,
