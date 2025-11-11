@@ -16,9 +16,6 @@ use super::{
     },
 };
 
-#[allow(unused_imports)]
-use super::models::trade::TradeRunning; // Used in docs
-
 /// Methods for interacting with [LNM's v2 API]'s REST Futures endpoints.
 ///
 /// This trait is sealed and not meant to be implemented outside of `lnm-sdk`.
@@ -31,17 +28,8 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-    /// use std::env;
-    /// use lnm_sdk::{ApiClient, ApiClientConfig, models::{LnmTrade, TradeStatus}};
-    ///
-    /// let domain = env::var("LNM_API_DOMAIN").unwrap();
-    /// let key = env::var("LNM_API_KEY").unwrap();
-    /// let secret = env::var("LNM_API_SECRET").unwrap();
-    /// let pphrase = env::var("LNM_API_PASSPHRASE").unwrap();
-    /// let config = ApiClientConfig::default();
-    /// let api = ApiClient::with_credentials(config, domain, key, secret, pphrase)?;
-    ///
+    /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// # use lnm_sdk::models::{LnmTrade, TradeStatus};
     /// let open_trades: Vec<LnmTrade> = api
     ///     .rest
     ///     .futures
@@ -75,17 +63,8 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-    /// use std::env;
-    /// use lnm_sdk::{ApiClient, ApiClientConfig, models::LnmTrade};
-    ///
-    /// let domain = env::var("LNM_API_DOMAIN").unwrap();
-    /// let key = env::var("LNM_API_KEY").unwrap();
-    /// let secret = env::var("LNM_API_SECRET").unwrap();
-    /// let pphrase = env::var("LNM_API_PASSPHRASE").unwrap();
-    /// let config = ApiClientConfig::default();
-    /// let api = ApiClient::with_credentials(config, domain, key, secret, pphrase)?;
-    ///
+    /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// # use lnm_sdk::models::LnmTrade;
     /// let open_trades: Vec<LnmTrade> = api
     ///     .rest
     ///     .futures
@@ -106,17 +85,8 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-    /// use std::env;
-    /// use lnm_sdk::{ApiClient, ApiClientConfig, models::LnmTrade};
-    ///
-    /// let domain = env::var("LNM_API_DOMAIN").unwrap();
-    /// let key = env::var("LNM_API_KEY").unwrap();
-    /// let secret = env::var("LNM_API_SECRET").unwrap();
-    /// let pphrase = env::var("LNM_API_PASSPHRASE").unwrap();
-    /// let config = ApiClientConfig::default();
-    /// let api = ApiClient::with_credentials(config, domain, key, secret, pphrase)?;
-    ///
+    /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// # use lnm_sdk::models::LnmTrade;
     /// let running_trades: Vec<LnmTrade> = api
     ///     .rest
     ///     .futures
@@ -137,17 +107,8 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-    /// use std::env;
-    /// use lnm_sdk::{ApiClient, ApiClientConfig, models::LnmTrade};
-    ///
-    /// let domain = env::var("LNM_API_DOMAIN").unwrap();
-    /// let key = env::var("LNM_API_KEY").unwrap();
-    /// let secret = env::var("LNM_API_SECRET").unwrap();
-    /// let pphrase = env::var("LNM_API_PASSPHRASE").unwrap();
-    /// let config = ApiClientConfig::default();
-    /// let api = ApiClient::with_credentials(config, domain, key, secret, pphrase)?;
-    ///
+    /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// # use lnm_sdk::models::LnmTrade;
     /// let closed_trades: Vec<LnmTrade> = api
     ///     .rest
     ///     .futures
@@ -168,14 +129,8 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-    /// use std::env;
-    /// use lnm_sdk::{ApiClient, ApiClientConfig, models::PriceEntryLNM};
-    ///
-    /// let domain = env::var("LNM_API_DOMAIN").unwrap();
-    /// let config = ApiClientConfig::default();
-    /// let api = ApiClient::new(config, domain)?;
-    ///
+    /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// # use lnm_sdk::models::PriceEntryLNM;
     /// let price_history: Vec<PriceEntryLNM> = api
     ///     .rest
     ///     .futures
@@ -196,24 +151,11 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-    /// use std::env;
-    /// use lnm_sdk::{
-    ///     ApiClient,
-    ///     ApiClientConfig,
-    ///     models::{
-    ///         Leverage, LnmTrade, Margin, Price, Quantity, TradeExecution,
-    ///         TradeSide, TradeSize
-    ///     }
-    /// };
-    ///
-    /// let domain = env::var("LNM_API_DOMAIN").unwrap();
-    /// let key = env::var("LNM_API_KEY").unwrap();
-    /// let secret = env::var("LNM_API_SECRET").unwrap();
-    /// let pphrase = env::var("LNM_API_PASSPHRASE").unwrap();
-    /// let config = ApiClientConfig::default();
-    /// let api = ApiClient::with_credentials(config, domain, key, secret, pphrase)?;
-    ///
+    /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// # use lnm_sdk::models::{
+    /// #     Leverage, LnmTrade, Margin, Price, Quantity, TradeExecution,
+    /// #     TradeSide, TradeSize
+    /// # };
     /// // Create long market order with 10,000 sats of margin and no leverage,
     /// // stoploss or takeprofit.
     /// let trade: LnmTrade = api
@@ -282,24 +224,11 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-    /// use std::env;
-    /// use lnm_sdk::{
-    ///     ApiClient,
-    ///     ApiClientConfig,
-    ///     models::{
-    ///         Leverage, LnmTrade, Margin, Trade, TradeExecution, TradeSide,
-    ///         TradeSize
-    ///     }
-    /// };
-    ///
-    /// let domain = env::var("LNM_API_DOMAIN").unwrap();
-    /// let key = env::var("LNM_API_KEY").unwrap();
-    /// let secret = env::var("LNM_API_SECRET").unwrap();
-    /// let pphrase = env::var("LNM_API_PASSPHRASE").unwrap();
-    /// let config = ApiClientConfig::default();
-    /// let api = ApiClient::with_credentials(config, domain, key, secret, pphrase)?;
-    ///
+    /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// # use lnm_sdk::models::{
+    /// #     Leverage, LnmTrade, Margin, Trade, TradeExecution, TradeSide,
+    /// #     TradeSize
+    /// # };
     /// let running_trade: LnmTrade = api
     ///     .rest
     ///     .futures
@@ -329,26 +258,11 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-    /// use std::env;
-    /// use lnm_sdk::{
-    ///     ApiClient,
-    ///     ApiClientConfig,
-    ///     models::{
-    ///         Leverage, LnmTrade, Price, Quantity, Trade, TradeExecution, TradeSide,
-    ///         TradeSize
-    ///     }
-    /// };
-    ///
-    /// let domain = env::var("LNM_API_DOMAIN").unwrap();
-    /// let key = env::var("LNM_API_KEY").unwrap();
-    /// let secret = env::var("LNM_API_SECRET").unwrap();
-    /// let pphrase = env::var("LNM_API_PASSPHRASE").unwrap();
-    /// let config = ApiClientConfig::default();
-    /// let api = ApiClient::with_credentials(config, domain, key, secret, pphrase)?;
-    ///
-    /// // Assuming trade was not executed
-    ///
+    /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// # use lnm_sdk::models::{
+    /// #     Leverage, LnmTrade, Price, Quantity, Trade, TradeExecution, TradeSide,
+    /// #     TradeSize
+    /// # };
     /// let open_trade: LnmTrade = api
     ///     .rest
     ///     .futures
@@ -362,6 +276,8 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     ///     )
     ///     .await
     ///     .unwrap();
+    ///
+    /// // Assuming trade is still open
     ///
     /// let cancelled_trade: LnmTrade = api
     ///     .rest
@@ -379,17 +295,8 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-    /// use std::env;
-    /// use lnm_sdk::{ApiClient, ApiClientConfig, models::LnmTrade};
-    ///
-    /// let domain = env::var("LNM_API_DOMAIN").unwrap();
-    /// let key = env::var("LNM_API_KEY").unwrap();
-    /// let secret = env::var("LNM_API_SECRET").unwrap();
-    /// let pphrase = env::var("LNM_API_PASSPHRASE").unwrap();
-    /// let config = ApiClientConfig::default();
-    /// let api = ApiClient::with_credentials(config, domain, key, secret, pphrase)?;
-    ///
+    /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// # use lnm_sdk::models::LnmTrade;
     /// let cancelled_trades: Vec<LnmTrade> = api
     ///     .rest
     ///     .futures
@@ -405,24 +312,11 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-    /// use std::env;
-    /// use lnm_sdk::{
-    ///     ApiClient,
-    ///     ApiClientConfig,
-    ///     models::{
-    ///         Leverage, LnmTrade, Margin, Trade, TradeExecution, TradeSide,
-    ///         TradeSize
-    ///     }
-    /// };
-    ///
-    /// let domain = env::var("LNM_API_DOMAIN").unwrap();
-    /// let key = env::var("LNM_API_KEY").unwrap();
-    /// let secret = env::var("LNM_API_SECRET").unwrap();
-    /// let pphrase = env::var("LNM_API_PASSPHRASE").unwrap();
-    /// let config = ApiClientConfig::default();
-    /// let api = ApiClient::with_credentials(config, domain, key, secret, pphrase)?;
-    ///
+    /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// # use lnm_sdk::models::{
+    /// #     Leverage, LnmTrade, Margin, Trade, TradeExecution, TradeSide,
+    /// #     TradeSize
+    /// # };
     /// let running_trade: LnmTrade = api
     ///     .rest
     ///     .futures
@@ -452,17 +346,8 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-    /// use std::env;
-    /// use lnm_sdk::{ApiClient, ApiClientConfig, models::LnmTrade};
-    ///
-    /// let domain = env::var("LNM_API_DOMAIN").unwrap();
-    /// let key = env::var("LNM_API_KEY").unwrap();
-    /// let secret = env::var("LNM_API_SECRET").unwrap();
-    /// let pphrase = env::var("LNM_API_PASSPHRASE").unwrap();
-    /// let config = ApiClientConfig::default();
-    /// let api = ApiClient::with_credentials(config, domain, key, secret, pphrase)?;
-    ///
+    /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// # use lnm_sdk::models::LnmTrade;
     /// let closed_trades: Vec<LnmTrade> = api
     ///     .rest
     ///     .futures
@@ -478,14 +363,8 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-    /// use std::env;
-    /// use lnm_sdk::{ApiClient, ApiClientConfig, models::Ticker};
-    ///
-    /// let domain = env::var("LNM_API_DOMAIN").unwrap();
-    /// let config = ApiClientConfig::default();
-    /// let api = ApiClient::new(config, domain)?;
-    ///
+    /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// # use lnm_sdk::models::Ticker;
     /// let ticker: Ticker = api.rest.futures.ticker().await?;
     /// # Ok(())
     /// # }
@@ -496,24 +375,11 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-    /// use std::env;
-    /// use lnm_sdk::{
-    ///     ApiClient,
-    ///     ApiClientConfig,
-    ///     models::{
-    ///         Leverage, LnmTrade, Price, Quantity, Trade, TradeExecution, TradeSide,
-    ///         TradeSize
-    ///     }
-    /// };
-    ///
-    /// let domain = env::var("LNM_API_DOMAIN").unwrap();
-    /// let key = env::var("LNM_API_KEY").unwrap();
-    /// let secret = env::var("LNM_API_SECRET").unwrap();
-    /// let pphrase = env::var("LNM_API_PASSPHRASE").unwrap();
-    /// let config = ApiClientConfig::default();
-    /// let api = ApiClient::with_credentials(config, domain, key, secret, pphrase)?;
-    ///
+    /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// # use lnm_sdk::models::{
+    /// #     Leverage, LnmTrade, Price, Quantity, Trade, TradeExecution, TradeSide,
+    /// #     TradeSize
+    /// # };
     /// let open_trade: LnmTrade = api
     ///     .rest
     ///     .futures
@@ -547,24 +413,11 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-    /// use std::env;
-    /// use lnm_sdk::{
-    ///     ApiClient,
-    ///     ApiClientConfig,
-    ///     models::{
-    ///         Leverage, LnmTrade, Price, Quantity, Trade, TradeExecution, TradeSide,
-    ///         TradeSize
-    ///     }
-    /// };
-    ///
-    /// let domain = env::var("LNM_API_DOMAIN").unwrap();
-    /// let key = env::var("LNM_API_KEY").unwrap();
-    /// let secret = env::var("LNM_API_SECRET").unwrap();
-    /// let pphrase = env::var("LNM_API_PASSPHRASE").unwrap();
-    /// let config = ApiClientConfig::default();
-    /// let api = ApiClient::with_credentials(config, domain, key, secret, pphrase)?;
-    ///
+    /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// # use lnm_sdk::models::{
+    /// #     Leverage, LnmTrade, Price, Quantity, Trade, TradeExecution, TradeSide,
+    /// #     TradeSize
+    /// # };
     /// let open_trade: LnmTrade = api
     ///     .rest
     ///     .futures
@@ -606,24 +459,12 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-    /// use std::{env, num::NonZeroU64};
-    /// use lnm_sdk::{
-    ///     ApiClient,
-    ///     ApiClientConfig,
-    ///     models::{
-    ///         Leverage, LnmTrade, Margin, Price, Trade, TradeExecution, TradeSide,
-    ///         TradeSize
-    ///     }
-    /// };
-    ///
-    /// let domain = env::var("LNM_API_DOMAIN").unwrap();
-    /// let key = env::var("LNM_API_KEY").unwrap();
-    /// let secret = env::var("LNM_API_SECRET").unwrap();
-    /// let pphrase = env::var("LNM_API_PASSPHRASE").unwrap();
-    /// let config = ApiClientConfig::default();
-    /// let api = ApiClient::with_credentials(config, domain, key, secret, pphrase)?;
-    ///
+    /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// # use std::num::NonZeroU64;
+    /// # use lnm_sdk::models::{
+    /// #     Leverage, LnmTrade, Margin, Price, Trade, TradeExecution, TradeSide,
+    /// #     TradeSize
+    /// # };
     /// let created_trade: LnmTrade = api
     ///     .rest
     ///     .futures
@@ -652,6 +493,8 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// # Ok(())
     /// # }
     /// ```
+    ///
+    /// [`TradeRunning::est_collateral_delta_for_liquidation`]: crate::models::TradeRunning::est_collateral_delta_for_liquidation
     async fn add_margin(&self, id: Uuid, amount: NonZeroU64) -> Result<LnmTrade>;
 
     /// **Requires credentials**. Removes funds from a trade, decreasing the collateral and
@@ -669,24 +512,12 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-    /// use std::{env, num::NonZeroU64};
-    /// use lnm_sdk::{
-    ///     ApiClient,
-    ///     ApiClientConfig,
-    ///     models::{
-    ///         Leverage, LnmTrade, Margin, Price, Trade, TradeExecution, TradeSide,
-    ///         TradeSize
-    ///     }
-    /// };
-    ///
-    /// let domain = env::var("LNM_API_DOMAIN").unwrap();
-    /// let key = env::var("LNM_API_KEY").unwrap();
-    /// let secret = env::var("LNM_API_SECRET").unwrap();
-    /// let pphrase = env::var("LNM_API_PASSPHRASE").unwrap();
-    /// let config = ApiClientConfig::default();
-    /// let api = ApiClient::with_credentials(config, domain, key, secret, pphrase)?;
-    ///
+    /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// # use std::num::NonZeroU64;
+    /// # use lnm_sdk::models::{
+    /// #     Leverage, LnmTrade, Margin, Price, Trade, TradeExecution, TradeSide,
+    /// #     TradeSize
+    /// # };
     /// let created_trade: LnmTrade = api
     ///     .rest
     ///     .futures
@@ -715,6 +546,8 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// # Ok(())
     /// # }
     /// ```
+    ///
+    /// [`TradeRunning::est_collateral_delta_for_liquidation`]: crate::models::TradeRunning::est_collateral_delta_for_liquidation
     async fn cash_in(&self, id: Uuid, amount: NonZeroU64) -> Result<LnmTrade>;
 }
 
