@@ -11,30 +11,125 @@ use super::{
     trade::TradeSide,
 };
 
+/// A validated margin value denominated in satoshis.
+///
+/// Margin represents the collateral required to open a leveraged trading position.
+/// This type ensures that margin values meet minimum requirements and can be safely used with
+/// [`Trade`] implementations.
+///
+/// Margin values must be integers greater than or equal to [`Margin::MIN`] (1 satoshi).
+///
+/// # Examples
+///
+/// ```
+/// use lnm_sdk::models::Margin;
+///
+/// // Create a margin value from satoshis
+/// let margin = Margin::try_from(10_000).unwrap();
+/// assert_eq!(margin.into_u64(), 10_000);
+///
+/// // Values below the minimum will fail
+/// assert!(Margin::try_from(0).is_err());
+/// ```
+///
+/// [`Trade`]: crate::models::Trade
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Margin(u64);
 
 impl Margin {
+    /// The minimum allowed margin value (1 satoshi).
     pub const MIN: Self = Self(1);
 
+    /// Converts the margin value to its underlying `u64` representation.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use lnm_sdk::models::Margin;
+    ///
+    /// let margin = Margin::try_from(10_000).unwrap();
+    /// assert_eq!(margin.into_u64(), 10_000);
+    /// ```
     pub fn into_u64(self) -> u64 {
         self.into()
     }
 
+    /// Converts the margin value to `i64`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use lnm_sdk::models::Margin;
+    ///
+    /// let margin = Margin::try_from(10_000).unwrap();
+    /// assert_eq!(margin.into_i64(), 10_000);
+    /// ```
     pub fn into_i64(self) -> i64 {
         self.into()
     }
 
+    /// Converts the margin value to `f64`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use lnm_sdk::models::Margin;
+    ///
+    /// let margin = Margin::try_from(10_000).unwrap();
+    /// assert_eq!(margin.into_f64(), 10_000.0);
+    /// ```
     pub fn into_f64(self) -> f64 {
         self.into()
     }
 
+    /// Calculates margin from quantity (USD), price (BTC/USD), and leverage.
+    ///
+    /// The margin is calculated using the formula:
+    ///
+    /// margin = (quantity * SATS_PER_BTC) / (price * leverage)
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use lnm_sdk::models::{Margin, Quantity, Price, Leverage};
+    ///
+    /// let quantity = Quantity::try_from(1_000).unwrap();
+    /// let price = Price::try_from(100_000.0).unwrap();
+    /// let leverage = Leverage::try_from(10.0).unwrap();
+    ///
+    /// let margin = Margin::calculate(quantity, price, leverage);
+    /// ```
     pub fn calculate(quantity: Quantity, price: Price, leverage: Leverage) -> Self {
         let margin =
             quantity.into_f64() * (SATS_PER_BTC / (price.into_f64() * leverage.into_f64()));
+
         Self::try_from(margin.ceil() as u64).expect("must result in valid `Margin`")
     }
 
+    /// Estimates margin from a target liquidation price.
+    ///
+    /// Calculates the required margin to achieve a specific liquidation price for a position
+    /// with the given quantity and entry price.
+    ///
+    /// + For long positions (Buy): liquidation price must be below entry price
+    /// + For short positions (Sell): liquidation price must be above entry price
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use lnm_sdk::models::{Margin, Quantity, Price, TradeSide};
+    ///
+    /// let quantity = Quantity::try_from(1_000).unwrap();
+    /// let entry_price = Price::try_from(100_000.0).unwrap();
+    /// let liquidation_price = Price::try_from(95_000.0).unwrap();
+    ///
+    /// let margin = Margin::est_from_liquidation_price(
+    ///     TradeSide::Buy,
+    ///     quantity,
+    ///     entry_price,
+    ///     liquidation_price
+    /// ).unwrap();
+    /// ```
     pub fn est_from_liquidation_price(
         side: TradeSide,
         quantity: Quantity,
