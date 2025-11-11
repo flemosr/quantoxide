@@ -15,7 +15,7 @@ use lnm_sdk::{
     error::TradeValidationError,
     models::{
         BoundedPercentage, Leverage, LnmTrade, LowerBoundedPercentage, Margin, Price, Trade,
-        TradeClosed, TradeSide, TradeSize, trade_util,
+        TradeSide, TradeSize, trade_util,
     },
 };
 
@@ -206,6 +206,36 @@ pub trait TradeRunning: Trade {
 impl TradeRunning for LnmTrade {
     fn est_pl(&self, market_price: Price) -> f64 {
         trade_util::estimate_pl(self.side(), self.quantity(), self.price(), market_price)
+    }
+}
+
+/// Extension trait for closed trades.
+///
+/// Provides access to the final profit/loss of a trade that has been closed. This trait extends the
+/// [`Trade`] trait with functionality specific to completed positions.
+pub trait TradeClosed: Trade {
+    /// Returns the realized profit/loss of the closed trade in satoshis.
+    ///
+    /// A positive value indicates profit, while a negative value indicates a loss.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # async fn example(closed_trade: lnm_sdk::models::LnmTrade) -> Result<(), Box<dyn std::error::Error>> {
+    /// use quantoxide::trade::TradeClosed;
+    ///
+    /// let pl = closed_trade.pl();
+    ///
+    /// println!("Realized P/L: {} sats", pl);
+    /// # Ok(())
+    /// # }
+    /// ```
+    fn pl(&self) -> i64;
+}
+
+impl TradeClosed for LnmTrade {
+    fn pl(&self) -> i64 {
+        self.pl()
     }
 }
 
