@@ -266,122 +266,17 @@ impl TradeStatus {
     }
 }
 
-/// Core trait for trade implementations.
-///
-/// Provides access to common trade properties including identification, execution details,
-/// risk management parameters, and lifecycle status. This trait is implemented by [`LnmTrade`].
-///
-/// # Examples
-///
-/// ```no_run
-/// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
-/// use lnm_sdk::models::{
-///     LnmTrade, Trade, TradeExecution, TradeSide, TradeSize, Leverage, Margin
-/// };
-///
-/// let trade: LnmTrade = api
-///     .rest
-///     .futures
-///     .create_new_trade(
-///         TradeSide::Buy,
-///         TradeSize::from(Margin::try_from(10_000).unwrap()),
-///         Leverage::try_from(10.0).unwrap(),
-///         TradeExecution::Market,
-///         None,
-///         None,
-///     )
-///     .await?;
-///
-/// println!("Trade ID: {}", trade.id());
-/// println!("Side: {}", trade.side());
-/// println!("Quantity: {}", trade.quantity());
-/// println!("Margin: {}", trade.margin());
-/// # Ok(())
-/// # }
-/// ```
-pub trait Trade: Send + Sync + fmt::Debug + 'static {
-    /// Returns the unique identifier for this trade.
-    fn id(&self) -> Uuid;
-
-    /// Returns the execution type (Market or Limit).
-    fn trade_type(&self) -> TradeExecutionType;
-
-    /// Returns the side of the trade (Buy or Sell).
-    fn side(&self) -> TradeSide;
-
-    /// Returns the opening fee charged when the trade was created (in satoshis).
-    fn opening_fee(&self) -> u64;
-
-    /// Returns the closing fee that will be charged when the trade closes (in satoshis).
-    fn closing_fee(&self) -> u64;
-
-    /// Returns the maintenance margin requirement (in satoshis).
-    fn maintenance_margin(&self) -> i64;
-
-    /// Returns the quantity (notional value in USD) of the trade.
-    fn quantity(&self) -> Quantity;
-
-    /// Returns the margin (collateral in satoshis) allocated to the trade.
-    fn margin(&self) -> Margin;
-
-    /// Returns the leverage multiplier applied to the trade.
-    fn leverage(&self) -> Leverage;
-
-    /// Returns the trade price.
-    fn price(&self) -> Price;
-
-    /// Returns the liquidation price at which the position will be automatically closed.
-    fn liquidation(&self) -> Price;
-
-    /// Returns the stop loss price, if set.
-    fn stoploss(&self) -> Option<Price>;
-
-    /// Returns the take profit price, if set.
-    fn takeprofit(&self) -> Option<Price>;
-
-    /// Returns the price at which the trade was closed, if applicable.
-    fn exit_price(&self) -> Option<Price>;
-
-    /// Returns the timestamp when the trade was created.
-    fn creation_ts(&self) -> DateTime<Utc>;
-
-    /// Returns the timestamp when the trade was filled, if applicable.
-    fn market_filled_ts(&self) -> Option<DateTime<Utc>>;
-
-    /// Returns the timestamp when the trade was closed, if applicable.
-    fn closed_ts(&self) -> Option<DateTime<Utc>>;
-
-    /// Returns the actual entry price when the trade was filled.
-    fn entry_price(&self) -> Option<Price>;
-
-    /// Returns the actual margin at entry, which may differ from the requested margin.
-    fn entry_margin(&self) -> Option<Margin>;
-
-    /// Returns `true` if the trade is open (limit order not yet filled).
-    fn open(&self) -> bool;
-
-    /// Returns `true` if the trade is currently running (filled and active).
-    fn running(&self) -> bool;
-
-    /// Returns `true` if the trade was canceled before being filled.
-    fn canceled(&self) -> bool;
-
-    /// Returns `true` if the trade has been closed.
-    fn closed(&self) -> bool;
-}
-
 /// A trade returned from the LNMarkets API.
 ///
 /// Represents a complete trade object with all associated data including execution details, risk
-/// parameters, lifecycle status, and profit/loss information. This is the concrete implementation
-/// of the [`Trade`], [`TradeRunning`], and [`TradeClosed`] traits.
+/// parameters, lifecycle status, and profit/loss information.
 ///
 /// # Examples
 ///
 /// ```no_run
 /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
 /// use lnm_sdk::models::{
-///     LnmTrade, Trade, TradeExecution, TradeSide, TradeSize, Leverage, Margin
+///     LnmTrade, TradeExecution, TradeSide, TradeSize, Leverage, Margin
 /// };
 ///
 /// let trade: LnmTrade = api
@@ -445,21 +340,28 @@ pub struct LnmTrade {
 }
 
 impl LnmTrade {
+    /// Returns the unique identifier for this trade.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # fn example(trade: lnm_sdk::models::LnmTrade) -> Result<(), Box<dyn std::error::Error>> {
+    /// let trade_id = trade.id();
+    ///
+    /// println!("Trade ID: {}", trade_id);
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn id(&self) -> Uuid {
+        self.id
+    }
+
     /// Returns the user ID associated with this trade.
     ///
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
-    /// # use lnm_sdk::models::{TradeExecution, TradeSide, TradeSize, Leverage, Margin};
-    /// # let trade = api.rest.futures.create_new_trade(
-    /// #     TradeSide::Buy,
-    /// #     TradeSize::from(Margin::try_from(10_000).unwrap()),
-    /// #     Leverage::try_from(10.0).unwrap(),
-    /// #     TradeExecution::Market,
-    /// #     None,
-    /// #     None,
-    /// # ).await?;
+    /// # fn example(trade: lnm_sdk::models::LnmTrade) -> Result<(), Box<dyn std::error::Error>> {
     /// let user_id = trade.uid();
     ///
     /// println!("Trade belongs to user: {}", user_id);
@@ -470,6 +372,214 @@ impl LnmTrade {
         self.uid
     }
 
+    /// Returns the execution type (Market or Limit).
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # fn example(trade: lnm_sdk::models::LnmTrade) -> Result<(), Box<dyn std::error::Error>> {
+    /// let exec_type = trade.trade_type();
+    ///
+    /// println!("Trade execution type: {:?}", exec_type);
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn trade_type(&self) -> TradeExecutionType {
+        self.trade_type
+    }
+
+    /// Returns the side of the trade (Buy or Sell).
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # fn example(trade: lnm_sdk::models::LnmTrade) -> Result<(), Box<dyn std::error::Error>> {
+    /// let side = trade.side();
+    ///
+    /// println!("Trade side: {:?}", side);
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn side(&self) -> TradeSide {
+        self.side
+    }
+
+    /// Returns the opening fee charged when the trade was created (in satoshis).
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # fn example(trade: lnm_sdk::models::LnmTrade) -> Result<(), Box<dyn std::error::Error>> {
+    /// let fee = trade.opening_fee();
+    ///
+    /// println!("Opening fee: {} sats", fee);
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn opening_fee(&self) -> u64 {
+        self.opening_fee
+    }
+
+    /// Returns the closing fee that will be charged when the trade closes (in satoshis).
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # fn example(trade: lnm_sdk::models::LnmTrade) -> Result<(), Box<dyn std::error::Error>> {
+    /// let fee = trade.closing_fee();
+    ///
+    /// println!("Closing fee: {} sats", fee);
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn closing_fee(&self) -> u64 {
+        self.closing_fee
+    }
+
+    /// Returns the maintenance margin requirement (in satoshis).
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # fn example(trade: lnm_sdk::models::LnmTrade) -> Result<(), Box<dyn std::error::Error>> {
+    /// let margin = trade.maintenance_margin();
+    ///
+    /// println!("Maintenance margin: {} sats", margin);
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn maintenance_margin(&self) -> i64 {
+        self.maintenance_margin
+    }
+
+    /// Returns the quantity (notional value in USD) of the trade.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # fn example(trade: lnm_sdk::models::LnmTrade) -> Result<(), Box<dyn std::error::Error>> {
+    /// let quantity = trade.quantity();
+    ///
+    /// println!("Trade quantity: {}", quantity);
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn quantity(&self) -> Quantity {
+        self.quantity
+    }
+
+    /// Returns the margin (collateral in satoshis) allocated to the trade.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # fn example(trade: lnm_sdk::models::LnmTrade) -> Result<(), Box<dyn std::error::Error>> {
+    /// let margin = trade.margin();
+    ///
+    /// println!("Trade margin: {}", margin);
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn margin(&self) -> Margin {
+        self.margin
+    }
+
+    /// Returns the leverage multiplier applied to the trade.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # fn example(trade: lnm_sdk::models::LnmTrade) -> Result<(), Box<dyn std::error::Error>> {
+    /// let leverage = trade.leverage();
+    ///
+    /// println!("Trade leverage: {}", leverage);
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn leverage(&self) -> Leverage {
+        self.leverage
+    }
+
+    /// Returns the trade price.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # fn example(trade: lnm_sdk::models::LnmTrade) -> Result<(), Box<dyn std::error::Error>> {
+    /// let price = trade.price();
+    ///
+    /// println!("Trade price: {}", price);
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn price(&self) -> Price {
+        self.price
+    }
+
+    /// Returns the liquidation price at which the position will be automatically closed.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # fn example(trade: lnm_sdk::models::LnmTrade) -> Result<(), Box<dyn std::error::Error>> {
+    /// let liq_price = trade.liquidation();
+    ///
+    /// println!("Liquidation price: {}", liq_price);
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn liquidation(&self) -> Price {
+        self.liquidation
+    }
+
+    /// Returns the stop loss price, if set.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # fn example(trade: lnm_sdk::models::LnmTrade) -> Result<(), Box<dyn std::error::Error>> {
+    /// if let Some(sl) = trade.stoploss() {
+    ///     println!("Stop loss: {}", sl);
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn stoploss(&self) -> Option<Price> {
+        self.stoploss
+    }
+
+    /// Returns the take profit price, if set.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # fn example(trade: lnm_sdk::models::LnmTrade) -> Result<(), Box<dyn std::error::Error>> {
+    /// if let Some(tp) = trade.takeprofit() {
+    ///     println!("Take profit: {}", tp);
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn takeprofit(&self) -> Option<Price> {
+        self.takeprofit
+    }
+
+    /// Returns the price at which the trade was closed, if applicable.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # fn example(trade: lnm_sdk::models::LnmTrade) -> Result<(), Box<dyn std::error::Error>> {
+    /// if let Some(exit) = trade.exit_price() {
+    ///     println!("Exit price: {}", exit);
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn exit_price(&self) -> Option<Price> {
+        self.exit_price
+    }
+
     /// Returns the realized profit/loss in satoshis.
     ///
     /// For running trades, this represents the current unrealized P/L. For closed trades, this is
@@ -478,16 +588,7 @@ impl LnmTrade {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
-    /// # use lnm_sdk::models::{TradeExecution, TradeSide, TradeSize, Leverage, Margin};
-    /// # let trade = api.rest.futures.create_new_trade(
-    /// #     TradeSide::Buy,
-    /// #     TradeSize::from(Margin::try_from(10_000).unwrap()),
-    /// #     Leverage::try_from(10.0).unwrap(),
-    /// #     TradeExecution::Market,
-    /// #     None,
-    /// #     None,
-    /// # ).await?;
+    /// # fn example(trade: lnm_sdk::models::LnmTrade) -> Result<(), Box<dyn std::error::Error>> {
     /// let pl = trade.pl();
     ///
     /// if pl > 0 {
@@ -502,6 +603,150 @@ impl LnmTrade {
         self.pl
     }
 
+    /// Returns the timestamp when the trade was created.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # fn example(trade: lnm_sdk::models::LnmTrade) -> Result<(), Box<dyn std::error::Error>> {
+    /// let created_at = trade.creation_ts();
+    ///
+    /// println!("Trade created at: {}", created_at);
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn creation_ts(&self) -> DateTime<Utc> {
+        self.creation_ts
+    }
+
+    /// Returns the timestamp when the trade was filled, if applicable.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # fn example(trade: lnm_sdk::models::LnmTrade) -> Result<(), Box<dyn std::error::Error>> {
+    /// if let Some(filled_at) = trade.market_filled_ts() {
+    ///     println!("Trade filled at: {}", filled_at);
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn market_filled_ts(&self) -> Option<DateTime<Utc>> {
+        self.market_filled_ts
+    }
+
+    /// Returns the timestamp when the trade was closed, if applicable.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # fn example(trade: lnm_sdk::models::LnmTrade) -> Result<(), Box<dyn std::error::Error>> {
+    /// if let Some(closed_at) = trade.closed_ts() {
+    ///     println!("Trade closed at: {}", closed_at);
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn closed_ts(&self) -> Option<DateTime<Utc>> {
+        self.closed_ts
+    }
+
+    /// Returns the actual entry price when the trade was filled.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # fn example(trade: lnm_sdk::models::LnmTrade) -> Result<(), Box<dyn std::error::Error>> {
+    /// if let Some(entry) = trade.entry_price() {
+    ///     println!("Entry price: {}", entry);
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn entry_price(&self) -> Option<Price> {
+        self.entry_price
+    }
+
+    /// Returns the actual margin at entry, which may differ from the requested margin.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # fn example(trade: lnm_sdk::models::LnmTrade) -> Result<(), Box<dyn std::error::Error>> {
+    /// if let Some(entry_margin) = trade.entry_margin() {
+    ///     println!("Entry margin: {}", entry_margin);
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn entry_margin(&self) -> Option<Margin> {
+        self.entry_margin
+    }
+
+    /// Returns `true` if the trade is open (limit order not yet filled).
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # fn example(trade: lnm_sdk::models::LnmTrade) -> Result<(), Box<dyn std::error::Error>> {
+    /// if trade.open() {
+    ///     println!("Trade is open (limit order not filled)");
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn open(&self) -> bool {
+        self.open
+    }
+
+    /// Returns `true` if the trade is currently running (filled and active).
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # fn example(trade: lnm_sdk::models::LnmTrade) -> Result<(), Box<dyn std::error::Error>> {
+    /// if trade.running() {
+    ///     println!("Trade is actively running");
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn running(&self) -> bool {
+        self.running
+    }
+
+    /// Returns `true` if the trade was canceled before being filled.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # fn example(trade: lnm_sdk::models::LnmTrade) -> Result<(), Box<dyn std::error::Error>> {
+    /// if trade.canceled() {
+    ///     println!("Trade was canceled");
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn canceled(&self) -> bool {
+        self.canceled
+    }
+
+    /// Returns `true` if the trade has been closed.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # fn example(trade: lnm_sdk::models::LnmTrade) -> Result<(), Box<dyn std::error::Error>> {
+    /// if trade.closed() {
+    ///     println!("Trade has been closed");
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn closed(&self) -> bool {
+        self.closed
+    }
+
     /// Returns the sum of all carry fees (funding fees) paid on this trade in satoshis.
     ///
     /// Carry fees are periodic funding payments charged on open positions.
@@ -509,16 +754,7 @@ impl LnmTrade {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
-    /// # use lnm_sdk::models::{TradeExecution, TradeSide, TradeSize, Leverage, Margin};
-    /// # let trade = api.rest.futures.create_new_trade(
-    /// #     TradeSide::Buy,
-    /// #     TradeSize::from(Margin::try_from(10_000).unwrap()),
-    /// #     Leverage::try_from(10.0).unwrap(),
-    /// #     TradeExecution::Market,
-    /// #     None,
-    /// #     None,
-    /// # ).await?;
+    /// # fn example(trade: lnm_sdk::models::LnmTrade) -> Result<(), Box<dyn std::error::Error>> {
     /// let total_fees = trade.sum_carry_fees();
     ///
     /// println!("Total carry fees paid: {} sats", total_fees);
@@ -527,100 +763,6 @@ impl LnmTrade {
     /// ```
     pub fn sum_carry_fees(&self) -> i64 {
         self.sum_carry_fees
-    }
-}
-
-impl Trade for LnmTrade {
-    fn id(&self) -> Uuid {
-        self.id
-    }
-
-    fn trade_type(&self) -> TradeExecutionType {
-        self.trade_type
-    }
-
-    fn side(&self) -> TradeSide {
-        self.side
-    }
-
-    fn opening_fee(&self) -> u64 {
-        self.opening_fee
-    }
-
-    fn closing_fee(&self) -> u64 {
-        self.closing_fee
-    }
-
-    fn maintenance_margin(&self) -> i64 {
-        self.maintenance_margin
-    }
-
-    fn quantity(&self) -> Quantity {
-        self.quantity
-    }
-
-    fn margin(&self) -> Margin {
-        self.margin
-    }
-
-    fn leverage(&self) -> Leverage {
-        self.leverage
-    }
-
-    fn price(&self) -> Price {
-        self.price
-    }
-
-    fn liquidation(&self) -> Price {
-        self.liquidation
-    }
-
-    fn stoploss(&self) -> Option<Price> {
-        self.stoploss
-    }
-
-    fn takeprofit(&self) -> Option<Price> {
-        self.takeprofit
-    }
-
-    fn exit_price(&self) -> Option<Price> {
-        self.exit_price
-    }
-
-    fn creation_ts(&self) -> DateTime<Utc> {
-        self.creation_ts
-    }
-
-    fn market_filled_ts(&self) -> Option<DateTime<Utc>> {
-        self.market_filled_ts
-    }
-
-    fn closed_ts(&self) -> Option<DateTime<Utc>> {
-        self.closed_ts
-    }
-
-    fn entry_price(&self) -> Option<Price> {
-        self.entry_price
-    }
-
-    fn entry_margin(&self) -> Option<Margin> {
-        self.entry_margin
-    }
-
-    fn open(&self) -> bool {
-        self.open
-    }
-
-    fn running(&self) -> bool {
-        self.running
-    }
-
-    fn canceled(&self) -> bool {
-        self.canceled
-    }
-
-    fn closed(&self) -> bool {
-        self.closed
     }
 }
 
