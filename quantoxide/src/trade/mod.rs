@@ -10,7 +10,7 @@ pub use backtest::{
 };
 pub use core::{
     ClosedTradeHistory, RawOperator, RunningTradesMap, SignalOperator, Stoploss, TradeExecutor,
-    TradeExt, TradeTrailingStoploss, TradingState,
+    TradeExt, TradeRunning, TradeTrailingStoploss, TradingState,
 };
 pub use live::{
     config::{LiveConfig, LiveTradeExecutorConfig},
