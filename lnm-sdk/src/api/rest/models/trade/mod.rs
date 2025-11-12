@@ -279,10 +279,10 @@ impl TradeStatus {
 /// ```no_run
 /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
 /// use lnm_sdk::models::{
-///     LnmTrade, TradeExecution, TradeSide, TradeSize, Leverage, Margin
+///     Trade, TradeExecution, TradeSide, TradeSize, Leverage, Margin
 /// };
 ///
-/// let trade: LnmTrade = api
+/// let trade: Trade = api
 ///     .rest
 ///     .futures
 ///     .create_new_trade(
@@ -305,7 +305,7 @@ impl TradeStatus {
 /// # }
 /// ```
 #[derive(Deserialize, Debug, Clone)]
-pub struct LnmTrade {
+pub struct Trade {
     id: Uuid,
     uid: Uuid,
     #[serde(rename = "type")]
@@ -342,13 +342,13 @@ pub struct LnmTrade {
     sum_carry_fees: i64,
 }
 
-impl LnmTrade {
+impl Trade {
     /// Returns the unique identifier for this trade.
     ///
     /// # Examples
     ///
     /// ```
-    /// # fn example(trade: lnm_sdk::models::LnmTrade) -> Result<(), Box<dyn std::error::Error>> {
+    /// # fn example(trade: lnm_sdk::models::Trade) -> Result<(), Box<dyn std::error::Error>> {
     /// let trade_id = trade.id();
     ///
     /// println!("Trade ID: {}", trade_id);
@@ -364,7 +364,7 @@ impl LnmTrade {
     /// # Examples
     ///
     /// ```no_run
-    /// # fn example(trade: lnm_sdk::models::LnmTrade) -> Result<(), Box<dyn std::error::Error>> {
+    /// # fn example(trade: lnm_sdk::models::Trade) -> Result<(), Box<dyn std::error::Error>> {
     /// let user_id = trade.uid();
     ///
     /// println!("Trade belongs to user: {}", user_id);
@@ -380,7 +380,7 @@ impl LnmTrade {
     /// # Examples
     ///
     /// ```no_run
-    /// # fn example(trade: lnm_sdk::models::LnmTrade) -> Result<(), Box<dyn std::error::Error>> {
+    /// # fn example(trade: lnm_sdk::models::Trade) -> Result<(), Box<dyn std::error::Error>> {
     /// let exec_type = trade.trade_type();
     ///
     /// println!("Trade execution type: {:?}", exec_type);
@@ -396,7 +396,7 @@ impl LnmTrade {
     /// # Examples
     ///
     /// ```no_run
-    /// # fn example(trade: lnm_sdk::models::LnmTrade) -> Result<(), Box<dyn std::error::Error>> {
+    /// # fn example(trade: lnm_sdk::models::Trade) -> Result<(), Box<dyn std::error::Error>> {
     /// let side = trade.side();
     ///
     /// println!("Trade side: {:?}", side);
@@ -412,7 +412,7 @@ impl LnmTrade {
     /// # Examples
     ///
     /// ```no_run
-    /// # fn example(trade: lnm_sdk::models::LnmTrade) -> Result<(), Box<dyn std::error::Error>> {
+    /// # fn example(trade: lnm_sdk::models::Trade) -> Result<(), Box<dyn std::error::Error>> {
     /// let fee = trade.opening_fee();
     ///
     /// println!("Opening fee: {} sats", fee);
@@ -428,7 +428,7 @@ impl LnmTrade {
     /// # Examples
     ///
     /// ```no_run
-    /// # fn example(trade: lnm_sdk::models::LnmTrade) -> Result<(), Box<dyn std::error::Error>> {
+    /// # fn example(trade: lnm_sdk::models::Trade) -> Result<(), Box<dyn std::error::Error>> {
     /// let fee = trade.closing_fee();
     ///
     /// println!("Closing fee: {} sats", fee);
@@ -444,7 +444,7 @@ impl LnmTrade {
     /// # Examples
     ///
     /// ```no_run
-    /// # fn example(trade: lnm_sdk::models::LnmTrade) -> Result<(), Box<dyn std::error::Error>> {
+    /// # fn example(trade: lnm_sdk::models::Trade) -> Result<(), Box<dyn std::error::Error>> {
     /// let margin = trade.maintenance_margin();
     ///
     /// println!("Maintenance margin: {} sats", margin);
@@ -460,7 +460,7 @@ impl LnmTrade {
     /// # Examples
     ///
     /// ```no_run
-    /// # fn example(trade: lnm_sdk::models::LnmTrade) -> Result<(), Box<dyn std::error::Error>> {
+    /// # fn example(trade: lnm_sdk::models::Trade) -> Result<(), Box<dyn std::error::Error>> {
     /// let quantity = trade.quantity();
     ///
     /// println!("Trade quantity: {}", quantity);
@@ -476,7 +476,7 @@ impl LnmTrade {
     /// # Examples
     ///
     /// ```no_run
-    /// # fn example(trade: lnm_sdk::models::LnmTrade) -> Result<(), Box<dyn std::error::Error>> {
+    /// # fn example(trade: lnm_sdk::models::Trade) -> Result<(), Box<dyn std::error::Error>> {
     /// let margin = trade.margin();
     ///
     /// println!("Trade margin: {}", margin);
@@ -492,7 +492,7 @@ impl LnmTrade {
     /// # Examples
     ///
     /// ```no_run
-    /// # fn example(trade: lnm_sdk::models::LnmTrade) -> Result<(), Box<dyn std::error::Error>> {
+    /// # fn example(trade: lnm_sdk::models::Trade) -> Result<(), Box<dyn std::error::Error>> {
     /// let leverage = trade.leverage();
     ///
     /// println!("Trade leverage: {}", leverage);
@@ -508,7 +508,7 @@ impl LnmTrade {
     /// # Examples
     ///
     /// ```no_run
-    /// # fn example(trade: lnm_sdk::models::LnmTrade) -> Result<(), Box<dyn std::error::Error>> {
+    /// # fn example(trade: lnm_sdk::models::Trade) -> Result<(), Box<dyn std::error::Error>> {
     /// let price = trade.price();
     ///
     /// println!("Trade price: {}", price);
@@ -524,7 +524,7 @@ impl LnmTrade {
     /// # Examples
     ///
     /// ```no_run
-    /// # fn example(trade: lnm_sdk::models::LnmTrade) -> Result<(), Box<dyn std::error::Error>> {
+    /// # fn example(trade: lnm_sdk::models::Trade) -> Result<(), Box<dyn std::error::Error>> {
     /// let liq_price = trade.liquidation();
     ///
     /// println!("Liquidation price: {}", liq_price);
@@ -540,7 +540,7 @@ impl LnmTrade {
     /// # Examples
     ///
     /// ```no_run
-    /// # fn example(trade: lnm_sdk::models::LnmTrade) -> Result<(), Box<dyn std::error::Error>> {
+    /// # fn example(trade: lnm_sdk::models::Trade) -> Result<(), Box<dyn std::error::Error>> {
     /// if let Some(sl) = trade.stoploss() {
     ///     println!("Stop loss: {}", sl);
     /// }
@@ -556,7 +556,7 @@ impl LnmTrade {
     /// # Examples
     ///
     /// ```no_run
-    /// # fn example(trade: lnm_sdk::models::LnmTrade) -> Result<(), Box<dyn std::error::Error>> {
+    /// # fn example(trade: lnm_sdk::models::Trade) -> Result<(), Box<dyn std::error::Error>> {
     /// if let Some(tp) = trade.takeprofit() {
     ///     println!("Take profit: {}", tp);
     /// }
@@ -572,7 +572,7 @@ impl LnmTrade {
     /// # Examples
     ///
     /// ```no_run
-    /// # fn example(trade: lnm_sdk::models::LnmTrade) -> Result<(), Box<dyn std::error::Error>> {
+    /// # fn example(trade: lnm_sdk::models::Trade) -> Result<(), Box<dyn std::error::Error>> {
     /// if let Some(exit) = trade.exit_price() {
     ///     println!("Exit price: {}", exit);
     /// }
@@ -591,7 +591,7 @@ impl LnmTrade {
     /// # Examples
     ///
     /// ```no_run
-    /// # fn example(trade: lnm_sdk::models::LnmTrade) -> Result<(), Box<dyn std::error::Error>> {
+    /// # fn example(trade: lnm_sdk::models::Trade) -> Result<(), Box<dyn std::error::Error>> {
     /// let pl = trade.pl();
     ///
     /// if pl > 0 {
@@ -611,7 +611,7 @@ impl LnmTrade {
     /// # Examples
     ///
     /// ```no_run
-    /// # fn example(trade: lnm_sdk::models::LnmTrade) -> Result<(), Box<dyn std::error::Error>> {
+    /// # fn example(trade: lnm_sdk::models::Trade) -> Result<(), Box<dyn std::error::Error>> {
     /// let created_at = trade.creation_ts();
     ///
     /// println!("Trade created at: {}", created_at);
@@ -627,7 +627,7 @@ impl LnmTrade {
     /// # Examples
     ///
     /// ```no_run
-    /// # fn example(trade: lnm_sdk::models::LnmTrade) -> Result<(), Box<dyn std::error::Error>> {
+    /// # fn example(trade: lnm_sdk::models::Trade) -> Result<(), Box<dyn std::error::Error>> {
     /// if let Some(filled_at) = trade.market_filled_ts() {
     ///     println!("Trade filled at: {}", filled_at);
     /// }
@@ -643,7 +643,7 @@ impl LnmTrade {
     /// # Examples
     ///
     /// ```no_run
-    /// # fn example(trade: lnm_sdk::models::LnmTrade) -> Result<(), Box<dyn std::error::Error>> {
+    /// # fn example(trade: lnm_sdk::models::Trade) -> Result<(), Box<dyn std::error::Error>> {
     /// if let Some(closed_at) = trade.closed_ts() {
     ///     println!("Trade closed at: {}", closed_at);
     /// }
@@ -659,7 +659,7 @@ impl LnmTrade {
     /// # Examples
     ///
     /// ```no_run
-    /// # fn example(trade: lnm_sdk::models::LnmTrade) -> Result<(), Box<dyn std::error::Error>> {
+    /// # fn example(trade: lnm_sdk::models::Trade) -> Result<(), Box<dyn std::error::Error>> {
     /// if let Some(entry) = trade.entry_price() {
     ///     println!("Entry price: {}", entry);
     /// }
@@ -675,7 +675,7 @@ impl LnmTrade {
     /// # Examples
     ///
     /// ```no_run
-    /// # fn example(trade: lnm_sdk::models::LnmTrade) -> Result<(), Box<dyn std::error::Error>> {
+    /// # fn example(trade: lnm_sdk::models::Trade) -> Result<(), Box<dyn std::error::Error>> {
     /// if let Some(entry_margin) = trade.entry_margin() {
     ///     println!("Entry margin: {}", entry_margin);
     /// }
@@ -691,7 +691,7 @@ impl LnmTrade {
     /// # Examples
     ///
     /// ```no_run
-    /// # fn example(trade: lnm_sdk::models::LnmTrade) -> Result<(), Box<dyn std::error::Error>> {
+    /// # fn example(trade: lnm_sdk::models::Trade) -> Result<(), Box<dyn std::error::Error>> {
     /// if trade.open() {
     ///     println!("Trade is open (limit order not filled)");
     /// }
@@ -707,7 +707,7 @@ impl LnmTrade {
     /// # Examples
     ///
     /// ```no_run
-    /// # fn example(trade: lnm_sdk::models::LnmTrade) -> Result<(), Box<dyn std::error::Error>> {
+    /// # fn example(trade: lnm_sdk::models::Trade) -> Result<(), Box<dyn std::error::Error>> {
     /// if trade.running() {
     ///     println!("Trade is actively running");
     /// }
@@ -723,7 +723,7 @@ impl LnmTrade {
     /// # Examples
     ///
     /// ```no_run
-    /// # fn example(trade: lnm_sdk::models::LnmTrade) -> Result<(), Box<dyn std::error::Error>> {
+    /// # fn example(trade: lnm_sdk::models::Trade) -> Result<(), Box<dyn std::error::Error>> {
     /// if trade.canceled() {
     ///     println!("Trade was canceled");
     /// }
@@ -739,7 +739,7 @@ impl LnmTrade {
     /// # Examples
     ///
     /// ```no_run
-    /// # fn example(trade: lnm_sdk::models::LnmTrade) -> Result<(), Box<dyn std::error::Error>> {
+    /// # fn example(trade: lnm_sdk::models::Trade) -> Result<(), Box<dyn std::error::Error>> {
     /// if trade.closed() {
     ///     println!("Trade has been closed");
     /// }
@@ -757,7 +757,7 @@ impl LnmTrade {
     /// # Examples
     ///
     /// ```no_run
-    /// # fn example(trade: lnm_sdk::models::LnmTrade) -> Result<(), Box<dyn std::error::Error>> {
+    /// # fn example(trade: lnm_sdk::models::Trade) -> Result<(), Box<dyn std::error::Error>> {
     /// let total_fees = trade.sum_carry_fees();
     ///
     /// println!("Total carry fees paid: {} sats", total_fees);
@@ -771,7 +771,7 @@ impl LnmTrade {
 
 #[derive(Deserialize)]
 pub(crate) struct NestedTradesResponse {
-    pub trades: Vec<LnmTrade>,
+    pub trades: Vec<Trade>,
 }
 
 #[derive(Serialize, Debug)]

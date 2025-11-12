@@ -15,9 +15,8 @@ use super::{
             price_history::PriceEntryLNM,
             ticker::Ticker,
             trade::{
-                FuturesTradeRequestBody, FuturesUpdateTradeRequestBody, LnmTrade,
-                NestedTradesResponse, TradeExecution, TradeSide, TradeSize, TradeStatus,
-                TradeUpdateType,
+                FuturesTradeRequestBody, FuturesUpdateTradeRequestBody, NestedTradesResponse,
+                Trade, TradeExecution, TradeSide, TradeSize, TradeStatus, TradeUpdateType,
             },
         },
         repositories::FuturesRepository,
@@ -39,7 +38,7 @@ impl LnmFuturesRepository {
         id: Uuid,
         update_type: TradeUpdateType,
         value: Price,
-    ) -> Result<LnmTrade> {
+    ) -> Result<Trade> {
         let body = FuturesUpdateTradeRequestBody::new(id, update_type, value);
 
         self.base
@@ -58,7 +57,7 @@ impl FuturesRepository for LnmFuturesRepository {
         from: Option<DateTime<Utc>>,
         to: Option<DateTime<Utc>>,
         limit: Option<usize>,
-    ) -> Result<Vec<LnmTrade>> {
+    ) -> Result<Vec<Trade>> {
         let mut query_params = Vec::new();
 
         query_params.push(("type", status.to_string()));
@@ -83,7 +82,7 @@ impl FuturesRepository for LnmFuturesRepository {
         from: Option<DateTime<Utc>>,
         to: Option<DateTime<Utc>>,
         limit: Option<usize>,
-    ) -> Result<Vec<LnmTrade>> {
+    ) -> Result<Vec<Trade>> {
         self.get_trades(TradeStatus::Open, from, to, limit).await
     }
 
@@ -92,7 +91,7 @@ impl FuturesRepository for LnmFuturesRepository {
         from: Option<DateTime<Utc>>,
         to: Option<DateTime<Utc>>,
         limit: Option<usize>,
-    ) -> Result<Vec<LnmTrade>> {
+    ) -> Result<Vec<Trade>> {
         self.get_trades(TradeStatus::Running, from, to, limit).await
     }
 
@@ -101,7 +100,7 @@ impl FuturesRepository for LnmFuturesRepository {
         from: Option<DateTime<Utc>>,
         to: Option<DateTime<Utc>>,
         limit: Option<usize>,
-    ) -> Result<Vec<LnmTrade>> {
+    ) -> Result<Vec<Trade>> {
         self.get_trades(TradeStatus::Closed, from, to, limit).await
     }
 
@@ -140,7 +139,7 @@ impl FuturesRepository for LnmFuturesRepository {
         execution: TradeExecution,
         stoploss: Option<Price>,
         takeprofit: Option<Price>,
-    ) -> Result<LnmTrade> {
+    ) -> Result<Trade> {
         let body =
             FuturesTradeRequestBody::new(leverage, stoploss, takeprofit, side, size, execution)
                 .map_err(RestApiError::FuturesTradeRequestValidation)?;
@@ -150,13 +149,13 @@ impl FuturesRepository for LnmFuturesRepository {
             .await
     }
 
-    async fn get_trade(&self, id: Uuid) -> Result<LnmTrade> {
+    async fn get_trade(&self, id: Uuid) -> Result<Trade> {
         self.base
             .make_request_without_params(Method::GET, ApiPath::FuturesGetTrade(id), true)
             .await
     }
 
-    async fn cancel_trade(&self, id: Uuid) -> Result<LnmTrade> {
+    async fn cancel_trade(&self, id: Uuid) -> Result<Trade> {
         let body = json!({"id": id.to_string()});
 
         self.base
@@ -164,7 +163,7 @@ impl FuturesRepository for LnmFuturesRepository {
             .await
     }
 
-    async fn cancel_all_trades(&self) -> Result<Vec<LnmTrade>> {
+    async fn cancel_all_trades(&self) -> Result<Vec<Trade>> {
         let res: NestedTradesResponse = self
             .base
             .make_request_without_params(Method::DELETE, ApiPath::FuturesCancelAllTrades, true)
@@ -173,7 +172,7 @@ impl FuturesRepository for LnmFuturesRepository {
         Ok(res.trades)
     }
 
-    async fn close_trade(&self, id: Uuid) -> Result<LnmTrade> {
+    async fn close_trade(&self, id: Uuid) -> Result<Trade> {
         let query_params = vec![("id", id.to_string())];
 
         self.base
@@ -186,7 +185,7 @@ impl FuturesRepository for LnmFuturesRepository {
             .await
     }
 
-    async fn close_all_trades(&self) -> Result<Vec<LnmTrade>> {
+    async fn close_all_trades(&self) -> Result<Vec<Trade>> {
         let res: NestedTradesResponse = self
             .base
             .make_request_without_params(Method::DELETE, ApiPath::FuturesCloseAllTrades, true)
@@ -201,17 +200,17 @@ impl FuturesRepository for LnmFuturesRepository {
             .await
     }
 
-    async fn update_trade_stoploss(&self, id: Uuid, stoploss: Price) -> Result<LnmTrade> {
+    async fn update_trade_stoploss(&self, id: Uuid, stoploss: Price) -> Result<Trade> {
         self.update_trade(id, TradeUpdateType::Stoploss, stoploss)
             .await
     }
 
-    async fn update_trade_takeprofit(&self, id: Uuid, takeprofit: Price) -> Result<LnmTrade> {
+    async fn update_trade_takeprofit(&self, id: Uuid, takeprofit: Price) -> Result<Trade> {
         self.update_trade(id, TradeUpdateType::Takeprofit, takeprofit)
             .await
     }
 
-    async fn add_margin(&self, id: Uuid, amount: NonZeroU64) -> Result<LnmTrade> {
+    async fn add_margin(&self, id: Uuid, amount: NonZeroU64) -> Result<Trade> {
         let body = json!({
             "id": id.to_string(),
             "amount": amount,
@@ -222,7 +221,7 @@ impl FuturesRepository for LnmFuturesRepository {
             .await
     }
 
-    async fn cash_in(&self, id: Uuid, amount: NonZeroU64) -> Result<LnmTrade> {
+    async fn cash_in(&self, id: Uuid, amount: NonZeroU64) -> Result<Trade> {
         let body = json!({
             "id": id.to_string(),
             "amount": amount,

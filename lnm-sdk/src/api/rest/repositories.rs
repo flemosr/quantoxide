@@ -11,7 +11,7 @@ use super::{
         price::Price,
         price_history::PriceEntryLNM,
         ticker::Ticker,
-        trade::{LnmTrade, TradeExecution, TradeSide, TradeSize, TradeStatus},
+        trade::{Trade, TradeExecution, TradeSide, TradeSize, TradeStatus},
         user::User,
     },
 };
@@ -29,20 +29,20 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     ///
     /// ```no_run
     /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
-    /// # use lnm_sdk::models::{LnmTrade, TradeStatus};
-    /// let open_trades: Vec<LnmTrade> = api
+    /// # use lnm_sdk::models::{Trade, TradeStatus};
+    /// let open_trades: Vec<Trade> = api
     ///     .rest
     ///     .futures
     ///     .get_trades(TradeStatus::Open, None, None, None)
     ///     .await?;
     ///
-    /// let running_trades: Vec<LnmTrade> = api
+    /// let running_trades: Vec<Trade> = api
     ///     .rest
     ///     .futures
     ///     .get_trades(TradeStatus::Running, None, None, None)
     ///     .await?;
     ///
-    /// let closed_trades: Vec<LnmTrade> = api
+    /// let closed_trades: Vec<Trade> = api
     ///     .rest
     ///     .futures
     ///     .get_trades(TradeStatus::Closed, None, None, None)
@@ -56,7 +56,7 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
         from: Option<DateTime<Utc>>,
         to: Option<DateTime<Utc>>,
         limit: Option<usize>,
-    ) -> Result<Vec<LnmTrade>>;
+    ) -> Result<Vec<Trade>>;
 
     /// **Requires credentials**. Fetch the user’s open trades.
     ///
@@ -64,8 +64,8 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     ///
     /// ```no_run
     /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
-    /// # use lnm_sdk::models::LnmTrade;
-    /// let open_trades: Vec<LnmTrade> = api
+    /// # use lnm_sdk::models::Trade;
+    /// let open_trades: Vec<Trade> = api
     ///     .rest
     ///     .futures
     ///     .get_trades_open(None, None, None)
@@ -78,7 +78,7 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
         from: Option<DateTime<Utc>>,
         to: Option<DateTime<Utc>>,
         limit: Option<usize>,
-    ) -> Result<Vec<LnmTrade>>;
+    ) -> Result<Vec<Trade>>;
 
     /// **Requires credentials**. Fetch the user’s running trades.
     ///
@@ -86,8 +86,8 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     ///
     /// ```no_run
     /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
-    /// # use lnm_sdk::models::LnmTrade;
-    /// let running_trades: Vec<LnmTrade> = api
+    /// # use lnm_sdk::models::Trade;
+    /// let running_trades: Vec<Trade> = api
     ///     .rest
     ///     .futures
     ///     .get_trades_running(None, None, None)
@@ -100,7 +100,7 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
         from: Option<DateTime<Utc>>,
         to: Option<DateTime<Utc>>,
         limit: Option<usize>,
-    ) -> Result<Vec<LnmTrade>>;
+    ) -> Result<Vec<Trade>>;
 
     /// **Requires credentials**. Fetch the user’s closed trades.
     ///
@@ -108,8 +108,8 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     ///
     /// ```no_run
     /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
-    /// # use lnm_sdk::models::LnmTrade;
-    /// let closed_trades: Vec<LnmTrade> = api
+    /// # use lnm_sdk::models::Trade;
+    /// let closed_trades: Vec<Trade> = api
     ///     .rest
     ///     .futures
     ///     .get_trades_closed(None, None, None)
@@ -122,7 +122,7 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
         from: Option<DateTime<Utc>>,
         to: Option<DateTime<Utc>>,
         limit: Option<usize>,
-    ) -> Result<Vec<LnmTrade>>;
+    ) -> Result<Vec<Trade>>;
 
     /// Retrieve price history between two given timestamps. Limited to 1000 entries.
     ///
@@ -153,12 +153,12 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// ```no_run
     /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
     /// # use lnm_sdk::models::{
-    /// #     Leverage, LnmTrade, Margin, Price, Quantity, TradeExecution,
+    /// #     Leverage, Trade, Margin, Price, Quantity, TradeExecution,
     /// #     TradeSide, TradeSize
     /// # };
     /// // Create long market order with 10,000 sats of margin and no leverage,
     /// // stoploss or takeprofit.
-    /// let trade: LnmTrade = api
+    /// let trade: Trade = api
     ///     .rest
     ///     .futures
     ///     .create_new_trade(
@@ -175,7 +175,7 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// // of quantity and 2x leverage.
     /// // Stoploss at the price of 110,000 [USD/BTC] and takeprofit at the
     /// // price of 130,000 [USD/BTC].
-    /// let trade: LnmTrade = api
+    /// let trade: Trade = api
     ///     .rest
     ///     .futures
     ///     .create_new_trade(
@@ -193,7 +193,7 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// // of quantity and 3x leverage.
     /// // Stoploss at the price of 140,000 [USD/BTC] and takeprofit at the
     /// // price of 120,000 [USD/BTC].
-    /// let trade: LnmTrade = api
+    /// let trade: Trade = api
     ///     .rest
     ///     .futures
     ///     .create_new_trade(
@@ -217,7 +217,7 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
         execution: TradeExecution,
         stoploss: Option<Price>,
         takeprofit: Option<Price>,
-    ) -> Result<LnmTrade>;
+    ) -> Result<Trade>;
 
     /// **Requires credentials**. Get a trade by id.
     ///
@@ -226,9 +226,9 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// ```no_run
     /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
     /// # use lnm_sdk::models::{
-    /// #     Leverage, LnmTrade, Margin, TradeExecution, TradeSide, TradeSize
+    /// #     Leverage, Trade, Margin, TradeExecution, TradeSide, TradeSize
     /// # };
-    /// let running_trade: LnmTrade = api
+    /// let running_trade: Trade = api
     ///     .rest
     ///     .futures
     ///     .create_new_trade(
@@ -241,7 +241,7 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     ///     )
     ///     .await?;
     ///
-    /// let same_trade: LnmTrade = api
+    /// let same_trade: Trade = api
     ///     .rest
     ///     .futures
     ///     .get_trade(running_trade.id()).await?;
@@ -250,7 +250,7 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// # Ok(())
     /// # }
     /// ```
-    async fn get_trade(&self, id: Uuid) -> Result<LnmTrade>;
+    async fn get_trade(&self, id: Uuid) -> Result<Trade>;
 
     /// **Requires credentials**. Cancel an open trade.
     ///
@@ -259,9 +259,9 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// ```no_run
     /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
     /// # use lnm_sdk::models::{
-    /// #     Leverage, LnmTrade, Price, Quantity, TradeExecution, TradeSide, TradeSize
+    /// #     Leverage, Trade, Price, Quantity, TradeExecution, TradeSide, TradeSize
     /// # };
-    /// let open_trade: LnmTrade = api
+    /// let open_trade: Trade = api
     ///     .rest
     ///     .futures
     ///     .create_new_trade(
@@ -277,7 +277,7 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     ///
     /// // Assuming trade is still open
     ///
-    /// let cancelled_trade: LnmTrade = api
+    /// let cancelled_trade: Trade = api
     ///     .rest
     ///     .futures
     ///     .cancel_trade(open_trade.id()).await?;
@@ -286,7 +286,7 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// # Ok(())
     /// # }
     /// ```
-    async fn cancel_trade(&self, id: Uuid) -> Result<LnmTrade>;
+    async fn cancel_trade(&self, id: Uuid) -> Result<Trade>;
 
     /// **Requires credentials**. Cancel all open trades.
     ///
@@ -294,8 +294,8 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     ///
     /// ```no_run
     /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
-    /// # use lnm_sdk::models::LnmTrade;
-    /// let cancelled_trades: Vec<LnmTrade> = api
+    /// # use lnm_sdk::models::Trade;
+    /// let cancelled_trades: Vec<Trade> = api
     ///     .rest
     ///     .futures
     ///     .cancel_all_trades().await?;
@@ -303,7 +303,7 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// # Ok(())
     /// # }
     /// ```
-    async fn cancel_all_trades(&self) -> Result<Vec<LnmTrade>>;
+    async fn cancel_all_trades(&self) -> Result<Vec<Trade>>;
 
     /// **Requires credentials**. Close a running trade.
     ///
@@ -312,9 +312,9 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// ```no_run
     /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
     /// # use lnm_sdk::models::{
-    /// #     Leverage, LnmTrade, Margin, TradeExecution, TradeSide, TradeSize
+    /// #     Leverage, Trade, Margin, TradeExecution, TradeSide, TradeSize
     /// # };
-    /// let running_trade: LnmTrade = api
+    /// let running_trade: Trade = api
     ///     .rest
     ///     .futures
     ///     .create_new_trade(
@@ -327,7 +327,7 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     ///     )
     ///     .await?;
     ///
-    /// let closed_trade: LnmTrade = api
+    /// let closed_trade: Trade = api
     ///     .rest
     ///     .futures
     ///     .close_trade(running_trade.id()).await?;
@@ -336,7 +336,7 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// # Ok(())
     /// # }
     /// ```
-    async fn close_trade(&self, id: Uuid) -> Result<LnmTrade>;
+    async fn close_trade(&self, id: Uuid) -> Result<Trade>;
 
     /// **Requires credentials**. Close all running trades.
     ///
@@ -344,8 +344,8 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     ///
     /// ```no_run
     /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
-    /// # use lnm_sdk::models::LnmTrade;
-    /// let closed_trades: Vec<LnmTrade> = api
+    /// # use lnm_sdk::models::Trade;
+    /// let closed_trades: Vec<Trade> = api
     ///     .rest
     ///     .futures
     ///     .close_all_trades().await?;
@@ -353,7 +353,7 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// # Ok(())
     /// # }
     /// ```
-    async fn close_all_trades(&self) -> Result<Vec<LnmTrade>>;
+    async fn close_all_trades(&self) -> Result<Vec<Trade>>;
 
     /// Get the futures ticker.
     ///
@@ -374,9 +374,9 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// ```no_run
     /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
     /// # use lnm_sdk::models::{
-    /// #     Leverage, LnmTrade, Price, Quantity, TradeExecution, TradeSide, TradeSize
+    /// #     Leverage, Trade, Price, Quantity, TradeExecution, TradeSide, TradeSize
     /// # };
-    /// let open_trade: LnmTrade = api
+    /// let open_trade: Trade = api
     ///     .rest
     ///     .futures
     ///     .create_new_trade(
@@ -393,7 +393,7 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// // Assuming trade is still open or running
     ///
     /// let new_stoploss = Price::try_from(9_000).unwrap();
-    /// let updated_trade: LnmTrade = api
+    /// let updated_trade: Trade = api
     ///     .rest
     ///     .futures
     ///     .update_trade_stoploss(open_trade.id(), new_stoploss).await?;
@@ -402,7 +402,7 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// # Ok(())
     /// # }
     /// ```
-    async fn update_trade_stoploss(&self, id: Uuid, stoploss: Price) -> Result<LnmTrade>;
+    async fn update_trade_stoploss(&self, id: Uuid, stoploss: Price) -> Result<Trade>;
 
     /// **Requires credentials**. Modify the takeprofit of an open/running trade.
     ///
@@ -411,9 +411,9 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// ```no_run
     /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
     /// # use lnm_sdk::models::{
-    /// #     Leverage, LnmTrade, Price, Quantity, TradeExecution, TradeSide, TradeSize
+    /// #     Leverage, Trade, Price, Quantity, TradeExecution, TradeSide, TradeSize
     /// # };
-    /// let open_trade: LnmTrade = api
+    /// let open_trade: Trade = api
     ///     .rest
     ///     .futures
     ///     .create_new_trade(
@@ -430,7 +430,7 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// // Assuming trade is still open or running
     ///
     /// let new_takeprofit = Price::try_from(11_000).unwrap();
-    /// let updated_trade: LnmTrade = api
+    /// let updated_trade: Trade = api
     ///     .rest
     ///     .futures
     ///     .update_trade_takeprofit(open_trade.id(), new_takeprofit).await?;
@@ -439,7 +439,7 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// # Ok(())
     /// # }
     /// ```
-    async fn update_trade_takeprofit(&self, id: Uuid, takeprofit: Price) -> Result<LnmTrade>;
+    async fn update_trade_takeprofit(&self, id: Uuid, takeprofit: Price) -> Result<Trade>;
 
     /// **Requires credentials**. Adds margin to an open/running trade, increasing the collateral
     /// and therefore reducing the leverage.
@@ -457,9 +457,9 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
     /// # use std::num::NonZeroU64;
     /// # use lnm_sdk::models::{
-    /// #     Leverage, LnmTrade, Margin, Price, TradeExecution, TradeSide, TradeSize
+    /// #     Leverage, Trade, Margin, Price, TradeExecution, TradeSide, TradeSize
     /// # };
-    /// let created_trade: LnmTrade = api
+    /// let created_trade: Trade = api
     ///     .rest
     ///     .futures
     ///     .create_new_trade(
@@ -476,7 +476,7 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// // Assuming trade is still open or running
     ///
     /// let amount = NonZeroU64::try_from(1000).unwrap();
-    /// let updated_trade: LnmTrade = api
+    /// let updated_trade: Trade = api
     ///     .rest
     ///     .futures
     ///     .add_margin(created_trade.id(), amount).await?;
@@ -489,7 +489,7 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// ```
     ///
     /// [`TradeRunning::est_collateral_delta_for_liquidation`]: crate::models::TradeRunning::est_collateral_delta_for_liquidation
-    async fn add_margin(&self, id: Uuid, amount: NonZeroU64) -> Result<LnmTrade>;
+    async fn add_margin(&self, id: Uuid, amount: NonZeroU64) -> Result<Trade>;
 
     /// **Requires credentials**. Removes funds from a trade, decreasing the collateral and
     /// possibly increasing the leverage.
@@ -509,9 +509,9 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
     /// # use std::num::NonZeroU64;
     /// # use lnm_sdk::models::{
-    /// #     Leverage, LnmTrade, Margin, Price, TradeExecution, TradeSide, TradeSize
+    /// #     Leverage, Trade, Margin, Price, TradeExecution, TradeSide, TradeSize
     /// # };
-    /// let created_trade: LnmTrade = api
+    /// let created_trade: Trade = api
     ///     .rest
     ///     .futures
     ///     .create_new_trade(
@@ -528,7 +528,7 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// // Assuming trade is still open (no PL)
     ///
     /// let amount = NonZeroU64::try_from(1000).unwrap();
-    /// let updated_trade: LnmTrade = api
+    /// let updated_trade: Trade = api
     ///     .rest
     ///     .futures
     ///     .cash_in(created_trade.id(), amount).await?;
@@ -541,7 +541,7 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// ```
     ///
     /// [`TradeRunning::est_collateral_delta_for_liquidation`]: crate::models::TradeRunning::est_collateral_delta_for_liquidation
-    async fn cash_in(&self, id: Uuid, amount: NonZeroU64) -> Result<LnmTrade>;
+    async fn cash_in(&self, id: Uuid, amount: NonZeroU64) -> Result<Trade>;
 }
 
 /// Methods for interacting with [LNM's v2 API]'s REST User endpoints.
