@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use chrono::{DateTime, Duration, SubsecRound, Utc};
 use sqlx::{Pool, Postgres};
 
-use lnm_sdk::models::PriceTickLNM;
+use lnm_sdk::models::PriceTick;
 
 use crate::indicators::IndicatorsEvaluator;
 
@@ -30,7 +30,7 @@ impl PgPriceTicksRepo {
 
 #[async_trait]
 impl PriceTicksRepository for PgPriceTicksRepo {
-    async fn add_tick(&self, tick: &PriceTickLNM) -> Result<Option<PriceTickRow>> {
+    async fn add_tick(&self, tick: &PriceTick) -> Result<Option<PriceTickRow>> {
         let price_tick = sqlx::query_as!(
             PriceTickRow,
             r#"
