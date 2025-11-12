@@ -9,7 +9,7 @@ use super::{
     models::{
         leverage::Leverage,
         price::Price,
-        price_history::PriceEntryLNM,
+        price_history::PriceEntry,
         ticker::Ticker,
         trade::{Trade, TradeExecution, TradeSide, TradeSize, TradeStatus},
         user::User,
@@ -130,8 +130,8 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     ///
     /// ```no_run
     /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
-    /// # use lnm_sdk::models::PriceEntryLNM;
-    /// let price_history: Vec<PriceEntryLNM> = api
+    /// # use lnm_sdk::models::PriceEntry;
+    /// let price_history: Vec<PriceEntry> = api
     ///     .rest
     ///     .futures
     ///     .price_history(None, None, None)
@@ -144,7 +144,7 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
         from: Option<DateTime<Utc>>,
         to: Option<DateTime<Utc>>,
         limit: Option<usize>,
-    ) -> Result<Vec<PriceEntryLNM>>;
+    ) -> Result<Vec<PriceEntry>>;
 
     /// **Requires credentials**. Create a new trade.
     ///

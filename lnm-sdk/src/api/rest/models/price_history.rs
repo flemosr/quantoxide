@@ -13,8 +13,8 @@ use super::price::Price;
 ///
 /// ```no_run
 /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
-/// # use lnm_sdk::models::PriceEntryLNM;
-/// let price_history: Vec<PriceEntryLNM> = api
+/// # use lnm_sdk::models::PriceEntry;
+/// let price_history: Vec<PriceEntry> = api
 ///     .rest
 ///     .futures
 ///     .price_history(None, None, None)
@@ -29,21 +29,21 @@ use super::price::Price;
 ///
 /// [`futures.price_history`]: crate::api::rest::repositories::FuturesRepository::price_history
 #[derive(Debug, Deserialize)]
-pub struct PriceEntryLNM {
+pub struct PriceEntry {
     #[serde(with = "ts_milliseconds")]
     time: DateTime<Utc>,
     value: Price,
 }
 
-impl PriceEntryLNM {
+impl PriceEntry {
     /// Returns the timestamp when this price was observed.
     ///
     /// # Examples
     ///
     /// ```no_run
     /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
-    /// # use lnm_sdk::models::PriceEntryLNM;
-    /// let price_history: Vec<PriceEntryLNM> = api
+    /// # use lnm_sdk::models::PriceEntry;
+    /// let price_history: Vec<PriceEntry> = api
     ///     .rest
     ///     .futures
     ///     .price_history(None, None, None)
@@ -66,8 +66,8 @@ impl PriceEntryLNM {
     ///
     /// ```no_run
     /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
-    /// # use lnm_sdk::models::PriceEntryLNM;
-    /// let price_history: Vec<PriceEntryLNM> = api
+    /// # use lnm_sdk::models::PriceEntry;
+    /// let price_history: Vec<PriceEntry> = api
     ///     .rest
     ///     .futures
     ///     .price_history(None, None, None)

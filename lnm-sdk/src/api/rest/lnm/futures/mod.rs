@@ -12,7 +12,7 @@ use super::{
         models::{
             leverage::Leverage,
             price::Price,
-            price_history::PriceEntryLNM,
+            price_history::PriceEntry,
             ticker::Ticker,
             trade::{
                 FuturesTradeRequestBody, FuturesUpdateTradeRequestBody, NestedTradesResponse,
@@ -109,7 +109,7 @@ impl FuturesRepository for LnmFuturesRepository {
         from: Option<DateTime<Utc>>,
         to: Option<DateTime<Utc>>,
         limit: Option<usize>,
-    ) -> Result<Vec<PriceEntryLNM>> {
+    ) -> Result<Vec<PriceEntry>> {
         let mut query_params = Vec::new();
         if let Some(from) = from {
             query_params.push(("from", from.timestamp_millis().to_string()));

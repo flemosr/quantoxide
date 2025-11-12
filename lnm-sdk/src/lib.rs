@@ -36,7 +36,7 @@ pub mod models {
             leverage::Leverage,
             margin::Margin,
             price::{BoundedPercentage, LowerBoundedPercentage, Price},
-            price_history::PriceEntryLNM,
+            price_history::PriceEntry,
             quantity::Quantity,
             ticker::Ticker,
             trade::{
