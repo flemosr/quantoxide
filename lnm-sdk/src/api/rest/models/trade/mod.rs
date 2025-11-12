@@ -21,6 +21,9 @@ pub mod util;
 /// The side of a trade position.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Copy)]
 pub enum TradeSide {
+    // FIXME: As of Nov 11 2025, the LNMarkets API returns "buy" / "sell" when fetching recently
+    // opened trades. It returned "b" / "s" until recently. Not clear if this behavior is temporary.
+    // Handling all cases for now.
     #[serde(rename = "b", alias = "buy")]
     Buy,
     #[serde(rename = "s", alias = "sell")]
