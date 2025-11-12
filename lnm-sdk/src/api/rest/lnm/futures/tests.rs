@@ -38,11 +38,11 @@ async fn test_ticker(repo: &LnmFuturesRepository) -> Ticker {
     ticker
 }
 
-async fn test_create_new_trade_quantity_limit(
+async fn test_create_short_trade_quantity_limit(
     repo: &LnmFuturesRepository,
     ticker: &Ticker,
 ) -> LnmTrade {
-    let side = TradeSide::Buy;
+    let side = TradeSide::Sell;
     let quantity = Quantity::try_from(1).unwrap();
     let leverage = Leverage::try_from(1).unwrap();
     let discount_percentage = BoundedPercentage::try_from(30).unwrap();
@@ -86,7 +86,7 @@ async fn test_create_new_trade_quantity_limit(
     created_trade
 }
 
-async fn test_create_new_trade_quantity_market(
+async fn test_create_long_trade_quantity_market(
     repo: &LnmFuturesRepository,
     ticker: &Ticker,
 ) -> LnmTrade {
@@ -130,7 +130,7 @@ async fn test_create_new_trade_quantity_market(
     created_trade
 }
 
-async fn test_create_new_trade_margin_limit(
+async fn test_create_long_trade_margin_limit(
     repo: &LnmFuturesRepository,
     ticker: &Ticker,
 ) -> LnmTrade {
@@ -177,21 +177,21 @@ async fn test_create_new_trade_margin_limit(
     created_trade
 }
 
-async fn test_create_new_trade_margin_market(
+async fn test_create_short_trade_margin_market(
     repo: &LnmFuturesRepository,
     ticker: &Ticker,
 ) -> LnmTrade {
     let discount = BoundedPercentage::try_from(5).unwrap();
     let est_min_price = ticker.ask_price().apply_discount(discount).unwrap();
 
-    let side = TradeSide::Buy;
+    let side = TradeSide::Sell;
     let leverage = Leverage::try_from(1).unwrap();
     let implied_qtd = Quantity::try_from(1).unwrap();
     let margin = Margin::calculate(implied_qtd, est_min_price, leverage);
     let est_price = ticker.ask_price();
     let range = BoundedPercentage::try_from(10).unwrap();
-    let stoploss = Some(est_price.apply_discount(range).unwrap());
-    let takeprofit = Some(est_price.apply_gain(range.into()).unwrap());
+    let stoploss = Some(est_price.apply_gain(range.into()).unwrap());
+    let takeprofit = Some(est_price.apply_discount(range).unwrap());
     let execution = TradeExecution::Market;
 
     let created_trade = repo
@@ -363,8 +363,8 @@ async fn test_close_all_trades(repo: &LnmFuturesRepository, exp_running_trades: 
 }
 
 async fn test_update_trade_stoploss(repo: &LnmFuturesRepository, id: Uuid, price: Price) {
-    let discount = BoundedPercentage::try_from(5).unwrap();
-    let stoploss = price.apply_discount(discount).unwrap();
+    let gain = LowerBoundedPercentage::try_from(5).unwrap();
+    let stoploss = price.apply_gain(gain).unwrap();
     let updated_trade = repo
         .update_trade_stoploss(id, stoploss)
         .await
@@ -456,85 +456,90 @@ async fn test_api() {
 
     let ticker = time_test!("test_ticker", test_ticker(&repo).await);
 
-    let limit_trade_a = time_test!(
-        "test_create_new_trade_quantity_limit",
-        test_create_new_trade_quantity_limit(&repo, &ticker).await
+    let short_limit_trade_a = time_test!(
+        "test_create_short_trade_quantity_limit",
+        test_create_short_trade_quantity_limit(&repo, &ticker).await
     );
 
     time_test!(
         "test_get_trade",
-        test_get_trade(&repo, &limit_trade_a).await
+        test_get_trade(&repo, &short_limit_trade_a).await
     );
 
-    let limit_trade_b = time_test!(
-        "test_create_new_trade_margin_limit",
-        test_create_new_trade_margin_limit(&repo, &ticker).await
+    let long_limit_trade_b = time_test!(
+        "test_create_long_trade_margin_limit",
+        test_create_long_trade_margin_limit(&repo, &ticker).await
     );
 
     time_test!(
         "test_get_trades_open",
-        test_get_trades_open(&repo, vec![&limit_trade_a, &limit_trade_b]).await
+        test_get_trades_open(&repo, vec![&short_limit_trade_a, &long_limit_trade_b]).await
     );
 
     time_test!(
         "test_update_trade_stoploss",
-        test_update_trade_stoploss(&repo, limit_trade_a.id(), limit_trade_a.price()).await
+        test_update_trade_stoploss(&repo, short_limit_trade_a.id(), short_limit_trade_a.price())
+            .await
     );
 
     time_test!(
         "test_update_trade_takeprofit",
-        test_update_trade_takeprofit(&repo, limit_trade_a.id(), limit_trade_a.price()).await
+        test_update_trade_takeprofit(&repo, long_limit_trade_b.id(), long_limit_trade_b.price())
+            .await
     );
 
     time_test!(
         "test_cancel_trade",
-        test_cancel_trade(&repo, limit_trade_a.id()).await
+        test_cancel_trade(&repo, short_limit_trade_a.id()).await
     );
 
     time_test!(
         "test_cancel_all_trades",
-        test_cancel_all_trades(&repo, vec![&limit_trade_b]).await
+        test_cancel_all_trades(&repo, vec![&long_limit_trade_b]).await
     );
 
-    let market_trade_a = time_test!(
-        "test_create_new_trade_quantity_market",
-        test_create_new_trade_quantity_market(&repo, &ticker).await
+    let long_market_trade_a = time_test!(
+        "test_create_long_trade_quantity_market",
+        test_create_long_trade_quantity_market(&repo, &ticker).await
     );
 
     time_test!(
         "test_get_trade",
-        test_get_trade(&repo, &market_trade_a).await
+        test_get_trade(&repo, &long_market_trade_a).await
     );
 
-    let market_trade_a = time_test!(
+    let long_market_trade_a = time_test!(
         "test_add_margin",
-        test_add_margin(&repo, market_trade_a).await
+        test_add_margin(&repo, long_market_trade_a).await
     );
 
-    let market_trade_a = time_test!("test_cash_in", test_cash_in(&repo, market_trade_a).await);
+    let long_market_trade_a = time_test!(
+        "test_cash_in",
+        test_cash_in(&repo, long_market_trade_a).await
+    );
 
-    let market_trade_b = time_test!(
-        "test_create_new_trade_margin_market",
-        test_create_new_trade_margin_market(&repo, &ticker).await
+    let short_market_trade_b = time_test!(
+        "test_create_short_trade_margin_market",
+        test_create_short_trade_margin_market(&repo, &ticker).await
     );
 
     time_test!(
         "test_get_trades_running",
-        test_get_trades_running(&repo, vec![&market_trade_a, &market_trade_b]).await
+        test_get_trades_running(&repo, vec![&long_market_trade_a, &short_market_trade_b]).await
     );
 
     time_test!(
         "test_close_trade",
-        test_close_trade(&repo, market_trade_a.id()).await
+        test_close_trade(&repo, long_market_trade_a.id()).await
     );
 
     time_test!(
         "test_close_all_trades",
-        test_close_all_trades(&repo, vec![&market_trade_b]).await
+        test_close_all_trades(&repo, vec![&short_market_trade_b]).await
     );
 
     time_test!(
         "test_get_trades_closed",
-        test_get_trades_closed(&repo, vec![&market_trade_a, &market_trade_b]).await
+        test_get_trades_closed(&repo, vec![&long_market_trade_a, &short_market_trade_b]).await
     );
 }
