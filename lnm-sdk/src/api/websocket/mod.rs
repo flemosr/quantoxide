@@ -11,7 +11,7 @@ use lnm::LnmWebSocketRepo;
 use repositories::WebSocketRepository;
 use tokio::time;
 
-use super::ApiClientConfig;
+use super::client::ApiClientConfig;
 
 #[derive(Clone, Debug)]
 pub(crate) struct WebSocketClientConfig {
@@ -21,7 +21,7 @@ pub(crate) struct WebSocketClientConfig {
 impl From<&ApiClientConfig> for WebSocketClientConfig {
     fn from(value: &ApiClientConfig) -> Self {
         Self {
-            disconnect_timeout: value.ws_disconnect_timeout,
+            disconnect_timeout: value.ws_disconnect_timeout(),
         }
     }
 }

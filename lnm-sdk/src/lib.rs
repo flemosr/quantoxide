@@ -1,7 +1,7 @@
 mod api;
 
 pub use api::{
-    ApiClient, ApiClientConfig,
+    client::{ApiClient, ApiClientConfig},
     rest::{
         RestClient,
         repositories::{FuturesRepository, UserRepository},

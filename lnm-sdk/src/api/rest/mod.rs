@@ -9,7 +9,7 @@ use error::Result;
 use lnm::{base::LnmRestBase, futures::LnmFuturesRepository, user::LnmUserRepository};
 use repositories::{FuturesRepository, UserRepository};
 
-use super::ApiClientConfig;
+use super::client::ApiClientConfig;
 
 #[derive(Clone, Debug)]
 pub(crate) struct RestClientConfig {
@@ -19,7 +19,7 @@ pub(crate) struct RestClientConfig {
 impl From<&ApiClientConfig> for RestClientConfig {
     fn from(value: &ApiClientConfig) -> Self {
         Self {
-            timeout: value.rest_timeout,
+            timeout: value.rest_timeout(),
         }
     }
 }
