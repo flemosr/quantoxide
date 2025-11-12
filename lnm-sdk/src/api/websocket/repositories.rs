@@ -5,7 +5,7 @@ use tokio::sync::broadcast::Receiver;
 
 use super::{
     error::Result,
-    models::{LnmWebSocketChannel, WebSocketUpdate},
+    models::{WebSocketChannel, WebSocketUpdate},
     state::WsConnectionStatus,
 };
 
@@ -70,19 +70,19 @@ pub trait WebSocketRepository: crate::sealed::Sealed + Send + Sync {
     ///
     /// ```no_run
     /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
-    /// # use lnm_sdk::models::LnmWebSocketChannel;
+    /// # use lnm_sdk::models::WebSocketChannel;
     /// let ws = api.connect_ws().await?;
     ///
     /// ws.subscribe(vec![
-    ///     LnmWebSocketChannel::FuturesBtcUsdIndex,
-    ///     LnmWebSocketChannel::FuturesBtcUsdLastPrice
+    ///     WebSocketChannel::FuturesBtcUsdIndex,
+    ///     WebSocketChannel::FuturesBtcUsdLastPrice
     /// ]).await?;
     ///
     /// assert_eq!(ws.subscriptions().await.len(), 2);
     /// # Ok(())
     /// # }
     /// ```
-    async fn subscribe(&self, channels: Vec<LnmWebSocketChannel>) -> Result<()>;
+    async fn subscribe(&self, channels: Vec<WebSocketChannel>) -> Result<()>;
 
     /// Unsubscribes from the specified WebSocket channels.
     ///
@@ -90,17 +90,17 @@ pub trait WebSocketRepository: crate::sealed::Sealed + Send + Sync {
     ///
     /// ```no_run
     /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
-    /// # use lnm_sdk::models::LnmWebSocketChannel;
+    /// # use lnm_sdk::models::WebSocketChannel;
     /// let ws = api.connect_ws().await?;
     ///
-    /// ws.subscribe(vec![LnmWebSocketChannel::FuturesBtcUsdIndex]).await?;
-    /// ws.unsubscribe(vec![LnmWebSocketChannel::FuturesBtcUsdIndex]).await?;
+    /// ws.subscribe(vec![WebSocketChannel::FuturesBtcUsdIndex]).await?;
+    /// ws.unsubscribe(vec![WebSocketChannel::FuturesBtcUsdIndex]).await?;
     ///
     /// assert!(ws.subscriptions().await.is_empty());
     /// # Ok(())
     /// # }
     /// ```
-    async fn unsubscribe(&self, channels: Vec<LnmWebSocketChannel>) -> Result<()>;
+    async fn unsubscribe(&self, channels: Vec<WebSocketChannel>) -> Result<()>;
 
     /// Returns the set of currently subscribed channels.
     ///
@@ -108,19 +108,19 @@ pub trait WebSocketRepository: crate::sealed::Sealed + Send + Sync {
     ///
     /// ```no_run
     /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
-    /// # use lnm_sdk::models::LnmWebSocketChannel;
+    /// # use lnm_sdk::models::WebSocketChannel;
     /// let ws = api.connect_ws().await?;
     ///
     /// ws.subscribe(vec![
-    ///     LnmWebSocketChannel::FuturesBtcUsdIndex,
-    ///     LnmWebSocketChannel::FuturesBtcUsdLastPrice
+    ///     WebSocketChannel::FuturesBtcUsdIndex,
+    ///     WebSocketChannel::FuturesBtcUsdLastPrice
     /// ]).await?;
     ///
     /// assert_eq!(ws.subscriptions().await.len(), 2);
     /// # Ok(())
     /// # }
     /// ```
-    async fn subscriptions(&self) -> HashSet<LnmWebSocketChannel>;
+    async fn subscriptions(&self) -> HashSet<WebSocketChannel>;
 
     /// Creates a new receiver for WebSocket updates.
     ///
@@ -128,12 +128,12 @@ pub trait WebSocketRepository: crate::sealed::Sealed + Send + Sync {
     ///
     /// ```no_run
     /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
-    /// # use lnm_sdk::models::LnmWebSocketChannel;
+    /// # use lnm_sdk::models::WebSocketChannel;
     /// let ws = api.connect_ws().await?;
     ///
     /// let mut ws_rx = ws.receiver().await?;
     ///
-    /// ws.subscribe(vec![LnmWebSocketChannel::FuturesBtcUsdIndex]).await?;
+    /// ws.subscribe(vec![WebSocketChannel::FuturesBtcUsdIndex]).await?;
     ///
     /// while let Ok(ws_update) = ws_rx.recv().await {
     ///     // Handle `ws_update`

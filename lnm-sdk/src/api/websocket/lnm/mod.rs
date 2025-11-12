@@ -13,7 +13,7 @@ use tokio::{
 use super::{
     WebSocketClientConfig,
     error::{Result, WebSocketApiError},
-    models::{LnmJsonRpcReqMethod, LnmJsonRpcRequest, LnmWebSocketChannel, WebSocketUpdate},
+    models::{LnmJsonRpcReqMethod, LnmJsonRpcRequest, WebSocketChannel, WebSocketUpdate},
     repositories::WebSocketRepository,
     state::{WsConnectionStatus, WsConnectionStatusManager},
 };
@@ -40,7 +40,7 @@ pub(super) struct LnmWebSocketRepo {
     request_tx: RequestTransmiter,
     response_tx: ResponseTransmiter,
     connection_status_manager: Arc<WsConnectionStatusManager>,
-    subscriptions: AsyncMutex<HashMap<LnmWebSocketChannel, ChannelStatus>>,
+    subscriptions: AsyncMutex<HashMap<WebSocketChannel, ChannelStatus>>,
 }
 
 impl LnmWebSocketRepo {
@@ -105,10 +105,10 @@ impl WebSocketRepository for LnmWebSocketRepo {
         self.connection_status_manager.snapshot()
     }
 
-    async fn subscribe(&self, channels: Vec<LnmWebSocketChannel>) -> Result<()> {
+    async fn subscribe(&self, channels: Vec<WebSocketChannel>) -> Result<()> {
         self.evaluate_connection_status().await?;
 
-        let channels: HashSet<LnmWebSocketChannel> = channels.into_iter().collect();
+        let channels: HashSet<WebSocketChannel> = channels.into_iter().collect();
         if channels.is_empty() {
             return Ok(());
         }
@@ -182,10 +182,10 @@ impl WebSocketRepository for LnmWebSocketRepo {
         Ok(())
     }
 
-    async fn unsubscribe(&self, channels: Vec<LnmWebSocketChannel>) -> Result<()> {
+    async fn unsubscribe(&self, channels: Vec<WebSocketChannel>) -> Result<()> {
         self.evaluate_connection_status().await?;
 
-        let channels: HashSet<LnmWebSocketChannel> = channels.into_iter().collect();
+        let channels: HashSet<WebSocketChannel> = channels.into_iter().collect();
         if channels.is_empty() {
             return Ok(());
         }
@@ -258,7 +258,7 @@ impl WebSocketRepository for LnmWebSocketRepo {
         Ok(())
     }
 
-    async fn subscriptions(&self) -> HashSet<LnmWebSocketChannel> {
+    async fn subscriptions(&self) -> HashSet<WebSocketChannel> {
         let subscriptions = self.subscriptions.lock().await;
         subscriptions
             .iter()
@@ -269,7 +269,7 @@ impl WebSocketRepository for LnmWebSocketRepo {
                     None
                 }
             })
-            .collect::<HashSet<LnmWebSocketChannel>>()
+            .collect::<HashSet<WebSocketChannel>>()
     }
 
     async fn receiver(&self) -> Result<ResponseReceiver> {

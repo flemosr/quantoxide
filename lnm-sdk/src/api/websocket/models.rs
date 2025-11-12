@@ -28,33 +28,33 @@ impl JsonRpcRequest {
 }
 
 #[derive(PartialEq, Eq, Clone, Hash, Debug)]
-pub enum LnmWebSocketChannel {
+pub enum WebSocketChannel {
     FuturesBtcUsdIndex,
     FuturesBtcUsdLastPrice,
 }
 
-impl LnmWebSocketChannel {
+impl WebSocketChannel {
     fn as_str(&self) -> &'static str {
         match self {
-            LnmWebSocketChannel::FuturesBtcUsdIndex => "futures:btc_usd:index",
-            LnmWebSocketChannel::FuturesBtcUsdLastPrice => "futures:btc_usd:last-price",
+            WebSocketChannel::FuturesBtcUsdIndex => "futures:btc_usd:index",
+            WebSocketChannel::FuturesBtcUsdLastPrice => "futures:btc_usd:last-price",
         }
     }
 }
 
-impl TryFrom<&str> for LnmWebSocketChannel {
+impl TryFrom<&str> for WebSocketChannel {
     type Error = WebSocketApiError;
 
     fn try_from(value: &str) -> Result<Self> {
         match value {
-            "futures:btc_usd:index" => Ok(LnmWebSocketChannel::FuturesBtcUsdIndex),
-            "futures:btc_usd:last-price" => Ok(LnmWebSocketChannel::FuturesBtcUsdLastPrice),
+            "futures:btc_usd:index" => Ok(WebSocketChannel::FuturesBtcUsdIndex),
+            "futures:btc_usd:last-price" => Ok(WebSocketChannel::FuturesBtcUsdLastPrice),
             _ => Err(WebSocketApiError::UnknownChannel(value.to_string())),
         }
     }
 }
 
-impl fmt::Display for LnmWebSocketChannel {
+impl fmt::Display for WebSocketChannel {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.as_str())
     }
@@ -86,11 +86,11 @@ impl fmt::Display for LnmJsonRpcReqMethod {
 pub struct LnmJsonRpcRequest {
     method: LnmJsonRpcReqMethod,
     id: String,
-    channels: Vec<LnmWebSocketChannel>,
+    channels: Vec<WebSocketChannel>,
 }
 
 impl LnmJsonRpcRequest {
-    pub(super) fn new(method: LnmJsonRpcReqMethod, channels: Vec<LnmWebSocketChannel>) -> Self {
+    pub(super) fn new(method: LnmJsonRpcReqMethod, channels: Vec<WebSocketChannel>) -> Self {
         let mut random_bytes = [0u8; 16];
         rand::rng().fill(&mut random_bytes);
         let id = hex::encode(random_bytes);
@@ -106,17 +106,17 @@ impl LnmJsonRpcRequest {
         &self.id
     }
 
-    pub(super) fn channels(&self) -> &Vec<LnmWebSocketChannel> {
+    pub(super) fn channels(&self) -> &Vec<WebSocketChannel> {
         &self.channels
     }
 
-    pub(super) fn check_confirmation(&self, id: &String, channels: &[LnmWebSocketChannel]) -> bool {
+    pub(super) fn check_confirmation(&self, id: &String, channels: &[WebSocketChannel]) -> bool {
         if self.id() != id {
             return false;
         }
 
-        let set_a: HashSet<&LnmWebSocketChannel> = self.channels().iter().collect();
-        let set_b: HashSet<&LnmWebSocketChannel> = channels.iter().collect();
+        let set_a: HashSet<&WebSocketChannel> = self.channels().iter().collect();
+        let set_b: HashSet<&WebSocketChannel> = channels.iter().collect();
         set_a == set_b
     }
 
@@ -213,7 +213,7 @@ pub(super) enum SubscriptionData {
 pub(super) enum LnmJsonRpcResponse {
     Confirmation {
         id: String,
-        channels: Vec<LnmWebSocketChannel>,
+        channels: Vec<WebSocketChannel>,
     },
     Subscription(SubscriptionData),
 }
@@ -223,14 +223,14 @@ impl TryFrom<JsonRpcResponse> for LnmJsonRpcResponse {
 
     fn try_from(response: JsonRpcResponse) -> ConnectionResult<Self> {
         if let Some(id) = &response.id {
-            let try_parse_confirmation_data = || -> Option<(String, Vec<LnmWebSocketChannel>)> {
+            let try_parse_confirmation_data = || -> Option<(String, Vec<WebSocketChannel>)> {
                 let result = response.result.as_ref()?;
 
                 let result_array = result.as_array()?;
 
-                let channels: Vec<LnmWebSocketChannel> = result_array
+                let channels: Vec<WebSocketChannel> = result_array
                     .iter()
-                    .filter_map(|channel| LnmWebSocketChannel::try_from(channel.as_str()?).ok())
+                    .filter_map(|channel| WebSocketChannel::try_from(channel.as_str()?).ok())
                     .collect();
 
                 if channels.len() != result_array.len() {
@@ -255,7 +255,7 @@ impl TryFrom<JsonRpcResponse> for LnmJsonRpcResponse {
 
                 let params_obj = params.as_object()?;
 
-                let channel: LnmWebSocketChannel = params_obj
+                let channel: WebSocketChannel = params_obj
                     .get("channel")
                     .and_then(|v| v.as_str())?
                     .try_into()
@@ -264,11 +264,11 @@ impl TryFrom<JsonRpcResponse> for LnmJsonRpcResponse {
                 let data = params_obj.get("data")?.clone();
 
                 let data = match channel {
-                    LnmWebSocketChannel::FuturesBtcUsdLastPrice => {
+                    WebSocketChannel::FuturesBtcUsdLastPrice => {
                         let price_tick: PriceTick = serde_json::from_value(data).ok()?;
                         SubscriptionData::PriceTick(price_tick)
                     }
-                    LnmWebSocketChannel::FuturesBtcUsdIndex => {
+                    WebSocketChannel::FuturesBtcUsdIndex => {
                         let price_index: PriceIndex = serde_json::from_value(data).ok()?;
                         SubscriptionData::PriceIndex(price_index)
                     }
