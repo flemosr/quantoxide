@@ -14,7 +14,7 @@ use uuid::Uuid;
 use lnm_sdk::{
     error::TradeValidationError,
     models::{
-        BoundedPercentage, Leverage, LnmTrade, LowerBoundedPercentage, Margin, Price, Quantity,
+        BoundedPercentage, Leverage, LowerBoundedPercentage, Margin, Price, Quantity, Trade,
         TradeSide, TradeSize, trade_util,
     },
 };
@@ -23,7 +23,7 @@ use crate::{db::models::PriceHistoryEntryLOCF, signal::Signal, util::DateTimeExt
 
 use super::error::{TradeCoreError, TradeCoreResult, TradeExecutorResult};
 
-impl crate::sealed::Sealed for LnmTrade {}
+impl crate::sealed::Sealed for Trade {}
 
 /// Generic trade interface used in extension traits.
 ///
@@ -82,7 +82,7 @@ pub trait TradeCore: Send + Sync + fmt::Debug + 'static {
     fn closed(&self) -> bool;
 }
 
-impl TradeCore for LnmTrade {
+impl TradeCore for Trade {
     fn id(&self) -> Uuid {
         self.id()
     }
@@ -165,11 +165,11 @@ impl TradeCore for LnmTrade {
 /// ```no_run
 /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
 /// use lnm_sdk::models::{
-///     LnmTrade, TradeExecution, TradeSide, TradeSize, Leverage, Margin, Price
+///     Trade, TradeExecution, TradeSide, TradeSize, Leverage, Margin, Price
 /// };
 /// use quantoxide::trade::TradeRunning;
 ///
-/// let trade: LnmTrade = api
+/// let trade: Trade = api
 ///     .rest
 ///     .futures
 ///     .create_new_trade(
@@ -200,7 +200,7 @@ pub trait TradeRunning: crate::sealed::Sealed + TradeCore {
     /// # Examples
     ///
     /// ```no_run
-    /// # fn example(trade: lnm_sdk::models::LnmTrade) -> Result<(), Box<dyn std::error::Error>> {
+    /// # fn example(trade: lnm_sdk::models::Trade) -> Result<(), Box<dyn std::error::Error>> {
     /// // Assuming `trade` impl `TradeRunning`
     ///
     /// use lnm_sdk::models::Price;
@@ -227,7 +227,7 @@ pub trait TradeRunning: crate::sealed::Sealed + TradeCore {
     /// # Examples
     ///
     /// ```no_run
-    /// # fn example(trade: lnm_sdk::models::LnmTrade) -> Result<(), Box<dyn std::error::Error>> {
+    /// # fn example(trade: lnm_sdk::models::Trade) -> Result<(), Box<dyn std::error::Error>> {
     /// // Assuming `trade` impl `TradeRunning`
     ///
     /// use quantoxide::trade::TradeRunning;
@@ -260,7 +260,7 @@ pub trait TradeRunning: crate::sealed::Sealed + TradeCore {
     /// # Examples
     ///
     /// ```no_run
-    /// # fn example(trade: lnm_sdk::models::LnmTrade) -> Result<(), Box<dyn std::error::Error>> {
+    /// # fn example(trade: lnm_sdk::models::Trade) -> Result<(), Box<dyn std::error::Error>> {
     /// // Assuming `trade` impl `TradeRunning`
     ///
     /// use lnm_sdk::models::Price;
@@ -295,7 +295,7 @@ pub trait TradeRunning: crate::sealed::Sealed + TradeCore {
     /// # Examples
     ///
     /// ```no_run
-    /// # fn example(trade: lnm_sdk::models::LnmTrade) -> Result<(), Box<dyn std::error::Error>>  {
+    /// # fn example(trade: lnm_sdk::models::Trade) -> Result<(), Box<dyn std::error::Error>>  {
     /// // Assuming `trade` impl `TradeRunning`
     ///
     /// use lnm_sdk::models::Price;
@@ -334,7 +334,7 @@ pub trait TradeRunning: crate::sealed::Sealed + TradeCore {
     }
 }
 
-impl TradeRunning for LnmTrade {
+impl TradeRunning for Trade {
     fn est_pl(&self, market_price: Price) -> f64 {
         trade_util::estimate_pl(self.side(), self.quantity(), self.price(), market_price)
     }
@@ -354,7 +354,7 @@ pub trait TradeClosed: crate::sealed::Sealed + TradeCore {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example(closed_trade: lnm_sdk::models::LnmTrade) -> Result<(), Box<dyn std::error::Error>> {
+    /// # async fn example(closed_trade: lnm_sdk::models::Trade) -> Result<(), Box<dyn std::error::Error>> {
     /// use quantoxide::trade::TradeClosed;
     ///
     /// let pl = closed_trade.pl();
@@ -366,7 +366,7 @@ pub trait TradeClosed: crate::sealed::Sealed + TradeCore {
     fn pl(&self) -> i64;
 }
 
-impl TradeClosed for LnmTrade {
+impl TradeClosed for Trade {
     fn pl(&self) -> i64 {
         self.pl()
     }

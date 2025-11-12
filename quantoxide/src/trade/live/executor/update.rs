@@ -5,7 +5,7 @@ use uuid::Uuid;
 
 use lnm_sdk::{
     ApiClient,
-    models::{Leverage, LnmTrade, Price, TradeExecution, TradeSide, TradeSize, User},
+    models::{Leverage, Trade, Price, TradeExecution, TradeSide, TradeSize, User},
 };
 
 use super::{
@@ -95,7 +95,7 @@ pub enum LiveTradeExecutorUpdate {
     Order(LiveTradeExecutorUpdateOrder),
     Status(LiveTradeExecutorStatus),
     TradingState(TradingState),
-    ClosedTrade(LnmTrade),
+    ClosedTrade(Trade),
 }
 
 impl From<LiveTradeExecutorUpdateOrder> for LiveTradeExecutorUpdate {
@@ -130,7 +130,7 @@ impl WrappedApiContext {
         Self { api, update_tx }
     }
 
-    pub async fn get_trades_running(&self) -> ExecutorActionResult<Vec<LnmTrade>> {
+    pub async fn get_trades_running(&self) -> ExecutorActionResult<Vec<Trade>> {
         self.api
             .rest
             .futures
@@ -148,7 +148,7 @@ impl WrappedApiContext {
             .map_err(ExecutorActionError::RestApi)
     }
 
-    pub async fn get_trade(&self, id: Uuid) -> ExecutorActionResult<LnmTrade> {
+    pub async fn get_trade(&self, id: Uuid) -> ExecutorActionResult<Trade> {
         self.api
             .rest
             .futures
@@ -168,7 +168,7 @@ impl WrappedApiContext {
         leverage: Leverage,
         stoploss: Option<Price>,
         takeprofit: Option<Price>,
-    ) -> ExecutorActionResult<LnmTrade> {
+    ) -> ExecutorActionResult<Trade> {
         self.send_order_update(LiveTradeExecutorUpdateOrder::CreateNewTrade {
             side,
             size,
@@ -196,7 +196,7 @@ impl WrappedApiContext {
         &self,
         id: Uuid,
         stoploss: Price,
-    ) -> ExecutorActionResult<LnmTrade> {
+    ) -> ExecutorActionResult<Trade> {
         self.send_order_update(LiveTradeExecutorUpdateOrder::UpdateTradeStoploss { id, stoploss });
 
         self.api
@@ -207,7 +207,7 @@ impl WrappedApiContext {
             .map_err(ExecutorActionError::RestApi)
     }
 
-    pub async fn add_margin(&self, id: Uuid, amount: NonZeroU64) -> ExecutorActionResult<LnmTrade> {
+    pub async fn add_margin(&self, id: Uuid, amount: NonZeroU64) -> ExecutorActionResult<Trade> {
         self.send_order_update(LiveTradeExecutorUpdateOrder::AddMargin { id, amount });
 
         self.api
@@ -218,7 +218,7 @@ impl WrappedApiContext {
             .map_err(ExecutorActionError::RestApi)
     }
 
-    pub async fn cash_in(&self, id: Uuid, amount: NonZeroU64) -> ExecutorActionResult<LnmTrade> {
+    pub async fn cash_in(&self, id: Uuid, amount: NonZeroU64) -> ExecutorActionResult<Trade> {
         self.send_order_update(LiveTradeExecutorUpdateOrder::CashIn { id, amount });
 
         self.api
@@ -229,7 +229,7 @@ impl WrappedApiContext {
             .map_err(ExecutorActionError::RestApi)
     }
 
-    pub async fn close_trade(&self, id: Uuid) -> ExecutorActionResult<LnmTrade> {
+    pub async fn close_trade(&self, id: Uuid) -> ExecutorActionResult<Trade> {
         self.send_order_update(LiveTradeExecutorUpdateOrder::CloseTrade { id });
 
         self.api
@@ -240,7 +240,7 @@ impl WrappedApiContext {
             .map_err(ExecutorActionError::RestApi)
     }
 
-    pub async fn cancel_all_trades(&self) -> ExecutorActionResult<Vec<LnmTrade>> {
+    pub async fn cancel_all_trades(&self) -> ExecutorActionResult<Vec<Trade>> {
         self.send_order_update(LiveTradeExecutorUpdateOrder::CancelAllTrades);
 
         self.api
@@ -251,7 +251,7 @@ impl WrappedApiContext {
             .map_err(ExecutorActionError::RestApi)
     }
 
-    pub async fn close_all_trades(&self) -> ExecutorActionResult<Vec<LnmTrade>> {
+    pub async fn close_all_trades(&self) -> ExecutorActionResult<Vec<Trade>> {
         self.send_order_update(LiveTradeExecutorUpdateOrder::CloseAllTrades);
 
         self.api

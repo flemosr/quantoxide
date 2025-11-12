@@ -5,7 +5,7 @@ use std::{
 
 use tokio::sync::broadcast;
 
-use lnm_sdk::models::LnmTrade;
+use lnm_sdk::models::Trade;
 
 use crate::{
     signal::{LiveSignalStatusNotRunning, Signal},
@@ -77,7 +77,7 @@ pub enum LiveUpdate {
     Signal(Signal),
     Order(LiveTradeExecutorUpdateOrder),
     TradingState(TradingState),
-    ClosedTrade(LnmTrade),
+    ClosedTrade(Trade),
 }
 
 impl From<LiveStatus> for LiveUpdate {

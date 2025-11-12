@@ -4,7 +4,7 @@ use chrono::{DateTime, Duration, Timelike, Utc};
 use futures::future;
 use uuid::Uuid;
 
-use lnm_sdk::models::{BoundedPercentage, LnmTrade, Price};
+use lnm_sdk::models::{BoundedPercentage, Trade, Price};
 
 use crate::db::Database;
 
@@ -148,7 +148,7 @@ impl LiveTradingSession {
         &mut self,
         db: &Database,
         api: &WrappedApiContext,
-    ) -> ExecutorActionResult<Vec<LnmTrade>> {
+    ) -> ExecutorActionResult<Vec<Trade>> {
         let (range_min, range_max, lastest_entry_time, latest_entry_price) = db
             .price_ticks
             .get_price_range_from(self.last_evaluation_time)
@@ -250,7 +250,7 @@ impl LiveTradingSession {
 
     pub fn register_running_trade(
         &mut self,
-        new_trade: LnmTrade,
+        new_trade: Trade,
         trade_tsl: Option<TradeTrailingStoploss>,
         update_balance: bool,
     ) -> ExecutorActionResult<()> {
@@ -292,7 +292,7 @@ impl LiveTradingSession {
 
     pub fn update_running_trades(
         &mut self,
-        mut updated_trades: HashMap<Uuid, LnmTrade>,
+        mut updated_trades: HashMap<Uuid, Trade>,
     ) -> ExecutorActionResult<()> {
         if updated_trades.is_empty() {
             return Ok(());
@@ -344,13 +344,13 @@ impl LiveTradingSession {
         Ok(())
     }
 
-    pub fn update_running_trade(&mut self, updated_trade: LnmTrade) -> ExecutorActionResult<()> {
+    pub fn update_running_trade(&mut self, updated_trade: Trade) -> ExecutorActionResult<()> {
         let mut updated_trades_map = HashMap::new();
         updated_trades_map.insert(updated_trade.id(), updated_trade);
         self.update_running_trades(updated_trades_map)
     }
 
-    pub fn close_trades(&mut self, closed_trades: &[LnmTrade]) -> ExecutorActionResult<()> {
+    pub fn close_trades(&mut self, closed_trades: &[Trade]) -> ExecutorActionResult<()> {
         if closed_trades.is_empty() {
             return Ok(());
         }
@@ -417,7 +417,7 @@ impl LiveTradingSession {
         Ok(())
     }
 
-    pub fn close_trade(&mut self, closed_trade: &LnmTrade) -> ExecutorActionResult<()> {
+    pub fn close_trade(&mut self, closed_trade: &Trade) -> ExecutorActionResult<()> {
         self.close_trades(slice::from_ref(closed_trade))
     }
 }
