@@ -10,7 +10,7 @@ use crate::indicators::IndicatorsEvaluator;
 
 use super::super::{
     error::{DbError, Result},
-    models::{PartialPriceHistoryEntryLOCF, PriceHistoryEntryLOCF, PriceTick},
+    models::{PartialPriceHistoryEntryLOCF, PriceHistoryEntryLOCF, PriceTickRow},
     repositories::PriceTicksRepository,
 };
 
@@ -30,9 +30,9 @@ impl PgPriceTicksRepo {
 
 #[async_trait]
 impl PriceTicksRepository for PgPriceTicksRepo {
-    async fn add_tick(&self, tick: &PriceTickLNM) -> Result<Option<PriceTick>> {
+    async fn add_tick(&self, tick: &PriceTickLNM) -> Result<Option<PriceTickRow>> {
         let price_tick = sqlx::query_as!(
-            PriceTick,
+            PriceTickRow,
             r#"
                 INSERT INTO price_ticks (time, last_price)
                 VALUES ($1, $2)

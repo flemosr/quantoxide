@@ -5,7 +5,7 @@ use std::{
 
 use tokio::sync::broadcast;
 
-use crate::db::models::PriceTick;
+use crate::db::models::PriceTickRow;
 
 use super::process::{
     error::{SyncProcessFatalError, SyncProcessRecoverableError},
@@ -83,7 +83,7 @@ impl From<SyncProcessFatalError> for SyncStatus {
 #[derive(Debug, Clone)]
 pub enum SyncUpdate {
     Status(SyncStatus),
-    PriceTick(PriceTick),
+    PriceTick(PriceTickRow),
     PriceHistoryState(PriceHistoryState),
 }
 
@@ -93,8 +93,8 @@ impl From<SyncStatus> for SyncUpdate {
     }
 }
 
-impl From<PriceTick> for SyncUpdate {
-    fn from(value: PriceTick) -> Self {
+impl From<PriceTickRow> for SyncUpdate {
+    fn from(value: PriceTickRow) -> Self {
         Self::PriceTick(value)
     }
 }

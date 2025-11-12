@@ -10,7 +10,7 @@ use crate::trade::TradeTrailingStoploss;
 
 use super::{
     error::Result,
-    models::{PriceHistoryEntry, PriceHistoryEntryLOCF, PriceTick},
+    models::{PriceHistoryEntry, PriceHistoryEntryLOCF, PriceTickRow},
 };
 
 #[async_trait]
@@ -133,7 +133,7 @@ pub(crate) trait PriceTicksRepository: Send + Sync {
     ///   - `Ok(Some(PriceTick))` if the tick was successfully inserted (new entry)
     ///   - `Ok(None)` if the tick already existed in the database (no insertion occurred)
     ///   - `Err` on database errors
-    async fn add_tick(&self, tick: &PriceTickLNM) -> Result<Option<PriceTick>>;
+    async fn add_tick(&self, tick: &PriceTickLNM) -> Result<Option<PriceTickRow>>;
 
     async fn get_latest_entry(&self) -> Result<Option<(DateTime<Utc>, f64)>>;
 

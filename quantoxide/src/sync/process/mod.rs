@@ -10,7 +10,7 @@ use tokio::{
 use lnm_sdk::ApiClient;
 
 use crate::{
-    db::{Database, models::PriceTick},
+    db::{Database, models::PriceTickRow},
     util::{AbortOnDropHandle, Never},
 };
 
@@ -148,7 +148,7 @@ impl SyncProcess {
 
         // Start to collect real-time data
 
-        let (price_tick_tx, _) = broadcast::channel::<PriceTick>(1000);
+        let (price_tick_tx, _) = broadcast::channel::<PriceTickRow>(1000);
 
         let mut real_time_collection_handle =
             self.spawn_real_time_collection_task(price_tick_tx.clone());
@@ -206,7 +206,7 @@ impl SyncProcess {
 
         // Start to collect real-time data
 
-        let (price_tick_tx, _) = broadcast::channel::<PriceTick>(1000);
+        let (price_tick_tx, _) = broadcast::channel::<PriceTickRow>(1000);
 
         let mut real_time_collection_handle =
             self.spawn_real_time_collection_task(price_tick_tx.clone());
@@ -304,7 +304,7 @@ impl SyncProcess {
 
     fn spawn_real_time_collection_task(
         &self,
-        price_tick_tx: broadcast::Sender<PriceTick>,
+        price_tick_tx: broadcast::Sender<PriceTickRow>,
     ) -> AbortOnDropHandle<Result<()>> {
         let task = RealTimeCollectionTask::new(
             self.db.clone(),

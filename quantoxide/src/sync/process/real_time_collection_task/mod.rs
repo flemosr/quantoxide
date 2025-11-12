@@ -7,7 +7,7 @@ use lnm_sdk::{
     models::{LnmWebSocketChannel, WebSocketUpdate},
 };
 
-use crate::db::{Database, models::PriceTick};
+use crate::db::{Database, models::PriceTickRow};
 
 pub(crate) mod error;
 
@@ -17,7 +17,7 @@ pub(super) struct RealTimeCollectionTask {
     db: Arc<Database>,
     api: Arc<ApiClient>,
     shutdown_tx: broadcast::Sender<()>,
-    price_tick_tx: broadcast::Sender<PriceTick>,
+    price_tick_tx: broadcast::Sender<PriceTickRow>,
 }
 
 impl RealTimeCollectionTask {
@@ -25,7 +25,7 @@ impl RealTimeCollectionTask {
         db: Arc<Database>,
         api: Arc<ApiClient>,
         shutdown_tx: broadcast::Sender<()>,
-        price_tick_tx: broadcast::Sender<PriceTick>,
+        price_tick_tx: broadcast::Sender<PriceTickRow>,
     ) -> Self {
         Self {
             db,

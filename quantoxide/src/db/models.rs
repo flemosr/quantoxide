@@ -31,13 +31,13 @@ pub(crate) struct PartialPriceHistoryEntryLOCF {
 }
 
 #[derive(Debug, Clone, FromRow, PartialEq)]
-pub struct PriceTick {
+pub struct PriceTickRow {
     pub time: DateTime<Utc>,
     pub last_price: f64,
     pub created_at: DateTime<Utc>,
 }
 
-impl PriceTick {
+impl PriceTickRow {
     pub fn as_data_str(&self) -> String {
         let time_str = self.time.format_local_millis();
         let created_at_str = self.created_at.format_local_millis();
@@ -47,9 +47,9 @@ impl PriceTick {
     }
 }
 
-impl fmt::Display for PriceTick {
+impl fmt::Display for PriceTickRow {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Price Tick:")?;
+        write!(f, "Price Tick Row:")?;
         for line in self.as_data_str().lines() {
             write!(f, "\n  {line}")?;
         }
