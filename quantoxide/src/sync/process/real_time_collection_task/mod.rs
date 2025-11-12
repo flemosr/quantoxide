@@ -4,7 +4,7 @@ use tokio::sync::broadcast::{self, error::RecvError};
 
 use lnm_sdk::{
     ApiClient,
-    models::{LnmWebSocketChannel, WebSocketUpdate},
+    models::{WebSocketChannel, WebSocketUpdate},
 };
 
 use crate::db::{Database, models::PriceTickRow};
@@ -40,7 +40,7 @@ impl RealTimeCollectionTask {
 
         let mut ws_rx = ws.receiver().await?;
 
-        ws.subscribe(vec![LnmWebSocketChannel::FuturesBtcUsdLastPrice])
+        ws.subscribe(vec![WebSocketChannel::FuturesBtcUsdLastPrice])
             .await?;
 
         let mut shutdown_rx = self.shutdown_tx.subscribe();
