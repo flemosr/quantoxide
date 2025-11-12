@@ -4,7 +4,7 @@ use chrono::{DateTime, Duration, Timelike, Utc};
 use futures::future;
 use uuid::Uuid;
 
-use lnm_sdk::models::{BoundedPercentage, Trade, Price};
+use lnm_sdk::api_v2::models::{BoundedPercentage, Price, Trade};
 
 use crate::db::Database;
 

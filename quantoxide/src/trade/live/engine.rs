@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use chrono::Duration;
 use tokio::{sync::broadcast, time};
 
-use lnm_sdk::ApiClient;
+use lnm_sdk::api_v2::ApiClient;
 
 use crate::{
     db::Database,

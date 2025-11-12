@@ -3,9 +3,9 @@ use std::{fmt, num::NonZeroU64, sync::Arc};
 use tokio::sync::broadcast;
 use uuid::Uuid;
 
-use lnm_sdk::{
+use lnm_sdk::api_v2::{
     ApiClient,
-    models::{Leverage, Trade, Price, TradeExecution, TradeSide, TradeSize, User},
+    models::{Leverage, Price, Trade, TradeExecution, TradeSide, TradeSize, User},
 };
 
 use super::{

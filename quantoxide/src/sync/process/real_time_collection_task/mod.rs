@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use tokio::sync::broadcast::{self, error::RecvError};
 
-use lnm_sdk::{
+use lnm_sdk::api_v2::{
     ApiClient,
     models::{WebSocketChannel, WebSocketUpdate},
 };

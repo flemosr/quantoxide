@@ -11,7 +11,7 @@ use chrono::{DateTime, Duration, Utc};
 use futures::FutureExt;
 use uuid::Uuid;
 
-use lnm_sdk::{
+use lnm_sdk::api_v2::{
     error::TradeValidationError,
     models::{
         BoundedPercentage, Leverage, LowerBoundedPercentage, Margin, Price, Quantity, Trade,
@@ -163,8 +163,8 @@ impl TradeCore for Trade {
 /// # Examples
 ///
 /// ```no_run
-/// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
-/// use lnm_sdk::models::{
+/// # async fn example(api: lnm_sdk::api_v2::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+/// use lnm_sdk::api_v2::models::{
 ///     Trade, TradeExecution, TradeSide, TradeSize, Leverage, Margin, Price
 /// };
 /// use quantoxide::trade::TradeRunning;
@@ -200,10 +200,10 @@ pub trait TradeRunning: crate::sealed::Sealed + TradeCore {
     /// # Examples
     ///
     /// ```no_run
-    /// # fn example(trade: lnm_sdk::models::Trade) -> Result<(), Box<dyn std::error::Error>> {
+    /// # fn example(trade: lnm_sdk::api_v2::models::Trade) -> Result<(), Box<dyn std::error::Error>> {
     /// // Assuming `trade` impl `TradeRunning`
     ///
-    /// use lnm_sdk::models::Price;
+    /// use lnm_sdk::api_v2::models::Price;
     /// use quantoxide::trade::TradeRunning;
     ///
     /// let market_price = Price::try_from(101_000.0).unwrap();
@@ -227,7 +227,7 @@ pub trait TradeRunning: crate::sealed::Sealed + TradeCore {
     /// # Examples
     ///
     /// ```no_run
-    /// # fn example(trade: lnm_sdk::models::Trade) -> Result<(), Box<dyn std::error::Error>> {
+    /// # fn example(trade: lnm_sdk::api_v2::models::Trade) -> Result<(), Box<dyn std::error::Error>> {
     /// // Assuming `trade` impl `TradeRunning`
     ///
     /// use quantoxide::trade::TradeRunning;
@@ -260,10 +260,10 @@ pub trait TradeRunning: crate::sealed::Sealed + TradeCore {
     /// # Examples
     ///
     /// ```no_run
-    /// # fn example(trade: lnm_sdk::models::Trade) -> Result<(), Box<dyn std::error::Error>> {
+    /// # fn example(trade: lnm_sdk::api_v2::models::Trade) -> Result<(), Box<dyn std::error::Error>> {
     /// // Assuming `trade` impl `TradeRunning`
     ///
-    /// use lnm_sdk::models::Price;
+    /// use lnm_sdk::api_v2::models::Price;
     /// use quantoxide::trade::TradeRunning;
     ///
     /// let market_price = Price::try_from(101_000.0).unwrap();
@@ -295,10 +295,10 @@ pub trait TradeRunning: crate::sealed::Sealed + TradeCore {
     /// # Examples
     ///
     /// ```no_run
-    /// # fn example(trade: lnm_sdk::models::Trade) -> Result<(), Box<dyn std::error::Error>>  {
+    /// # fn example(trade: lnm_sdk::api_v2::models::Trade) -> Result<(), Box<dyn std::error::Error>>  {
     /// // Assuming `trade` impl `TradeRunning`
     ///
-    /// use lnm_sdk::models::Price;
+    /// use lnm_sdk::api_v2::models::Price;
     /// use quantoxide::trade::TradeRunning;
     ///
     /// let target_liquidation = Price::try_from(95_000.0).unwrap();
@@ -354,7 +354,7 @@ pub trait TradeClosed: crate::sealed::Sealed + TradeCore {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example(closed_trade: lnm_sdk::models::Trade) -> Result<(), Box<dyn std::error::Error>> {
+    /// # async fn example(closed_trade: lnm_sdk::api_v2::models::Trade) -> Result<(), Box<dyn std::error::Error>> {
     /// use quantoxide::trade::TradeClosed;
     ///
     /// let pl = closed_trade.pl();

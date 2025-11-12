@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use chrono::{DateTime, Duration, SubsecRound, Utc};
 use sqlx::{Pool, Postgres};
 
-use lnm_sdk::models::PriceTick;
+use lnm_sdk::api_v2::models::PriceTick;
 
 use crate::indicators::IndicatorsEvaluator;
 

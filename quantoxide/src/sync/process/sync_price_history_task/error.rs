@@ -3,7 +3,7 @@ use std::result;
 use chrono::{DateTime, Duration, Utc};
 use thiserror::Error;
 
-use lnm_sdk::error::RestApiError;
+use lnm_sdk::api_v2::error::RestApiError;
 
 use crate::db::error::DbError;
 

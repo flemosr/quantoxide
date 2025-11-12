@@ -2,7 +2,7 @@ use super::*;
 
 use chrono::Duration;
 
-use lnm_sdk::models::{BoundedPercentage, Leverage, Quantity};
+use lnm_sdk::api_v2::models::{BoundedPercentage, Leverage, Quantity};
 
 #[tokio::test]
 async fn test_simulated_trade_executor_long_profit() -> TradeExecutorResult<()> {
