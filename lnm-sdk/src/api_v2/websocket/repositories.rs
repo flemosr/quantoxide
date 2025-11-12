@@ -23,7 +23,7 @@ pub trait WebSocketRepository: crate::sealed::Sealed + Send + Sync {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// # async fn example(api: lnm_sdk::api_v2::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
     /// let ws = api.connect_ws().await?;
     ///
     /// if ws.is_connected().await {
@@ -41,8 +41,8 @@ pub trait WebSocketRepository: crate::sealed::Sealed + Send + Sync {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
-    /// # use lnm_sdk::WsConnectionStatus;
+    /// # async fn example(api: lnm_sdk::api_v2::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// # use lnm_sdk::api_v2::WsConnectionStatus;
     /// let ws = api.connect_ws().await?;
     ///
     /// match ws.connection_status().await {
@@ -69,8 +69,8 @@ pub trait WebSocketRepository: crate::sealed::Sealed + Send + Sync {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
-    /// # use lnm_sdk::models::WebSocketChannel;
+    /// # async fn example(api: lnm_sdk::api_v2::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// # use lnm_sdk::api_v2::models::WebSocketChannel;
     /// let ws = api.connect_ws().await?;
     ///
     /// ws.subscribe(vec![
@@ -89,8 +89,8 @@ pub trait WebSocketRepository: crate::sealed::Sealed + Send + Sync {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
-    /// # use lnm_sdk::models::WebSocketChannel;
+    /// # async fn example(api: lnm_sdk::api_v2::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// # use lnm_sdk::api_v2::models::WebSocketChannel;
     /// let ws = api.connect_ws().await?;
     ///
     /// ws.subscribe(vec![WebSocketChannel::FuturesBtcUsdIndex]).await?;
@@ -107,8 +107,8 @@ pub trait WebSocketRepository: crate::sealed::Sealed + Send + Sync {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
-    /// # use lnm_sdk::models::WebSocketChannel;
+    /// # async fn example(api: lnm_sdk::api_v2::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// # use lnm_sdk::api_v2::models::WebSocketChannel;
     /// let ws = api.connect_ws().await?;
     ///
     /// ws.subscribe(vec![
@@ -127,8 +127,8 @@ pub trait WebSocketRepository: crate::sealed::Sealed + Send + Sync {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
-    /// # use lnm_sdk::models::WebSocketChannel;
+    /// # async fn example(api: lnm_sdk::api_v2::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// # use lnm_sdk::api_v2::models::WebSocketChannel;
     /// let ws = api.connect_ws().await?;
     ///
     /// let mut ws_rx = ws.receiver().await?;
@@ -149,8 +149,8 @@ pub trait WebSocketRepository: crate::sealed::Sealed + Send + Sync {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
-    /// # use lnm_sdk::WsConnectionStatus;
+    /// # async fn example(api: lnm_sdk::api_v2::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// # use lnm_sdk::api_v2::WsConnectionStatus;
     /// let ws = api.connect_ws().await?;
     ///
     /// assert!(matches!(ws.connection_status().await, WsConnectionStatus::Connected));

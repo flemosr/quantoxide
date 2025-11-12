@@ -20,9 +20,9 @@ pub enum UserRole {
 /// # Examples
 ///
 /// ```no_run
-/// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+/// # async fn example(api: lnm_sdk::api_v2::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
 /// # use std::env;
-/// # use lnm_sdk::models::User;
+/// # use lnm_sdk::api_v2::models::User;
 /// let user: User = api.rest.user.get_user().await?;
 ///
 /// println!("User: {}", user.username());
@@ -57,7 +57,7 @@ impl User {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// # async fn example(api: lnm_sdk::api_v2::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
     /// let user = api.rest.user.get_user().await?;
     ///
     /// println!("User ID: {}", user.uid());
@@ -73,8 +73,8 @@ impl User {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
-    /// # use lnm_sdk::models::UserRole;
+    /// # async fn example(api: lnm_sdk::api_v2::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// # use lnm_sdk::api_v2::models::UserRole;
     /// let user = api.rest.user.get_user().await?;
     ///
     /// if matches!(user.role(), UserRole::Admin) {
@@ -92,7 +92,7 @@ impl User {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// # async fn example(api: lnm_sdk::api_v2::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
     /// let user = api.rest.user.get_user().await?;
     ///
     /// println!("Balance: {} sats", user.balance());
@@ -108,7 +108,7 @@ impl User {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// # async fn example(api: lnm_sdk::api_v2::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
     /// let user = api.rest.user.get_user().await?;
     /// println!("Welcome, {}!", user.username());
     /// # Ok(())
@@ -123,7 +123,7 @@ impl User {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// # async fn example(api: lnm_sdk::api_v2::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
     /// let user = api.rest.user.get_user().await?;
     ///
     /// println!("Synthetic USD balance: {}", user.synthetic_usd_balance());
@@ -139,7 +139,7 @@ impl User {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// # async fn example(api: lnm_sdk::api_v2::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
     /// let user = api.rest.user.get_user().await?;
     ///
     /// if let Some(key) = user.linkingpublickey() {
@@ -157,7 +157,7 @@ impl User {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// # async fn example(api: lnm_sdk::api_v2::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
     /// let user = api.rest.user.get_user().await?;
     ///
     /// if user.show_leaderboard() {
@@ -175,7 +175,7 @@ impl User {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// # async fn example(api: lnm_sdk::api_v2::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
     /// let user = api.rest.user.get_user().await?;
     ///
     /// if let Some(email) = user.email() {
@@ -193,7 +193,7 @@ impl User {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// # async fn example(api: lnm_sdk::api_v2::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
     /// let user = api.rest.user.get_user().await?;
     ///
     /// if !user.email_confirmed() {
@@ -211,7 +211,7 @@ impl User {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// # async fn example(api: lnm_sdk::api_v2::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
     /// let user = api.rest.user.get_user().await?;
     ///
     /// if user.use_taproot_addresses() {
@@ -229,7 +229,7 @@ impl User {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// # async fn example(api: lnm_sdk::api_v2::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
     /// let user = api.rest.user.get_user().await?;
     ///
     /// println!("Account type: {}", user.account_type());
@@ -245,7 +245,7 @@ impl User {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// # async fn example(api: lnm_sdk::api_v2::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
     /// let user = api.rest.user.get_user().await?;
 
     /// if user.auto_withdraw_enabled() {
@@ -263,7 +263,7 @@ impl User {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// # async fn example(api: lnm_sdk::api_v2::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
     /// let user = api.rest.user.get_user().await?;
     ///
     /// if let Some(address) = user.auto_withdraw_lightning_address() {
@@ -281,7 +281,7 @@ impl User {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// # async fn example(api: lnm_sdk::api_v2::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
     /// let user = api.rest.user.get_user().await?;
     ///
     /// if user.totp_enabled() {
@@ -299,7 +299,7 @@ impl User {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// # async fn example(api: lnm_sdk::api_v2::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
     /// let user = api.rest.user.get_user().await?;
     ///
     /// if user.webauthn_enabled() {
@@ -317,7 +317,7 @@ impl User {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// # async fn example(api: lnm_sdk::api_v2::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
     /// let user = api.rest.user.get_user().await?;
     ///
     /// println!("Fee tier: {}", user.fee_tier());
@@ -333,7 +333,7 @@ impl User {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// # async fn example(api: lnm_sdk::api_v2::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
     /// let user = api.rest.user.get_user().await?;
     ///
     /// if let Some(metrics) = user.metrics() {

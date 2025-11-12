@@ -28,8 +28,8 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
-    /// # use lnm_sdk::models::{Trade, TradeStatus};
+    /// # async fn example(api: lnm_sdk::api_v2::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// # use lnm_sdk::api_v2::models::{Trade, TradeStatus};
     /// let open_trades: Vec<Trade> = api
     ///     .rest
     ///     .futures
@@ -63,8 +63,8 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
-    /// # use lnm_sdk::models::Trade;
+    /// # async fn example(api: lnm_sdk::api_v2::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// # use lnm_sdk::api_v2::models::Trade;
     /// let open_trades: Vec<Trade> = api
     ///     .rest
     ///     .futures
@@ -85,8 +85,8 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
-    /// # use lnm_sdk::models::Trade;
+    /// # async fn example(api: lnm_sdk::api_v2::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// # use lnm_sdk::api_v2::models::Trade;
     /// let running_trades: Vec<Trade> = api
     ///     .rest
     ///     .futures
@@ -107,8 +107,8 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
-    /// # use lnm_sdk::models::Trade;
+    /// # async fn example(api: lnm_sdk::api_v2::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// # use lnm_sdk::api_v2::models::Trade;
     /// let closed_trades: Vec<Trade> = api
     ///     .rest
     ///     .futures
@@ -129,8 +129,8 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
-    /// # use lnm_sdk::models::PriceEntry;
+    /// # async fn example(api: lnm_sdk::api_v2::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// # use lnm_sdk::api_v2::models::PriceEntry;
     /// let price_history: Vec<PriceEntry> = api
     ///     .rest
     ///     .futures
@@ -151,8 +151,8 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
-    /// # use lnm_sdk::models::{
+    /// # async fn example(api: lnm_sdk::api_v2::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// # use lnm_sdk::api_v2::models::{
     /// #     Leverage, Trade, Margin, Price, Quantity, TradeExecution,
     /// #     TradeSide, TradeSize
     /// # };
@@ -224,8 +224,8 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
-    /// # use lnm_sdk::models::{
+    /// # async fn example(api: lnm_sdk::api_v2::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// # use lnm_sdk::api_v2::models::{
     /// #     Leverage, Trade, Margin, TradeExecution, TradeSide, TradeSize
     /// # };
     /// let running_trade: Trade = api
@@ -257,8 +257,8 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
-    /// # use lnm_sdk::models::{
+    /// # async fn example(api: lnm_sdk::api_v2::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// # use lnm_sdk::api_v2::models::{
     /// #     Leverage, Trade, Price, Quantity, TradeExecution, TradeSide, TradeSize
     /// # };
     /// let open_trade: Trade = api
@@ -293,8 +293,8 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
-    /// # use lnm_sdk::models::Trade;
+    /// # async fn example(api: lnm_sdk::api_v2::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// # use lnm_sdk::api_v2::models::Trade;
     /// let cancelled_trades: Vec<Trade> = api
     ///     .rest
     ///     .futures
@@ -310,8 +310,8 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
-    /// # use lnm_sdk::models::{
+    /// # async fn example(api: lnm_sdk::api_v2::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// # use lnm_sdk::api_v2::models::{
     /// #     Leverage, Trade, Margin, TradeExecution, TradeSide, TradeSize
     /// # };
     /// let running_trade: Trade = api
@@ -343,8 +343,8 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
-    /// # use lnm_sdk::models::Trade;
+    /// # async fn example(api: lnm_sdk::api_v2::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// # use lnm_sdk::api_v2::models::Trade;
     /// let closed_trades: Vec<Trade> = api
     ///     .rest
     ///     .futures
@@ -360,8 +360,8 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
-    /// # use lnm_sdk::models::Ticker;
+    /// # async fn example(api: lnm_sdk::api_v2::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// # use lnm_sdk::api_v2::models::Ticker;
     /// let ticker: Ticker = api.rest.futures.ticker().await?;
     /// # Ok(())
     /// # }
@@ -372,8 +372,8 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
-    /// # use lnm_sdk::models::{
+    /// # async fn example(api: lnm_sdk::api_v2::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// # use lnm_sdk::api_v2::models::{
     /// #     Leverage, Trade, Price, Quantity, TradeExecution, TradeSide, TradeSize
     /// # };
     /// let open_trade: Trade = api
@@ -409,8 +409,8 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
-    /// # use lnm_sdk::models::{
+    /// # async fn example(api: lnm_sdk::api_v2::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// # use lnm_sdk::api_v2::models::{
     /// #     Leverage, Trade, Price, Quantity, TradeExecution, TradeSide, TradeSize
     /// # };
     /// let open_trade: Trade = api
@@ -454,9 +454,9 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// # async fn example(api: lnm_sdk::api_v2::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
     /// # use std::num::NonZeroU64;
-    /// # use lnm_sdk::models::{
+    /// # use lnm_sdk::api_v2::models::{
     /// #     Leverage, Trade, Margin, Price, TradeExecution, TradeSide, TradeSize
     /// # };
     /// let created_trade: Trade = api
@@ -506,9 +506,9 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// # async fn example(api: lnm_sdk::api_v2::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
     /// # use std::num::NonZeroU64;
-    /// # use lnm_sdk::models::{
+    /// # use lnm_sdk::api_v2::models::{
     /// #     Leverage, Trade, Margin, Price, TradeExecution, TradeSide, TradeSize
     /// # };
     /// let created_trade: Trade = api
@@ -556,8 +556,8 @@ pub trait UserRepository: crate::sealed::Sealed + Send + Sync {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
-    /// # use lnm_sdk::models::User;
+    /// # async fn example(api: lnm_sdk::api_v2::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// # use lnm_sdk::api_v2::models::User;
     /// let user: User = api.rest.user.get_user().await?;
     /// # Ok(())
     /// # }

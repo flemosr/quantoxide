@@ -20,7 +20,7 @@ use super::{
 /// # Examples
 ///
 /// ```
-/// use lnm_sdk::models::Leverage;
+/// use lnm_sdk::api_v2::models::Leverage;
 ///
 /// // Create a leverage value from a float
 /// let leverage = Leverage::try_from(10.0).unwrap();
@@ -47,7 +47,7 @@ impl Leverage {
     /// # Examples
     ///
     /// ```
-    /// use lnm_sdk::models::Leverage;
+    /// use lnm_sdk::api_v2::models::Leverage;
     ///
     /// let leverage = Leverage::try_from(25.0).unwrap();
     /// assert_eq!(leverage.into_f64(), 25.0);
@@ -65,7 +65,7 @@ impl Leverage {
     /// # Examples
     ///
     /// ```
-    /// use lnm_sdk::models::{Leverage, Quantity, Margin, Price};
+    /// use lnm_sdk::api_v2::models::{Leverage, Quantity, Margin, Price};
     ///
     /// let quantity = Quantity::try_from(1_000).unwrap(); // Quantity in USD
     /// let margin = Margin::try_from(20_000).unwrap(); // Margin in sats

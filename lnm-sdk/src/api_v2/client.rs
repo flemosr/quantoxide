@@ -11,7 +11,7 @@ use super::websocket::{self, WebSocketClient, error::Result};
 ///
 /// ```
 /// use std::time::Duration;
-/// use lnm_sdk::ApiClientConfig;
+/// use lnm_sdk::api_v2::ApiClientConfig;
 ///
 /// // Use default configuration
 /// let config = ApiClientConfig::default();
@@ -53,7 +53,7 @@ impl ApiClientConfig {
     ///
     /// ```
     /// use std::time::Duration;
-    /// use lnm_sdk::ApiClientConfig;
+    /// use lnm_sdk::api_v2::ApiClientConfig;
     ///
     /// let config = ApiClientConfig::default()
     ///     .with_rest_timeout(Duration::from_secs(20));
@@ -69,7 +69,7 @@ impl ApiClientConfig {
     ///
     /// ```
     /// use std::time::Duration;
-    /// use lnm_sdk::ApiClientConfig;
+    /// use lnm_sdk::api_v2::ApiClientConfig;
     ///
     /// let config = ApiClientConfig::default()
     ///     .with_ws_disconnect_timeout(Duration::from_secs(6));
@@ -113,7 +113,7 @@ impl ApiClient {
     /// ```no_run
     /// # fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// use std::env;
-    /// use lnm_sdk::{ApiClient, ApiClientConfig};
+    /// use lnm_sdk::api_v2::{ApiClient, ApiClientConfig};
     ///
     /// let domain = env::var("LNM_API_DOMAIN").unwrap();
     ///
@@ -136,7 +136,7 @@ impl ApiClient {
     /// ```no_run
     /// # fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// use std::env;
-    /// use lnm_sdk::{ApiClient, ApiClientConfig};
+    /// use lnm_sdk::api_v2::{ApiClient, ApiClientConfig};
     ///
     /// let domain = env::var("LNM_API_DOMAIN").unwrap();
     /// let key = env::var("LNM_API_KEY").unwrap();
@@ -171,7 +171,7 @@ impl ApiClient {
     /// ```no_run
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// use std::env;
-    /// use lnm_sdk::{ApiClient, ApiClientConfig};
+    /// use lnm_sdk::api_v2::{ApiClient, ApiClientConfig};
     ///
     /// let domain = env::var("LNM_API_DOMAIN").unwrap();
     /// let api = ApiClient::new(ApiClientConfig::default(), domain)?;

@@ -12,8 +12,8 @@ use super::price::Price;
 /// # Examples
 ///
 /// ```no_run
-/// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
-/// # use lnm_sdk::models::PriceEntry;
+/// # async fn example(api: lnm_sdk::api_v2::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+/// # use lnm_sdk::api_v2::models::PriceEntry;
 /// let price_history: Vec<PriceEntry> = api
 ///     .rest
 ///     .futures
@@ -41,8 +41,8 @@ impl PriceEntry {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
-    /// # use lnm_sdk::models::PriceEntry;
+    /// # async fn example(api: lnm_sdk::api_v2::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// # use lnm_sdk::api_v2::models::PriceEntry;
     /// let price_history: Vec<PriceEntry> = api
     ///     .rest
     ///     .futures
@@ -65,8 +65,8 @@ impl PriceEntry {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example(api: lnm_sdk::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
-    /// # use lnm_sdk::models::PriceEntry;
+    /// # async fn example(api: lnm_sdk::api_v2::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// # use lnm_sdk::api_v2::models::PriceEntry;
     /// let price_history: Vec<PriceEntry> = api
     ///     .rest
     ///     .futures
