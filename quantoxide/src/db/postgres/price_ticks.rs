@@ -10,7 +10,7 @@ use crate::indicators::IndicatorsEvaluator;
 
 use super::super::{
     error::{DbError, Result},
-    models::{PartialPriceHistoryEntryLOCF, PriceHistoryEntryLOCF, PriceTickRow},
+    models::{PartialPriceHistoryEntryLOCF, PriceEntryLOCF, PriceTickRow},
     repositories::PriceTicksRepository,
 };
 
@@ -162,7 +162,7 @@ impl PriceTicksRepository for PgPriceTicksRepo {
         &self,
         time: DateTime<Utc>,
         range_secs: usize,
-    ) -> Result<Vec<PriceHistoryEntryLOCF>> {
+    ) -> Result<Vec<PriceEntryLOCF>> {
         if range_secs == 0 {
             return Ok(Vec::new());
         }
@@ -171,7 +171,7 @@ impl PriceTicksRepository for PgPriceTicksRepo {
         let start_locf_sec = end_locf_sec - Duration::seconds(range_secs as i64 - 1);
 
         let entries_locf = sqlx::query_as!(
-            PriceHistoryEntryLOCF,
+            PriceEntryLOCF,
             "SELECT * FROM price_history_locf WHERE time >= $1 ORDER BY time ASC LIMIT $2",
             start_locf_sec,
             range_secs as i32

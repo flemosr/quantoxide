@@ -19,7 +19,7 @@ use lnm_sdk::{
     },
 };
 
-use crate::{db::models::PriceHistoryEntryLOCF, signal::Signal, util::DateTimeExt};
+use crate::{db::models::PriceEntryLOCF, signal::Signal, util::DateTimeExt};
 
 use super::error::{TradeCoreError, TradeCoreResult, TradeExecutorResult};
 
@@ -1026,7 +1026,7 @@ pub trait RawOperator: Send + Sync {
 
     async fn iterate(
         &self,
-        context: &[PriceHistoryEntryLOCF],
+        context: &[PriceEntryLOCF],
     ) -> std::result::Result<(), Box<dyn std::error::Error>>;
 }
 
@@ -1057,7 +1057,7 @@ impl WrappedRawOperator {
         Ok(window)
     }
 
-    pub async fn iterate(&self, entries: &[PriceHistoryEntryLOCF]) -> TradeCoreResult<()> {
+    pub async fn iterate(&self, entries: &[PriceEntryLOCF]) -> TradeCoreResult<()> {
         FutureExt::catch_unwind(AssertUnwindSafe(self.0.iterate(entries)))
             .await
             .map_err(|e| TradeCoreError::RawOperatorIteratePanicked(e.into()))?

@@ -16,7 +16,7 @@ pub struct PriceEntryRow {
 }
 
 #[derive(Debug, FromRow, Clone)]
-pub struct PriceHistoryEntryLOCF {
+pub struct PriceEntryLOCF {
     pub time: DateTime<Utc>,
     pub value: f64,
     pub ma_5: Option<f64>,

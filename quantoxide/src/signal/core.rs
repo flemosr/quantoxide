@@ -5,8 +5,7 @@ use chrono::{DateTime, Duration, Utc};
 use futures::FutureExt;
 
 use crate::{
-    db::models::PriceHistoryEntryLOCF, signal::process::error::ProcessRecoverableResult,
-    util::DateTimeExt,
+    db::models::PriceEntryLOCF, signal::process::error::ProcessRecoverableResult, util::DateTimeExt,
 };
 
 use super::{
@@ -77,7 +76,7 @@ impl fmt::Display for SignalAction {
 pub trait SignalActionEvaluator: Send + Sync {
     async fn evaluate(
         &self,
-        entries: &[PriceHistoryEntryLOCF],
+        entries: &[PriceEntryLOCF],
     ) -> std::result::Result<SignalAction, Box<dyn std::error::Error>>;
 }
 
@@ -85,7 +84,7 @@ pub trait SignalActionEvaluator: Send + Sync {
 impl SignalActionEvaluator for Box<dyn SignalActionEvaluator> {
     async fn evaluate(
         &self,
-        entries: &[PriceHistoryEntryLOCF],
+        entries: &[PriceEntryLOCF],
     ) -> std::result::Result<SignalAction, Box<dyn std::error::Error>> {
         (**self).evaluate(entries).await
     }
@@ -131,7 +130,7 @@ impl<T: SignalActionEvaluator> SignalEvaluator<T> {
 
     pub async fn evaluate(
         &self,
-        entries: &[PriceHistoryEntryLOCF],
+        entries: &[PriceEntryLOCF],
     ) -> ProcessRecoverableResult<SignalAction> {
         FutureExt::catch_unwind(AssertUnwindSafe(self.action_evaluator.evaluate(entries)))
             .await
@@ -172,7 +171,7 @@ impl Signal {
     pub(crate) async fn try_evaluate(
         evaluator: &ConfiguredSignalEvaluator,
         time: DateTime<Utc>,
-        entries: &[PriceHistoryEntryLOCF],
+        entries: &[PriceEntryLOCF],
     ) -> ProcessRecoverableResult<Self> {
         let signal_action = evaluator.evaluate(entries).await?;
 

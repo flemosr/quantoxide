@@ -10,7 +10,7 @@ use crate::trade::TradeTrailingStoploss;
 
 use super::{
     error::Result,
-    models::{PriceEntryRow, PriceHistoryEntryLOCF, PriceTickRow},
+    models::{PriceEntryLOCF, PriceEntryRow, PriceTickRow},
 };
 
 #[async_trait]
@@ -172,7 +172,7 @@ pub(crate) trait PriceTicksRepository: Send + Sync {
         &self,
         time: DateTime<Utc>,
         range_secs: usize,
-    ) -> Result<Vec<PriceHistoryEntryLOCF>>;
+    ) -> Result<Vec<PriceEntryLOCF>>;
 
     async fn remove_ticks(&self, before: DateTime<Utc>) -> Result<()>;
 }
