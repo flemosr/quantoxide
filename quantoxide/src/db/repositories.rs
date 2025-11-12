@@ -10,7 +10,7 @@ use crate::trade::TradeTrailingStoploss;
 
 use super::{
     error::Result,
-    models::{PriceHistoryEntry, PriceHistoryEntryLOCF, PriceTickRow},
+    models::{PriceEntryRow, PriceHistoryEntryLOCF, PriceTickRow},
 };
 
 #[async_trait]
@@ -21,7 +21,7 @@ pub(crate) trait PriceHistoryRepository: Send + Sync {
     ///   - `Ok(Some(entry))` with the latest entry
     ///   - `Ok(None)` if no price history exists
     ///   - `Err` on database errors
-    async fn get_latest_entry(&self) -> Result<Option<PriceHistoryEntry>>;
+    async fn get_latest_entry(&self) -> Result<Option<PriceEntryRow>>;
 
     /// Retrieves the oldest price history entry.
     ///
@@ -29,7 +29,7 @@ pub(crate) trait PriceHistoryRepository: Send + Sync {
     ///   - `Ok(Some(entry))` with the earliest entry
     ///   - `Ok(None)` if no price history exists
     ///   - `Err` on database errors
-    async fn get_earliest_entry(&self) -> Result<Option<PriceHistoryEntry>>;
+    async fn get_earliest_entry(&self) -> Result<Option<PriceEntryRow>>;
 
     /// Retrieves the latest price history entry at or before the specified time.
     ///
@@ -43,7 +43,7 @@ pub(crate) trait PriceHistoryRepository: Send + Sync {
     async fn get_latest_entry_at_or_before(
         &self,
         time: DateTime<Utc>,
-    ) -> Result<Option<PriceHistoryEntry>>;
+    ) -> Result<Option<PriceEntryRow>>;
 
     /// Retrieves price history entries within a specified time range.
     ///
@@ -64,7 +64,7 @@ pub(crate) trait PriceHistoryRepository: Send + Sync {
         &self,
         start: DateTime<Utc>,
         end: DateTime<Utc>,
-    ) -> Result<Vec<PriceHistoryEntry>>;
+    ) -> Result<Vec<PriceEntryRow>>;
 
     /// Retrieves gaps in price history data from the database.
     ///

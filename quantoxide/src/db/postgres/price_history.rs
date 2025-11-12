@@ -10,7 +10,7 @@ use crate::{indicators::IndicatorsEvaluator, util::DateTimeExt};
 
 use super::super::{
     error::{DbError, Result},
-    models::{PartialPriceHistoryEntryLOCF, PriceHistoryEntry},
+    models::{PartialPriceHistoryEntryLOCF, PriceEntryRow},
     repositories::PriceHistoryRepository,
 };
 
@@ -34,9 +34,9 @@ impl PgPriceHistoryRepo {
 
 #[async_trait]
 impl PriceHistoryRepository for PgPriceHistoryRepo {
-    async fn get_latest_entry(&self) -> Result<Option<PriceHistoryEntry>> {
+    async fn get_latest_entry(&self) -> Result<Option<PriceEntryRow>> {
         sqlx::query_as!(
-            PriceHistoryEntry,
+            PriceEntryRow,
             "SELECT * FROM price_history ORDER BY time DESC LIMIT 1"
         )
         .fetch_optional(self.pool())
@@ -44,9 +44,9 @@ impl PriceHistoryRepository for PgPriceHistoryRepo {
         .map_err(DbError::Query)
     }
 
-    async fn get_earliest_entry(&self) -> Result<Option<PriceHistoryEntry>> {
+    async fn get_earliest_entry(&self) -> Result<Option<PriceEntryRow>> {
         sqlx::query_as!(
-            PriceHistoryEntry,
+            PriceEntryRow,
             "SELECT * FROM price_history ORDER BY time ASC LIMIT 1"
         )
         .fetch_optional(self.pool())
@@ -57,9 +57,9 @@ impl PriceHistoryRepository for PgPriceHistoryRepo {
     async fn get_latest_entry_at_or_before(
         &self,
         time: DateTime<Utc>,
-    ) -> Result<Option<PriceHistoryEntry>> {
+    ) -> Result<Option<PriceEntryRow>> {
         sqlx::query_as!(
-            PriceHistoryEntry,
+            PriceEntryRow,
             "SELECT * FROM price_history WHERE time <= $1 ORDER BY time DESC LIMIT 1",
             time
         )
@@ -72,9 +72,9 @@ impl PriceHistoryRepository for PgPriceHistoryRepo {
         &self,
         start: DateTime<Utc>,
         end: DateTime<Utc>,
-    ) -> Result<Vec<PriceHistoryEntry>> {
+    ) -> Result<Vec<PriceEntryRow>> {
         let entries = sqlx::query_as!(
-            PriceHistoryEntry,
+            PriceEntryRow,
             "SELECT * FROM price_history
              WHERE time >= $1 AND time < $2
              ORDER BY time ASC",

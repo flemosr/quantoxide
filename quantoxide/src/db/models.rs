@@ -8,7 +8,7 @@ use crate::util::DateTimeExt;
 
 #[allow(dead_code)]
 #[derive(Debug, FromRow)]
-pub struct PriceHistoryEntry {
+pub struct PriceEntryRow {
     pub time: DateTime<Utc>,
     pub value: f64,
     pub created_at: DateTime<Utc>,

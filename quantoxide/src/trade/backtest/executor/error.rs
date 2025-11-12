@@ -9,7 +9,7 @@ use lnm_sdk::{
     models::TradeSide,
 };
 
-use crate::db::{error::DbError, models::PriceHistoryEntry};
+use crate::db::{error::DbError, models::PriceEntryRow};
 
 use super::super::super::error::TradeCoreError;
 
@@ -40,7 +40,7 @@ pub enum SimulatedTradeExecutorError {
         min: f64,
         max: f64,
         side: TradeSide,
-        entry: PriceHistoryEntry,
+        entry: PriceEntryRow,
     },
 
     #[error("Tick update failed, price validation error: {0}")]
