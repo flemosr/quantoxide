@@ -46,7 +46,7 @@ pub mod models {
             user::{User, UserRole},
         },
         websocket::models::{
-            LastTickDirection, LnmWebSocketChannel, PriceIndex, PriceTickLNM, WebSocketUpdate,
+            LastTickDirection, LnmWebSocketChannel, PriceIndex, PriceTick, WebSocketUpdate,
         },
     };
 }

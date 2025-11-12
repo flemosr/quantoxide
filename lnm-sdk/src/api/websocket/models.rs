@@ -164,7 +164,7 @@ pub enum LastTickDirection {
 
 #[derive(Debug, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
-pub struct PriceTickLNM {
+pub struct PriceTick {
     time: DateTime<Utc>,
     last_price: f64,
     // As of Nov 11 2025, some ticks may be received without the
@@ -173,7 +173,7 @@ pub struct PriceTickLNM {
     last_tick_direction: Option<LastTickDirection>,
 }
 
-impl PriceTickLNM {
+impl PriceTick {
     pub fn time(&self) -> DateTime<Utc> {
         self.time
     }
@@ -205,7 +205,7 @@ impl PriceIndex {
 
 #[derive(Debug, Clone)]
 pub(super) enum SubscriptionData {
-    PriceTick(PriceTickLNM),
+    PriceTick(PriceTick),
     PriceIndex(PriceIndex),
 }
 
@@ -265,7 +265,7 @@ impl TryFrom<JsonRpcResponse> for LnmJsonRpcResponse {
 
                 let data = match channel {
                     LnmWebSocketChannel::FuturesBtcUsdLastPrice => {
-                        let price_tick: PriceTickLNM = serde_json::from_value(data).ok()?;
+                        let price_tick: PriceTick = serde_json::from_value(data).ok()?;
                         SubscriptionData::PriceTick(price_tick)
                     }
                     LnmWebSocketChannel::FuturesBtcUsdIndex => {
@@ -306,7 +306,7 @@ impl<'de> Deserialize<'de> for LnmJsonRpcResponse {
 
 #[derive(Debug, Clone)]
 pub enum WebSocketUpdate {
-    PriceTick(PriceTickLNM),
+    PriceTick(PriceTick),
     PriceIndex(PriceIndex),
     ConnectionStatus(WsConnectionStatus),
 }
