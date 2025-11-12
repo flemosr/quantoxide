@@ -10,7 +10,7 @@ use crate::indicators::IndicatorsEvaluator;
 
 use super::super::{
     error::{DbError, Result},
-    models::{PartialPriceHistoryEntryLOCF, PriceEntryLOCF, PriceTickRow},
+    models::{PartialPriceEntryLOCF, PriceEntryLOCF, PriceTickRow},
     repositories::PriceTicksRepository,
 };
 
@@ -253,7 +253,7 @@ impl PriceTicksRepository for PgPriceTicksRepo {
 
         let partial_locf_entries = coalesced_entries
             .into_iter()
-            .map(|coalesced| PartialPriceHistoryEntryLOCF {
+            .map(|coalesced| PartialPriceEntryLOCF {
                 time: coalesced
                     .time
                     .expect("generate_series() can't produce NULL timestamps"),

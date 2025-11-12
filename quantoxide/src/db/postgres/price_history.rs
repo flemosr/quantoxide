@@ -10,7 +10,7 @@ use crate::{indicators::IndicatorsEvaluator, util::DateTimeExt};
 
 use super::super::{
     error::{DbError, Result},
-    models::{PartialPriceHistoryEntryLOCF, PriceEntryRow},
+    models::{PartialPriceEntryLOCF, PriceEntryRow},
     repositories::PriceHistoryRepository,
 };
 
@@ -237,7 +237,7 @@ impl PriceHistoryRepository for PgPriceHistoryRepo {
         let end_indicator_sec = IndicatorsEvaluator::get_last_affected_locf_entry(end_locf_sec);
 
         let partial_locf_entries = sqlx::query_as!(
-            PartialPriceHistoryEntryLOCF,
+            PartialPriceEntryLOCF,
             r#"
                 SELECT time, value
                 FROM price_history_locf

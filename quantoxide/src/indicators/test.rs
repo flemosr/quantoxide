@@ -6,8 +6,8 @@ fn datetime_from_timestamp(secs: i64) -> DateTime<Utc> {
     Utc.timestamp_opt(secs, 0).unwrap()
 }
 
-fn create_partial_entry(time: DateTime<Utc>, value: f64) -> PartialPriceHistoryEntryLOCF {
-    PartialPriceHistoryEntryLOCF { time, value }
+fn create_partial_entry(time: DateTime<Utc>, value: f64) -> PartialPriceEntryLOCF {
+    PartialPriceEntryLOCF { time, value }
 }
 
 mod get_indicator_calculation_range {

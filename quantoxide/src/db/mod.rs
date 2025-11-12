@@ -11,7 +11,7 @@ mod postgres;
 mod repositories;
 
 use error::{DbError, Result};
-use models::PartialPriceHistoryEntryLOCF;
+use models::PartialPriceEntryLOCF;
 use postgres::{
     price_history::PgPriceHistoryRepo, price_ticks::PgPriceTicksRepo,
     running_trades::PgRunningTradesRepo,
@@ -146,7 +146,7 @@ impl Database {
                 IndicatorsEvaluator::get_first_required_locf_entry(batch_start);
 
             let partial_locf_entries = sqlx::query_as!(
-                PartialPriceHistoryEntryLOCF,
+                PartialPriceEntryLOCF,
                 r#"
                     SELECT time, value
                     FROM price_history_locf

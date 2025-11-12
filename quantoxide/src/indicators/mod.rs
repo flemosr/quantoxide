@@ -3,7 +3,7 @@ use std::{collections::VecDeque, num::NonZeroU64};
 use chrono::{DateTime, Duration, TimeDelta, Utc};
 
 use crate::{
-    db::models::{PartialPriceHistoryEntryLOCF, PriceEntryLOCF},
+    db::models::{PartialPriceEntryLOCF, PriceEntryLOCF},
     util::DateTimeExt,
 };
 
@@ -85,7 +85,7 @@ impl IndicatorsEvaluator {
     }
 
     pub fn evaluate(
-        partial_locf_entries: Vec<PartialPriceHistoryEntryLOCF>,
+        partial_locf_entries: Vec<PartialPriceEntryLOCF>,
         start_locf_sec: DateTime<Utc>,
     ) -> Result<Vec<PriceEntryLOCF>> {
         if partial_locf_entries.is_empty() {
