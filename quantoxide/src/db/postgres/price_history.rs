@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use sqlx::{Pool, Postgres, Transaction};
 
-use lnm_sdk::models::PriceEntryLNM;
+use lnm_sdk::models::PriceEntry;
 
 use crate::{indicators::IndicatorsEvaluator, util::DateTimeExt};
 
@@ -140,7 +140,7 @@ impl PriceHistoryRepository for PgPriceHistoryRepo {
 
     async fn add_entries(
         &self,
-        entries: &[PriceEntryLNM],
+        entries: &[PriceEntry],
         next_observed_time: Option<DateTime<Utc>>,
     ) -> Result<()> {
         if entries.is_empty() {

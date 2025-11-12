@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
-use lnm_sdk::models::{PriceEntryLNM, PriceTick};
+use lnm_sdk::models::{PriceEntry, PriceTick};
 
 use crate::trade::TradeTrailingStoploss;
 
@@ -99,7 +99,7 @@ pub(crate) trait PriceHistoryRepository: Send + Sync {
     ///   - `Err` on database or transaction errors
     async fn add_entries(
         &self,
-        entries: &[PriceEntryLNM],
+        entries: &[PriceEntry],
         next_observed_time: Option<DateTime<Utc>>,
     ) -> Result<()>;
 

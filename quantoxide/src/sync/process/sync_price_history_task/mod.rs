@@ -3,7 +3,7 @@ use std::{collections::HashSet, sync::Arc};
 use chrono::{DateTime, Duration, Utc};
 use tokio::{sync::mpsc, time};
 
-use lnm_sdk::{ApiClient, models::PriceEntryLNM};
+use lnm_sdk::{ApiClient, models::PriceEntry};
 
 use crate::db::Database;
 
@@ -44,7 +44,7 @@ impl SyncPriceHistoryTask {
         &self,
         from_observed_time: Option<DateTime<Utc>>,
         to_observed_time: Option<DateTime<Utc>>,
-    ) -> Result<(Vec<PriceEntryLNM>, bool)> {
+    ) -> Result<(Vec<PriceEntry>, bool)> {
         let mut price_entries = {
             let mut trials = 0;
             loop {
