@@ -188,12 +188,12 @@ impl PriceTickLNM {
 }
 
 #[derive(Debug, Deserialize, Clone)]
-pub struct PriceIndexLNM {
+pub struct PriceIndex {
     time: DateTime<Utc>,
     index: f64,
 }
 
-impl PriceIndexLNM {
+impl PriceIndex {
     pub fn time(&self) -> DateTime<Utc> {
         self.time
     }
@@ -206,7 +206,7 @@ impl PriceIndexLNM {
 #[derive(Debug, Clone)]
 pub(super) enum SubscriptionData {
     PriceTick(PriceTickLNM),
-    PriceIndex(PriceIndexLNM),
+    PriceIndex(PriceIndex),
 }
 
 #[derive(Clone, Debug)]
@@ -269,7 +269,7 @@ impl TryFrom<JsonRpcResponse> for LnmJsonRpcResponse {
                         SubscriptionData::PriceTick(price_tick)
                     }
                     LnmWebSocketChannel::FuturesBtcUsdIndex => {
-                        let price_index: PriceIndexLNM = serde_json::from_value(data).ok()?;
+                        let price_index: PriceIndex = serde_json::from_value(data).ok()?;
                         SubscriptionData::PriceIndex(price_index)
                     }
                 };
@@ -307,7 +307,7 @@ impl<'de> Deserialize<'de> for LnmJsonRpcResponse {
 #[derive(Debug, Clone)]
 pub enum WebSocketUpdate {
     PriceTick(PriceTickLNM),
-    PriceIndex(PriceIndexLNM),
+    PriceIndex(PriceIndex),
     ConnectionStatus(WsConnectionStatus),
 }
 
