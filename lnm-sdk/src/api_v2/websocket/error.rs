@@ -63,7 +63,7 @@ pub enum WebSocketConnectionError {
     UnexpectedJsonRpcResponse(JsonRpcResponse),
 }
 
-pub(crate) type ConnectionResult<T> = result::Result<T, WebSocketConnectionError>;
+pub(in crate::api_v2) type ConnectionResult<T> = result::Result<T, WebSocketConnectionError>;
 
 #[derive(Error, Debug)]
 pub enum WebSocketApiError {
@@ -119,4 +119,4 @@ pub enum WebSocketApiError {
     DisconnectTimeout,
 }
 
-pub(crate) type Result<T> = result::Result<T, WebSocketApiError>;
+pub(in crate::api_v2) type Result<T> = result::Result<T, WebSocketApiError>;

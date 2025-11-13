@@ -1,10 +1,10 @@
 use std::sync::Arc;
 
-pub(crate) mod error;
+pub(in crate::api_v2) mod error;
 mod lnm;
-pub(crate) mod models;
-pub(crate) mod repositories;
-pub(crate) mod state;
+pub(in crate::api_v2) mod models;
+pub(in crate::api_v2) mod repositories;
+pub(in crate::api_v2) mod state;
 
 use error::Result;
 use lnm::LnmWebSocketRepo;
@@ -14,7 +14,7 @@ use tokio::time;
 use super::client::ApiClientConfig;
 
 #[derive(Clone, Debug)]
-pub(crate) struct WebSocketClientConfig {
+pub(in crate::api_v2) struct WebSocketClientConfig {
     disconnect_timeout: time::Duration,
 }
 
@@ -35,7 +35,7 @@ impl WebSocketClientConfig {
 /// Thread-safe handle to a [`WebSocketRepository`].
 pub type WebSocketClient = Arc<dyn WebSocketRepository>;
 
-pub(crate) async fn new(
+pub(in crate::api_v2) async fn new(
     config: impl Into<WebSocketClientConfig>,
     api_domain: String,
 ) -> Result<WebSocketClient> {
