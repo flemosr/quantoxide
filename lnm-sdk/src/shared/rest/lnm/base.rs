@@ -1,64 +1,55 @@
 use std::sync::Arc;
 
-use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
-use chrono::Utc;
-use hmac::{Hmac, Mac};
+use chrono::{DateTime, Utc};
 use reqwest::{
     self, Client, Method, Url,
     header::{HeaderMap, HeaderName, HeaderValue},
 };
 use serde::{Serialize, de::DeserializeOwned};
-use sha2::Sha256;
 
 use super::super::{
     super::config::RestClientConfig,
     error::{RestApiError, Result},
 };
 
+pub(crate) trait SignatureGenerator: Send + Sync {
+    fn generate<P: RestPath>(
+        &self,
+        timestamp: DateTime<Utc>,
+        method: &Method,
+        path: P,
+        params_str: Option<&String>,
+    ) -> Result<String>;
+}
+
 pub(crate) trait RestPath: Clone {
     fn to_path_string(self) -> String;
 }
 
-struct LnmRestCredentials {
+struct LnmRestCredentials<S: SignatureGenerator> {
     key: String,
-    secret: String,
     passphrase: String,
+    signature_generator: S,
 }
 
-impl LnmRestCredentials {
-    fn new(key: String, secret: String, passphrase: String) -> Self {
+impl<S: SignatureGenerator> LnmRestCredentials<S> {
+    fn new(key: String, passphrase: String, signature_generator: S) -> Self {
         Self {
             key,
-            secret,
             passphrase,
+            signature_generator,
         }
     }
 
     fn generate_signature(
         &self,
-        timestamp_str: &str,
+        timestamp: DateTime<Utc>,
         method: &Method,
         path: impl RestPath,
         params_str: Option<&String>,
     ) -> Result<String> {
-        let params_str = params_str.map(|v| v.as_ref()).unwrap_or("");
-
-        let prehash = format!(
-            "{}{}{}{}",
-            timestamp_str,
-            method.as_str(),
-            path.to_path_string(),
-            params_str
-        );
-
-        let mut mac = Hmac::<Sha256>::new_from_slice(self.secret.as_bytes())
-            .map_err(RestApiError::InvalidSecretHmac)?;
-        mac.update(prehash.as_bytes());
-        let mac = mac.finalize().into_bytes();
-
-        let signature = BASE64.encode(mac);
-
-        Ok(signature)
+        self.signature_generator
+            .generate(timestamp, method, path, params_str)
     }
 
     fn get_authentication_headers(
@@ -67,9 +58,11 @@ impl LnmRestCredentials {
         path: impl RestPath,
         params_str: Option<&String>,
     ) -> Result<HeaderMap> {
-        let timestamp = Utc::now().timestamp_millis().to_string();
+        let timestamp = Utc::now();
 
-        let signature = self.generate_signature(&timestamp, &method, path, params_str)?;
+        let signature = self.generate_signature(timestamp, &method, path, params_str)?;
+
+        let timestamp_str = timestamp.timestamp_millis().to_string();
 
         let mut headers = HeaderMap::new();
 
@@ -87,25 +80,21 @@ impl LnmRestCredentials {
         );
         headers.insert(
             HeaderName::from_static("lnm-access-timestamp"),
-            HeaderValue::from_str(&timestamp)?,
+            HeaderValue::from_str(&timestamp_str)?,
         );
 
         Ok(headers)
     }
 }
 
-pub(crate) struct LnmRestBase {
+pub(crate) struct LnmRestBase<S: SignatureGenerator> {
     domain: String,
-    credentials: Option<LnmRestCredentials>,
+    credentials: Option<LnmRestCredentials<S>>,
     client: Client,
 }
 
-impl LnmRestBase {
-    fn new_inner(
-        config: RestClientConfig,
-        domain: String,
-        credentials: Option<LnmRestCredentials>,
-    ) -> Result<Arc<Self>> {
+impl<S: SignatureGenerator> LnmRestBase<S> {
+    pub fn new(config: RestClientConfig, domain: String) -> Result<Arc<Self>> {
         let client = Client::builder()
             .timeout(config.timeout())
             .build()
@@ -113,25 +102,30 @@ impl LnmRestBase {
 
         Ok(Arc::new(Self {
             domain,
-            credentials,
+            credentials: None,
             client,
         }))
-    }
-
-    pub fn new(config: RestClientConfig, domain: String) -> Result<Arc<Self>> {
-        Self::new_inner(config, domain, None)
     }
 
     pub fn with_credentials(
         config: RestClientConfig,
         domain: String,
         key: String,
-        secret: String,
         passphrase: String,
+        signature_generator: S,
     ) -> Result<Arc<Self>> {
-        let creds = LnmRestCredentials::new(key, secret, passphrase);
+        let client = Client::builder()
+            .timeout(config.timeout())
+            .build()
+            .map_err(RestApiError::HttpClient)?;
 
-        Self::new_inner(config, domain, Some(creds))
+        let creds = LnmRestCredentials::new(key, passphrase, signature_generator);
+
+        Ok(Arc::new(Self {
+            domain,
+            credentials: Some(creds),
+            client,
+        }))
     }
 
     pub fn has_credentials(&self) -> bool {
