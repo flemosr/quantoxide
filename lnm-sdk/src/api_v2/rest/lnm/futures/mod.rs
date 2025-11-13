@@ -24,7 +24,7 @@ use super::{
     base::{ApiPath, LnmRestBase},
 };
 
-pub(crate) struct LnmFuturesRepository {
+pub(in crate::api_v2) struct LnmFuturesRepository {
     base: Arc<LnmRestBase>,
 }
 
