@@ -55,3 +55,6 @@ impl FuturesIsolatedRepository for LnmFuturesIsolatedRepository {
             .await
     }
 }
+
+#[cfg(test)]
+mod tests;
