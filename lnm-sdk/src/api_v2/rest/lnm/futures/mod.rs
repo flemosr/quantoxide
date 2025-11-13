@@ -28,7 +28,7 @@ use super::{
         },
         repositories::FuturesRepository,
     },
-    base::ApiPathV2,
+    path::ApiPathV2,
 };
 
 pub(in crate::api_v2) struct LnmFuturesRepository {

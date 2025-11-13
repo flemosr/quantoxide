@@ -7,7 +7,7 @@ use crate::shared::rest::{error::Result, lnm::base::LnmRestBase};
 
 use super::{
     super::{models::user::User, repositories::UserRepository},
-    base::ApiPathV2,
+    path::ApiPathV2,
 };
 
 pub(in crate::api_v2) struct LnmUserRepository {
