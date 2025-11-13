@@ -7,7 +7,7 @@ use uuid::Uuid;
 use crate::shared::models::{
     leverage::Leverage,
     price::Price,
-    trade::{TradeSide, TradeSize},
+    trade::{TradeExecution, TradeSide, TradeSize},
 };
 
 use super::{
@@ -15,7 +15,7 @@ use super::{
     models::{
         price_history::PriceEntry,
         ticker::Ticker,
-        trade::{Trade, TradeExecution, TradeStatus},
+        trade::{Trade, TradeStatus},
         user::User,
     },
 };

@@ -9,7 +9,7 @@ use uuid::Uuid;
 use crate::shared::models::{
     leverage::Leverage,
     price::Price,
-    trade::{TradeSide, TradeSize},
+    trade::{TradeExecution, TradeSide, TradeSize},
 };
 
 use super::{
@@ -20,7 +20,7 @@ use super::{
             ticker::Ticker,
             trade::{
                 FuturesTradeRequestBody, FuturesUpdateTradeRequestBody, NestedTradesResponse,
-                Trade, TradeExecution, TradeStatus, TradeUpdateType,
+                Trade, TradeStatus, TradeUpdateType,
             },
         },
         repositories::FuturesRepository,

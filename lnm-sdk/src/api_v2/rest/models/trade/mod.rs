@@ -13,61 +13,10 @@ use crate::shared::models::{
     price::Price,
     quantity::Quantity,
     serde_util,
-    trade::{TradeExecutionType, TradeSide, TradeSize},
+    trade::{TradeExecution, TradeExecutionType, TradeSide, TradeSize},
 };
 
 use super::{error::FuturesTradeRequestValidationError, serde_util as serde_util_api_v2};
-
-/// The execution specification for a trade order.
-///
-/// Trades can be executed:
-/// + Immediately at market price
-/// + At a specific limit price
-///
-/// # Examples
-///
-/// ```
-/// use lnm_sdk::api_v2::models::{TradeExecution, Price};
-///
-/// // Execute immediately at market price
-/// let market_execution = TradeExecution::Market;
-///
-/// // Execute only at or better than the specified price
-/// let limit_execution = TradeExecution::Limit(Price::try_from(100_000.0).unwrap());
-/// ```
-#[derive(Debug, Clone, PartialEq, Eq, Copy)]
-pub enum TradeExecution {
-    Market,
-    Limit(Price),
-}
-
-impl TradeExecution {
-    /// Returns the execution type without the associated price data.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use lnm_sdk::api_v2::models::{TradeExecution, TradeExecutionType, Price};
-    ///
-    /// let market_execution = TradeExecution::Market;
-    /// assert!(matches!(market_execution.to_type(), TradeExecutionType::Market));
-    ///
-    /// let limit_execution = TradeExecution::Limit(Price::try_from(100_000.0).unwrap());
-    /// assert!(matches!(limit_execution.to_type(), TradeExecutionType::Limit));
-    /// ```
-    pub fn to_type(&self) -> TradeExecutionType {
-        match self {
-            TradeExecution::Market => TradeExecutionType::Market,
-            TradeExecution::Limit(_) => TradeExecutionType::Limit,
-        }
-    }
-}
-
-impl From<Price> for TradeExecution {
-    fn from(price: Price) -> Self {
-        Self::Limit(price)
-    }
-}
 
 #[derive(Serialize, Debug)]
 pub(in crate::api_v2) struct FuturesTradeRequestBody {
