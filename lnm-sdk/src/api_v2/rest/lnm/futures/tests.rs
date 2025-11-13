@@ -3,11 +3,12 @@ use std::{env, time::Instant};
 use dotenv::dotenv;
 
 use crate::shared::models::{
+    margin::Margin,
     price::{BoundedPercentage, LowerBoundedPercentage},
     quantity::Quantity,
 };
 
-use super::super::super::{RestClientConfig, models::margin::Margin};
+use super::super::super::RestClientConfig;
 use super::*;
 
 fn init_repository_from_env() -> LnmFuturesRepository {

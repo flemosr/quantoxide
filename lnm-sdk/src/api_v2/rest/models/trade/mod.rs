@@ -8,11 +8,11 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::shared::models::{
-    error::QuantityValidationError, leverage::Leverage, price::Price, quantity::Quantity,
-    serde_util,
+    error::QuantityValidationError, leverage::Leverage, margin::Margin, price::Price,
+    quantity::Quantity, serde_util,
 };
 
-use super::{error::FuturesTradeRequestValidationError, margin::Margin};
+use super::error::FuturesTradeRequestValidationError;
 
 pub mod util;
 

@@ -12,22 +12,23 @@ pub use websocket::{
 };
 
 pub mod error {
+    pub use crate::shared::models::error::{
+        BoundedPercentageValidationError, LeverageValidationError,
+        LowerBoundedPercentageValidationError, MarginValidationError, PriceValidationError,
+        QuantityValidationError,
+    };
+
     pub use super::{
         rest::{
             error::RestApiError,
             models::error::{
-                FuturesTradeRequestValidationError, MarginValidationError, TradeValidationError,
-                ValidationError,
+                FuturesTradeRequestValidationError, TradeValidationError, ValidationError,
             },
         },
         websocket::{
             error::{WebSocketApiError, WebSocketConnectionError},
             models::{JsonRpcResponse, LnmJsonRpcRequest},
         },
-    };
-    pub use crate::shared::models::error::{
-        BoundedPercentageValidationError, LeverageValidationError,
-        LowerBoundedPercentageValidationError, PriceValidationError, QuantityValidationError,
     };
 }
 
@@ -37,13 +38,13 @@ pub mod models {
     pub use crate::shared::models::{
         SATS_PER_BTC,
         leverage::Leverage,
+        margin::Margin,
         price::{BoundedPercentage, LowerBoundedPercentage, Price},
         quantity::Quantity,
     };
 
     pub use super::{
         rest::models::{
-            margin::Margin,
             price_history::PriceEntry,
             ticker::Ticker,
             trade::{

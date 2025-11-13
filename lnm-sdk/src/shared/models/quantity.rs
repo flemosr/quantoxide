@@ -6,10 +6,9 @@ use super::{
     SATS_PER_BTC,
     error::QuantityValidationError,
     leverage::Leverage,
+    margin::Margin,
     price::{BoundedPercentage, Price},
 };
-
-use crate::api_v2::models::margin::Margin;
 
 /// A validated quantity value denominated in USD.
 ///

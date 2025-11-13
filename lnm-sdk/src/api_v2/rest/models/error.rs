@@ -1,18 +1,12 @@
 use thiserror::Error;
 
 use crate::shared::models::{
-    error::{LeverageValidationError, PriceValidationError, QuantityValidationError},
+    error::{
+        LeverageValidationError, MarginValidationError, PriceValidationError,
+        QuantityValidationError,
+    },
     price::Price,
 };
-
-#[derive(Debug, Error)]
-pub enum MarginValidationError {
-    #[error("Margin must be at least 1")]
-    TooLow,
-
-    #[error("Margin must be a finite number")]
-    NotFinite,
-}
 
 #[derive(Debug, Error)]
 pub enum FuturesTradeRequestValidationError {

@@ -12,6 +12,15 @@ pub enum QuantityValidationError {
 }
 
 #[derive(Debug, Error)]
+pub enum MarginValidationError {
+    #[error("Margin must be at least 1")]
+    TooLow,
+
+    #[error("Margin must be a finite number")]
+    NotFinite,
+}
+
+#[derive(Debug, Error)]
 pub enum LeverageValidationError {
     #[error("Leverage must be at least 1")]
     TooLow,
