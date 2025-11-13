@@ -8,14 +8,15 @@ use crate::shared::rest::{error::Result, lnm::base::LnmRestBase};
 use super::{
     super::{models::user::User, repositories::UserRepository},
     path::RestPathV2,
+    signature::SignatureGeneratorV2,
 };
 
 pub(in crate::api_v2) struct LnmUserRepository {
-    base: Arc<LnmRestBase>,
+    base: Arc<LnmRestBase<SignatureGeneratorV2>>,
 }
 
 impl LnmUserRepository {
-    pub fn new(base: Arc<LnmRestBase>) -> Self {
+    pub fn new(base: Arc<LnmRestBase<SignatureGeneratorV2>>) -> Self {
         Self { base }
     }
 }
@@ -55,8 +56,8 @@ mod tests {
             RestClientConfig::default(),
             domain,
             key,
-            secret,
             passphrase,
+            SignatureGeneratorV2::new(secret),
         )
         .expect("must create `LnmApiBase`");
 
