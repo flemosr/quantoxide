@@ -1,3 +1,3 @@
 pub(super) mod futures_isolated;
 mod path;
-mod signature;
+pub(super) mod signature;
