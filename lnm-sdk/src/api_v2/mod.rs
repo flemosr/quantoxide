@@ -15,15 +15,13 @@ pub mod error {
     pub use crate::shared::models::error::{
         BoundedPercentageValidationError, LeverageValidationError,
         LowerBoundedPercentageValidationError, MarginValidationError, PriceValidationError,
-        QuantityValidationError,
+        QuantityValidationError, TradeValidationError,
     };
 
     pub use super::{
         rest::{
             error::RestApiError,
-            models::error::{
-                FuturesTradeRequestValidationError, TradeValidationError, ValidationError,
-            },
+            models::error::{FuturesTradeRequestValidationError, ValidationError},
         },
         websocket::{
             error::{WebSocketApiError, WebSocketConnectionError},

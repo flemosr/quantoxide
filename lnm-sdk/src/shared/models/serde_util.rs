@@ -16,7 +16,7 @@ pub(crate) mod float_without_decimal {
 pub(crate) mod price_option {
     use serde::{Deserialize, de};
 
-    use crate::shared::models::price::Price;
+    use super::super::price::Price;
 
     pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<Price>, D::Error>
     where

@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 
 /// The side of a trade position.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Copy)]
+#[serde(rename_all = "lowercase")]
 pub enum TradeSide {
     Buy,
     Sell,

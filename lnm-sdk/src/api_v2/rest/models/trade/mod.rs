@@ -12,7 +12,7 @@ use crate::shared::models::{
     quantity::Quantity, serde_util, trade::TradeSide,
 };
 
-use super::error::FuturesTradeRequestValidationError;
+use super::{error::FuturesTradeRequestValidationError, serde_util as serde_util_api_v2};
 
 pub mod util;
 
@@ -179,6 +179,8 @@ pub(in crate::api_v2) struct FuturesTradeRequestBody {
     stoploss: Option<Price>,
     #[serde(skip_serializing_if = "Option::is_none")]
     takeprofit: Option<Price>,
+
+    #[serde(with = "serde_util_api_v2::trade_side")]
     side: TradeSide,
 
     #[serde(flatten)]
@@ -299,6 +301,7 @@ pub struct Trade {
     uid: Uuid,
     #[serde(rename = "type")]
     trade_type: TradeExecutionType,
+    #[serde(with = "serde_util_api_v2::trade_side")]
     side: TradeSide,
     opening_fee: u64,
     closing_fee: u64,
