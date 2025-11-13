@@ -7,3 +7,4 @@ pub(crate) mod margin;
 pub(crate) mod price;
 pub(crate) mod quantity;
 pub(crate) mod serde_util;
+pub(crate) mod trade;

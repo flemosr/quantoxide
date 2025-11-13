@@ -6,7 +6,7 @@ use reqwest::{self, Method};
 use serde_json::json;
 use uuid::Uuid;
 
-use crate::shared::models::{leverage::Leverage, price::Price};
+use crate::shared::models::{leverage::Leverage, price::Price, trade::TradeSide};
 
 use super::{
     super::{
@@ -16,7 +16,7 @@ use super::{
             ticker::Ticker,
             trade::{
                 FuturesTradeRequestBody, FuturesUpdateTradeRequestBody, NestedTradesResponse,
-                Trade, TradeExecution, TradeSide, TradeSize, TradeStatus, TradeUpdateType,
+                Trade, TradeExecution, TradeSize, TradeStatus, TradeUpdateType,
             },
         },
         repositories::FuturesRepository,

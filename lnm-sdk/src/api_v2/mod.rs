@@ -41,6 +41,7 @@ pub mod models {
         margin::Margin,
         price::{BoundedPercentage, LowerBoundedPercentage, Price},
         quantity::Quantity,
+        trade::TradeSide,
     };
 
     pub use super::{
@@ -48,7 +49,7 @@ pub mod models {
             price_history::PriceEntry,
             ticker::Ticker,
             trade::{
-                Trade, TradeExecution, TradeExecutionType, TradeSide, TradeSize, TradeStatus,
+                Trade, TradeExecution, TradeExecutionType, TradeSize, TradeStatus,
                 util as trade_util,
             },
             user::{User, UserRole},

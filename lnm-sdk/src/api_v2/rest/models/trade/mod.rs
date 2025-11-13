@@ -9,33 +9,24 @@ use uuid::Uuid;
 
 use crate::shared::models::{
     error::QuantityValidationError, leverage::Leverage, margin::Margin, price::Price,
-    quantity::Quantity, serde_util,
+    quantity::Quantity, serde_util, trade::TradeSide,
 };
 
 use super::error::FuturesTradeRequestValidationError;
 
 pub mod util;
 
-/// The side of a trade position.
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Copy)]
-pub enum TradeSide {
-    // FIXME: As of Nov 11 2025, the LNMarkets API returns "buy" / "sell" when fetching recently
-    // opened trades. It returned "b" / "s" until recently. Not clear if this behavior is temporary.
-    // Handling all cases for now.
-    #[serde(rename = "b", alias = "buy")]
-    Buy,
-    #[serde(rename = "s", alias = "sell")]
-    Sell,
-}
-
-impl fmt::Display for TradeSide {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            TradeSide::Buy => "Buy".fmt(f),
-            TradeSide::Sell => "Sell".fmt(f),
-        }
-    }
-}
+// /// The side of a trade position.
+// #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Copy)]
+// pub enum TradeSide {
+//     // FIXME: As of Nov 11 2025, the LNMarkets API returns "buy" / "sell" when fetching recently
+//     // opened trades. It returned "b" / "s" until recently. Not clear if this behavior is temporary.
+//     // Handling all cases for now.
+//     #[serde(rename = "b", alias = "buy")]
+//     Buy,
+//     #[serde(rename = "s", alias = "sell")]
+//     Sell,
+// }
 
 /// The size specification for a trade position.
 ///

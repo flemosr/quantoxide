@@ -5,6 +5,8 @@ use chrono::{
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::shared::models::trade::TradeSide;
+
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Copy)]
 #[serde(rename_all = "lowercase")]
 pub enum TradeExecutionType {
@@ -12,12 +14,12 @@ pub enum TradeExecutionType {
     Limit,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Copy)]
-#[serde(rename_all = "lowercase")]
-pub enum TradeSide {
-    Buy,
-    Sell,
-}
+// #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Copy)]
+// #[serde(rename_all = "lowercase")]
+// pub enum TradeSide {
+//     Buy,
+//     Sell,
+// }
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct Trade {

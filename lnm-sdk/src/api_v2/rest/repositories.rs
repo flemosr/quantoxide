@@ -4,14 +4,14 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
-use crate::shared::models::{leverage::Leverage, price::Price};
+use crate::shared::models::{leverage::Leverage, price::Price, trade::TradeSide};
 
 use super::{
     error::Result,
     models::{
         price_history::PriceEntry,
         ticker::Ticker,
-        trade::{Trade, TradeExecution, TradeSide, TradeSize, TradeStatus},
+        trade::{Trade, TradeExecution, TradeSize, TradeStatus},
         user::User,
     },
 };
