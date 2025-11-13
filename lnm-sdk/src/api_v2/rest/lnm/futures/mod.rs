@@ -29,14 +29,15 @@ use super::{
         repositories::FuturesRepository,
     },
     path::RestPathV2,
+    signature::SignatureGeneratorV2,
 };
 
 pub(in crate::api_v2) struct LnmFuturesRepository {
-    base: Arc<LnmRestBase>,
+    base: Arc<LnmRestBase<SignatureGeneratorV2>>,
 }
 
 impl LnmFuturesRepository {
-    pub fn new(base: Arc<LnmRestBase>) -> Self {
+    pub fn new(base: Arc<LnmRestBase<SignatureGeneratorV2>>) -> Self {
         Self { base }
     }
 

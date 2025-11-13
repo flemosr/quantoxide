@@ -2,13 +2,15 @@ use std::{env, time::Instant};
 
 use dotenv::dotenv;
 
-use crate::shared::models::{
-    margin::Margin,
-    price::{BoundedPercentage, LowerBoundedPercentage},
-    quantity::Quantity,
+use crate::shared::{
+    config::RestClientConfig,
+    models::{
+        margin::Margin,
+        price::{BoundedPercentage, LowerBoundedPercentage},
+        quantity::Quantity,
+    },
 };
 
-use super::super::super::RestClientConfig;
 use super::*;
 
 fn init_repository_from_env() -> LnmFuturesRepository {
@@ -16,15 +18,20 @@ fn init_repository_from_env() -> LnmFuturesRepository {
 
     let domain =
         env::var("LNM_API_DOMAIN").expect("LNM_API_DOMAIN environment variable must be set");
-    let key = env::var("LNM_API_KEY").expect("LNM_API_KEY environment variable must be set");
+    let key = env::var("LNM_API_V2_KEY").expect("LNM_API_V2_KEY environment variable must be set");
     let secret =
-        env::var("LNM_API_SECRET").expect("LNM_API_SECRET environment variable must be set");
-    let passphrase = env::var("LNM_API_PASSPHRASE")
-        .expect("LNM_API_PASSPHRASE environment variable must be set");
+        env::var("LNM_API_V2_SECRET").expect("LNM_API_V2_SECRET environment variable must be set");
+    let passphrase = env::var("LNM_API_V2_PASSPHRASE")
+        .expect("LNM_API_V2_PASSPHRASE environment variable must be set");
 
-    let base =
-        LnmRestBase::with_credentials(RestClientConfig::default(), domain, key, secret, passphrase)
-            .expect("Can create `LnmApiBase`");
+    let base = LnmRestBase::with_credentials(
+        RestClientConfig::default(),
+        domain,
+        key,
+        passphrase,
+        SignatureGeneratorV2::new(secret),
+    )
+    .expect("Can create `LnmApiBase`");
 
     LnmFuturesRepository::new(base)
 }
