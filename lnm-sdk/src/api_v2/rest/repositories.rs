@@ -7,17 +7,12 @@ use uuid::Uuid;
 use crate::shared::models::{
     leverage::Leverage,
     price::Price,
-    trade::{TradeExecution, TradeSide, TradeSize},
+    trade::{TradeExecution, TradeSide, TradeSize, TradeStatus},
 };
 
 use super::{
     error::Result,
-    models::{
-        price_history::PriceEntry,
-        ticker::Ticker,
-        trade::{Trade, TradeStatus},
-        user::User,
-    },
+    models::{price_history::PriceEntry, ticker::Ticker, trade::Trade, user::User},
 };
 
 /// Methods for interacting with [LNM's v2 API]'s REST Futures endpoints.

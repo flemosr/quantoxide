@@ -83,29 +83,6 @@ impl FuturesTradeRequestBody {
     }
 }
 
-/// The lifecycle status of a trade.
-pub enum TradeStatus {
-    Open,
-    Running,
-    Closed,
-}
-
-impl TradeStatus {
-    /// Returns the status as a string slice.
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            TradeStatus::Open => "open",
-            TradeStatus::Running => "running",
-            TradeStatus::Closed => "closed",
-        }
-    }
-
-    /// Converts the status to an owned String.
-    pub fn to_string(&self) -> String {
-        self.as_str().to_string()
-    }
-}
-
 /// A trade returned from the LNMarkets API.
 ///
 /// Represents a complete trade object with all associated data including execution details, risk
