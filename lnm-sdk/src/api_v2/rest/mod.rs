@@ -1,9 +1,9 @@
 use std::{sync::Arc, time::Duration};
 
-pub(crate) mod error;
+pub(super) mod error;
 mod lnm;
-pub(crate) mod models;
-pub(crate) mod repositories;
+pub(super) mod models;
+pub(super) mod repositories;
 
 use error::Result;
 use lnm::{base::LnmRestBase, futures::LnmFuturesRepository, user::LnmUserRepository};
@@ -12,7 +12,7 @@ use repositories::{FuturesRepository, UserRepository};
 use super::client::ApiClientConfig;
 
 #[derive(Clone, Debug)]
-pub(crate) struct RestClientConfig {
+pub(in crate::api_v2) struct RestClientConfig {
     timeout: Duration,
 }
 
@@ -62,13 +62,16 @@ impl RestClient {
         }
     }
 
-    pub(crate) fn new(config: impl Into<RestClientConfig>, domain: String) -> Result<Self> {
+    pub(in crate::api_v2) fn new(
+        config: impl Into<RestClientConfig>,
+        domain: String,
+    ) -> Result<Self> {
         let base = LnmRestBase::new(config.into(), domain)?;
 
         Ok(Self::new_inner(base))
     }
 
-    pub(crate) fn with_credentials(
+    pub(in crate::api_v2) fn with_credentials(
         config: impl Into<RestClientConfig>,
         domain: String,
         key: String,
