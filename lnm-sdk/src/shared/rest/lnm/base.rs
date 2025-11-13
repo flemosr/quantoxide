@@ -15,7 +15,7 @@ use super::super::{
     error::{RestApiError, Result},
 };
 
-pub(crate) trait ApiPath: Clone {
+pub(crate) trait RestPath: Clone {
     fn to_path_string(self) -> String;
 }
 
@@ -38,7 +38,7 @@ impl LnmApiCredentials {
         &self,
         timestamp_str: &str,
         method: &Method,
-        path: impl ApiPath,
+        path: impl RestPath,
         params_str: Option<&String>,
     ) -> Result<String> {
         let params_str = params_str.map(|v| v.as_ref()).unwrap_or("");
@@ -64,7 +64,7 @@ impl LnmApiCredentials {
     fn get_authentication_headers(
         &self,
         method: &Method,
-        path: impl ApiPath,
+        path: impl RestPath,
         params_str: Option<&String>,
     ) -> Result<HeaderMap> {
         let timestamp = Utc::now().timestamp_millis().to_string();
@@ -138,7 +138,7 @@ impl LnmRestBase {
         self.credentials.is_some()
     }
 
-    fn get_url(&self, path: impl ApiPath, query_params: Option<String>) -> Result<Url> {
+    fn get_url(&self, path: impl RestPath, query_params: Option<String>) -> Result<Url> {
         let query_str = query_params
             .map(|v| format!("?{v}"))
             .unwrap_or("".to_string());
@@ -157,7 +157,7 @@ impl LnmRestBase {
     async fn make_request<T>(
         &self,
         method: Method,
-        path: impl ApiPath,
+        path: impl RestPath,
         params_str: Option<String>,
         authenticated: bool,
     ) -> Result<T>
@@ -222,7 +222,7 @@ impl LnmRestBase {
     pub async fn make_request_with_body<T, B>(
         &self,
         method: Method,
-        path: impl ApiPath,
+        path: impl RestPath,
         body: B,
         authenticated: bool,
     ) -> Result<T>
@@ -240,7 +240,7 @@ impl LnmRestBase {
     pub async fn make_request_with_query_params<I, K, V, T>(
         &self,
         method: Method,
-        path: impl ApiPath,
+        path: impl RestPath,
         query_params: I,
         authenticated: bool,
     ) -> Result<T>
@@ -263,7 +263,7 @@ impl LnmRestBase {
     pub async fn make_request_without_params<T>(
         &self,
         method: Method,
-        path: impl ApiPath,
+        path: impl RestPath,
         authenticated: bool,
     ) -> Result<T>
     where

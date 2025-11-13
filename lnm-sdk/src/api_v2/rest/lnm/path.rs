@@ -1,6 +1,6 @@
 use uuid::Uuid;
 
-use crate::shared::rest::lnm::base::ApiPath;
+use crate::shared::rest::lnm::base::RestPath;
 
 #[derive(Clone)]
 pub(in crate::api_v2) enum RestPathV2 {
@@ -16,7 +16,7 @@ pub(in crate::api_v2) enum RestPathV2 {
     UserGetUser,
 }
 
-impl ApiPath for RestPathV2 {
+impl RestPath for RestPathV2 {
     fn to_path_string(self) -> String {
         match self {
             RestPathV2::FuturesPriceHistory => "/v2/futures/history/price".into(),
