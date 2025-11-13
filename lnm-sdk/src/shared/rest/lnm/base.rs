@@ -19,13 +19,13 @@ pub(crate) trait RestPath: Clone {
     fn to_path_string(self) -> String;
 }
 
-struct LnmApiCredentials {
+struct LnmRestCredentials {
     key: String,
     secret: String,
     passphrase: String,
 }
 
-impl LnmApiCredentials {
+impl LnmRestCredentials {
     fn new(key: String, secret: String, passphrase: String) -> Self {
         Self {
             key,
@@ -96,7 +96,7 @@ impl LnmApiCredentials {
 
 pub(crate) struct LnmRestBase {
     domain: String,
-    credentials: Option<LnmApiCredentials>,
+    credentials: Option<LnmRestCredentials>,
     client: Client,
 }
 
@@ -104,7 +104,7 @@ impl LnmRestBase {
     fn new_inner(
         config: RestClientConfig,
         domain: String,
-        credentials: Option<LnmApiCredentials>,
+        credentials: Option<LnmRestCredentials>,
     ) -> Result<Arc<Self>> {
         let client = Client::builder()
             .timeout(config.timeout())
@@ -129,7 +129,7 @@ impl LnmRestBase {
         secret: String,
         passphrase: String,
     ) -> Result<Arc<Self>> {
-        let creds = LnmApiCredentials::new(key, secret, passphrase);
+        let creds = LnmRestCredentials::new(key, secret, passphrase);
 
         Self::new_inner(config, domain, Some(creds))
     }
