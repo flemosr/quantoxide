@@ -10,27 +10,10 @@ mod lnm;
 pub(super) mod models;
 pub(super) mod repositories;
 
-use lnm::{futures::LnmFuturesRepository, user::LnmUserRepository};
+use lnm::{
+    futures::LnmFuturesRepository, signature::SignatureGeneratorV2, user::LnmUserRepository,
+};
 use repositories::{FuturesRepository, UserRepository};
-
-// #[derive(Clone, Debug)]
-// pub(in crate::api_v2) struct RestClientConfig {
-//     timeout: Duration,
-// }
-
-// impl From<&ApiClientConfig> for RestClientConfig {
-//     fn from(value: &ApiClientConfig) -> Self {
-//         Self {
-//             timeout: value.rest_timeout(),
-//         }
-//     }
-// }
-
-// impl Default for RestClientConfig {
-//     fn default() -> Self {
-//         (&ApiClientConfig::default()).into()
-//     }
-// }
 
 /// Client for interacting with the [LNM's v2 API] via REST.
 ///
@@ -52,7 +35,7 @@ pub struct RestClient {
 }
 
 impl RestClient {
-    fn new_inner(base: Arc<LnmRestBase>) -> Self {
+    fn new_inner(base: Arc<LnmRestBase<SignatureGeneratorV2>>) -> Self {
         let has_credentials = base.has_credentials();
         let futures = Box::new(LnmFuturesRepository::new(base.clone()));
         let user = Box::new(LnmUserRepository::new(base));
@@ -80,7 +63,13 @@ impl RestClient {
         secret: String,
         passphrase: String,
     ) -> Result<Self> {
-        let base = LnmRestBase::with_credentials(config.into(), domain, key, secret, passphrase)?;
+        let base = LnmRestBase::with_credentials(
+            config.into(),
+            domain,
+            key,
+            passphrase,
+            SignatureGeneratorV2::new(secret),
+        )?;
 
         Ok(Self::new_inner(base))
     }
