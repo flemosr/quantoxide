@@ -1,84 +1,13 @@
-use std::{sync::Arc, time::Duration};
+use std::sync::Arc;
 
 use tokio::sync::Mutex;
 
-use super::rest::{RestClient, error::Result as RestResult};
-use super::websocket::{self, WebSocketClient, error::Result};
+use crate::shared::{config::ApiClientConfig, rest::error::Result as RestResult};
 
-/// Configuration for LNM's [`ApiClient`].
-///
-/// # Examples
-///
-/// ```
-/// use std::time::Duration;
-/// use lnm_sdk::api_v2::ApiClientConfig;
-///
-/// // Use default configuration
-/// let config = ApiClientConfig::default();
-///
-/// // Customize configuration
-/// let config = ApiClientConfig::default()
-///     .with_rest_timeout(Duration::from_secs(20))
-///     .with_ws_disconnect_timeout(Duration::from_secs(6));
-/// ```
-#[derive(Clone, Debug)]
-pub struct ApiClientConfig {
-    rest_timeout: Duration,
-    ws_disconnect_timeout: Duration,
-}
-
-impl Default for ApiClientConfig {
-    fn default() -> Self {
-        Self {
-            rest_timeout: Duration::from_secs(20),
-            ws_disconnect_timeout: Duration::from_secs(6),
-        }
-    }
-}
-
-impl ApiClientConfig {
-    /// Returns the configured timeout for REST API requests.
-    pub fn rest_timeout(&self) -> Duration {
-        self.rest_timeout
-    }
-
-    /// Returns the configured timeout for WebSocket disconnect operations.
-    pub fn ws_disconnect_timeout(&self) -> Duration {
-        self.ws_disconnect_timeout
-    }
-
-    /// Sets the REST API request timeout. The default is 20 seconds.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use std::time::Duration;
-    /// use lnm_sdk::api_v2::ApiClientConfig;
-    ///
-    /// let config = ApiClientConfig::default()
-    ///     .with_rest_timeout(Duration::from_secs(20));
-    /// ```
-    pub fn with_rest_timeout(mut self, timeout: Duration) -> Self {
-        self.rest_timeout = timeout;
-        self
-    }
-
-    /// Sets the WebSocket disconnect timeout. The default is 6 seconds.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use std::time::Duration;
-    /// use lnm_sdk::api_v2::ApiClientConfig;
-    ///
-    /// let config = ApiClientConfig::default()
-    ///     .with_ws_disconnect_timeout(Duration::from_secs(6));
-    /// ```
-    pub fn with_ws_disconnect_timeout(mut self, timeout: Duration) -> Self {
-        self.ws_disconnect_timeout = timeout;
-        self
-    }
-}
+use super::{
+    rest::RestClient,
+    websocket::{self, WebSocketClient, error::Result},
+};
 
 /// Client for interacting with the [LNM's v2 API] via REST and WebSocket.
 ///

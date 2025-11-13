@@ -1,34 +1,36 @@
-use std::{sync::Arc, time::Duration};
+use std::sync::Arc;
 
-pub(super) mod error;
+use crate::shared::{
+    config::RestClientConfig,
+    rest::{error::Result, lnm::base::LnmRestBase},
+};
+
+pub(crate) mod error;
 mod lnm;
 pub(super) mod models;
 pub(super) mod repositories;
 
-use error::Result;
-use lnm::{base::LnmRestBase, futures::LnmFuturesRepository, user::LnmUserRepository};
+use lnm::{futures::LnmFuturesRepository, user::LnmUserRepository};
 use repositories::{FuturesRepository, UserRepository};
 
-use super::client::ApiClientConfig;
+// #[derive(Clone, Debug)]
+// pub(in crate::api_v2) struct RestClientConfig {
+//     timeout: Duration,
+// }
 
-#[derive(Clone, Debug)]
-pub(in crate::api_v2) struct RestClientConfig {
-    timeout: Duration,
-}
+// impl From<&ApiClientConfig> for RestClientConfig {
+//     fn from(value: &ApiClientConfig) -> Self {
+//         Self {
+//             timeout: value.rest_timeout(),
+//         }
+//     }
+// }
 
-impl From<&ApiClientConfig> for RestClientConfig {
-    fn from(value: &ApiClientConfig) -> Self {
-        Self {
-            timeout: value.rest_timeout(),
-        }
-    }
-}
-
-impl Default for RestClientConfig {
-    fn default() -> Self {
-        (&ApiClientConfig::default()).into()
-    }
-}
+// impl Default for RestClientConfig {
+//     fn default() -> Self {
+//         (&ApiClientConfig::default()).into()
+//     }
+// }
 
 /// Client for interacting with the [LNM's v2 API] via REST.
 ///

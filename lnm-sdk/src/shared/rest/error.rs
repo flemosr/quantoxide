@@ -4,7 +4,7 @@ use hmac::digest::InvalidLength;
 use hyper::{Method, StatusCode, header::InvalidHeaderValue};
 use thiserror::Error;
 
-// use super::models::error::FuturesTradeRequestValidationError;
+use crate::api_v2::rest::error::RestApiV2Error;
 
 #[derive(Error, Debug)]
 pub enum RestApiError {
@@ -14,8 +14,6 @@ pub enum RestApiError {
     #[error("Unexpected schema error: {0}")]
     UnexpectedSchema(reqwest::Error),
 
-    // #[error("Invalid futures trade request error: {0}")]
-    // FuturesTradeRequestValidation(FuturesTradeRequestValidationError),
     #[error("Invalid header value error: {0}")]
     InvalidHeaderValue(#[from] InvalidHeaderValue),
 
@@ -48,6 +46,9 @@ pub enum RestApiError {
 
     #[error("Request JSON serialization failed. Error: {0}")]
     RequestJsonSerializeFailed(serde_json::Error),
+
+    #[error(transparent)]
+    RestApiV2(#[from] RestApiV2Error),
 }
 
-pub(in crate::api_v3) type Result<T> = result::Result<T, RestApiError>;
+pub(crate) type Result<T> = result::Result<T, RestApiError>;

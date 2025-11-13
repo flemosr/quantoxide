@@ -1,8 +1,10 @@
+pub use crate::shared::config::ApiClientConfig;
+
 mod client;
-mod rest;
+pub(crate) mod rest;
 mod websocket;
 
-pub use client::{ApiClient, ApiClientConfig};
+pub use client::ApiClient;
 pub use rest::{
     RestClient,
     repositories::{FuturesRepository, UserRepository},
@@ -12,17 +14,18 @@ pub use websocket::{
 };
 
 pub mod error {
-    pub use crate::shared::models::error::{
-        BoundedPercentageValidationError, LeverageValidationError,
-        LowerBoundedPercentageValidationError, MarginValidationError, PriceValidationError,
-        QuantityValidationError, TradeValidationError,
+    pub use crate::shared::{
+        models::error::{
+            BoundedPercentageValidationError, LeverageValidationError,
+            LowerBoundedPercentageValidationError, MarginValidationError, PriceValidationError,
+            QuantityValidationError, TradeValidationError,
+        },
+        rest::error::RestApiError,
     };
 
     pub use super::{
-        rest::{
-            error::RestApiError,
-            models::error::{FuturesTradeRequestValidationError, ValidationError},
-        },
+        rest::error::RestApiV2Error,
+        rest::models::error::{FuturesTradeRequestValidationError, ValidationError},
         websocket::{
             error::{WebSocketApiError, WebSocketConnectionError},
             models::{JsonRpcResponse, LnmJsonRpcRequest},

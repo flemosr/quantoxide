@@ -1,12 +1,15 @@
 use async_trait::async_trait;
 
-use crate::shared::models::{
-    leverage::Leverage,
-    price::Price,
-    trade::{TradeExecution, TradeSide, TradeSize},
+use crate::shared::{
+    models::{
+        leverage::Leverage,
+        price::Price,
+        trade::{TradeExecution, TradeSide, TradeSize},
+    },
+    rest::error::Result,
 };
 
-use super::{error::Result, models::Trade};
+use super::models::Trade;
 
 /// Methods for interacting with [LNM's v3 API]'s REST Futures endpoints.
 ///

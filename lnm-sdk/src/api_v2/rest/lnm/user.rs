@@ -3,9 +3,11 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use hyper::Method;
 
+use crate::shared::rest::{error::Result, lnm::base::LnmRestBase};
+
 use super::{
-    super::{error::Result, models::user::User, repositories::UserRepository},
-    base::{ApiPath, LnmRestBase},
+    super::{models::user::User, repositories::UserRepository},
+    base::ApiPathV2,
 };
 
 pub(in crate::api_v2) struct LnmUserRepository {
@@ -24,7 +26,7 @@ impl crate::sealed::Sealed for LnmUserRepository {}
 impl UserRepository for LnmUserRepository {
     async fn get_user(&self) -> Result<User> {
         self.base
-            .make_request_without_params(Method::GET, ApiPath::UserGetUser, true)
+            .make_request_without_params(Method::GET, ApiPathV2::UserGetUser, true)
             .await
     }
 }

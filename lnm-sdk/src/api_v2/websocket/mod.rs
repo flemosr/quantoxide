@@ -1,5 +1,7 @@
 use std::sync::Arc;
 
+use crate::shared::config::ApiClientConfig;
+
 pub(in crate::api_v2) mod error;
 mod lnm;
 pub(in crate::api_v2) mod models;
@@ -10,8 +12,6 @@ use error::Result;
 use lnm::LnmWebSocketRepo;
 use repositories::WebSocketRepository;
 use tokio::time;
-
-use super::client::ApiClientConfig;
 
 #[derive(Clone, Debug)]
 pub(in crate::api_v2) struct WebSocketClientConfig {

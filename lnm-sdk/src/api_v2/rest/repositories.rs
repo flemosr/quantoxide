@@ -4,16 +4,16 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
-use crate::shared::models::{
-    leverage::Leverage,
-    price::Price,
-    trade::{TradeExecution, TradeSide, TradeSize, TradeStatus},
+use crate::shared::{
+    models::{
+        leverage::Leverage,
+        price::Price,
+        trade::{TradeExecution, TradeSide, TradeSize, TradeStatus},
+    },
+    rest::error::Result,
 };
 
-use super::{
-    error::Result,
-    models::{price_history::PriceEntry, ticker::Ticker, trade::Trade, user::User},
-};
+use super::models::{price_history::PriceEntry, ticker::Ticker, trade::Trade, user::User};
 
 /// Methods for interacting with [LNM's v2 API]'s REST Futures endpoints.
 ///
