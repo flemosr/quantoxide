@@ -1,13 +1,13 @@
 /// Number of satoshis (sats) in a Bitcoin: 100_000_000
 pub const SATS_PER_BTC: f64 = 100_000_000.;
 
-pub(crate) mod error;
-pub(crate) mod leverage;
-pub(crate) mod margin;
-pub(crate) mod price;
-pub(crate) mod price_history;
-pub(crate) mod quantity;
-pub(crate) mod serde_util;
-pub(crate) mod ticker;
-pub(crate) mod trade;
-pub(crate) mod user;
+pub(in crate::api_v2) mod error;
+pub(in crate::api_v2) mod leverage;
+pub(in crate::api_v2) mod margin;
+pub(in crate::api_v2) mod price;
+pub(in crate::api_v2) mod price_history;
+pub(in crate::api_v2) mod quantity;
+pub(in crate::api_v2) mod serde_util;
+pub(in crate::api_v2) mod ticker;
+pub(in crate::api_v2) mod trade;
+pub(in crate::api_v2) mod user;

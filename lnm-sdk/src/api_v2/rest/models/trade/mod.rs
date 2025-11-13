@@ -184,7 +184,7 @@ impl From<Price> for TradeExecution {
 }
 
 #[derive(Serialize, Debug)]
-pub(crate) struct FuturesTradeRequestBody {
+pub(in crate::api_v2) struct FuturesTradeRequestBody {
     leverage: Leverage,
     #[serde(skip_serializing_if = "Option::is_none")]
     stoploss: Option<Price>,
@@ -770,19 +770,19 @@ impl Trade {
 }
 
 #[derive(Deserialize)]
-pub(crate) struct NestedTradesResponse {
+pub(in crate::api_v2) struct NestedTradesResponse {
     pub trades: Vec<Trade>,
 }
 
 #[derive(Serialize, Debug)]
 #[serde(rename_all = "lowercase")]
-pub(crate) enum TradeUpdateType {
+pub(in crate::api_v2) enum TradeUpdateType {
     Stoploss,
     Takeprofit,
 }
 
 #[derive(Serialize, Debug)]
-pub(crate) struct FuturesUpdateTradeRequestBody {
+pub(in crate::api_v2) struct FuturesUpdateTradeRequestBody {
     id: Uuid,
     #[serde(rename = "type")]
     update_type: TradeUpdateType,

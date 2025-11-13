@@ -1,4 +1,4 @@
-pub(crate) mod float_without_decimal {
+pub(in crate::api_v2) mod float_without_decimal {
     use serde::Serializer;
 
     pub fn serialize<S>(value: &f64, serializer: S) -> Result<S::Ok, S::Error>
@@ -13,7 +13,7 @@ pub(crate) mod float_without_decimal {
     }
 }
 
-pub(crate) mod price_option {
+pub(in crate::api_v2) mod price_option {
     use serde::{Deserialize, de};
 
     use super::super::price::Price;
