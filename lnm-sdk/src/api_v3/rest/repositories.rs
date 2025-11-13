@@ -27,5 +27,6 @@ pub trait FuturesIsolatedRepository: crate::sealed::Sealed + Send + Sync {
         execution: TradeExecution,
         stoploss: Option<Price>,
         takeprofit: Option<Price>,
+        client_id: Option<String>,
     ) -> Result<Trade>;
 }

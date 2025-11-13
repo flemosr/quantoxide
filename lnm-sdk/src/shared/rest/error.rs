@@ -5,6 +5,7 @@ use hyper::{Method, StatusCode, header::InvalidHeaderValue};
 use thiserror::Error;
 
 use crate::api_v2::rest::error::RestApiV2Error;
+use crate::api_v3::rest::error::RestApiV3Error;
 
 #[derive(Error, Debug)]
 pub enum RestApiError {
@@ -49,6 +50,9 @@ pub enum RestApiError {
 
     #[error(transparent)]
     RestApiV2(#[from] RestApiV2Error),
+
+    #[error(transparent)]
+    RestApiV3(#[from] RestApiV3Error),
 }
 
 pub(crate) type Result<T> = result::Result<T, RestApiError>;

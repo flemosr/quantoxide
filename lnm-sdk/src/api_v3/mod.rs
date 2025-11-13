@@ -1,1 +1,1 @@
-mod rest;
+pub(crate) mod rest;
