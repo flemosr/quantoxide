@@ -7,7 +7,7 @@ use crate::shared::rest::{error::Result, lnm::base::LnmRestBase};
 
 use super::{
     super::{models::user::User, repositories::UserRepository},
-    path::ApiPathV2,
+    path::RestPathV2,
 };
 
 pub(in crate::api_v2) struct LnmUserRepository {
@@ -26,7 +26,7 @@ impl crate::sealed::Sealed for LnmUserRepository {}
 impl UserRepository for LnmUserRepository {
     async fn get_user(&self) -> Result<User> {
         self.base
-            .make_request_without_params(Method::GET, ApiPathV2::UserGetUser, true)
+            .make_request_without_params(Method::GET, RestPathV2::UserGetUser, true)
             .await
     }
 }

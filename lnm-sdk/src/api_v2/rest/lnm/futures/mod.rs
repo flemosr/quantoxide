@@ -28,7 +28,7 @@ use super::{
         },
         repositories::FuturesRepository,
     },
-    path::ApiPathV2,
+    path::RestPathV2,
 };
 
 pub(in crate::api_v2) struct LnmFuturesRepository {
@@ -49,7 +49,7 @@ impl LnmFuturesRepository {
         let body = FuturesUpdateTradeRequestBody::new(id, update_type, value);
 
         self.base
-            .make_request_with_body(Method::PUT, ApiPathV2::FuturesTrade, body, true)
+            .make_request_with_body(Method::PUT, RestPathV2::FuturesTrade, body, true)
             .await
     }
 }
@@ -82,7 +82,7 @@ impl FuturesRepository for LnmFuturesRepository {
         self.base
             .make_request_with_query_params(
                 Method::GET,
-                ApiPathV2::FuturesTrade,
+                RestPathV2::FuturesTrade,
                 query_params,
                 true,
             )
@@ -136,7 +136,7 @@ impl FuturesRepository for LnmFuturesRepository {
         self.base
             .make_request_with_query_params(
                 Method::GET,
-                ApiPathV2::FuturesPriceHistory,
+                RestPathV2::FuturesPriceHistory,
                 query_params,
                 false,
             )
@@ -157,13 +157,13 @@ impl FuturesRepository for LnmFuturesRepository {
                 .map_err(RestApiV2Error::FuturesTradeRequestValidation)?;
 
         self.base
-            .make_request_with_body(Method::POST, ApiPathV2::FuturesTrade, body, true)
+            .make_request_with_body(Method::POST, RestPathV2::FuturesTrade, body, true)
             .await
     }
 
     async fn get_trade(&self, id: Uuid) -> Result<Trade> {
         self.base
-            .make_request_without_params(Method::GET, ApiPathV2::FuturesGetTrade(id), true)
+            .make_request_without_params(Method::GET, RestPathV2::FuturesGetTrade(id), true)
             .await
     }
 
@@ -171,14 +171,14 @@ impl FuturesRepository for LnmFuturesRepository {
         let body = json!({"id": id.to_string()});
 
         self.base
-            .make_request_with_body(Method::POST, ApiPathV2::FuturesCancelTrade, body, true)
+            .make_request_with_body(Method::POST, RestPathV2::FuturesCancelTrade, body, true)
             .await
     }
 
     async fn cancel_all_trades(&self) -> Result<Vec<Trade>> {
         let res: NestedTradesResponse = self
             .base
-            .make_request_without_params(Method::DELETE, ApiPathV2::FuturesCancelAllTrades, true)
+            .make_request_without_params(Method::DELETE, RestPathV2::FuturesCancelAllTrades, true)
             .await?;
 
         Ok(res.trades)
@@ -190,7 +190,7 @@ impl FuturesRepository for LnmFuturesRepository {
         self.base
             .make_request_with_query_params(
                 Method::DELETE,
-                ApiPathV2::FuturesTrade,
+                RestPathV2::FuturesTrade,
                 query_params,
                 true,
             )
@@ -200,7 +200,7 @@ impl FuturesRepository for LnmFuturesRepository {
     async fn close_all_trades(&self) -> Result<Vec<Trade>> {
         let res: NestedTradesResponse = self
             .base
-            .make_request_without_params(Method::DELETE, ApiPathV2::FuturesCloseAllTrades, true)
+            .make_request_without_params(Method::DELETE, RestPathV2::FuturesCloseAllTrades, true)
             .await?;
 
         Ok(res.trades)
@@ -208,7 +208,7 @@ impl FuturesRepository for LnmFuturesRepository {
 
     async fn ticker(&self) -> Result<Ticker> {
         self.base
-            .make_request_without_params(Method::GET, ApiPathV2::FuturesTicker, true)
+            .make_request_without_params(Method::GET, RestPathV2::FuturesTicker, true)
             .await
     }
 
@@ -229,7 +229,7 @@ impl FuturesRepository for LnmFuturesRepository {
         });
 
         self.base
-            .make_request_with_body(Method::POST, ApiPathV2::FuturesAddMargin, body, true)
+            .make_request_with_body(Method::POST, RestPathV2::FuturesAddMargin, body, true)
             .await
     }
 
@@ -240,7 +240,7 @@ impl FuturesRepository for LnmFuturesRepository {
         });
 
         self.base
-            .make_request_with_body(Method::POST, ApiPathV2::FuturesCashIn, body, true)
+            .make_request_with_body(Method::POST, RestPathV2::FuturesCashIn, body, true)
             .await
     }
 }
