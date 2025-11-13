@@ -2,9 +2,10 @@ use std::{cmp::Ordering, convert::TryFrom, fmt};
 
 use serde::{Deserialize, Serialize, de};
 
+use crate::shared::models::quantity::Quantity;
+
 use super::{
-    SATS_PER_BTC, error::LeverageValidationError, margin::Margin, price::Price, quantity::Quantity,
-    serde_util,
+    SATS_PER_BTC, error::LeverageValidationError, margin::Margin, price::Price, serde_util,
 };
 
 /// A validated leverage value for trading positions.

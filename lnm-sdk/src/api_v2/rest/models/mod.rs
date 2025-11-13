@@ -6,7 +6,6 @@ pub(in crate::api_v2) mod leverage;
 pub(in crate::api_v2) mod margin;
 pub(in crate::api_v2) mod price;
 pub(in crate::api_v2) mod price_history;
-pub(in crate::api_v2) mod quantity;
 pub(in crate::api_v2) mod serde_util;
 pub(in crate::api_v2) mod ticker;
 pub(in crate::api_v2) mod trade;

@@ -18,8 +18,7 @@ pub mod error {
             models::error::{
                 BoundedPercentageValidationError, FuturesTradeRequestValidationError,
                 LeverageValidationError, LowerBoundedPercentageValidationError,
-                MarginValidationError, PriceValidationError, QuantityValidationError,
-                TradeValidationError, ValidationError,
+                MarginValidationError, PriceValidationError, TradeValidationError, ValidationError,
             },
         },
         websocket::{
@@ -27,10 +26,13 @@ pub mod error {
             models::{JsonRpcResponse, LnmJsonRpcRequest},
         },
     };
+    pub use crate::shared::models::error::QuantityValidationError;
 }
 
 pub mod models {
     pub use uuid::Uuid;
+
+    pub use crate::shared::models::quantity::Quantity;
 
     pub use super::{
         rest::models::{
@@ -39,7 +41,6 @@ pub mod models {
             margin::Margin,
             price::{BoundedPercentage, LowerBoundedPercentage, Price},
             price_history::PriceEntry,
-            quantity::Quantity,
             ticker::Ticker,
             trade::{
                 Trade, TradeExecution, TradeExecutionType, TradeSide, TradeSize, TradeStatus,

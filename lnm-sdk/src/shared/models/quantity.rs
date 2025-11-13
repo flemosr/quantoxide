@@ -2,9 +2,9 @@ use std::{convert::TryFrom, fmt};
 
 use serde::{Deserialize, Serialize, de};
 
-use super::{
-    SATS_PER_BTC, error::QuantityValidationError, leverage::Leverage, margin::Margin,
-    price::BoundedPercentage, price::Price,
+use super::error::QuantityValidationError;
+use crate::api_v2::models::{
+    SATS_PER_BTC, leverage::Leverage, margin::Margin, price::BoundedPercentage, price::Price,
 };
 
 /// A validated quantity value denominated in USD.

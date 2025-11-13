@@ -7,12 +7,10 @@ use chrono::{
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::shared::models::{error::QuantityValidationError, quantity::Quantity};
+
 use super::{
-    error::{FuturesTradeRequestValidationError, QuantityValidationError},
-    leverage::Leverage,
-    margin::Margin,
-    price::Price,
-    quantity::Quantity,
+    error::FuturesTradeRequestValidationError, leverage::Leverage, margin::Margin, price::Price,
     serde_util,
 };
 
