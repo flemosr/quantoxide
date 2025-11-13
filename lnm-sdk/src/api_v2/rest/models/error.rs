@@ -1,7 +1,7 @@
 use thiserror::Error;
 
 use super::price::{BoundedPercentage, LowerBoundedPercentage, Price};
-use crate::shared::models::error::QuantityValidationError;
+use crate::shared::models::error::{LeverageValidationError, QuantityValidationError};
 
 #[derive(Debug, Error)]
 pub enum BoundedPercentageValidationError {
@@ -40,15 +40,6 @@ pub enum PriceValidationError {
 
     #[error("Price must be at most {}. Value: {value}", Price::MAX)]
     TooHigh { value: f64 },
-}
-
-#[derive(Debug, Error)]
-pub enum LeverageValidationError {
-    #[error("Leverage must be at least 1")]
-    TooLow,
-
-    #[error("Leverage must be at most 100")]
-    TooHigh,
 }
 
 #[derive(Debug, Error)]

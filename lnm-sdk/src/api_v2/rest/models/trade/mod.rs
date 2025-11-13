@@ -7,12 +7,11 @@ use chrono::{
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::shared::models::{error::QuantityValidationError, quantity::Quantity};
-
-use super::{
-    error::FuturesTradeRequestValidationError, leverage::Leverage, margin::Margin, price::Price,
-    serde_util,
+use crate::shared::models::{
+    error::QuantityValidationError, leverage::Leverage, quantity::Quantity,
 };
+
+use super::{error::FuturesTradeRequestValidationError, margin::Margin, price::Price, serde_util};
 
 pub mod util;
 

@@ -2,12 +2,11 @@ use std::{convert::TryFrom, fmt, num::NonZeroU64, ops::Add};
 
 use serde::{Deserialize, Serialize, de};
 
-use crate::shared::models::quantity::Quantity;
+use crate::shared::models::{leverage::Leverage, quantity::Quantity};
 
 use super::{
     SATS_PER_BTC,
     error::{MarginValidationError, TradeValidationError},
-    leverage::Leverage,
     price::Price,
     trade::TradeSide,
 };

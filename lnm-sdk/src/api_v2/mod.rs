@@ -17,8 +17,8 @@ pub mod error {
             error::RestApiError,
             models::error::{
                 BoundedPercentageValidationError, FuturesTradeRequestValidationError,
-                LeverageValidationError, LowerBoundedPercentageValidationError,
-                MarginValidationError, PriceValidationError, TradeValidationError, ValidationError,
+                LowerBoundedPercentageValidationError, MarginValidationError, PriceValidationError,
+                TradeValidationError, ValidationError,
             },
         },
         websocket::{
@@ -26,18 +26,17 @@ pub mod error {
             models::{JsonRpcResponse, LnmJsonRpcRequest},
         },
     };
-    pub use crate::shared::models::error::QuantityValidationError;
+    pub use crate::shared::models::error::{LeverageValidationError, QuantityValidationError};
 }
 
 pub mod models {
     pub use uuid::Uuid;
 
-    pub use crate::shared::models::quantity::Quantity;
+    pub use crate::shared::models::{leverage::Leverage, quantity::Quantity};
 
     pub use super::{
         rest::models::{
             SATS_PER_BTC,
-            leverage::Leverage,
             margin::Margin,
             price::{BoundedPercentage, LowerBoundedPercentage, Price},
             price_history::PriceEntry,

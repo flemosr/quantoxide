@@ -4,10 +4,11 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
+use crate::shared::models::leverage::Leverage;
+
 use super::{
     error::Result,
     models::{
-        leverage::Leverage,
         price::Price,
         price_history::PriceEntry,
         ticker::Ticker,
