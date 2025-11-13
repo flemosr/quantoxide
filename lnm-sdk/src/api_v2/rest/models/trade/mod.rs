@@ -9,9 +9,10 @@ use uuid::Uuid;
 
 use crate::shared::models::{
     error::QuantityValidationError, leverage::Leverage, price::Price, quantity::Quantity,
+    serde_util,
 };
 
-use super::{error::FuturesTradeRequestValidationError, margin::Margin, serde_util};
+use super::{error::FuturesTradeRequestValidationError, margin::Margin};
 
 pub mod util;
 

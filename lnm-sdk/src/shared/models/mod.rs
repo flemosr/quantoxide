@@ -5,3 +5,4 @@ pub(crate) mod error;
 pub(crate) mod leverage;
 pub(crate) mod price;
 pub(crate) mod quantity;
+pub(crate) mod serde_util;
