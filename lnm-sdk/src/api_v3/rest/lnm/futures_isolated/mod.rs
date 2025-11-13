@@ -18,14 +18,15 @@ use crate::{
 use super::{
     super::{error::RestApiV3Error, models::trade::Trade, repositories::FuturesIsolatedRepository},
     path::RestPathV3,
+    signature::SignatureGeneratorV3,
 };
 
 pub(in crate::api_v3) struct LnmFuturesIsolatedRepository {
-    base: Arc<LnmRestBase>,
+    base: Arc<LnmRestBase<SignatureGeneratorV3>>,
 }
 
 impl LnmFuturesIsolatedRepository {
-    pub fn new(base: Arc<LnmRestBase>) -> Self {
+    pub fn new(base: Arc<LnmRestBase<SignatureGeneratorV3>>) -> Self {
         Self { base }
     }
 }
