@@ -9,7 +9,7 @@ use crate::shared::{
     rest::error::Result,
 };
 
-use super::models::Trade;
+use super::models::trade::Trade;
 
 /// Methods for interacting with [LNM's v3 API]'s REST Futures endpoints.
 ///
