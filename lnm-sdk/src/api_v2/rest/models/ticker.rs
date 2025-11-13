@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use chrono::{DateTime, Utc, serde::ts_milliseconds};
 use serde::Deserialize;
 
-use super::price::Price;
+use crate::shared::models::price::Price;
 
 /// Real-time ticker data for Bitcoin futures from LNMarkets.
 ///

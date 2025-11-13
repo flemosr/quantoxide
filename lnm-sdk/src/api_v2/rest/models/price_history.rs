@@ -1,7 +1,7 @@
 use chrono::{DateTime, Utc, serde::ts_milliseconds};
 use serde::Deserialize;
 
-use super::price::Price;
+use crate::shared::models::price::Price;
 
 /// A historical price entry from the LNMarkets futures API.
 ///

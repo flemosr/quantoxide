@@ -2,9 +2,14 @@ use std::{convert::TryFrom, fmt};
 
 use serde::{Deserialize, Serialize, de};
 
-use super::{SATS_PER_BTC, error::QuantityValidationError, leverage::Leverage};
+use super::{
+    SATS_PER_BTC,
+    error::QuantityValidationError,
+    leverage::Leverage,
+    price::{BoundedPercentage, Price},
+};
 
-use crate::api_v2::models::{margin::Margin, price::BoundedPercentage, price::Price};
+use crate::api_v2::models::margin::Margin;
 
 /// A validated quantity value denominated in USD.
 ///

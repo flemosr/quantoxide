@@ -6,13 +6,12 @@ use reqwest::{self, Method};
 use serde_json::json;
 use uuid::Uuid;
 
-use crate::shared::models::leverage::Leverage;
+use crate::shared::models::{leverage::Leverage, price::Price};
 
 use super::{
     super::{
         error::{RestApiError, Result},
         models::{
-            price::Price,
             price_history::PriceEntry,
             ticker::Ticker,
             trade::{
