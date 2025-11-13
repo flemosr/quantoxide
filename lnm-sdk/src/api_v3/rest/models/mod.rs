@@ -5,7 +5,14 @@ use chrono::{
 use serde::Deserialize;
 use uuid::Uuid;
 
-use crate::shared::models::trade::{TradeExecutionType, TradeSide};
+use crate::shared::models::{
+    leverage::Leverage,
+    margin::Margin,
+    price::Price,
+    quantity::Quantity,
+    serde_util,
+    trade::{TradeExecutionType, TradeSide},
+};
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct Trade {
@@ -17,27 +24,27 @@ pub struct Trade {
     opening_fee: u64,
     closing_fee: u64,
     maintenance_margin: i64,
-    // quantity: Quantity,
-    // margin: Margin,
-    // leverage: Leverage,
-    // price: Price,
-    // liquidation: Price,
-    // #[serde(with = "serde_util::price_option")]
-    // stoploss: Option<Price>,
-    // #[serde(with = "serde_util::price_option")]
-    // takeprofit: Option<Price>,
-    // #[serde(with = "serde_util::price_option")]
-    // exit_price: Option<Price>,
-    // pl: i64,
+    quantity: Quantity,
+    margin: Margin,
+    leverage: Leverage,
+    price: Price,
+    liquidation: Price,
+    #[serde(with = "serde_util::price_option")]
+    stoploss: Option<Price>,
+    #[serde(with = "serde_util::price_option")]
+    takeprofit: Option<Price>,
+    #[serde(with = "serde_util::price_option")]
+    exit_price: Option<Price>,
+    pl: i64,
     #[serde(with = "ts_milliseconds")]
     created_at: DateTime<Utc>,
     #[serde(with = "ts_milliseconds_option")]
     filled_at: Option<DateTime<Utc>>,
     #[serde(with = "ts_milliseconds_option")]
     closed_at: Option<DateTime<Utc>>,
-    // #[serde(with = "serde_util::price_option")]
-    // entry_price: Option<Price>,
-    // entry_margin: Option<Margin>,
+    #[serde(with = "serde_util::price_option")]
+    entry_price: Option<Price>,
+    entry_margin: Option<Margin>,
     open: bool,
     running: bool,
     canceled: bool,
