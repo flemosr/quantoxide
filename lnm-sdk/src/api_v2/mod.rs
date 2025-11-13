@@ -32,11 +32,10 @@ pub mod error {
 pub mod models {
     pub use uuid::Uuid;
 
-    pub use crate::shared::models::{leverage::Leverage, quantity::Quantity};
+    pub use crate::shared::models::{SATS_PER_BTC, leverage::Leverage, quantity::Quantity};
 
     pub use super::{
         rest::models::{
-            SATS_PER_BTC,
             margin::Margin,
             price::{BoundedPercentage, LowerBoundedPercentage, Price},
             price_history::PriceEntry,

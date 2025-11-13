@@ -1,11 +1,11 @@
 use std::num::NonZeroU64;
 
-use crate::shared::models::{leverage::Leverage, quantity::Quantity};
+use crate::shared::models::{SATS_PER_BTC, leverage::Leverage, quantity::Quantity};
 
 use super::{
     super::{
-        SATS_PER_BTC, error::TradeValidationError, margin::Margin, price::BoundedPercentage,
-        price::Price, trade::TradeSize,
+        error::TradeValidationError, margin::Margin, price::BoundedPercentage, price::Price,
+        trade::TradeSize,
     },
     TradeSide,
 };
