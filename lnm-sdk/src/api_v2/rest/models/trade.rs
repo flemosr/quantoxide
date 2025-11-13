@@ -222,7 +222,8 @@ impl Trade {
         self.side
     }
 
-    /// Returns the opening fee charged when the trade was created (in satoshis).
+    /// Returns the opening fee charged when the trade was filled (in satoshis), or zero if the
+    /// trade was not filled.
     ///
     /// # Examples
     ///
@@ -238,7 +239,8 @@ impl Trade {
         self.opening_fee
     }
 
-    /// Returns the closing fee that will be charged when the trade closes (in satoshis).
+    /// Returns the closing fee that was charged when the trade was closed (in satoshis), or zero
+    /// if the trade was not closed.
     ///
     /// # Examples
     ///
