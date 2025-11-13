@@ -2,6 +2,11 @@ use std::fmt;
 
 use serde::{Deserialize, Serialize};
 
+use super::{
+    error::QuantityValidationError, leverage::Leverage, margin::Margin, price::Price,
+    quantity::Quantity,
+};
+
 pub mod util;
 
 /// The side of a trade position.
@@ -17,6 +22,88 @@ impl fmt::Display for TradeSide {
         match self {
             TradeSide::Buy => "Buy".fmt(f),
             TradeSide::Sell => "Sell".fmt(f),
+        }
+    }
+}
+
+/// The size specification for a trade position.
+///
+/// Trade size can be specified either as a [`Quantity`] (notional value in USD) or as [`Margin`]
+/// (collateral in satoshis). The API will calculate the corresponding value based on the provided
+/// price and leverage.
+///
+/// # Examples
+///
+/// ```
+/// use lnm_sdk::api_v2::models::{TradeSize, Quantity, Margin};
+///
+/// // Specify size by quantity (USD notional value)
+/// let size_by_quantity = TradeSize::from(Quantity::try_from(1_000).unwrap());
+///
+/// // Specify size by margin (satoshis collateral)
+/// let size_by_margin = TradeSize::from(Margin::try_from(10_000).unwrap());
+/// ```
+#[derive(Serialize, Debug, Clone, PartialEq, Eq, Copy)]
+pub enum TradeSize {
+    #[serde(rename = "quantity")]
+    Quantity(Quantity),
+    #[serde(rename = "margin")]
+    Margin(Margin),
+}
+
+impl TradeSize {
+    /// Converts the trade size to both quantity and margin values.
+    ///
+    /// Calculates the corresponding quantity and margin based on the provided price and leverage.
+    /// If the size is specified as margin, the quantity is calculated. If specified as quantity,
+    /// the margin is calculated.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use lnm_sdk::api_v2::models::{TradeSize, Quantity, Price, Leverage};
+    ///
+    /// let size = TradeSize::from(Quantity::try_from(1_000).unwrap());
+    /// let price = Price::try_from(100_000.0).unwrap();
+    /// let leverage = Leverage::try_from(10.0).unwrap();
+    ///
+    /// let (quantity, margin) = size.to_quantity_and_margin(price, leverage).unwrap();
+    /// ```
+    pub fn to_quantity_and_margin(
+        &self,
+        price: Price,
+        leverage: Leverage,
+    ) -> Result<(Quantity, Margin), QuantityValidationError> {
+        match self {
+            TradeSize::Margin(margin) => {
+                let quantity = Quantity::try_calculate(*margin, price, leverage)?;
+                Ok((quantity, *margin))
+            }
+            TradeSize::Quantity(quantity) => {
+                let margin = Margin::calculate(*quantity, price, leverage);
+                Ok((*quantity, margin))
+            }
+        }
+    }
+}
+
+impl From<Quantity> for TradeSize {
+    fn from(quantity: Quantity) -> Self {
+        TradeSize::Quantity(quantity)
+    }
+}
+
+impl From<Margin> for TradeSize {
+    fn from(margin: Margin) -> Self {
+        TradeSize::Margin(margin)
+    }
+}
+
+impl fmt::Display for TradeSize {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            TradeSize::Quantity(quantity) => write!(f, "Quantity({})", quantity),
+            TradeSize::Margin(margin) => write!(f, "Margin({})", margin),
         }
     }
 }
