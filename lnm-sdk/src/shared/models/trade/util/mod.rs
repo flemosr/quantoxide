@@ -1,16 +1,14 @@
 use std::num::NonZeroU64;
 
-use crate::shared::models::{
+use super::super::{
     SATS_PER_BTC,
     error::TradeValidationError,
     leverage::Leverage,
     margin::Margin,
     price::{BoundedPercentage, Price},
     quantity::Quantity,
-    trade::TradeSide,
+    trade::{TradeSide, TradeSize},
 };
-
-use super::super::trade::TradeSize;
 
 /// Estimates the liquidation price for a trade position.
 ///
