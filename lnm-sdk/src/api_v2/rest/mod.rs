@@ -24,10 +24,12 @@ pub struct RestClient {
     ///
     /// [`ApiClient::with_credentials`]: crate::ApiClient::with_credentials
     pub has_credentials: bool,
+
     /// Methods for interacting with [LNM's v2 API]'s REST Futures endpoints.
     ///
     /// [LNM's v2 API]: https://docs.lnmarkets.com/api/#overview
     pub futures: Box<dyn FuturesRepository>,
+
     /// Methods for interacting with [LNM's v2 API]'s REST User endpoints.
     ///
     /// [LNM's v2 API]: https://docs.lnmarkets.com/api/#overview
