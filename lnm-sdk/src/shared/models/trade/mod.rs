@@ -107,3 +107,13 @@ impl fmt::Display for TradeSize {
         }
     }
 }
+
+/// The execution type of a trade.
+///
+/// Represents whether a trade is executed at market price or at a specific limit price.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Copy)]
+#[serde(rename_all = "lowercase")]
+pub enum TradeExecutionType {
+    Market,
+    Limit,
+}

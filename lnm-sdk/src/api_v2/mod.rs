@@ -39,14 +39,14 @@ pub mod models {
         margin::Margin,
         price::{BoundedPercentage, LowerBoundedPercentage, Price},
         quantity::Quantity,
-        trade::{TradeSide, TradeSize, util as trade_util},
+        trade::{TradeExecutionType, TradeSide, TradeSize, util as trade_util},
     };
 
     pub use super::{
         rest::models::{
             price_history::PriceEntry,
             ticker::Ticker,
-            trade::{Trade, TradeExecution, TradeExecutionType, TradeStatus},
+            trade::{Trade, TradeExecution, TradeStatus},
             user::{User, UserRole},
         },
         websocket::models::{

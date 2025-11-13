@@ -2,24 +2,10 @@ use chrono::{
     DateTime, Utc,
     serde::{ts_milliseconds, ts_milliseconds_option},
 };
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use uuid::Uuid;
 
-use crate::shared::models::trade::TradeSide;
-
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Copy)]
-#[serde(rename_all = "lowercase")]
-pub enum TradeExecutionType {
-    Market,
-    Limit,
-}
-
-// #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Copy)]
-// #[serde(rename_all = "lowercase")]
-// pub enum TradeSide {
-//     Buy,
-//     Sell,
-// }
+use crate::shared::models::trade::{TradeExecutionType, TradeSide};
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct Trade {

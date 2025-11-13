@@ -13,21 +13,10 @@ use crate::shared::models::{
     price::Price,
     quantity::Quantity,
     serde_util,
-    trade::{TradeSide, TradeSize},
+    trade::{TradeExecutionType, TradeSide, TradeSize},
 };
 
 use super::{error::FuturesTradeRequestValidationError, serde_util as serde_util_api_v2};
-
-/// The execution type of a trade.
-///
-/// Represents whether a trade is executed at market price or at a specific limit price.
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Copy)]
-pub enum TradeExecutionType {
-    #[serde(rename = "m")]
-    Market,
-    #[serde(rename = "l")]
-    Limit,
-}
 
 /// The execution specification for a trade order.
 ///
@@ -94,7 +83,7 @@ pub(in crate::api_v2) struct FuturesTradeRequestBody {
     #[serde(flatten)]
     size: TradeSize,
 
-    #[serde(rename = "type")]
+    #[serde(rename = "type", with = "serde_util_api_v2::trade_execution_type")]
     trade_type: TradeExecutionType,
     #[serde(skip_serializing_if = "Option::is_none")]
     price: Option<Price>,
@@ -207,7 +196,7 @@ impl TradeStatus {
 pub struct Trade {
     id: Uuid,
     uid: Uuid,
-    #[serde(rename = "type")]
+    #[serde(rename = "type", with = "serde_util_api_v2::trade_execution_type")]
     trade_type: TradeExecutionType,
     #[serde(with = "serde_util_api_v2::trade_side")]
     side: TradeSide,
