@@ -80,17 +80,17 @@ pub trait FuturesIsolatedRepository: crate::sealed::Sealed + Send + Sync {
         limit: Option<NonZeroU64>,
     ) -> Result<Vec<Trade>>;
 
-    /// Update an open or running trade takeprofit. If the provided `value` is 0, the takeprofit
+    /// Update an open or running trade takeprofit. If the provided `value` is `None`, the
+    /// takeprofit will be removed.
+    ///
+    /// **Required permissions**: `futures:isolated:write`
+    async fn update_takeprofit(&self, id: Uuid, value: Option<Price>) -> Result<Trade>;
+
+    /// Update an open or running trade stoploss. If the provided `value` is `None`, the stoploss
     /// will be removed.
     ///
     /// **Required permissions**: `futures:isolated:write`
-    async fn update_takeprofit(&self, id: Uuid, value: u64) -> Result<Trade>;
-
-    /// Update an open or running trade stoploss. If the provided `value` is 0, the stoploss will be
-    /// removed.
-    ///
-    /// **Required permissions**: `futures:isolated:write`
-    async fn update_stoploss(&self, id: Uuid, value: u64) -> Result<Trade>;
+    async fn update_stoploss(&self, id: Uuid, value: Option<Price>) -> Result<Trade>;
 
     /// Place a new isolated trade.
     ///
