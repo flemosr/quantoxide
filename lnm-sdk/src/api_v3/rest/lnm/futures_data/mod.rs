@@ -31,3 +31,6 @@ impl FuturesDataRepository for LnmFuturesDataRepository {
             .await
     }
 }
+
+#[cfg(test)]
+mod tests;
