@@ -76,7 +76,16 @@ impl FuturesIsolatedRepository for LnmFuturesIsolatedRepository {
     }
 
     async fn cash_in_trade(&self, id: Uuid, amount: NonZeroU64) -> Result<Trade> {
-        todo!()
+        let body = json!({"id": id.to_string(), "amount": amount});
+
+        self.base
+            .make_request_with_body(
+                Method::POST,
+                RestPathV3::FuturesIsolatedTradeCashIn,
+                body,
+                true,
+            )
+            .await
     }
 
     async fn close_trade(&self, id: Uuid) -> Result<Trade> {
