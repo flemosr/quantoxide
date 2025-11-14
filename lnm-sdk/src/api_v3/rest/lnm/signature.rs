@@ -30,7 +30,18 @@ impl SignatureGenerator for SignatureGeneratorV3 {
         params_str: Option<&String>,
     ) -> Result<String> {
         let timestamp_str = timestamp.timestamp_millis().to_string();
-        let params_str = params_str.map(|v| v.as_ref()).unwrap_or("");
+        let params_str = match *method {
+            // Necessary to prefix query params with `?` in v3
+            Method::GET | Method::DELETE => params_str.map(|v| {
+                if v.is_empty() {
+                    v.to_owned()
+                } else {
+                    format!("?{v}")
+                }
+            }),
+            _ => params_str.map(|v| v.to_owned()),
+        }
+        .unwrap_or(String::new());
 
         let prehash = format!(
             "{}{}{}{}",
