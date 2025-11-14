@@ -64,7 +64,9 @@ impl FuturesIsolatedRepository for LnmFuturesIsolatedRepository {
     }
 
     async fn get_open_trades(&self) -> Result<Vec<Trade>> {
-        todo!()
+        self.base
+            .make_request_without_params(Method::GET, RestPathV3::FuturesIsolatedTradesOpen, true)
+            .await
     }
 
     async fn get_running_trades(&self) -> Result<Vec<Trade>> {

@@ -80,6 +80,19 @@ async fn test_create_short_trade_quantity_limit(
     created_trade
 }
 
+async fn test_get_trades_open(repo: &LnmFuturesIsolatedRepository, exp_open_trades: Vec<&Trade>) {
+    let open_trades = repo.get_open_trades().await.expect("must get trades");
+
+    assert_eq!(open_trades.len(), exp_open_trades.len());
+
+    for open_trade in &open_trades {
+        let ok = exp_open_trades
+            .iter()
+            .any(|exp| exp.id() == open_trade.id());
+        assert!(ok, "open trade {} was not returned", open_trade.id());
+    }
+}
+
 #[tokio::test]
 async fn test_api() {
     let repo = init_repository_from_env();
@@ -116,7 +129,7 @@ async fn test_api() {
         test_create_short_trade_quantity_limit(&repo).await
     );
 
-    println!("short_limit_trade_a {:?}", short_limit_trade_a)
+    println!("short_limit_trade_a {:?}", short_limit_trade_a);
 
     // time_test!(
     //     "test_get_trade",
@@ -128,10 +141,10 @@ async fn test_api() {
     //     test_create_long_trade_margin_limit(&repo, &ticker).await
     // );
 
-    // time_test!(
-    //     "test_get_trades_open",
-    //     test_get_trades_open(&repo, vec![&short_limit_trade_a, &long_limit_trade_b]).await
-    // );
+    time_test!(
+        "test_get_trades_open",
+        test_get_trades_open(&repo, vec![&short_limit_trade_a]).await
+    );
 
     // time_test!(
     //     "test_update_trade_stoploss",
