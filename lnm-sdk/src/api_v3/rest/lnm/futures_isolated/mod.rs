@@ -42,7 +42,13 @@ impl FuturesIsolatedRepository for LnmFuturesIsolatedRepository {
     }
 
     async fn cancel_all_trades(&self) -> Result<Vec<Trade>> {
-        todo!()
+        self.base
+            .make_request_without_params(
+                Method::POST,
+                RestPathV3::FuturesIsolatedTradesCancelAll,
+                true,
+            )
+            .await
     }
 
     async fn cancel_trade(&self, id: Uuid) -> Result<Trade> {

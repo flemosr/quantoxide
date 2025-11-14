@@ -97,10 +97,10 @@ async fn test_api() {
 
     // Initial clean-up
 
-    // time_test!(
-    //     "cancel_all_trades (cleanup)",
-    //     repo.cancel_all_trades().await.expect("must cancel trades")
-    // );
+    time_test!(
+        "cancel_all_trades (cleanup)",
+        repo.cancel_all_trades().await.expect("must cancel trades")
+    );
 
     // time_test!(
     //     "close_all_trades (cleanup)",
