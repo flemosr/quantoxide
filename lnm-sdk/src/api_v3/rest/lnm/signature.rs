@@ -1,12 +1,12 @@
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
 use chrono::{DateTime, Utc};
 use hmac::{Hmac, Mac};
-use reqwest::{self, Method};
+use reqwest::{self, Method, Url};
 use sha2::Sha256;
 
 use crate::shared::rest::{
     error::{RestApiError, Result},
-    lnm::base::{RestPath, SignatureGenerator},
+    lnm::base::SignatureGenerator,
 };
 
 /// Signature generator for LNM API v3
@@ -22,32 +22,38 @@ impl SignatureGeneratorV3 {
 }
 
 impl SignatureGenerator for SignatureGeneratorV3 {
-    fn generate<P: RestPath>(
+    fn generate(
         &self,
         timestamp: DateTime<Utc>,
         method: &Method,
-        path: P,
-        params_str: Option<&String>,
+        url: &Url,
+        body: Option<&String>,
     ) -> Result<String> {
         let timestamp_str = timestamp.timestamp_millis().to_string();
-        let params_str = match *method {
-            // Necessary to prefix query params with `?` in v3
-            Method::GET | Method::DELETE => params_str.map(|v| {
-                if v.is_empty() {
-                    v.to_owned()
+
+        // In v3, query params must be prefixed with '?'
+        let query_with_prefix = url
+            .query()
+            .map(|q| {
+                if q.is_empty() {
+                    String::new()
                 } else {
-                    format!("?{v}")
+                    format!("?{q}")
                 }
-            }),
-            _ => params_str.map(|v| v.to_owned()),
-        }
-        .unwrap_or(String::new());
+            })
+            .unwrap_or_default();
+
+        let params_str = match *method {
+            Method::POST | Method::PUT => body.map(|v| v.as_str()).unwrap_or(""),
+            Method::GET | Method::DELETE => query_with_prefix.as_str(),
+            _ => "",
+        };
 
         let prehash = format!(
             "{}{}{}{}",
             timestamp_str,
             method.as_str().to_lowercase(), // Differs from v2
-            path.to_path_string(),
+            url.path(),
             params_str
         );
 
