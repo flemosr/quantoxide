@@ -10,8 +10,11 @@ mod lnm;
 pub(super) mod models;
 pub(super) mod repositories;
 
-use lnm::{futures_isolated::LnmFuturesIsolatedRepository, signature::SignatureGeneratorV3};
-use repositories::FuturesIsolatedRepository;
+use lnm::{
+    futures_data::LnmFuturesDataRepository, futures_isolated::LnmFuturesIsolatedRepository,
+    signature::SignatureGeneratorV3,
+};
+use repositories::{FuturesDataRepository, FuturesIsolatedRepository};
 
 /// Client for interacting with the [LNM's v3 API] via REST.
 ///
@@ -23,20 +26,27 @@ pub struct RestClient {
     /// [`ApiClient::with_credentials`]: crate::ApiClient::with_credentials
     pub has_credentials: bool,
 
-    /// Methods for interacting with [LNM's v3 API]'s REST Futures endpoints.
+    /// Methods for interacting with [LNM's v3 API]'s REST Futures Isolated endpoints.
     ///
     /// [LNM's v3 API]: https://api.lnmarkets.com/v3
     pub futures_isolated: Box<dyn FuturesIsolatedRepository>,
+
+    /// Methods for interacting with [LNM's v3 API]'s REST Futures Data endpoints.
+    ///
+    /// [LNM's v3 API]: https://api.lnmarkets.com/v3
+    pub futures_data: Box<dyn FuturesDataRepository>,
 }
 
 impl RestClient {
     fn new_inner(base: Arc<LnmRestBase<SignatureGeneratorV3>>) -> Self {
         let has_credentials = base.has_credentials();
         let futures_isolated = Box::new(LnmFuturesIsolatedRepository::new(base.clone()));
+        let futures_data = Box::new(LnmFuturesDataRepository::new(base));
 
         Self {
             has_credentials,
             futures_isolated,
+            futures_data,
         }
     }
 
