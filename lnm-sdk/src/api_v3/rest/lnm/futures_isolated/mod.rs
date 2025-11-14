@@ -40,7 +40,16 @@ impl crate::sealed::Sealed for LnmFuturesIsolatedRepository {}
 #[async_trait]
 impl FuturesIsolatedRepository for LnmFuturesIsolatedRepository {
     async fn add_margin_to_trade(&self, id: Uuid, amount: NonZeroU64) -> Result<Trade> {
-        todo!()
+        let body = json!({"id": id.to_string(), "amount": amount});
+
+        self.base
+            .make_request_with_body(
+                Method::POST,
+                RestPathV3::FuturesIsolatedTradeAddMargin,
+                body,
+                true,
+            )
+            .await
     }
 
     async fn cancel_all_trades(&self) -> Result<Vec<Trade>> {
