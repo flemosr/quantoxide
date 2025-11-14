@@ -126,10 +126,10 @@ impl FuturesIsolatedRepository for LnmFuturesIsolatedRepository {
         let mut query_params = Vec::new();
 
         if let Some(from) = from {
-            query_params.push(("from", from.timestamp_millis().to_string()));
+            query_params.push(("from", from.to_rfc3339_opts(SecondsFormat::Millis, true)));
         }
         if let Some(to) = to {
-            query_params.push(("to", to.timestamp_millis().to_string()));
+            query_params.push(("to", to.to_rfc3339_opts(SecondsFormat::Millis, true)));
         }
         if let Some(limit) = limit {
             query_params.push(("limit", limit.to_string()));
@@ -154,10 +154,10 @@ impl FuturesIsolatedRepository for LnmFuturesIsolatedRepository {
         let mut query_params = Vec::new();
 
         if let Some(from) = from {
-            query_params.push(("from", from.timestamp_millis().to_string()));
+            query_params.push(("from", from.to_rfc3339_opts(SecondsFormat::Millis, true)));
         }
         if let Some(to) = to {
-            query_params.push(("to", to.timestamp_millis().to_string()));
+            query_params.push(("to", to.to_rfc3339_opts(SecondsFormat::Millis, true)));
         }
         if let Some(limit) = limit {
             query_params.push(("limit", limit.to_string()));
