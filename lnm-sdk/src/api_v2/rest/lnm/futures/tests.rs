@@ -85,6 +85,9 @@ async fn test_create_short_trade_quantity_limit(
     assert!(!created_trade.closed());
     assert!(!created_trade.canceled());
 
+    assert_eq!(created_trade.opening_fee(), 0);
+    assert_eq!(created_trade.closing_fee(), 0);
+
     assert!(created_trade.market_filled_ts().is_none());
     assert!(created_trade.closed_ts().is_none());
     assert!(created_trade.exit_price().is_none());
@@ -128,6 +131,9 @@ async fn test_create_long_trade_quantity_market(
     assert!(created_trade.running());
     assert!(!created_trade.closed());
     assert!(!created_trade.canceled());
+
+    assert!(created_trade.opening_fee() > 0);
+    assert_eq!(created_trade.closing_fee(), 0);
 
     assert!(created_trade.market_filled_ts().is_some());
     assert!(created_trade.closed_ts().is_none());
@@ -176,6 +182,9 @@ async fn test_create_long_trade_margin_limit(
     assert!(!created_trade.closed());
     assert!(!created_trade.canceled());
 
+    assert_eq!(created_trade.opening_fee(), 0);
+    assert_eq!(created_trade.closing_fee(), 0);
+
     assert!(created_trade.market_filled_ts().is_none());
     assert!(created_trade.closed_ts().is_none());
     assert!(created_trade.exit_price().is_none());
@@ -223,6 +232,9 @@ async fn test_create_short_trade_margin_market(
     assert!(created_trade.running());
     assert!(!created_trade.closed());
     assert!(!created_trade.canceled());
+
+    assert!(created_trade.opening_fee() > 0);
+    assert_eq!(created_trade.closing_fee(), 0);
 
     assert!(created_trade.market_filled_ts().is_some());
     assert!(created_trade.closed_ts().is_none());
