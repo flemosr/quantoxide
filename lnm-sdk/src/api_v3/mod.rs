@@ -4,7 +4,10 @@ mod client;
 pub(crate) mod rest;
 
 pub use client::ApiClient;
-pub use rest::{RestClient, repositories::FuturesIsolatedRepository};
+pub use rest::{
+    RestClient,
+    repositories::{FuturesDataRepository, FuturesIsolatedRepository},
+};
 
 pub mod error {
     pub use crate::shared::{
