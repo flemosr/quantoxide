@@ -174,7 +174,10 @@ impl FuturesIsolatedRepository for LnmFuturesIsolatedRepository {
     }
 
     async fn update_takeprofit(&self, id: Uuid, value: Option<Price>) -> Result<Trade> {
-        let body = json!({"id": id.to_string(), "value": value.map_or(0., |p| p.into_f64())});
+        let body = match value {
+            Some(price) => json!({"id": id, "value": price}),
+            None => json!({"id": id, "value": 0}),
+        };
 
         self.base
             .make_request_with_body(
@@ -187,7 +190,10 @@ impl FuturesIsolatedRepository for LnmFuturesIsolatedRepository {
     }
 
     async fn update_stoploss(&self, id: Uuid, value: Option<Price>) -> Result<Trade> {
-        let body = json!({"id": id.to_string(), "value": value.map_or(0., |p| p.into_f64())});
+        let body = match value {
+            Some(price) => json!({"id": id, "value": price}),
+            None => json!({"id": id, "value": 0}),
+        };
 
         self.base
             .make_request_with_body(
