@@ -124,6 +124,7 @@ impl FuturesRepository for LnmFuturesRepository {
         limit: Option<usize>,
     ) -> Result<Vec<PriceEntry>> {
         let mut query_params = Vec::new();
+
         if let Some(from) = from {
             query_params.push(("from", from.timestamp_millis().to_string()));
         }
@@ -169,10 +170,13 @@ impl FuturesRepository for LnmFuturesRepository {
     }
 
     async fn cancel_trade(&self, id: Uuid) -> Result<Trade> {
-        let body = json!({"id": id.to_string()});
-
         self.base
-            .make_request_with_body(Method::POST, RestPathV2::FuturesCancelTrade, body, true)
+            .make_request_with_body(
+                Method::POST,
+                RestPathV2::FuturesCancelTrade,
+                json!({"id": id }),
+                true,
+            )
             .await
     }
 
@@ -186,13 +190,11 @@ impl FuturesRepository for LnmFuturesRepository {
     }
 
     async fn close_trade(&self, id: Uuid) -> Result<Trade> {
-        let query_params = vec![("id", id.to_string())];
-
         self.base
             .make_request_with_query_params(
                 Method::DELETE,
                 RestPathV2::FuturesTrade,
-                query_params,
+                vec![("id", id.to_string())],
                 true,
             )
             .await
@@ -224,24 +226,24 @@ impl FuturesRepository for LnmFuturesRepository {
     }
 
     async fn add_margin(&self, id: Uuid, amount: NonZeroU64) -> Result<Trade> {
-        let body = json!({
-            "id": id.to_string(),
-            "amount": amount,
-        });
-
         self.base
-            .make_request_with_body(Method::POST, RestPathV2::FuturesAddMargin, body, true)
+            .make_request_with_body(
+                Method::POST,
+                RestPathV2::FuturesAddMargin,
+                json!({ "id": id, "amount": amount }),
+                true,
+            )
             .await
     }
 
     async fn cash_in(&self, id: Uuid, amount: NonZeroU64) -> Result<Trade> {
-        let body = json!({
-            "id": id.to_string(),
-            "amount": amount,
-        });
-
         self.base
-            .make_request_with_body(Method::POST, RestPathV2::FuturesCashIn, body, true)
+            .make_request_with_body(
+                Method::POST,
+                RestPathV2::FuturesCashIn,
+                json!({ "id": id, "amount": amount }),
+                true,
+            )
             .await
     }
 }
