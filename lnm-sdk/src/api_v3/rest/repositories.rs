@@ -1,6 +1,7 @@
 use std::num::NonZeroU64;
 
 use async_trait::async_trait;
+use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
 use crate::shared::{
@@ -62,12 +63,22 @@ pub trait FuturesIsolatedRepository: crate::sealed::Sealed + Send + Sync {
     /// Get closed trades.
     ///
     /// **Required permissions**: `futures:isolated:read`
-    async fn get_closed_trades(&self) -> Result<Vec<Trade>>;
+    async fn get_closed_trades(
+        &self,
+        from: Option<DateTime<Utc>>,
+        to: Option<DateTime<Utc>>,
+        limit: Option<NonZeroU64>,
+    ) -> Result<Vec<Trade>>;
 
     /// Get canceled trades.
     ///
     /// **Required permissions**: `futures:isolated:read`
-    async fn get_canceled_trades(&self) -> Result<Vec<Trade>>;
+    async fn get_canceled_trades(
+        &self,
+        from: Option<DateTime<Utc>>,
+        to: Option<DateTime<Utc>>,
+        limit: Option<NonZeroU64>,
+    ) -> Result<Vec<Trade>>;
 
     /// Update an open or running trade takeprofit. If the provided `value` is 0, the takeprofit
     /// will be removed.
