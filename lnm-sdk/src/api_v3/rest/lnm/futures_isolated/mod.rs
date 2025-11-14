@@ -3,6 +3,7 @@ use std::{num::NonZeroU64, sync::Arc};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use reqwest::{self, Method};
+use serde_json::json;
 use uuid::Uuid;
 
 use crate::shared::{
@@ -53,7 +54,16 @@ impl FuturesIsolatedRepository for LnmFuturesIsolatedRepository {
     }
 
     async fn cancel_trade(&self, id: Uuid) -> Result<Trade> {
-        todo!()
+        let body = json!({"id": id.to_string()});
+
+        self.base
+            .make_request_with_body(
+                Method::POST,
+                RestPathV3::FuturesIsolatedTradeCancel,
+                body,
+                true,
+            )
+            .await
     }
 
     async fn cash_in_trade(&self, id: Uuid, amount: NonZeroU64) -> Result<Trade> {
@@ -129,7 +139,7 @@ impl FuturesIsolatedRepository for LnmFuturesIsolatedRepository {
         self.base
             .make_request_with_query_params(
                 Method::GET,
-                RestPathV3::FuturesIsolatedTradesCanceled,
+                RestPathV3::FuturesIsolatedTradesClosed,
                 query_params,
                 true,
             )
