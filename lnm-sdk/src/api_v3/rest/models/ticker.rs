@@ -4,6 +4,7 @@ use serde::Deserialize;
 use crate::shared::models::price::Price;
 
 #[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TickerPrice {
     ask_price: Price,
     bid_price: Price,
