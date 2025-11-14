@@ -1,7 +1,7 @@
 use std::{num::NonZeroU64, sync::Arc};
 
 use async_trait::async_trait;
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, SecondsFormat, Utc};
 use reqwest::{self, Method};
 use serde_json::json;
 use uuid::Uuid;
@@ -40,13 +40,11 @@ impl crate::sealed::Sealed for LnmFuturesIsolatedRepository {}
 #[async_trait]
 impl FuturesIsolatedRepository for LnmFuturesIsolatedRepository {
     async fn add_margin_to_trade(&self, id: Uuid, amount: NonZeroU64) -> Result<Trade> {
-        let body = json!({"id": id.to_string(), "amount": amount});
-
         self.base
             .make_request_with_body(
                 Method::POST,
                 RestPathV3::FuturesIsolatedTradeAddMargin,
-                body,
+                json!({"id": id, "amount": amount}),
                 true,
             )
             .await
@@ -63,39 +61,33 @@ impl FuturesIsolatedRepository for LnmFuturesIsolatedRepository {
     }
 
     async fn cancel_trade(&self, id: Uuid) -> Result<Trade> {
-        let body = json!({"id": id.to_string()});
-
         self.base
             .make_request_with_body(
                 Method::POST,
                 RestPathV3::FuturesIsolatedTradeCancel,
-                body,
+                json!({"id": id}),
                 true,
             )
             .await
     }
 
     async fn cash_in_trade(&self, id: Uuid, amount: NonZeroU64) -> Result<Trade> {
-        let body = json!({"id": id.to_string(), "amount": amount});
-
         self.base
             .make_request_with_body(
                 Method::POST,
                 RestPathV3::FuturesIsolatedTradeCashIn,
-                body,
+                json!({"id": id, "amount": amount}),
                 true,
             )
             .await
     }
 
     async fn close_trade(&self, id: Uuid) -> Result<Trade> {
-        let body = json!({"id": id.to_string()});
-
         self.base
             .make_request_with_body(
                 Method::POST,
                 RestPathV3::FuturesIsolatedTradeClose,
-                body,
+                json!({"id": id}),
                 true,
             )
             .await
