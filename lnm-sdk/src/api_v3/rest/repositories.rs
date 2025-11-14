@@ -9,9 +9,9 @@ use crate::shared::{
     rest::error::Result,
 };
 
-use super::models::trade::Trade;
+use super::models::{ticker::Ticker, trade::Trade};
 
-/// Methods for interacting with [LNM's v3 API]'s REST Futures endpoints.
+/// Methods for interacting with [LNM's v3 API]'s REST Futures Isolated endpoints.
 ///
 /// This trait is sealed and not meant to be implemented outside of `lnm-sdk`.
 ///
@@ -29,4 +29,17 @@ pub trait FuturesIsolatedRepository: crate::sealed::Sealed + Send + Sync {
         takeprofit: Option<Price>,
         client_id: Option<String>,
     ) -> Result<Trade>;
+}
+
+/// Methods for interacting with [LNM's v3 API]'s REST Futures Data endpoints.
+///
+/// This trait is sealed and not meant to be implemented outside of `lnm-sdk`.
+///
+/// [LNM's v3 API]: https://docs.lnmarkets.com/api/#overview
+#[async_trait]
+pub trait FuturesDataRepository: crate::sealed::Sealed + Send + Sync {
+    /// Get the futures ticker. [LNM docs].
+    ///
+    /// [LNM docs]: https://api.lnmarkets.com/v3#tag/futures-data/get/futures/ticker
+    async fn get_ticker(&self) -> Result<Ticker>;
 }
