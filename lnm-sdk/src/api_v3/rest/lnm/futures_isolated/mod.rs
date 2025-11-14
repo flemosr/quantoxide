@@ -1,7 +1,8 @@
-use std::sync::Arc;
+use std::{num::NonZeroU64, sync::Arc};
 
 use async_trait::async_trait;
 use reqwest::{self, Method};
+use uuid::Uuid;
 
 use crate::shared::{
     models::{
@@ -36,6 +37,50 @@ impl crate::sealed::Sealed for LnmFuturesIsolatedRepository {}
 
 #[async_trait]
 impl FuturesIsolatedRepository for LnmFuturesIsolatedRepository {
+    async fn add_margin_to_trade(&self, id: Uuid, amount: NonZeroU64) -> Result<Trade> {
+        todo!()
+    }
+
+    async fn cancel_all_trades(&self) -> Result<Vec<Trade>> {
+        todo!()
+    }
+
+    async fn cancel_trade(&self, id: Uuid) -> Result<Trade> {
+        todo!()
+    }
+
+    async fn cash_in_trade(&self, id: Uuid, amount: NonZeroU64) -> Result<Trade> {
+        todo!()
+    }
+
+    async fn close_trade(&self, id: Uuid) -> Result<Trade> {
+        todo!()
+    }
+
+    async fn get_open_trades(&self) -> Result<Vec<Trade>> {
+        todo!()
+    }
+
+    async fn get_running_trades(&self) -> Result<Vec<Trade>> {
+        todo!()
+    }
+
+    async fn get_closed_trades(&self) -> Result<Vec<Trade>> {
+        todo!()
+    }
+
+    async fn get_canceled_trades(&self) -> Result<Vec<Trade>> {
+        todo!()
+    }
+
+    async fn update_takeprofit(&self, id: Uuid, value: u64) -> Result<Trade> {
+        todo!()
+    }
+
+    async fn update_stoploss(&self, id: Uuid, value: u64) -> Result<Trade> {
+        todo!()
+    }
+
     async fn new_trade(
         &self,
         side: TradeSide,
