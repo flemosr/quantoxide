@@ -6,7 +6,7 @@ use std::time::Duration;
 ///
 /// ```
 /// use std::time::Duration;
-/// use lnm_sdk::api_v2::ApiClientConfig;
+/// use lnm_sdk::api_v3::ApiClientConfig;
 ///
 /// // Use default configuration
 /// let config = ApiClientConfig::default();
@@ -48,7 +48,7 @@ impl ApiClientConfig {
     ///
     /// ```
     /// use std::time::Duration;
-    /// use lnm_sdk::api_v2::ApiClientConfig;
+    /// use lnm_sdk::api_v3::ApiClientConfig;
     ///
     /// let config = ApiClientConfig::default()
     ///     .with_rest_timeout(Duration::from_secs(20));
@@ -64,7 +64,7 @@ impl ApiClientConfig {
     ///
     /// ```
     /// use std::time::Duration;
-    /// use lnm_sdk::api_v2::ApiClientConfig;
+    /// use lnm_sdk::api_v3::ApiClientConfig;
     ///
     /// let config = ApiClientConfig::default()
     ///     .with_ws_disconnect_timeout(Duration::from_secs(6));

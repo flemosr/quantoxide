@@ -35,7 +35,7 @@ impl fmt::Display for TradeSide {
 /// # Examples
 ///
 /// ```
-/// use lnm_sdk::api_v2::models::{TradeSize, Quantity, Margin};
+/// use lnm_sdk::api_v3::models::{TradeSize, Quantity, Margin};
 ///
 /// // Specify size by quantity (USD notional value)
 /// let size_by_quantity = TradeSize::from(Quantity::try_from(1_000).unwrap());
@@ -61,7 +61,7 @@ impl TradeSize {
     /// # Examples
     ///
     /// ```
-    /// use lnm_sdk::api_v2::models::{TradeSize, Quantity, Price, Leverage};
+    /// use lnm_sdk::api_v3::models::{TradeSize, Quantity, Price, Leverage};
     ///
     /// let size = TradeSize::from(Quantity::try_from(1_000).unwrap());
     /// let price = Price::try_from(100_000.0).unwrap();
@@ -127,7 +127,7 @@ pub enum TradeExecutionType {
 /// # Examples
 ///
 /// ```
-/// use lnm_sdk::api_v2::models::{TradeExecution, Price};
+/// use lnm_sdk::api_v3::models::{TradeExecution, Price};
 ///
 /// // Execute immediately at market price
 /// let market_execution = TradeExecution::Market;
@@ -147,7 +147,7 @@ impl TradeExecution {
     /// # Examples
     ///
     /// ```
-    /// use lnm_sdk::api_v2::models::{TradeExecution, TradeExecutionType, Price};
+    /// use lnm_sdk::api_v3::models::{TradeExecution, TradeExecutionType, Price};
     ///
     /// let market_execution = TradeExecution::Market;
     /// assert!(matches!(market_execution.to_type(), TradeExecutionType::Market));

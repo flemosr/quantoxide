@@ -22,7 +22,7 @@ use super::{
 /// # Examples
 ///
 /// ```
-/// use lnm_sdk::api_v2::models::BoundedPercentage;
+/// use lnm_sdk::api_v3::models::BoundedPercentage;
 ///
 /// // Create a bounded percentage value
 /// let percentage = BoundedPercentage::try_from(50.0).unwrap();
@@ -47,7 +47,7 @@ impl BoundedPercentage {
     /// # Examples
     ///
     /// ```
-    /// use lnm_sdk::api_v2::models::BoundedPercentage;
+    /// use lnm_sdk::api_v3::models::BoundedPercentage;
     ///
     /// let percentage = BoundedPercentage::try_from(25.5).unwrap();
     /// assert_eq!(percentage.into_f64(), 25.5);
@@ -114,7 +114,7 @@ impl fmt::Display for BoundedPercentage {
 /// # Examples
 ///
 /// ```
-/// use lnm_sdk::api_v2::models::LowerBoundedPercentage;
+/// use lnm_sdk::api_v3::models::LowerBoundedPercentage;
 ///
 /// // Create a lower-bounded percentage value
 /// let percentage = LowerBoundedPercentage::try_from(150.0).unwrap();
@@ -138,7 +138,7 @@ impl LowerBoundedPercentage {
     /// # Examples
     ///
     /// ```
-    /// use lnm_sdk::api_v2::models::LowerBoundedPercentage;
+    /// use lnm_sdk::api_v3::models::LowerBoundedPercentage;
     ///
     /// let percentage = LowerBoundedPercentage::try_from(200.0).unwrap();
     /// assert_eq!(percentage.into_f64(), 200.0);
@@ -212,7 +212,7 @@ impl fmt::Display for LowerBoundedPercentage {
 /// # Examples
 ///
 /// ```
-/// use lnm_sdk::api_v2::models::Price;
+/// use lnm_sdk::api_v3::models::Price;
 ///
 /// // Create a price value from USD amount
 /// let price = Price::try_from(100_000.0).unwrap();
@@ -245,7 +245,7 @@ impl Price {
     /// # Examples
     ///
     /// ```
-    /// use lnm_sdk::api_v2::models::Price;
+    /// use lnm_sdk::api_v3::models::Price;
     ///
     /// let price = Price::try_from(50_000.0).unwrap();
     /// assert_eq!(price.into_f64(), 50_000.0);
@@ -261,7 +261,7 @@ impl Price {
     /// # Examples
     ///
     /// ```
-    /// use lnm_sdk::api_v2::models::Price;
+    /// use lnm_sdk::api_v3::models::Price;
     ///
     /// let price = Price::round_down(100_000.8).unwrap();
     /// assert_eq!(price.into_f64(), 100_000.5);
@@ -279,7 +279,7 @@ impl Price {
     /// # Examples
     ///
     /// ```
-    /// use lnm_sdk::api_v2::models::Price;
+    /// use lnm_sdk::api_v3::models::Price;
     ///
     /// let price = Price::round_up(100_000.2).unwrap();
     /// assert_eq!(price.into_f64(), 100_000.5);
@@ -297,7 +297,7 @@ impl Price {
     /// # Examples
     ///
     /// ```
-    /// use lnm_sdk::api_v2::models::Price;
+    /// use lnm_sdk::api_v3::models::Price;
     ///
     /// let price = Price::round(100_000.6).unwrap();
     /// assert_eq!(price.into_f64(), 100_000.5);
@@ -319,7 +319,7 @@ impl Price {
     /// # Examples
     ///
     /// ```
-    /// use lnm_sdk::api_v2::models::Price;
+    /// use lnm_sdk::api_v3::models::Price;
     ///
     /// // Value within range
     /// let price = Price::clamp_from(100_000.0);
@@ -347,7 +347,7 @@ impl Price {
     /// # Examples
     ///
     /// ```
-    /// use lnm_sdk::api_v2::models::{Price, BoundedPercentage};
+    /// use lnm_sdk::api_v3::models::{Price, BoundedPercentage};
     ///
     /// let price = Price::try_from(100_000.0).unwrap();
     /// let discount = BoundedPercentage::try_from(10.0).unwrap(); // 10% discount
@@ -372,7 +372,7 @@ impl Price {
     /// # Examples
     ///
     /// ```
-    /// use lnm_sdk::api_v2::models::{Price, LowerBoundedPercentage};
+    /// use lnm_sdk::api_v3::models::{Price, LowerBoundedPercentage};
     ///
     /// let price = Price::try_from(100_000.0).unwrap();
     /// let gain = LowerBoundedPercentage::try_from(20.0).unwrap(); // 20% gain

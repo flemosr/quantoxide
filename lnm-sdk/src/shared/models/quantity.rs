@@ -24,7 +24,7 @@ use super::{
 /// # Examples
 ///
 /// ```
-/// use lnm_sdk::api_v2::models::Quantity;
+/// use lnm_sdk::api_v3::models::Quantity;
 ///
 /// // Create a quantity value from USD amount
 /// let quantity = Quantity::try_from(1_000).unwrap();
@@ -51,7 +51,7 @@ impl Quantity {
     /// # Examples
     ///
     /// ```
-    /// use lnm_sdk::api_v2::models::Quantity;
+    /// use lnm_sdk::api_v3::models::Quantity;
     ///
     /// let quantity = Quantity::try_from(1_000).unwrap();
     /// assert_eq!(quantity.into_u64(), 1_000);
@@ -65,7 +65,7 @@ impl Quantity {
     /// # Examples
     ///
     /// ```
-    /// use lnm_sdk::api_v2::models::Quantity;
+    /// use lnm_sdk::api_v3::models::Quantity;
     ///
     /// let quantity = Quantity::try_from(1_000).unwrap();
     /// assert_eq!(quantity.into_f64(), 1_000.0);
@@ -83,7 +83,7 @@ impl Quantity {
     /// # Examples
     ///
     /// ```
-    /// use lnm_sdk::api_v2::models::{Quantity, Margin, Price, Leverage};
+    /// use lnm_sdk::api_v3::models::{Quantity, Margin, Price, Leverage};
     ///
     /// let margin = Margin::try_from(10_000).unwrap(); // Margin in sats
     /// let price = Price::try_from(100_000.0).unwrap(); // Price in USD/BTC
@@ -111,7 +111,7 @@ impl Quantity {
     /// # Examples
     ///
     /// ```
-    /// use lnm_sdk::api_v2::models::{Quantity, Price, BoundedPercentage};
+    /// use lnm_sdk::api_v3::models::{Quantity, Price, BoundedPercentage};
     ///
     /// let balance = 10_000_000; // In sats
     /// let market_price = Price::try_from(100_000.0).unwrap(); // Price in USD/BTC

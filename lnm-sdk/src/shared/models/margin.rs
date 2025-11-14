@@ -22,7 +22,7 @@ use super::{
 /// # Examples
 ///
 /// ```
-/// use lnm_sdk::api_v2::models::Margin;
+/// use lnm_sdk::api_v3::models::Margin;
 ///
 /// // Create a margin value from satoshis
 /// let margin = Margin::try_from(10_000).unwrap();
@@ -45,7 +45,7 @@ impl Margin {
     /// # Examples
     ///
     /// ```
-    /// use lnm_sdk::api_v2::models::Margin;
+    /// use lnm_sdk::api_v3::models::Margin;
     ///
     /// let margin = Margin::try_from(10_000).unwrap();
     /// assert_eq!(margin.into_u64(), 10_000);
@@ -59,7 +59,7 @@ impl Margin {
     /// # Examples
     ///
     /// ```
-    /// use lnm_sdk::api_v2::models::Margin;
+    /// use lnm_sdk::api_v3::models::Margin;
     ///
     /// let margin = Margin::try_from(10_000).unwrap();
     /// assert_eq!(margin.into_i64(), 10_000);
@@ -73,7 +73,7 @@ impl Margin {
     /// # Examples
     ///
     /// ```
-    /// use lnm_sdk::api_v2::models::Margin;
+    /// use lnm_sdk::api_v3::models::Margin;
     ///
     /// let margin = Margin::try_from(10_000).unwrap();
     /// assert_eq!(margin.into_f64(), 10_000.0);
@@ -91,7 +91,7 @@ impl Margin {
     /// # Examples
     ///
     /// ```
-    /// use lnm_sdk::api_v2::models::{Margin, Quantity, Price, Leverage};
+    /// use lnm_sdk::api_v3::models::{Margin, Quantity, Price, Leverage};
     ///
     /// let quantity = Quantity::try_from(1_000).unwrap();
     /// let price = Price::try_from(100_000.0).unwrap();
@@ -117,7 +117,7 @@ impl Margin {
     /// # Examples
     ///
     /// ```
-    /// use lnm_sdk::api_v2::models::{Margin, Quantity, Price, TradeSide};
+    /// use lnm_sdk::api_v3::models::{Margin, Quantity, Price, TradeSide};
     ///
     /// let quantity = Quantity::try_from(1_000).unwrap();
     /// let entry_price = Price::try_from(100_000.0).unwrap();
