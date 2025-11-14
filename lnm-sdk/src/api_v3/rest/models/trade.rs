@@ -544,9 +544,9 @@ impl Trade {
     ///
     /// ```no_run
     /// # fn example(trade: lnm_sdk::api_v3::models::Trade) -> Result<(), Box<dyn std::error::Error>> {
-    /// let client_id = trade.client_id();
-    ///
-    /// println!("Client ID: {}", client_id);
+    /// if let Some(client_id) = trade.client_id() {
+    ///     println!("Client ID: {}", client_id);
+    /// }
     /// # Ok(())
     /// # }
     /// ```
