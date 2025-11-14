@@ -1,6 +1,7 @@
 use std::{num::NonZeroU64, sync::Arc};
 
 use async_trait::async_trait;
+use chrono::{DateTime, Utc};
 use reqwest::{self, Method};
 use uuid::Uuid;
 
@@ -70,15 +71,69 @@ impl FuturesIsolatedRepository for LnmFuturesIsolatedRepository {
     }
 
     async fn get_running_trades(&self) -> Result<Vec<Trade>> {
-        todo!()
+        self.base
+            .make_request_without_params(
+                Method::GET,
+                RestPathV3::FuturesIsolatedTradesRunning,
+                true,
+            )
+            .await
     }
 
-    async fn get_closed_trades(&self) -> Result<Vec<Trade>> {
-        todo!()
+    async fn get_closed_trades(
+        &self,
+        from: Option<DateTime<Utc>>,
+        to: Option<DateTime<Utc>>,
+        limit: Option<NonZeroU64>,
+    ) -> Result<Vec<Trade>> {
+        let mut query_params = Vec::new();
+
+        if let Some(from) = from {
+            query_params.push(("from", from.timestamp_millis().to_string()));
+        }
+        if let Some(to) = to {
+            query_params.push(("to", to.timestamp_millis().to_string()));
+        }
+        if let Some(limit) = limit {
+            query_params.push(("limit", limit.to_string()));
+        }
+
+        self.base
+            .make_request_with_query_params(
+                Method::GET,
+                RestPathV3::FuturesIsolatedTradesClosed,
+                query_params,
+                true,
+            )
+            .await
     }
 
-    async fn get_canceled_trades(&self) -> Result<Vec<Trade>> {
-        todo!()
+    async fn get_canceled_trades(
+        &self,
+        from: Option<DateTime<Utc>>,
+        to: Option<DateTime<Utc>>,
+        limit: Option<NonZeroU64>,
+    ) -> Result<Vec<Trade>> {
+        let mut query_params = Vec::new();
+
+        if let Some(from) = from {
+            query_params.push(("from", from.timestamp_millis().to_string()));
+        }
+        if let Some(to) = to {
+            query_params.push(("to", to.timestamp_millis().to_string()));
+        }
+        if let Some(limit) = limit {
+            query_params.push(("limit", limit.to_string()));
+        }
+
+        self.base
+            .make_request_with_query_params(
+                Method::GET,
+                RestPathV3::FuturesIsolatedTradesCanceled,
+                query_params,
+                true,
+            )
+            .await
     }
 
     async fn update_takeprofit(&self, id: Uuid, value: u64) -> Result<Trade> {
