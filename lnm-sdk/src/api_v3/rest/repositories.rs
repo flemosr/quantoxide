@@ -1,4 +1,7 @@
+use std::num::NonZeroU64;
+
 use async_trait::async_trait;
+use uuid::Uuid;
 
 use crate::shared::{
     models::{
@@ -18,7 +21,69 @@ use super::models::{ticker::Ticker, trade::Trade};
 /// [LNM's v3 API]: https://docs.lnmarkets.com/api/#overview
 #[async_trait]
 pub trait FuturesIsolatedRepository: crate::sealed::Sealed + Send + Sync {
-    /// **Requires credentials**. Place a new isolated trade.
+    /// Add margin to a running trade. This will lower the trade liquidation price and thus decrease
+    /// risk.
+    ///
+    /// **Required permissions**: `futures:isolated:write`
+    async fn add_margin_to_trade(&self, id: Uuid, amount: NonZeroU64) -> Result<Trade>;
+
+    /// Cancel all open trades.
+    ///
+    /// **Required permissions**: `futures:isolated:write`
+    async fn cancel_all_trades(&self) -> Result<Vec<Trade>>;
+
+    /// Cancel an open trade.
+    ///
+    /// **Required permissions**: `futures:isolated:write`
+    async fn cancel_trade(&self, id: Uuid) -> Result<Trade>;
+
+    /// Cash-in (i.e. "remove money") from a trade. Funds are first removed from the trade's PL (if
+    /// any), then from the trade's margin. Note that cashing-in increases the trade's leverage; the
+    /// whole margin hence isn't available since leverage is bounded.
+    ///
+    /// **Required permissions**: `futures:isolated:write`
+    async fn cash_in_trade(&self, id: Uuid, amount: NonZeroU64) -> Result<Trade>;
+
+    /// Close a running trade and realize the PL.
+    ///
+    /// **Required permissions**: `futures:isolated:write`
+    async fn close_trade(&self, id: Uuid) -> Result<Trade>;
+
+    /// Get all the trades that are still open.
+    ///
+    /// **Required permissions**: `futures:isolated:read`
+    async fn get_open_trades(&self) -> Result<Vec<Trade>>;
+
+    /// Get all the trades that are running.
+    ///
+    /// **Required permissions**: `futures:isolated:read`
+    async fn get_running_trades(&self) -> Result<Vec<Trade>>;
+
+    /// Get closed trades.
+    ///
+    /// **Required permissions**: `futures:isolated:read`
+    async fn get_closed_trades(&self) -> Result<Vec<Trade>>;
+
+    /// Get canceled trades.
+    ///
+    /// **Required permissions**: `futures:isolated:read`
+    async fn get_canceled_trades(&self) -> Result<Vec<Trade>>;
+
+    /// Update an open or running trade takeprofit. If the provided `value` is 0, the takeprofit
+    /// will be removed.
+    ///
+    /// **Required permissions**: `futures:isolated:write`
+    async fn update_takeprofit(&self, id: Uuid, value: u64) -> Result<Trade>;
+
+    /// Update an open or running trade stoploss. If the provided `value` is 0, the stoploss will be
+    /// removed.
+    ///
+    /// **Required permissions**: `futures:isolated:write`
+    async fn update_stoploss(&self, id: Uuid, value: u64) -> Result<Trade>;
+
+    /// Place a new isolated trade.
+    ///
+    /// **Required permissions**: `futures:isolated:write`
     async fn new_trade(
         &self,
         side: TradeSide,
