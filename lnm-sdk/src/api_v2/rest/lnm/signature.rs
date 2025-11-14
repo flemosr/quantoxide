@@ -1,12 +1,12 @@
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
 use chrono::{DateTime, Utc};
 use hmac::{Hmac, Mac};
-use reqwest::{self, Method};
+use reqwest::{self, Method, Url};
 use sha2::Sha256;
 
 use crate::shared::rest::{
     error::{RestApiError, Result},
-    lnm::base::{RestPath, SignatureGenerator},
+    lnm::base::SignatureGenerator,
 };
 
 /// Signature generator for LNM API v2
@@ -22,21 +22,26 @@ impl SignatureGeneratorV2 {
 }
 
 impl SignatureGenerator for SignatureGeneratorV2 {
-    fn generate<P: RestPath>(
+    fn generate(
         &self,
         timestamp: DateTime<Utc>,
         method: &Method,
-        path: P,
-        params_str: Option<&String>,
+        url: &Url,
+        body: Option<&String>,
     ) -> Result<String> {
         let timestamp_str = timestamp.timestamp_millis().to_string();
-        let params_str = params_str.map(|v| v.as_ref()).unwrap_or("");
+
+        let params_str = match *method {
+            Method::POST | Method::PUT => body.map(|v| v.as_ref()).unwrap_or(""),
+            Method::GET | Method::DELETE => url.query().unwrap_or(""), // Differs from v3, no '?'
+            _ => "",
+        };
 
         let prehash = format!(
             "{}{}{}{}",
             timestamp_str,
             method.as_str(), // Differs from v3
-            path.to_path_string(),
+            url.path(),
             params_str
         );
 
