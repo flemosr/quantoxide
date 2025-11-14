@@ -46,11 +46,11 @@ mod tests {
 
         let domain =
             env::var("LNM_API_DOMAIN").expect("LNM_API_DOMAIN environment variable must be set");
-        let key = env::var("LNM_API_KEY").expect("LNM_API_KEY environment variable must be set");
+        let key = env::var("LNM_API_V2_KEY").expect("LNM_API_KEY environment variable must be set");
         let secret =
-            env::var("LNM_API_SECRET").expect("LNM_API_SECRET environment variable must be set");
-        let passphrase = env::var("LNM_API_PASSPHRASE")
-            .expect("LNM_API_PASSPHRASE environment variable must be set");
+            env::var("LNM_API_V2_SECRET").expect("LNM_API_SECRET environment variable must be set");
+        let passphrase = env::var("LNM_API_V2_PASSPHRASE")
+            .expect("LNM_API_V2_PASSPHRASE environment variable must be set");
 
         let base = LnmRestBase::with_credentials(
             RestClientConfig::default(),
