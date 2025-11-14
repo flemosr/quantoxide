@@ -13,12 +13,12 @@ use super::super::{
 };
 
 pub(crate) trait SignatureGenerator: Send + Sync {
-    fn generate<P: RestPath>(
+    fn generate(
         &self,
         timestamp: DateTime<Utc>,
         method: &Method,
-        path: P,
-        params_str: Option<&String>,
+        url: &Url,
+        body: Option<&String>,
     ) -> Result<String>;
 }
 
