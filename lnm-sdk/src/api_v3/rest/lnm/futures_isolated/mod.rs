@@ -71,7 +71,16 @@ impl FuturesIsolatedRepository for LnmFuturesIsolatedRepository {
     }
 
     async fn close_trade(&self, id: Uuid) -> Result<Trade> {
-        todo!()
+        let body = json!({"id": id.to_string()});
+
+        self.base
+            .make_request_with_body(
+                Method::POST,
+                RestPathV3::FuturesIsolatedTradeClose,
+                body,
+                true,
+            )
+            .await
     }
 
     async fn get_open_trades(&self) -> Result<Vec<Trade>> {
@@ -139,7 +148,7 @@ impl FuturesIsolatedRepository for LnmFuturesIsolatedRepository {
         self.base
             .make_request_with_query_params(
                 Method::GET,
-                RestPathV3::FuturesIsolatedTradesClosed,
+                RestPathV3::FuturesIsolatedTradesCanceled,
                 query_params,
                 true,
             )
