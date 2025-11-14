@@ -5,6 +5,7 @@ pub(in crate::api_v3) enum RestPathV3 {
     FuturesIsolatedTrade,
     FuturesIsolatedTradeCancel,
     FuturesIsolatedTradeClose,
+    FuturesIsolatedTradeTakeprofit,
     FuturesIsolatedTradesCancelAll,
     FuturesIsolatedTradesOpen,
     FuturesIsolatedTradesRunning,
@@ -19,6 +20,9 @@ impl RestPath for RestPathV3 {
             RestPathV3::FuturesIsolatedTrade => "/v3/futures/isolated/trade".into(),
             RestPathV3::FuturesIsolatedTradeCancel => "/v3/futures/isolated/trade/cancel".into(),
             RestPathV3::FuturesIsolatedTradeClose => "/v3/futures/isolated/trade/close".into(),
+            RestPathV3::FuturesIsolatedTradeTakeprofit => {
+                "/v3/futures/isolated/trade/takeprofit".into()
+            }
             RestPathV3::FuturesIsolatedTradesCancelAll => {
                 "/v3/futures/isolated/trades/cancel-all".into()
             }
