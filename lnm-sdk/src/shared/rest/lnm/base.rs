@@ -41,26 +41,17 @@ impl<S: SignatureGenerator> LnmRestCredentials<S> {
         }
     }
 
-    fn generate_signature(
-        &self,
-        timestamp: DateTime<Utc>,
-        method: &Method,
-        path: impl RestPath,
-        params_str: Option<&String>,
-    ) -> Result<String> {
-        self.signature_generator
-            .generate(timestamp, method, path, params_str)
-    }
-
     fn get_authentication_headers(
         &self,
         method: &Method,
-        path: impl RestPath,
-        params_str: Option<&String>,
+        url: &Url,
+        body: Option<&String>,
     ) -> Result<HeaderMap> {
         let timestamp = Utc::now();
 
-        let signature = self.generate_signature(timestamp, &method, path, params_str)?;
+        let signature = self
+            .signature_generator
+            .generate(timestamp, method, url, body)?;
 
         let timestamp_str = timestamp.timestamp_millis().to_string();
 
@@ -132,27 +123,17 @@ impl<S: SignatureGenerator> LnmRestBase<S> {
         self.credentials.is_some()
     }
 
-    fn get_url(&self, path: impl RestPath, query_params: Option<String>) -> Result<Url> {
-        let query_str = query_params
-            .map(|v| format!("?{v}"))
-            .unwrap_or("".to_string());
+    fn build_url(&self, path: impl RestPath) -> Result<Url> {
+        let url_str = format!("https://{}{}", self.domain, path.to_path_string());
 
-        let url_str = format!(
-            "https://{}{}{}",
-            self.domain,
-            path.to_path_string(),
-            query_str
-        );
-        let url = Url::parse(&url_str).map_err(|e| RestApiError::UrlParse(e.to_string()))?;
-
-        Ok(url)
+        Url::parse(&url_str).map_err(|e| RestApiError::UrlParse(e.to_string()))
     }
 
     async fn make_request<T>(
         &self,
         method: Method,
-        path: impl RestPath,
-        params_str: Option<String>,
+        url: Url,
+        body: Option<String>,
         authenticated: bool,
     ) -> Result<T>
     where
@@ -164,31 +145,27 @@ impl<S: SignatureGenerator> LnmRestBase<S> {
                 .as_ref()
                 .ok_or(RestApiError::MissingRequestCredentials)?;
 
-            creds.get_authentication_headers(&method, path.clone(), params_str.as_ref())?
+            creds.get_authentication_headers(&method, &url, body.as_ref())?
         } else {
             HeaderMap::new()
         };
 
         let req = match method {
             Method::POST | Method::PUT => {
-                if params_str.is_some() {
+                if body.is_some() {
                     headers.insert(
                         HeaderName::from_static("content-type"),
                         HeaderValue::from_static("application/json"),
                     );
                 }
 
-                let url = self.get_url(path, None)?;
                 let mut req = self.client.request(method, url).headers(headers);
-                if let Some(body) = params_str {
+                if let Some(body) = body {
                     req = req.body(body);
                 }
                 req
             }
-            Method::GET | Method::DELETE => {
-                let url = self.get_url(path, params_str)?;
-                self.client.request(method, url).headers(headers)
-            }
+            Method::GET | Method::DELETE => self.client.request(method, url).headers(headers),
             m => return Err(RestApiError::UnsupportedMethod(m)),
         };
 
@@ -226,10 +203,11 @@ impl<S: SignatureGenerator> LnmRestBase<S> {
         T: DeserializeOwned,
         B: Serialize,
     {
+        let url = self.build_url(path)?;
         let body =
             serde_json::to_string(&body).map_err(RestApiError::RequestJsonSerializeFailed)?;
 
-        self.make_request(method, path, Some(body), authenticated)
+        self.make_request(method, url, Some(body), authenticated)
             .await
     }
 
@@ -246,14 +224,10 @@ impl<S: SignatureGenerator> LnmRestBase<S> {
         V: AsRef<str>,
         T: DeserializeOwned,
     {
-        let query_str = query_params
-            .into_iter()
-            .map(|(k, v)| format!("{}={}", k.as_ref(), v.as_ref()))
-            .collect::<Vec<String>>()
-            .join("&");
+        let mut url = self.build_url(path)?;
+        url.query_pairs_mut().extend_pairs(query_params);
 
-        self.make_request(method, path, Some(query_str), authenticated)
-            .await
+        self.make_request(method, url, None, authenticated).await
     }
 
     pub async fn make_request_without_params<T>(
@@ -265,6 +239,8 @@ impl<S: SignatureGenerator> LnmRestBase<S> {
     where
         T: DeserializeOwned,
     {
-        self.make_request(method, path, None, authenticated).await
+        let url = self.build_url(path)?;
+
+        self.make_request(method, url, None, authenticated).await
     }
 }
