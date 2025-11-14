@@ -2,17 +2,16 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{
-    api_v3::rest::models::error::FuturesIsolatedTradeRequestValidationError,
-    shared::models::{
-        leverage::Leverage,
-        margin::Margin,
-        price::Price,
-        quantity::Quantity,
-        serde_util,
-        trade::{TradeExecution, TradeExecutionType, TradeSide, TradeSize},
-    },
+use crate::shared::models::{
+    leverage::Leverage,
+    margin::Margin,
+    price::Price,
+    quantity::Quantity,
+    serde_util,
+    trade::{TradeExecution, TradeExecutionType, TradeSide, TradeSize},
 };
+
+use super::error::FuturesIsolatedTradeRequestValidationError;
 
 #[derive(Serialize, Debug)]
 pub(in crate::api_v3) struct FuturesIsolatedTradeRequestBody {
