@@ -171,10 +171,12 @@ impl<S: SignatureGenerator> LnmRestBase<S> {
 
         let req = match method {
             Method::POST | Method::PUT => {
-                headers.insert(
-                    HeaderName::from_static("content-type"),
-                    HeaderValue::from_static("application/json"),
-                );
+                if params_str.is_some() {
+                    headers.insert(
+                        HeaderName::from_static("content-type"),
+                        HeaderValue::from_static("application/json"),
+                    );
+                }
 
                 let url = self.get_url(path, None)?;
                 let mut req = self.client.request(method, url).headers(headers);
