@@ -169,7 +169,16 @@ impl FuturesIsolatedRepository for LnmFuturesIsolatedRepository {
     }
 
     async fn update_stoploss(&self, id: Uuid, value: Option<Price>) -> Result<Trade> {
-        todo!()
+        let body = json!({"id": id.to_string(), "value": value.map_or(0., |p| p.into_f64())});
+
+        self.base
+            .make_request_with_body(
+                Method::PUT,
+                RestPathV3::FuturesIsolatedTradeStoploss,
+                body,
+                true,
+            )
+            .await
     }
 
     async fn new_trade(
