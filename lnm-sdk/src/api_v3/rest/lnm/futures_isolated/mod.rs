@@ -3,20 +3,21 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use reqwest::{self, Method};
 
-use crate::{
-    api_v3::rest::models::trade::FuturesIsolatedTradeRequestBody,
-    shared::{
-        models::{
-            leverage::Leverage,
-            price::Price,
-            trade::{TradeExecution, TradeSide, TradeSize},
-        },
-        rest::{error::Result, lnm::base::LnmRestBase},
+use crate::shared::{
+    models::{
+        leverage::Leverage,
+        price::Price,
+        trade::{TradeExecution, TradeSide, TradeSize},
     },
+    rest::{error::Result, lnm::base::LnmRestBase},
 };
 
 use super::{
-    super::{error::RestApiV3Error, models::trade::Trade, repositories::FuturesIsolatedRepository},
+    super::{
+        error::RestApiV3Error,
+        models::trade::{FuturesIsolatedTradeRequestBody, Trade},
+        repositories::FuturesIsolatedRepository,
+    },
     path::RestPathV3,
     signature::SignatureGeneratorV3,
 };
