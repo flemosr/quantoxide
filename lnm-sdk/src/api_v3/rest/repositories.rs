@@ -344,3 +344,16 @@ pub trait WithdrawalsRepository: crate::sealed::Sealed + Send + Sync {
     /// **Required permissions**: `account:withdrawals:write`
     async fn withdrawal_lightning(&self) -> Result<()>;
 }
+
+/// Methods for interacting with [LNM's v3 API]'s REST Oracle endpoints.
+///
+/// This trait is sealed and not meant to be implemented outside of `lnm-sdk`.
+///
+/// [LNM's v3 API]: https://docs.lnmarkets.com/api/#overview
+pub trait OracleRepository: crate::sealed::Sealed + Send + Sync {
+    /// Samples index history (default 100, max 1000 entries)
+    async fn get_index(&self) -> Result<()>;
+
+    /// Samples last price history at most 1000 entries between two given timestamps.
+    async fn get_last_price(&self) -> Result<()>;
+}
