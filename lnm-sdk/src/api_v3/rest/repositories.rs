@@ -13,7 +13,10 @@ use crate::shared::{
     rest::error::Result,
 };
 
-use super::models::{ticker::Ticker, trade::Trade};
+use super::models::{
+    ticker::Ticker,
+    trade::{PaginatedTrades, Trade},
+};
 
 /// Methods for interacting with [LNM's v3 API]'s REST Futures Isolated endpoints.
 ///
@@ -68,7 +71,8 @@ pub trait FuturesIsolatedRepository: crate::sealed::Sealed + Send + Sync {
         from: Option<DateTime<Utc>>,
         to: Option<DateTime<Utc>>,
         limit: Option<NonZeroU64>,
-    ) -> Result<Vec<Trade>>;
+        cursor: Option<DateTime<Utc>>,
+    ) -> Result<PaginatedTrades>;
 
     /// Get canceled trades.
     ///
@@ -78,7 +82,8 @@ pub trait FuturesIsolatedRepository: crate::sealed::Sealed + Send + Sync {
         from: Option<DateTime<Utc>>,
         to: Option<DateTime<Utc>>,
         limit: Option<NonZeroU64>,
-    ) -> Result<Vec<Trade>>;
+        cursor: Option<DateTime<Utc>>,
+    ) -> Result<PaginatedTrades>;
 
     /// Update an open or running trade takeprofit. If the provided `value` is `None`, the
     /// takeprofit will be removed.
