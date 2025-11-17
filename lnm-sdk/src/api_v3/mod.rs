@@ -40,5 +40,5 @@ pub mod models {
         },
     };
 
-    pub use super::rest::models::trade::Trade;
+    pub use super::rest::models::trade::{PaginatedTrades, Trade};
 }
