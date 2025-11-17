@@ -277,3 +277,30 @@ pub trait AccountRepository: crate::sealed::Sealed + Send + Sync {
     /// **Required permissions**: `account:notifications:write`
     async fn mark_notifications_read(&self) -> Result<()>;
 }
+
+/// Methods for interacting with [LNM's v3 API]'s REST Deposits endpoints.
+///
+/// This trait is sealed and not meant to be implemented outside of `lnm-sdk`.
+///
+/// [LNM's v3 API]: https://docs.lnmarkets.com/api/#overview
+pub trait DepositsRepository: crate::sealed::Sealed + Send + Sync {
+    /// Get internal deposits.
+    ///
+    /// **Required permissions**: `account:deposits:read`
+    async fn get_internal_deposits(&self) -> Result<()>;
+
+    /// Get on-chain deposits.
+    ///
+    /// **Required permissions**: `account:deposits:read`
+    async fn get_onchain_deposits(&self) -> Result<()>;
+
+    /// Get Lightning deposits.
+    ///
+    /// **Required permissions**: `account:deposits:read`
+    async fn get_lightning_deposits(&self) -> Result<()>;
+
+    /// Initiates a new Lightning deposit.
+    ///
+    /// **Required permissions**: `account:deposits:write`
+    async fn deposit(&self) -> Result<()>;
+}
