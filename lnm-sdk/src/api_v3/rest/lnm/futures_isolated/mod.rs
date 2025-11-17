@@ -18,7 +18,7 @@ use crate::shared::{
 use super::{
     super::{
         error::RestApiV3Error,
-        models::trade::{FuturesIsolatedTradeRequestBody, Trade},
+        models::trade::{FuturesIsolatedTradeRequestBody, PaginatedTrades, Trade},
         repositories::FuturesIsolatedRepository,
     },
     path::RestPathV3,
@@ -114,7 +114,8 @@ impl FuturesIsolatedRepository for LnmFuturesIsolatedRepository {
         from: Option<DateTime<Utc>>,
         to: Option<DateTime<Utc>>,
         limit: Option<NonZeroU64>,
-    ) -> Result<Vec<Trade>> {
+        cursor: Option<DateTime<Utc>>,
+    ) -> Result<PaginatedTrades> {
         let mut query_params = Vec::new();
 
         if let Some(from) = from {
@@ -125,6 +126,12 @@ impl FuturesIsolatedRepository for LnmFuturesIsolatedRepository {
         }
         if let Some(limit) = limit {
             query_params.push(("limit", limit.to_string()));
+        }
+        if let Some(cursor) = cursor {
+            query_params.push((
+                "cursor",
+                cursor.to_rfc3339_opts(SecondsFormat::Millis, true),
+            ));
         }
 
         self.base
@@ -142,7 +149,8 @@ impl FuturesIsolatedRepository for LnmFuturesIsolatedRepository {
         from: Option<DateTime<Utc>>,
         to: Option<DateTime<Utc>>,
         limit: Option<NonZeroU64>,
-    ) -> Result<Vec<Trade>> {
+        cursor: Option<DateTime<Utc>>,
+    ) -> Result<PaginatedTrades> {
         let mut query_params = Vec::new();
 
         if let Some(from) = from {
@@ -153,6 +161,12 @@ impl FuturesIsolatedRepository for LnmFuturesIsolatedRepository {
         }
         if let Some(limit) = limit {
             query_params.push(("limit", limit.to_string()));
+        }
+        if let Some(cursor) = cursor {
+            query_params.push((
+                "cursor",
+                cursor.to_rfc3339_opts(SecondsFormat::Millis, true),
+            ));
         }
 
         self.base

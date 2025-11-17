@@ -214,13 +214,13 @@ async fn test_get_trades_canceled(
 ) {
     let limit = Some(NonZeroU64::try_from(exp_canceled_trades.len() as u64).unwrap());
     let canceled_trades = repo
-        .get_canceled_trades(None, None, limit)
+        .get_canceled_trades(None, None, limit, None)
         .await
         .expect("must get trades");
 
-    assert_eq!(canceled_trades.len(), exp_canceled_trades.len());
+    assert_eq!(canceled_trades.data().len(), exp_canceled_trades.len());
 
-    for trade in &canceled_trades {
+    for trade in canceled_trades.data() {
         let ok = exp_canceled_trades.iter().any(|exp| exp.id() == trade.id());
         assert!(ok, "canceled trade {} was not returned", trade.id());
     }
@@ -397,13 +397,13 @@ async fn test_get_trades_closed(
 ) {
     let limit = Some(NonZeroU64::try_from(exp_closed_trades.len() as u64).unwrap());
     let closed_trades = repo
-        .get_closed_trades(None, None, limit)
+        .get_closed_trades(None, None, limit, None)
         .await
         .expect("must get trades");
 
-    assert_eq!(closed_trades.len(), exp_closed_trades.len());
+    assert_eq!(closed_trades.data().len(), exp_closed_trades.len());
 
-    for trade in &closed_trades {
+    for trade in closed_trades.data() {
         let ok = exp_closed_trades.iter().any(|exp| exp.id() == trade.id());
         assert!(ok, "closed trade {} was not returned", trade.id());
     }
