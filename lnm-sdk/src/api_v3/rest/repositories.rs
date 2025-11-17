@@ -243,3 +243,37 @@ pub trait SyntheticUsdRepository: crate::sealed::Sealed + Send + Sync {
     /// Get best price.
     async fn get_best_price(&self) -> Result<()>;
 }
+
+/// Methods for interacting with [LNM's v3 API]'s REST Account endpoints.
+///
+/// This trait is sealed and not meant to be implemented outside of `lnm-sdk`.
+///
+/// [LNM's v3 API]: https://docs.lnmarkets.com/api/#overview
+pub trait AccountRepository: crate::sealed::Sealed + Send + Sync {
+    /// Get account information.
+    ///
+    /// **Required permissions**: `account:read`
+    async fn get_account(&self) -> Result<()>;
+
+    /// Get the most recently generated, still unused on-chain address.
+    ///
+    /// **Required permissions**: `account:deposits:read`
+    async fn get_last_unused_onchain_address(&self) -> Result<()>;
+
+    /// Generates a new, unused, Bitcoin address. If no format is provided, the address will be
+    /// generated in the format specified in the user's settings.
+    ///
+    /// **Required permissions**: `account:deposits:write`
+    async fn generate_new_bitcoin_address(&self) -> Result<()>;
+
+    /// Get notifications for the current user. By default returns unread notifications. Use the
+    /// read parameter to filter by read status.
+    ///
+    /// **Required permissions**: `account:notifications:read`
+    async fn get_notifications(&self) -> Result<()>;
+
+    /// Mark all notifications as read for the current user.
+    ///
+    /// **Required permissions**: `account:notifications:write`
+    async fn mark_notifications_read(&self) -> Result<()>;
+}
