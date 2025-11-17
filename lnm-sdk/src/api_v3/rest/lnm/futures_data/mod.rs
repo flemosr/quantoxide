@@ -25,10 +25,22 @@ impl crate::sealed::Sealed for LnmFuturesDataRepository {}
 
 #[async_trait]
 impl FuturesDataRepository for LnmFuturesDataRepository {
+    async fn get_funding_settlements(&self) -> Result<()> {
+        todo!()
+    }
+
     async fn get_ticker(&self) -> Result<Ticker> {
         self.base
             .make_request_without_params(Method::GET, RestPathV3::FuturesDataTicker, false)
             .await
+    }
+
+    async fn get_candles(&self) -> Result<()> {
+        todo!()
+    }
+
+    async fn get_leaderboard(&self) -> Result<()> {
+        todo!()
     }
 }
 

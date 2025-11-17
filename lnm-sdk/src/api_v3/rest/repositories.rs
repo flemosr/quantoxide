@@ -208,8 +208,18 @@ pub trait FuturesCrossRepository: crate::sealed::Sealed + Send + Sync {
 /// [LNM's v3 API]: https://docs.lnmarkets.com/api/#overview
 #[async_trait]
 pub trait FuturesDataRepository: crate::sealed::Sealed + Send + Sync {
+    /// Get the funding settlement history. A settlement happens every 8 hours (00:00, 08:00,
+    /// 16:00 UTC).
+    async fn get_funding_settlements(&self) -> Result<()>;
+
     /// Get the futures ticker. [LNM docs].
     ///
     /// [LNM docs]: https://api.lnmarkets.com/v3#tag/futures-data/get/futures/ticker
     async fn get_ticker(&self) -> Result<Ticker>;
+
+    /// Get the candles (OHLCs) history for a given range.
+    async fn get_candles(&self) -> Result<()>;
+
+    /// Get the 10 first users by P&L, broken down by day/week/month/all-time.
+    async fn get_leaderboard(&self) -> Result<()>;
 }
