@@ -124,6 +124,78 @@ pub trait FuturesIsolatedRepository: crate::sealed::Sealed + Send + Sync {
     ) -> Result<Trade>;
 }
 
+/// Methods for interacting with [LNM's v3 API]'s REST Futures Cross endpoints.
+///
+/// This trait is sealed and not meant to be implemented outside of `lnm-sdk`.
+///
+/// [LNM's v3 API]: https://docs.lnmarkets.com/api/#overview
+#[async_trait]
+pub trait FuturesCrossRepository: crate::sealed::Sealed + Send + Sync {
+    /// Cancel all open cross orders.
+    ///
+    /// **Required permissions**: `futures:cross:write`
+    async fn cancel_all_orders(&self) -> Result<()>;
+
+    /// Cancel an open cross order.
+    ///
+    /// **Required permissions**: `futures:cross:write`
+    async fn cancel_order(&self) -> Result<()>;
+
+    /// Place a new cross order.
+    ///
+    /// **Required permissions**: `futures:cross:write`
+    async fn place_order(&self) -> Result<()>;
+
+    /// Get all the cross orders that are still open.
+    ///
+    /// **Required permissions**: `futures:cross:read`
+    async fn get_open_orders(&self) -> Result<()>;
+
+    /// Get the current cross margin position.
+    ///
+    /// **Required permissions**: `futures:cross:read`
+    async fn get_position(&self) -> Result<()>;
+
+    /// Get the cross orders that have been filled.
+    ///
+    /// **Required permissions**: `futures:cross:read`
+    async fn get_filled_orders(&self) -> Result<()>;
+
+    /// Close the running cross margin position. This will pass a market order opposite to the
+    /// current position.
+    ///
+    /// **Required permissions**: `futures:cross:read`
+    async fn close_position(&self) -> Result<()>;
+
+    /// Get the funding fees paid for the cross margin position.
+    ///
+    /// **Required permissions**: `futures:cross:read`
+    async fn get_funding_fees(&self) -> Result<()>;
+
+    /// Get the transfers history for the cross margin position (deposits to and withdrawals from
+    /// the cross margin account). Positive amounts are deposits, negative amounts are withdrawals.
+    ///
+    /// **Required permissions**: `futures:cross:read`
+    async fn get_transfers(&self) -> Result<()>;
+
+    /// Deposit funds to the cross margin account.
+    ///
+    /// **Required permissions**: `futures:cross:write`
+    async fn deposit(&self) -> Result<()>;
+
+    /// Set the leverage of the cross margin position. If the available margin is not enough to
+    /// cover the new position, some of the PL will be realized to cover the difference if possible.
+    /// Returns the updated position.
+    ///
+    /// **Required permissions**: `futures:cross:write`
+    async fn set_leverage(&self) -> Result<()>;
+
+    /// Withdraw funds from the cross margin account.
+    ///
+    /// **Required permissions**: `futures:cross:write`
+    async fn withdraw(&self) -> Result<()>;
+}
+
 /// Methods for interacting with [LNM's v3 API]'s REST Futures Data endpoints.
 ///
 /// This trait is sealed and not meant to be implemented outside of `lnm-sdk`.
