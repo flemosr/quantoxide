@@ -223,3 +223,23 @@ pub trait FuturesDataRepository: crate::sealed::Sealed + Send + Sync {
     /// Get the 10 first users by P&L, broken down by day/week/month/all-time.
     async fn get_leaderboard(&self) -> Result<()>;
 }
+
+/// Methods for interacting with [LNM's v3 API]'s REST Synthetic USD endpoints.
+///
+/// This trait is sealed and not meant to be implemented outside of `lnm-sdk`.
+///
+/// [LNM's v3 API]: https://docs.lnmarkets.com/api/#overview
+pub trait SyntheticUsdRepository: crate::sealed::Sealed + Send + Sync {
+    /// Fetch the user's swaps.
+    ///
+    /// **Required permissions**: `synthetic-usd:read`
+    async fn get_swaps(&self) -> Result<()>;
+
+    /// Create a new swap.
+    ///
+    /// **Required permissions**: `synthetic-usd:write`
+    async fn create_new_swap(&self) -> Result<()>;
+
+    /// Get best price.
+    async fn get_best_price(&self) -> Result<()>;
+}
