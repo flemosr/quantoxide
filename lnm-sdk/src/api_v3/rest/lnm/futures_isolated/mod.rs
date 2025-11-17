@@ -230,6 +230,10 @@ impl FuturesIsolatedRepository for LnmFuturesIsolatedRepository {
             .make_request_with_body(Method::POST, RestPathV3::FuturesIsolatedTrade, body, true)
             .await
     }
+
+    async fn get_funding_fees(&self) -> Result<()> {
+        todo!()
+    }
 }
 
 #[cfg(test)]

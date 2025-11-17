@@ -122,6 +122,11 @@ pub trait FuturesIsolatedRepository: crate::sealed::Sealed + Send + Sync {
         takeprofit: Option<Price>,
         client_id: Option<String>,
     ) -> Result<Trade>;
+
+    /// Get the funding fees paid for all the isolated trades, or for a specific trade.
+    ///
+    /// **Required permissions**: `futures:isolated:read`
+    async fn get_funding_fees(&self) -> Result<()>;
 }
 
 /// Methods for interacting with [LNM's v3 API]'s REST Futures Cross endpoints.
