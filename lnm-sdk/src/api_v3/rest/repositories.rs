@@ -304,3 +304,43 @@ pub trait DepositsRepository: crate::sealed::Sealed + Send + Sync {
     /// **Required permissions**: `account:deposits:write`
     async fn deposit(&self) -> Result<()>;
 }
+
+/// Methods for interacting with [LNM's v3 API]'s REST Withdrawals endpoints.
+///
+/// This trait is sealed and not meant to be implemented outside of `lnm-sdk`.
+///
+/// [LNM's v3 API]: https://docs.lnmarkets.com/api/#overview
+pub trait WithdrawalsRepository: crate::sealed::Sealed + Send + Sync {
+    /// Get internal withdrawals.
+    ///
+    /// **Required permissions**: `account:withdrawals:read`
+    async fn get_internal_withdrawals(&self) -> Result<()>;
+
+    /// Get multiple on-chain withdrawals.
+    ///
+    /// **Required permissions**: `account:withdrawals:read`
+    async fn get_onchain_withdrawals(&self) -> Result<()>;
+
+    /// Get multiple Lightning withdrawals.
+    ///
+    /// **Required permissions**: `account:withdrawals:read`
+    async fn get_lightning_withdrawals(&self) -> Result<()>;
+
+    /// Create a new internal withdrawal.
+    ///
+    /// **Required permissions**: `account:withdrawals:write`
+    async fn withdrawal_internal(&self) -> Result<()>;
+
+    /// Request a new on-chain withdrawal. The withdrawal request will be reviewed and processed
+    /// asynchronously.
+    ///
+    /// **Required permissions**: `account:withdrawals:write`
+    async fn withdrawal_onchain(&self) -> Result<()>;
+
+    /// Request a new Lightning withdrawal. The `max_fees` amount will be reserved from the user's
+    /// balance to pay routing fees. Any unused portion of this reserve will be returned to the
+    /// user's balance after the withdrawal completes.
+    ///
+    /// **Required permissions**: `account:withdrawals:write`
+    async fn withdrawal_lightning(&self) -> Result<()>;
+}
