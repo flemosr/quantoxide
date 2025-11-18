@@ -297,6 +297,13 @@ async fn test_get_transfers(
     assert_eq!(deposit.amount(), deposit_amount as i64);
 }
 
+async fn test_get_funding_fees(repo: &LnmFuturesCrossRepository) {
+    let _ = repo
+        .get_funding_fees(None, None, None, None)
+        .await
+        .expect("must get funding fees");
+}
+
 #[tokio::test]
 async fn test_api() {
     let (repo, repo_data) = init_repositories_from_env();
@@ -412,4 +419,6 @@ async fn test_api() {
         "test_get_transfers",
         test_get_transfers(&repo, deposit_amount, withdrawal_amount).await
     );
+
+    time_test!("test_get_funding_fees", test_get_funding_fees(&repo).await);
 }
