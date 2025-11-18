@@ -182,6 +182,14 @@ async fn test_cancel_all_orders(
     }
 }
 
+async fn test_get_position(repo: &LnmFuturesCrossRepository) -> CrossPosition {
+    let cross_position: CrossPosition = repo.get_position().await.expect("must get position");
+
+    assert_eq!(cross_position.quantity(), 0);
+
+    cross_position
+}
+
 async fn test_close_position(repo: &LnmFuturesCrossRepository) {
     let short_order_market: CrossOrder = repo.close_position().await.expect("must close position");
 
@@ -230,7 +238,28 @@ async fn test_api() {
         repo.cancel_all_orders().await.expect("must cancel orders")
     );
 
+    let cross_position: CrossPosition = time_test!(
+        "get_position (cleanup)",
+        repo.get_position().await.expect("must get position")
+    );
+
+    if cross_position.quantity() > 0 {
+        time_test!(
+            "close_position (cleanup)",
+            repo.close_position().await.expect("must close position")
+        );
+    }
+
+    time_test!(
+        "set_leverage (cleanup)",
+        repo.set_leverage(CrossLeverage::try_from(1).unwrap())
+            .await
+            .expect("must set leverage")
+    );
+
     // Start tests
+
+    time_test!("test_get_position", test_get_position(&repo).await);
 
     let ticker: Ticker = repo_data.get_ticker().await.expect("must get ticker");
 
@@ -267,17 +296,17 @@ async fn test_api() {
 
     println!("long_order_market {:?}", long_order_market);
 
+    time_test!(
+        "test_set_leverage",
+        test_set_leverage(&repo, CrossLeverage::try_from(2).unwrap()).await
+    );
+
     let short_order_market = time_test!(
         "test_create_short_order_market",
         test_create_short_order_market(&repo).await
     );
 
     println!("short_order_market {:?}", short_order_market);
-
-    time_test!(
-        "test_set_leverage",
-        test_set_leverage(&repo, CrossLeverage::try_from(1).unwrap()).await
-    );
 
     time_test!("test_close_position", test_close_position(&repo).await);
 }

@@ -167,7 +167,7 @@ pub trait FuturesCrossRepository: crate::sealed::Sealed + Send + Sync {
     /// Get the current cross margin position.
     ///
     /// **Required permissions**: `futures:cross:read`
-    async fn get_position(&self) -> Result<()>;
+    async fn get_position(&self) -> Result<CrossPosition>;
 
     /// Get the cross orders that have been filled.
     ///

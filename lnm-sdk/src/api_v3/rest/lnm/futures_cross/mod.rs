@@ -76,8 +76,10 @@ impl FuturesCrossRepository for LnmFuturesCrossRepository {
         todo!()
     }
 
-    async fn get_position(&self) -> Result<()> {
-        todo!()
+    async fn get_position(&self) -> Result<CrossPosition> {
+        self.base
+            .make_request_without_params(Method::GET, RestPathV3::FuturesCrossPosition, true)
+            .await
     }
 
     async fn get_filled_orders(&self) -> Result<()> {
