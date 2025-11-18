@@ -557,7 +557,7 @@ impl Trade {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct PaginatedTrades {
     data: Vec<Trade>,
@@ -1112,7 +1112,7 @@ impl CrossPosition {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct PaginatedCrossOrders {
     data: Vec<CrossOrder>,
