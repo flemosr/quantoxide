@@ -174,7 +174,7 @@ impl FuturesRepository for LnmFuturesRepository {
             .make_request_with_body(
                 Method::POST,
                 RestPathV2::FuturesCancelTrade,
-                json!({"id": id }),
+                json!({ "id": id }),
                 true,
             )
             .await
