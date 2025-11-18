@@ -56,19 +56,19 @@ impl CrossTransfer {
 
 #[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
-pub struct PaginatedCrossTransfers {
+pub struct CrossTransferPage {
     data: Vec<CrossTransfer>,
     next_cursor: Option<DateTime<Utc>>,
 }
 
-impl PaginatedCrossTransfers {
+impl CrossTransferPage {
     /// Vector of cross transfers.
     ///
     /// # Examples
     ///
     /// ```no_run
-    /// # fn example(paginated_transfers: lnm_sdk::api_v3::models::PaginatedCrossTransfers) -> Result<(), Box<dyn std::error::Error>> {
-    /// for transfer in paginated_transfers.data() {
+    /// # fn example(cross_transfer_page: lnm_sdk::api_v3::models::CrossTransferPage) -> Result<(), Box<dyn std::error::Error>> {
+    /// for transfer in cross_transfer_page.data() {
     ///     println!("transfer: {:?}", transfer);
     /// }
     /// # Ok(())
@@ -84,8 +84,8 @@ impl PaginatedCrossTransfers {
     /// # Examples
     ///
     /// ```no_run
-    /// # fn example(paginated_transfers: lnm_sdk::api_v3::models::PaginatedCrossTransfers) -> Result<(), Box<dyn std::error::Error>> {
-    /// if let Some(cursor) = paginated_transfers.next_cursor() {
+    /// # fn example(cross_transfer_page: lnm_sdk::api_v3::models::CrossTransferPage) -> Result<(), Box<dyn std::error::Error>> {
+    /// if let Some(cursor) = cross_transfer_page.next_cursor() {
     ///     println!("More transfers can be fetched using cursor: {cursor}");
     /// } else {
     ///     println!("There are no more transfers available.");

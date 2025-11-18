@@ -19,7 +19,7 @@ use super::models::{
     funding::{CrossFundingPage, IsolatedFundingPage},
     ticker::Ticker,
     trade::{CrossOrder, CrossOrderPage, CrossPosition, PaginatedTrades, Trade},
-    transfer::PaginatedCrossTransfers,
+    transfer::CrossTransferPage,
 };
 
 /// Methods for interacting with [LNM's v3 API]'s REST Utilities endpoints.
@@ -215,7 +215,7 @@ pub trait FuturesCrossRepository: crate::sealed::Sealed + Send + Sync {
         to: Option<DateTime<Utc>>,
         limit: Option<NonZeroU64>,
         cursor: Option<DateTime<Utc>>,
-    ) -> Result<PaginatedCrossTransfers>;
+    ) -> Result<CrossTransferPage>;
 
     /// Deposit funds to the cross margin account.
     ///

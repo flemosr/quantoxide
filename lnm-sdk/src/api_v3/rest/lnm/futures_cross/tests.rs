@@ -285,7 +285,7 @@ async fn test_get_transfers(
     withdrawal_amount: u64,
 ) {
     let limit = NonZeroU64::try_from(2).unwrap();
-    let transfers: PaginatedCrossTransfers = repo
+    let transfers: CrossTransferPage = repo
         .get_transfers(None, None, Some(limit), None)
         .await
         .expect("must get transfers");

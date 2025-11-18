@@ -46,6 +46,6 @@ pub mod models {
         cross_leverage::CrossLeverage,
         funding::{CrossFunding, CrossFundingPage, IsolatedFunding, IsolatedFundingPage},
         trade::{CrossOrder, CrossOrderPage, CrossPosition, PaginatedTrades, Trade},
-        transfer::{CrossTransfer, PaginatedCrossTransfers},
+        transfer::{CrossTransfer, CrossTransferPage},
     };
 }
