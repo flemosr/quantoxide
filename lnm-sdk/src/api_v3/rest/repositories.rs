@@ -140,7 +140,7 @@ pub trait FuturesCrossRepository: crate::sealed::Sealed + Send + Sync {
     /// Cancel all open cross orders.
     ///
     /// **Required permissions**: `futures:cross:write`
-    async fn cancel_all_orders(&self) -> Result<()>;
+    async fn cancel_all_orders(&self) -> Result<Vec<CrossPosition>>;
 
     /// Cancel an open cross order.
     ///

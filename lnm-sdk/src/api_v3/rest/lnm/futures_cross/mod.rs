@@ -37,8 +37,10 @@ impl crate::sealed::Sealed for LnmFuturesCrossRepository {}
 
 #[async_trait]
 impl FuturesCrossRepository for LnmFuturesCrossRepository {
-    async fn cancel_all_orders(&self) -> Result<()> {
-        todo!()
+    async fn cancel_all_orders(&self) -> Result<Vec<CrossPosition>> {
+        self.base
+            .make_request_without_params(Method::POST, RestPathV3::FuturesCrossOrderCancelAll, true)
+            .await
     }
 
     async fn cancel_order(&self, id: Uuid) -> Result<CrossPosition> {

@@ -166,6 +166,22 @@ async fn test_cancel_order(repo: &LnmFuturesCrossRepository, id: Uuid) {
     assert!(canceled_order.canceled());
 }
 
+async fn test_cancel_all_orders(
+    repo: &LnmFuturesCrossRepository,
+    exp_open_orders: Vec<&CrossPosition>,
+) {
+    let cancelled_orders = repo.cancel_all_orders().await.expect("must cancel orders");
+
+    assert_eq!(cancelled_orders.len(), exp_open_orders.len());
+
+    for open_order in &exp_open_orders {
+        let cancelled = cancelled_orders
+            .iter()
+            .any(|cancelled| cancelled.id() == open_order.id());
+        assert!(cancelled, "order {} was not cancelled", open_order.id());
+    }
+}
+
 #[tokio::test]
 async fn test_api() {
     let (repo, repo_data) = init_repositories_from_env();
@@ -183,10 +199,10 @@ async fn test_api() {
 
     // Initial clean-up
 
-    // time_test!(
-    //     "cancel_all_trades (cleanup)",
-    //     repo.cancel_all_trades().await.expect("must cancel trades")
-    // );
+    time_test!(
+        "cancel_all_orders (cleanup)",
+        repo.cancel_all_orders().await.expect("must cancel orders")
+    );
 
     // Start tests
 
@@ -212,6 +228,11 @@ async fn test_api() {
     );
 
     println!("short_limit_trade_a {:?}", short_order_limit);
+
+    time_test!(
+        "test_cancel_all_orders",
+        test_cancel_all_orders(&repo, vec![&short_order_limit]).await
+    );
 
     let long_order_market = time_test!(
         "test_create_long_order_market",
