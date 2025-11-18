@@ -875,14 +875,14 @@ impl CrossOrder {
 #[serde(rename_all = "camelCase")]
 pub struct CrossPosition {
     id: Uuid,
-    margin: Margin,
-    quantity: Quantity,
+    margin: u64,
+    quantity: u64,
     leverage: CrossLeverage,
-    entry_price: Price,
-    running_margin: Margin,
-    initial_margin: Margin,
-    maintenance_margin: Margin,
-    liquidation: Price,
+    entry_price: Option<Price>,
+    running_margin: u64,
+    initial_margin: u64,
+    maintenance_margin: u64,
+    liquidation: Option<Price>,
     trading_fees: u64,
     funding_fees: u64,
     total_pl: i64,
@@ -918,7 +918,7 @@ impl CrossPosition {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn margin(&self) -> Margin {
+    pub fn margin(&self) -> u64 {
         self.margin
     }
 
@@ -934,7 +934,7 @@ impl CrossPosition {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn quantity(&self) -> Quantity {
+    pub fn quantity(&self) -> u64 {
         self.quantity
     }
 
@@ -954,19 +954,19 @@ impl CrossPosition {
         self.leverage
     }
 
-    /// Returns the entry price of the position.
+    /// Returns the entry price of the position, if any.
     ///
     /// # Examples
     ///
     /// ```no_run
     /// # fn example(position: lnm_sdk::api_v3::models::CrossPosition) -> Result<(), Box<dyn std::error::Error>> {
-    /// let entry_price = position.entry_price();
-    ///
-    /// println!("Entry price: {}", entry_price);
+    /// if let Some(entry_price) = position.entry_price() {
+    ///     println!("Entry price: {}", entry_price);
+    /// }
     /// # Ok(())
     /// # }
     /// ```
-    pub fn entry_price(&self) -> Price {
+    pub fn entry_price(&self) -> Option<Price> {
         self.entry_price
     }
 
@@ -982,11 +982,11 @@ impl CrossPosition {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn running_margin(&self) -> Margin {
+    pub fn running_margin(&self) -> u64 {
         self.running_margin
     }
 
-    /// Returns the initial margin requirement (in satoshis).
+    /// Returns the initial margin of the position (in satoshis).
     ///
     /// # Examples
     ///
@@ -998,7 +998,7 @@ impl CrossPosition {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn initial_margin(&self) -> Margin {
+    pub fn initial_margin(&self) -> u64 {
         self.initial_margin
     }
 
@@ -1014,23 +1014,24 @@ impl CrossPosition {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn maintenance_margin(&self) -> Margin {
+    pub fn maintenance_margin(&self) -> u64 {
         self.maintenance_margin
     }
 
-    /// Returns the liquidation price at which the position will be automatically closed.
+    /// Returns the liquidation price at which the position will be automatically closed, if any.
     ///
     /// # Examples
     ///
     /// ```no_run
     /// # fn example(position: lnm_sdk::api_v3::models::CrossPosition) -> Result<(), Box<dyn std::error::Error>> {
-    /// let liq_price = position.liquidation();
+    /// if let Some(liq_price) = position.liquidation() {
+    ///     println!("Liquidation price: {}", liq_price);
+    /// }
     ///
-    /// println!("Liquidation price: {}", liq_price);
     /// # Ok(())
     /// # }
     /// ```
-    pub fn liquidation(&self) -> Price {
+    pub fn liquidation(&self) -> Option<Price> {
         self.liquidation
     }
 
