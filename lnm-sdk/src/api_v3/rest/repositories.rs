@@ -8,6 +8,7 @@ use crate::shared::{
     models::{
         leverage::Leverage,
         price::Price,
+        quantity::Quantity,
         trade::{TradeExecution, TradeSide, TradeSize},
     },
     rest::error::Result,
@@ -15,7 +16,7 @@ use crate::shared::{
 
 use super::models::{
     ticker::Ticker,
-    trade::{PaginatedTrades, Trade},
+    trade::{CrossPosition, PaginatedTrades, Trade},
 };
 
 /// Methods for interacting with [LNM's v3 API]'s REST Utilities endpoints.
@@ -149,7 +150,13 @@ pub trait FuturesCrossRepository: crate::sealed::Sealed + Send + Sync {
     /// Place a new cross order.
     ///
     /// **Required permissions**: `futures:cross:write`
-    async fn place_order(&self) -> Result<()>;
+    async fn place_order(
+        &self,
+        side: TradeSide,
+        quantity: Quantity,
+        execution: TradeExecution,
+        client_id: Option<String>,
+    ) -> Result<CrossPosition>;
 
     /// Get all the cross orders that are still open.
     ///
