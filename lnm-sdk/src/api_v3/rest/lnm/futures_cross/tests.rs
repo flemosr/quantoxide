@@ -157,6 +157,15 @@ async fn test_create_short_order_market(repo: &LnmFuturesCrossRepository) -> Cro
     placed_order
 }
 
+async fn test_cancel_order(repo: &LnmFuturesCrossRepository, id: Uuid) {
+    let canceled_order = repo.cancel_order(id).await.expect("must cancel order");
+
+    assert_eq!(canceled_order.id(), id);
+    assert!(!canceled_order.open());
+    assert!(!canceled_order.filled());
+    assert!(canceled_order.canceled());
+}
+
 #[tokio::test]
 async fn test_api() {
     let (repo, repo_data) = init_repositories_from_env();
@@ -186,6 +195,13 @@ async fn test_api() {
     let long_order_limit = time_test!(
         "test_create_long_order_limit",
         test_create_long_order_limit(&repo, &ticker).await
+    );
+
+    println!("long_order_limit {:?}", long_order_limit);
+
+    let long_order_limit = time_test!(
+        "test_cancel_order",
+        test_cancel_order(&repo, long_order_limit.id()).await
     );
 
     println!("long_order_limit {:?}", long_order_limit);

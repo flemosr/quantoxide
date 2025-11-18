@@ -2,6 +2,8 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use hyper::Method;
+use serde_json::json;
+use uuid::Uuid;
 
 use crate::shared::{
     models::{
@@ -39,8 +41,15 @@ impl FuturesCrossRepository for LnmFuturesCrossRepository {
         todo!()
     }
 
-    async fn cancel_order(&self) -> Result<()> {
-        todo!()
+    async fn cancel_order(&self, id: Uuid) -> Result<CrossPosition> {
+        self.base
+            .make_request_with_body(
+                Method::POST,
+                RestPathV3::FuturesCrossOrderCancel,
+                json!({"id": id}),
+                true,
+            )
+            .await
     }
 
     async fn place_order(

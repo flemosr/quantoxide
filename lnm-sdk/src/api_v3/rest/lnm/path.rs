@@ -15,6 +15,7 @@ pub(in crate::api_v3) enum RestPathV3 {
     FuturesIsolatedTradesClosed,
     FuturesIsolatedTradesCanceled,
     FuturesCrossOrder,
+    FuturesCrossOrderCancel,
     FuturesDataTicker,
 }
 
@@ -46,6 +47,7 @@ impl RestPath for RestPathV3 {
                 "/v3/futures/isolated/trades/canceled".into()
             }
             RestPathV3::FuturesCrossOrder => "/v3/futures/cross/order".into(),
+            RestPathV3::FuturesCrossOrderCancel => "/v3/futures/cross/order/cancel".into(),
             RestPathV3::FuturesDataTicker => "/v3/futures/ticker".into(),
         }
     }
