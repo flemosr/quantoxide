@@ -245,6 +245,18 @@ async fn test_get_filled_orders(
     }
 }
 
+async fn test_deposit(repo: &LnmFuturesCrossRepository, cross_position: CrossPosition) {
+    let updated_cross_position: CrossPosition = repo
+        .deposit(NonZeroU64::try_from(100).unwrap())
+        .await
+        .expect("must make deposit");
+
+    assert_eq!(
+        updated_cross_position.margin(),
+        cross_position.margin() + 100
+    );
+}
+
 #[tokio::test]
 async fn test_api() {
     let (repo, repo_data) = init_repositories_from_env();
@@ -348,4 +360,11 @@ async fn test_api() {
     );
 
     time_test!("test_close_position", test_close_position(&repo).await);
+
+    let cross_position: CrossPosition = time_test!(
+        "get_position",
+        repo.get_position().await.expect("must get position")
+    );
+
+    time_test!("test_deposit", test_deposit(&repo, cross_position).await);
 }

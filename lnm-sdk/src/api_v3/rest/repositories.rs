@@ -200,7 +200,7 @@ pub trait FuturesCrossRepository: crate::sealed::Sealed + Send + Sync {
     /// Deposit funds to the cross margin account.
     ///
     /// **Required permissions**: `futures:cross:write`
-    async fn deposit(&self) -> Result<()>;
+    async fn deposit(&self, amount: NonZeroU64) -> Result<CrossPosition>;
 
     /// Set the leverage of the cross margin position. If the available margin is not enough to
     /// cover the new position, some of the PL will be realized to cover the difference if possible.

@@ -138,8 +138,15 @@ impl FuturesCrossRepository for LnmFuturesCrossRepository {
         todo!()
     }
 
-    async fn deposit(&self) -> Result<()> {
-        todo!()
+    async fn deposit(&self, amount: NonZeroU64) -> Result<CrossPosition> {
+        self.base
+            .make_request_with_body(
+                Method::POST,
+                RestPathV3::FuturesCrossDeposit,
+                json!({ "amount": amount }),
+                true,
+            )
+            .await
     }
 
     async fn set_leverage(&self, leverage: CrossLeverage) -> Result<CrossPosition> {
