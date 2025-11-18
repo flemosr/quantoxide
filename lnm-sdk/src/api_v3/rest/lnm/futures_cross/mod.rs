@@ -56,7 +56,7 @@ impl FuturesCrossRepository for LnmFuturesCrossRepository {
             .make_request_with_body(
                 Method::POST,
                 RestPathV3::FuturesCrossOrderCancel,
-                json!({"id": id}),
+                json!({ "id": id }),
                 true,
             )
             .await
@@ -154,7 +154,7 @@ impl FuturesCrossRepository for LnmFuturesCrossRepository {
             .make_request_with_body(
                 Method::PUT,
                 RestPathV3::FuturesCrossPositionSetLeverage,
-                json!({"leverage": leverage}),
+                json!({ "leverage": leverage }),
                 true,
             )
             .await
