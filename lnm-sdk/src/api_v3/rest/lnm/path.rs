@@ -24,6 +24,7 @@ pub(in crate::api_v3) enum RestPathV3 {
     FuturesCrossPositionSetLeverage,
     FuturesCrossDeposit,
     FuturesCrossWithdraw,
+    FuturesCrossGetTransfers,
     FuturesDataTicker,
 }
 
@@ -64,6 +65,7 @@ impl RestPath for RestPathV3 {
             RestPathV3::FuturesCrossPositionSetLeverage => "/v3/futures/cross/leverage".into(),
             RestPathV3::FuturesCrossDeposit => "/v3/futures/cross/deposit".into(),
             RestPathV3::FuturesCrossWithdraw => "/v3/futures/cross/withdraw".into(),
+            RestPathV3::FuturesCrossGetTransfers => "/v3/futures/cross/transfers".into(),
             RestPathV3::FuturesDataTicker => "/v3/futures/ticker".into(),
         }
     }

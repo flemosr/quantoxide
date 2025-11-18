@@ -18,6 +18,7 @@ use super::models::{
     cross_leverage::CrossLeverage,
     ticker::Ticker,
     trade::{CrossOrder, CrossPosition, PaginatedCrossOrders, PaginatedTrades, Trade},
+    transfer::PaginatedCrossTransfers,
 };
 
 /// Methods for interacting with [LNM's v3 API]'s REST Utilities endpoints.
@@ -195,7 +196,13 @@ pub trait FuturesCrossRepository: crate::sealed::Sealed + Send + Sync {
     /// the cross margin account). Positive amounts are deposits, negative amounts are withdrawals.
     ///
     /// **Required permissions**: `futures:cross:read`
-    async fn get_transfers(&self) -> Result<()>;
+    async fn get_transfers(
+        &self,
+        from: Option<DateTime<Utc>>,
+        to: Option<DateTime<Utc>>,
+        limit: Option<NonZeroU64>,
+        cursor: Option<DateTime<Utc>>,
+    ) -> Result<PaginatedCrossTransfers>;
 
     /// Deposit funds to the cross margin account.
     ///

@@ -211,8 +211,6 @@ async fn test_set_leverage(repo: &LnmFuturesCrossRepository, leverage: CrossLeve
         .await
         .expect("must set leverage");
 
-    println!("cross_position {:?}", cross_position);
-
     assert_eq!(cross_position.leverage(), leverage);
 }
 
@@ -248,15 +246,16 @@ async fn test_get_filled_orders(
 async fn test_deposit(
     repo: &LnmFuturesCrossRepository,
     cross_position: CrossPosition,
+    deposit_amount: u64,
 ) -> CrossPosition {
     let updated_cross_position: CrossPosition = repo
-        .deposit(NonZeroU64::try_from(100).unwrap())
+        .deposit(NonZeroU64::try_from(deposit_amount).unwrap())
         .await
         .expect("must make deposit");
 
     assert_eq!(
         updated_cross_position.margin(),
-        cross_position.margin() + 100
+        cross_position.margin() + deposit_amount
     );
 
     updated_cross_position
@@ -265,18 +264,37 @@ async fn test_deposit(
 async fn test_withdrawal(
     repo: &LnmFuturesCrossRepository,
     cross_position: CrossPosition,
+    withdrawal_amount: u64,
 ) -> CrossPosition {
     let updated_cross_position: CrossPosition = repo
-        .withdraw(NonZeroU64::try_from(100).unwrap())
+        .withdraw(NonZeroU64::try_from(withdrawal_amount).unwrap())
         .await
         .expect("must make deposit");
 
     assert_eq!(
         updated_cross_position.margin(),
-        cross_position.margin() - 100
+        cross_position.margin() - withdrawal_amount
     );
 
     updated_cross_position
+}
+
+async fn test_get_transfers(
+    repo: &LnmFuturesCrossRepository,
+    deposit_amount: u64,
+    withdrawal_amount: u64,
+) {
+    let limit = NonZeroU64::try_from(2).unwrap();
+    let transfers: PaginatedCrossTransfers = repo
+        .get_transfers(None, None, Some(limit), None)
+        .await
+        .expect("must get transfers");
+
+    let withdrawal = transfers.data().first().expect("must have withdrawal");
+    let deposit = transfers.data().last().expect("must have deposit");
+
+    assert_eq!(withdrawal.amount(), withdrawal_amount as i64 * -1);
+    assert_eq!(deposit.amount(), deposit_amount as i64);
 }
 
 #[tokio::test]
@@ -331,21 +349,15 @@ async fn test_api() {
         test_create_long_order_limit(&repo, &ticker).await
     );
 
-    println!("long_order_limit {:?}", long_order_limit);
-
-    let long_order_limit = time_test!(
+    time_test!(
         "test_cancel_order",
         test_cancel_order(&repo, long_order_limit.id()).await
     );
-
-    println!("long_order_limit {:?}", long_order_limit);
 
     let short_order_limit = time_test!(
         "test_create_short_order_limit",
         test_create_short_order_limit(&repo, &ticker).await
     );
-
-    println!("short_limit_trade_a {:?}", short_order_limit);
 
     time_test!(
         "test_get_open_orders",
@@ -362,8 +374,6 @@ async fn test_api() {
         test_create_long_order_market(&repo).await
     );
 
-    println!("long_order_market {:?}", long_order_market);
-
     time_test!(
         "test_set_leverage",
         test_set_leverage(&repo, CrossLeverage::try_from(2).unwrap()).await
@@ -373,8 +383,6 @@ async fn test_api() {
         "test_create_short_order_market",
         test_create_short_order_market(&repo).await
     );
-
-    println!("short_order_market {:?}", short_order_market);
 
     time_test!(
         "test_get_filled_orders",
@@ -388,10 +396,20 @@ async fn test_api() {
         repo.get_position().await.expect("must get position")
     );
 
-    let cross_position = time_test!("test_deposit", test_deposit(&repo, cross_position).await);
-
+    let deposit_amount = 100;
     let cross_position = time_test!(
+        "test_deposit",
+        test_deposit(&repo, cross_position, deposit_amount).await
+    );
+
+    let withdrawal_amount = 100;
+    time_test!(
         "test_withdrawal",
-        test_withdrawal(&repo, cross_position).await
+        test_withdrawal(&repo, cross_position, withdrawal_amount).await
+    );
+
+    time_test!(
+        "test_get_transfers",
+        test_get_transfers(&repo, deposit_amount, withdrawal_amount).await
     );
 }
