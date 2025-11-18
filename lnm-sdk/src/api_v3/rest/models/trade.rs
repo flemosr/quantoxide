@@ -1114,19 +1114,19 @@ impl CrossPosition {
 
 #[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
-pub struct PaginatedCrossOrders {
+pub struct CrossOrderPage {
     data: Vec<CrossOrder>,
     next_cursor: Option<DateTime<Utc>>,
 }
 
-impl PaginatedCrossOrders {
+impl CrossOrderPage {
     /// Vector of cross orders.
     ///
     /// # Examples
     ///
     /// ```no_run
-    /// # fn example(paginated_orders: lnm_sdk::api_v3::models::PaginatedCrossOrders) -> Result<(), Box<dyn std::error::Error>> {
-    /// for order in paginated_orders.data() {
+    /// # fn example(cross_order_page: lnm_sdk::api_v3::models::CrossOrderPage) -> Result<(), Box<dyn std::error::Error>> {
+    /// for order in cross_order_page.data() {
     ///     println!("order: {:?}", order);
     /// }
     /// # Ok(())
@@ -1142,8 +1142,8 @@ impl PaginatedCrossOrders {
     /// # Examples
     ///
     /// ```no_run
-    /// # fn example(paginated_orders: lnm_sdk::api_v3::models::PaginatedCrossOrders) -> Result<(), Box<dyn std::error::Error>> {
-    /// if let Some(cursor) = paginated_orders.next_cursor() {
+    /// # fn example(cross_order_page: lnm_sdk::api_v3::models::CrossOrderPage) -> Result<(), Box<dyn std::error::Error>> {
+    /// if let Some(cursor) = cross_order_page.next_cursor() {
     ///     println!("More orders can be fetched using cursor: {cursor}");
     /// } else {
     ///     println!("There are no more orders available.");

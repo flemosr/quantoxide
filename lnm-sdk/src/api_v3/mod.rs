@@ -45,7 +45,7 @@ pub mod models {
     pub use super::rest::models::{
         cross_leverage::CrossLeverage,
         funding::{CrossFunding, CrossFundingPage, IsolatedFunding, IsolatedFundingPage},
-        trade::{CrossOrder, CrossPosition, PaginatedCrossOrders, PaginatedTrades, Trade},
+        trade::{CrossOrder, CrossOrderPage, CrossPosition, PaginatedTrades, Trade},
         transfer::{CrossTransfer, PaginatedCrossTransfers},
     };
 }

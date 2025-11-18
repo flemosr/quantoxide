@@ -230,7 +230,7 @@ async fn test_get_filled_orders(
     exp_filled_orders: Vec<&CrossOrder>,
 ) {
     let limit = NonZeroU64::try_from(exp_filled_orders.len() as u64).unwrap();
-    let filled_orders: PaginatedCrossOrders = repo
+    let filled_orders: CrossOrderPage = repo
         .get_filled_orders(None, None, Some(limit), None)
         .await
         .expect("must get open orders");

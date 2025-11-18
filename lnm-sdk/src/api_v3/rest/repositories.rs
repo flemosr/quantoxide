@@ -18,7 +18,7 @@ use super::models::{
     cross_leverage::CrossLeverage,
     funding::{CrossFundingPage, IsolatedFundingPage},
     ticker::Ticker,
-    trade::{CrossOrder, CrossPosition, PaginatedCrossOrders, PaginatedTrades, Trade},
+    trade::{CrossOrder, CrossOrderPage, CrossPosition, PaginatedTrades, Trade},
     transfer::PaginatedCrossTransfers,
 };
 
@@ -186,7 +186,7 @@ pub trait FuturesCrossRepository: crate::sealed::Sealed + Send + Sync {
         to: Option<DateTime<Utc>>,
         limit: Option<NonZeroU64>,
         cursor: Option<DateTime<Utc>>,
-    ) -> Result<PaginatedCrossOrders>;
+    ) -> Result<CrossOrderPage>;
 
     /// Close the running cross margin position. This will pass a market order opposite to the
     /// current position.

@@ -20,7 +20,7 @@ use super::{
         models::{
             cross_leverage::CrossLeverage,
             funding::CrossFundingPage,
-            trade::{CrossOrder, CrossPosition, FuturesCrossOrderBody, PaginatedCrossOrders},
+            trade::{CrossOrder, CrossOrderPage, CrossPosition, FuturesCrossOrderBody},
             transfer::PaginatedCrossTransfers,
         },
         repositories::FuturesCrossRepository,
@@ -97,7 +97,7 @@ impl FuturesCrossRepository for LnmFuturesCrossRepository {
         to: Option<DateTime<Utc>>,
         limit: Option<NonZeroU64>,
         cursor: Option<DateTime<Utc>>,
-    ) -> Result<PaginatedCrossOrders> {
+    ) -> Result<CrossOrderPage> {
         let mut query_params = Vec::new();
 
         if let Some(from) = from {
