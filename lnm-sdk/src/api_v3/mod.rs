@@ -19,9 +19,9 @@ pub mod error {
         rest::error::RestApiError,
     };
 
-    pub use super::{
-        rest::error::RestApiV3Error,
-        rest::models::error::{
+    pub use super::rest::{
+        error::RestApiV3Error,
+        models::error::{
             FuturesCrossTradeOrderValidationError, FuturesIsolatedTradeRequestValidationError,
         },
     };
@@ -45,5 +45,6 @@ pub mod models {
     pub use super::rest::models::{
         cross_leverage::CrossLeverage,
         trade::{CrossOrder, CrossPosition, PaginatedCrossOrders, PaginatedTrades, Trade},
+        transfer::{CrossTransfer, PaginatedCrossTransfers},
     };
 }
