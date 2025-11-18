@@ -81,8 +81,10 @@ impl FuturesCrossRepository for LnmFuturesCrossRepository {
         todo!()
     }
 
-    async fn close_position(&self) -> Result<()> {
-        todo!()
+    async fn close_position(&self) -> Result<CrossPosition> {
+        self.base
+            .make_request_without_params(Method::POST, RestPathV3::FuturesCrossPositionClose, true)
+            .await
     }
 
     async fn get_funding_fees(&self) -> Result<()> {

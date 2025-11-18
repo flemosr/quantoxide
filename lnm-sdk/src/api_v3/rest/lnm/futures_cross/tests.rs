@@ -5,7 +5,7 @@ use dotenv::dotenv;
 use crate::{
     api_v3::{
         FuturesDataRepository,
-        models::{BoundedPercentage, CrossPosition},
+        models::{BoundedPercentage, CrossPosition, TradeExecutionType},
         rest::{lnm::futures_data::LnmFuturesDataRepository, models::ticker::Ticker},
     },
     shared::{config::RestClientConfig, models::quantity::Quantity},
@@ -109,7 +109,7 @@ async fn test_create_short_order_limit(
 
 async fn test_create_long_order_market(repo: &LnmFuturesCrossRepository) -> CrossPosition {
     let side = TradeSide::Buy;
-    let quantity = Quantity::try_from(1).unwrap();
+    let quantity = Quantity::try_from(2).unwrap();
     let execution = TradeExecution::Market;
     let client_id = None;
 
@@ -182,6 +182,22 @@ async fn test_cancel_all_orders(
     }
 }
 
+async fn test_close_position(repo: &LnmFuturesCrossRepository) {
+    let short_order_market: CrossPosition =
+        repo.close_position().await.expect("must close position");
+
+    assert_eq!(short_order_market.trade_type(), TradeExecutionType::Market);
+    assert_eq!(short_order_market.side(), TradeSide::Sell);
+    assert_eq!(short_order_market.quantity(), Quantity::MIN);
+    assert!(short_order_market.trading_fee() > 0);
+    assert!(!short_order_market.open());
+    assert!(short_order_market.filled());
+    assert!(short_order_market.filled_at().is_some());
+    assert!(!short_order_market.canceled());
+    assert!(short_order_market.canceled_at().is_none());
+    assert!(short_order_market.client_id().is_none());
+}
+
 #[tokio::test]
 async fn test_api() {
     let (repo, repo_data) = init_repositories_from_env();
@@ -247,4 +263,6 @@ async fn test_api() {
     );
 
     println!("short_order_market {:?}", short_order_market);
+
+    time_test!("test_close_position", test_close_position(&repo).await);
 }

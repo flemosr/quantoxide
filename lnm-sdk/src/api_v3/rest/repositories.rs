@@ -177,7 +177,7 @@ pub trait FuturesCrossRepository: crate::sealed::Sealed + Send + Sync {
     /// current position.
     ///
     /// **Required permissions**: `futures:cross:read`
-    async fn close_position(&self) -> Result<()>;
+    async fn close_position(&self) -> Result<CrossPosition>;
 
     /// Get the funding fees paid for the cross margin position.
     ///
