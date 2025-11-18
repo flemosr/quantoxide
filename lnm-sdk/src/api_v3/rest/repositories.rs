@@ -16,7 +16,7 @@ use crate::shared::{
 
 use super::models::{
     ticker::Ticker,
-    trade::{CrossPosition, PaginatedTrades, Trade},
+    trade::{CrossOrder, PaginatedTrades, Trade},
 };
 
 /// Methods for interacting with [LNM's v3 API]'s REST Utilities endpoints.
@@ -140,12 +140,12 @@ pub trait FuturesCrossRepository: crate::sealed::Sealed + Send + Sync {
     /// Cancel all open cross orders.
     ///
     /// **Required permissions**: `futures:cross:write`
-    async fn cancel_all_orders(&self) -> Result<Vec<CrossPosition>>;
+    async fn cancel_all_orders(&self) -> Result<Vec<CrossOrder>>;
 
     /// Cancel an open cross order.
     ///
     /// **Required permissions**: `futures:cross:write`
-    async fn cancel_order(&self, id: Uuid) -> Result<CrossPosition>;
+    async fn cancel_order(&self, id: Uuid) -> Result<CrossOrder>;
 
     /// Place a new cross order.
     ///
@@ -156,7 +156,7 @@ pub trait FuturesCrossRepository: crate::sealed::Sealed + Send + Sync {
         quantity: Quantity,
         execution: TradeExecution,
         client_id: Option<String>,
-    ) -> Result<CrossPosition>;
+    ) -> Result<CrossOrder>;
 
     /// Get all the cross orders that are still open.
     ///
@@ -177,7 +177,7 @@ pub trait FuturesCrossRepository: crate::sealed::Sealed + Send + Sync {
     /// current position.
     ///
     /// **Required permissions**: `futures:cross:read`
-    async fn close_position(&self) -> Result<CrossPosition>;
+    async fn close_position(&self) -> Result<CrossOrder>;
 
     /// Get the funding fees paid for the cross margin position.
     ///

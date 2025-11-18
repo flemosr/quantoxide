@@ -5,7 +5,7 @@ use dotenv::dotenv;
 use crate::{
     api_v3::{
         FuturesDataRepository,
-        models::{BoundedPercentage, CrossPosition, TradeExecutionType},
+        models::{BoundedPercentage, CrossOrder, TradeExecutionType},
         rest::{lnm::futures_data::LnmFuturesDataRepository, models::ticker::Ticker},
     },
     shared::{config::RestClientConfig, models::quantity::Quantity},
@@ -42,7 +42,7 @@ fn init_repositories_from_env() -> (LnmFuturesCrossRepository, LnmFuturesDataRep
 async fn test_create_long_order_limit(
     repo: &LnmFuturesCrossRepository,
     ticker: &Ticker,
-) -> CrossPosition {
+) -> CrossOrder {
     let side = TradeSide::Buy;
     let quantity = Quantity::try_from(1).unwrap();
     let discount_percentage = BoundedPercentage::try_from(30).unwrap();
@@ -53,7 +53,7 @@ async fn test_create_long_order_limit(
     let execution = out_of_mkt_price.into();
     let client_id = None;
 
-    let placed_order: CrossPosition = repo
+    let placed_order: CrossOrder = repo
         .place_order(side, quantity.into(), execution, client_id.clone())
         .await
         .expect("must place order");
@@ -76,7 +76,7 @@ async fn test_create_long_order_limit(
 async fn test_create_short_order_limit(
     repo: &LnmFuturesCrossRepository,
     ticker: &Ticker,
-) -> CrossPosition {
+) -> CrossOrder {
     let side = TradeSide::Sell;
     let quantity = Quantity::try_from(1).unwrap();
     let discount_percentage = BoundedPercentage::try_from(30).unwrap();
@@ -87,7 +87,7 @@ async fn test_create_short_order_limit(
     let execution = out_of_mkt_price.into();
     let client_id = None;
 
-    let placed_order: CrossPosition = repo
+    let placed_order: CrossOrder = repo
         .place_order(side, quantity.into(), execution, client_id)
         .await
         .expect("must place order");
@@ -107,13 +107,13 @@ async fn test_create_short_order_limit(
     placed_order
 }
 
-async fn test_create_long_order_market(repo: &LnmFuturesCrossRepository) -> CrossPosition {
+async fn test_create_long_order_market(repo: &LnmFuturesCrossRepository) -> CrossOrder {
     let side = TradeSide::Buy;
     let quantity = Quantity::try_from(2).unwrap();
     let execution = TradeExecution::Market;
     let client_id = None;
 
-    let placed_order: CrossPosition = repo
+    let placed_order: CrossOrder = repo
         .place_order(side, quantity.into(), execution, client_id)
         .await
         .expect("must place order");
@@ -132,13 +132,13 @@ async fn test_create_long_order_market(repo: &LnmFuturesCrossRepository) -> Cros
     placed_order
 }
 
-async fn test_create_short_order_market(repo: &LnmFuturesCrossRepository) -> CrossPosition {
+async fn test_create_short_order_market(repo: &LnmFuturesCrossRepository) -> CrossOrder {
     let side = TradeSide::Sell;
     let quantity = Quantity::try_from(1).unwrap();
     let execution = TradeExecution::Market;
     let client_id = None;
 
-    let placed_order: CrossPosition = repo
+    let placed_order: CrossOrder = repo
         .place_order(side, quantity.into(), execution, client_id)
         .await
         .expect("must place order");
@@ -168,7 +168,7 @@ async fn test_cancel_order(repo: &LnmFuturesCrossRepository, id: Uuid) {
 
 async fn test_cancel_all_orders(
     repo: &LnmFuturesCrossRepository,
-    exp_open_orders: Vec<&CrossPosition>,
+    exp_open_orders: Vec<&CrossOrder>,
 ) {
     let cancelled_orders = repo.cancel_all_orders().await.expect("must cancel orders");
 
@@ -183,8 +183,7 @@ async fn test_cancel_all_orders(
 }
 
 async fn test_close_position(repo: &LnmFuturesCrossRepository) {
-    let short_order_market: CrossPosition =
-        repo.close_position().await.expect("must close position");
+    let short_order_market: CrossOrder = repo.close_position().await.expect("must close position");
 
     assert_eq!(short_order_market.trade_type(), TradeExecutionType::Market);
     assert_eq!(short_order_market.side(), TradeSide::Sell);

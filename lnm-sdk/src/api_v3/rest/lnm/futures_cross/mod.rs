@@ -16,7 +16,7 @@ use crate::shared::{
 use super::{
     super::{
         error::RestApiV3Error,
-        models::trade::{CrossPosition, FuturesCrossOrderBody},
+        models::trade::{CrossOrder, FuturesCrossOrderBody},
         repositories::FuturesCrossRepository,
     },
     path::RestPathV3,
@@ -37,13 +37,13 @@ impl crate::sealed::Sealed for LnmFuturesCrossRepository {}
 
 #[async_trait]
 impl FuturesCrossRepository for LnmFuturesCrossRepository {
-    async fn cancel_all_orders(&self) -> Result<Vec<CrossPosition>> {
+    async fn cancel_all_orders(&self) -> Result<Vec<CrossOrder>> {
         self.base
             .make_request_without_params(Method::POST, RestPathV3::FuturesCrossOrderCancelAll, true)
             .await
     }
 
-    async fn cancel_order(&self, id: Uuid) -> Result<CrossPosition> {
+    async fn cancel_order(&self, id: Uuid) -> Result<CrossOrder> {
         self.base
             .make_request_with_body(
                 Method::POST,
@@ -60,7 +60,7 @@ impl FuturesCrossRepository for LnmFuturesCrossRepository {
         quantity: Quantity,
         execution: TradeExecution,
         client_id: Option<String>,
-    ) -> Result<CrossPosition> {
+    ) -> Result<CrossOrder> {
         let body = FuturesCrossOrderBody::new(side, quantity, execution, client_id)
             .map_err(RestApiV3Error::FuturesCrossTradeOrderValidation)?;
 
@@ -81,7 +81,7 @@ impl FuturesCrossRepository for LnmFuturesCrossRepository {
         todo!()
     }
 
-    async fn close_position(&self) -> Result<CrossPosition> {
+    async fn close_position(&self) -> Result<CrossOrder> {
         self.base
             .make_request_without_params(Method::POST, RestPathV3::FuturesCrossPositionClose, true)
             .await

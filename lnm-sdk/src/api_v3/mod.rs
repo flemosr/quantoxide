@@ -42,5 +42,5 @@ pub mod models {
         },
     };
 
-    pub use super::rest::models::trade::{CrossPosition, PaginatedTrades, Trade};
+    pub use super::rest::models::trade::{CrossOrder, PaginatedTrades, Trade};
 }

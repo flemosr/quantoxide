@@ -524,7 +524,7 @@ impl Trade {
 
     /// Returns the sum of all funding fees paid on this trade in satoshis.
     ///
-    /// Funding fees are periodic payments charged on open positions.
+    /// Funding fees are periodic payments charged on open orders.
     ///
     /// # Examples
     ///
@@ -644,7 +644,7 @@ impl FuturesCrossOrderBody {
 
 #[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
-pub struct CrossPosition {
+pub struct CrossOrder {
     id: Uuid,
     #[serde(rename = "type")]
     trade_type: TradeExecutionType,
@@ -661,16 +661,16 @@ pub struct CrossPosition {
     client_id: Option<String>,
 }
 
-impl CrossPosition {
-    /// Returns the unique identifier for this cross position.
+impl CrossOrder {
+    /// Returns the unique identifier for this cross order.
     ///
     /// # Examples
     ///
     /// ```
-    /// # fn example(position: lnm_sdk::api_v3::models::CrossPosition) -> Result<(), Box<dyn std::error::Error>> {
-    /// let position_id = position.id();
+    /// # fn example(order: lnm_sdk::api_v3::models::CrossOrder) -> Result<(), Box<dyn std::error::Error>> {
+    /// let order_id = order.id();
     ///
-    /// println!("Position ID: {}", position_id);
+    /// println!("Order ID: {}", order_id);
     /// # Ok(())
     /// # }
     /// ```
@@ -683,10 +683,10 @@ impl CrossPosition {
     /// # Examples
     ///
     /// ```no_run
-    /// # fn example(position: lnm_sdk::api_v3::models::CrossPosition) -> Result<(), Box<dyn std::error::Error>> {
-    /// let exec_type = position.trade_type();
+    /// # fn example(order: lnm_sdk::api_v3::models::CrossOrder) -> Result<(), Box<dyn std::error::Error>> {
+    /// let exec_type = order.trade_type();
     ///
-    /// println!("Position execution type: {:?}", exec_type);
+    /// println!("Order execution type: {:?}", exec_type);
     /// # Ok(())
     /// # }
     /// ```
@@ -694,15 +694,15 @@ impl CrossPosition {
         self.trade_type
     }
 
-    /// Returns the side of the position (Buy or Sell).
+    /// Returns the side of the order (Buy or Sell).
     ///
     /// # Examples
     ///
     /// ```no_run
-    /// # fn example(position: lnm_sdk::api_v3::models::CrossPosition) -> Result<(), Box<dyn std::error::Error>> {
-    /// let side = position.side();
+    /// # fn example(order: lnm_sdk::api_v3::models::CrossOrder) -> Result<(), Box<dyn std::error::Error>> {
+    /// let side = order.side();
     ///
-    /// println!("Position side: {:?}", side);
+    /// println!("Order side: {:?}", side);
     /// # Ok(())
     /// # }
     /// ```
@@ -710,15 +710,15 @@ impl CrossPosition {
         self.side
     }
 
-    /// Returns the quantity (notional value in USD) of the position.
+    /// Returns the quantity (notional value in USD) of the order.
     ///
     /// # Examples
     ///
     /// ```no_run
-    /// # fn example(position: lnm_sdk::api_v3::models::CrossPosition) -> Result<(), Box<dyn std::error::Error>> {
-    /// let quantity = position.quantity();
+    /// # fn example(order: lnm_sdk::api_v3::models::CrossOrder) -> Result<(), Box<dyn std::error::Error>> {
+    /// let quantity = order.quantity();
     ///
-    /// println!("Position quantity: {}", quantity);
+    /// println!("Order quantity: {}", quantity);
     /// # Ok(())
     /// # }
     /// ```
@@ -726,15 +726,15 @@ impl CrossPosition {
         self.quantity
     }
 
-    /// Returns the position price.
+    /// Returns the order price.
     ///
     /// # Examples
     ///
     /// ```no_run
-    /// # fn example(position: lnm_sdk::api_v3::models::CrossPosition) -> Result<(), Box<dyn std::error::Error>> {
-    /// let price = position.price();
+    /// # fn example(order: lnm_sdk::api_v3::models::CrossOrder) -> Result<(), Box<dyn std::error::Error>> {
+    /// let price = order.price();
     ///
-    /// println!("Position price: {}", price);
+    /// println!("Order price: {}", price);
     /// # Ok(())
     /// # }
     /// ```
@@ -747,8 +747,8 @@ impl CrossPosition {
     /// # Examples
     ///
     /// ```no_run
-    /// # fn example(position: lnm_sdk::api_v3::models::CrossPosition) -> Result<(), Box<dyn std::error::Error>> {
-    /// let fee = position.trading_fee();
+    /// # fn example(order: lnm_sdk::api_v3::models::CrossOrder) -> Result<(), Box<dyn std::error::Error>> {
+    /// let fee = order.trading_fee();
     ///
     /// println!("Trading fee: {} sats", fee);
     /// # Ok(())
@@ -758,15 +758,15 @@ impl CrossPosition {
         self.trading_fee
     }
 
-    /// Returns the timestamp when the position was created.
+    /// Returns the timestamp when the order was created.
     ///
     /// # Examples
     ///
     /// ```no_run
-    /// # fn example(position: lnm_sdk::api_v3::models::CrossPosition) -> Result<(), Box<dyn std::error::Error>> {
-    /// let created_at = position.created_at();
+    /// # fn example(order: lnm_sdk::api_v3::models::CrossOrder) -> Result<(), Box<dyn std::error::Error>> {
+    /// let created_at = order.created_at();
     ///
-    /// println!("Position created at: {}", created_at);
+    /// println!("Order created at: {}", created_at);
     /// # Ok(())
     /// # }
     /// ```
@@ -774,14 +774,14 @@ impl CrossPosition {
         self.created_at
     }
 
-    /// Returns the timestamp when the position was filled, if applicable.
+    /// Returns the timestamp when the order was filled, if applicable.
     ///
     /// # Examples
     ///
     /// ```no_run
-    /// # fn example(position: lnm_sdk::api_v3::models::CrossPosition) -> Result<(), Box<dyn std::error::Error>> {
-    /// if let Some(filled_at) = position.filled_at() {
-    ///     println!("Position filled at: {}", filled_at);
+    /// # fn example(order: lnm_sdk::api_v3::models::CrossOrder) -> Result<(), Box<dyn std::error::Error>> {
+    /// if let Some(filled_at) = order.filled_at() {
+    ///     println!("Order filled at: {}", filled_at);
     /// }
     /// # Ok(())
     /// # }
@@ -790,14 +790,14 @@ impl CrossPosition {
         self.filled_at
     }
 
-    /// Returns the timestamp when the position was canceled, if applicable.
+    /// Returns the timestamp when the order was canceled, if applicable.
     ///
     /// # Examples
     ///
     /// ```no_run
-    /// # fn example(position: lnm_sdk::api_v3::models::CrossPosition) -> Result<(), Box<dyn std::error::Error>> {
-    /// if let Some(canceled_at) = position.canceled_at() {
-    ///     println!("Position canceled at: {}", canceled_at);
+    /// # fn example(order: lnm_sdk::api_v3::models::CrossOrder) -> Result<(), Box<dyn std::error::Error>> {
+    /// if let Some(canceled_at) = order.canceled_at() {
+    ///     println!("Order canceled at: {}", canceled_at);
     /// }
     /// # Ok(())
     /// # }
@@ -806,14 +806,14 @@ impl CrossPosition {
         self.canceled_at
     }
 
-    /// Returns `true` if the position is open (limit order not yet filled).
+    /// Returns `true` if the order is open (limit order not yet filled).
     ///
     /// # Examples
     ///
     /// ```no_run
-    /// # fn example(position: lnm_sdk::api_v3::models::CrossPosition) -> Result<(), Box<dyn std::error::Error>> {
-    /// if position.open() {
-    ///     println!("Position is open (limit order not filled)");
+    /// # fn example(order: lnm_sdk::api_v3::models::CrossOrder) -> Result<(), Box<dyn std::error::Error>> {
+    /// if order.open() {
+    ///     println!("Order is open (limit order not filled)");
     /// }
     /// # Ok(())
     /// # }
@@ -822,14 +822,14 @@ impl CrossPosition {
         self.open
     }
 
-    /// Returns `true` if the position has been filled.
+    /// Returns `true` if the order has been filled.
     ///
     /// # Examples
     ///
     /// ```no_run
-    /// # fn example(position: lnm_sdk::api_v3::models::CrossPosition) -> Result<(), Box<dyn std::error::Error>> {
-    /// if position.filled() {
-    ///     println!("Position has been filled");
+    /// # fn example(order: lnm_sdk::api_v3::models::CrossOrder) -> Result<(), Box<dyn std::error::Error>> {
+    /// if order.filled() {
+    ///     println!("Order has been filled");
     /// }
     /// # Ok(())
     /// # }
@@ -838,14 +838,14 @@ impl CrossPosition {
         self.filled
     }
 
-    /// Returns `true` if the position was canceled before being filled.
+    /// Returns `true` if the order was canceled before being filled.
     ///
     /// # Examples
     ///
     /// ```no_run
-    /// # fn example(position: lnm_sdk::api_v3::models::CrossPosition) -> Result<(), Box<dyn std::error::Error>> {
-    /// if position.canceled() {
-    ///     println!("Position was canceled");
+    /// # fn example(order: lnm_sdk::api_v3::models::CrossOrder) -> Result<(), Box<dyn std::error::Error>> {
+    /// if order.canceled() {
+    ///     println!("Order was canceled");
     /// }
     /// # Ok(())
     /// # }
@@ -854,13 +854,13 @@ impl CrossPosition {
         self.canceled
     }
 
-    /// Returns the client-provided identifier for this position.
+    /// Returns the client-provided identifier for this order.
     ///
     /// # Examples
     ///
     /// ```no_run
-    /// # fn example(position: lnm_sdk::api_v3::models::CrossPosition) -> Result<(), Box<dyn std::error::Error>> {
-    /// if let Some(client_id) = position.client_id() {
+    /// # fn example(order: lnm_sdk::api_v3::models::CrossOrder) -> Result<(), Box<dyn std::error::Error>> {
+    /// if let Some(client_id) = order.client_id() {
     ///     println!("Client ID: {}", client_id);
     /// }
     /// # Ok(())
