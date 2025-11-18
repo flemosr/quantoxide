@@ -4,13 +4,13 @@ use uuid::Uuid;
 
 #[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
-pub struct FundingSettlement {
+pub struct CrossFunding {
     settlement_id: Uuid,
     fee: i64,
     time: DateTime<Utc>,
 }
 
-impl FundingSettlement {
+impl CrossFunding {
     /// Unique identifier for the funding settlement.
     pub fn settlement_id(&self) -> Uuid {
         self.settlement_id
@@ -21,7 +21,7 @@ impl FundingSettlement {
         self.fee
     }
 
-    /// Timestamp when the funding settlement occurred.
+    /// Timestamp when the funding fee was received.
     pub fn time(&self) -> DateTime<Utc> {
         self.time
     }
@@ -29,25 +29,25 @@ impl FundingSettlement {
 
 #[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
-pub struct PaginatedFundingSettlements {
-    data: Vec<FundingSettlement>,
+pub struct CrossFundingPage {
+    data: Vec<CrossFunding>,
     next_cursor: Option<DateTime<Utc>>,
 }
 
-impl PaginatedFundingSettlements {
-    /// Vector of funding settlements.
+impl CrossFundingPage {
+    /// Vector of cross fundings.
     ///
     /// # Examples
     ///
     /// ```no_run
-    /// # fn example(settlements: lnm_sdk::api_v3::models::PaginatedFundingSettlements) -> Result<(), Box<dyn std::error::Error>> {
-    /// for settlement in settlements.data() {
-    ///     println!("settlement: {:?}", settlement);
+    /// # fn example(cross_fundings: lnm_sdk::api_v3::models::CrossFundingPage) -> Result<(), Box<dyn std::error::Error>> {
+    /// for cross_funding in cross_fundings.data() {
+    ///     println!("cross_funding: {:?}", cross_funding);
     /// }
     /// # Ok(())
     /// # }
     /// ```
-    pub fn data(&self) -> &Vec<FundingSettlement> {
+    pub fn data(&self) -> &Vec<CrossFunding> {
         &self.data
     }
 
@@ -57,11 +57,11 @@ impl PaginatedFundingSettlements {
     /// # Examples
     ///
     /// ```no_run
-    /// # fn example(settlements: lnm_sdk::api_v3::models::PaginatedFundingSettlements) -> Result<(), Box<dyn std::error::Error>> {
-    /// if let Some(cursor) = settlements.next_cursor() {
-    ///     println!("More settlements can be fetched using cursor: {cursor}");
+    /// # fn example(cross_fundings: lnm_sdk::api_v3::models::CrossFundingPage) -> Result<(), Box<dyn std::error::Error>> {
+    /// if let Some(cursor) = cross_fundings.next_cursor() {
+    ///     println!("More cross fundings can be fetched using cursor: {cursor}");
     /// } else {
-    ///     println!("There are no more settlements available.");
+    ///     println!("There are no more cross fundings available.");
     /// }
     /// # Ok(())
     /// # }

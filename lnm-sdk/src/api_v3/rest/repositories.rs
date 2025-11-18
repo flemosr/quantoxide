@@ -16,7 +16,7 @@ use crate::shared::{
 
 use super::models::{
     cross_leverage::CrossLeverage,
-    funding::PaginatedFundingSettlements,
+    funding::CrossFundingPage,
     ticker::Ticker,
     trade::{CrossOrder, CrossPosition, PaginatedCrossOrders, PaginatedTrades, Trade},
     transfer::PaginatedCrossTransfers,
@@ -197,7 +197,7 @@ pub trait FuturesCrossRepository: crate::sealed::Sealed + Send + Sync {
         to: Option<DateTime<Utc>>,
         limit: Option<NonZeroU64>,
         cursor: Option<DateTime<Utc>>,
-    ) -> Result<PaginatedFundingSettlements>;
+    ) -> Result<CrossFundingPage>;
 
     /// Get the transfers history for the cross margin position (deposits to and withdrawals from
     /// the cross margin account). Positive amounts are deposits, negative amounts are withdrawals.
