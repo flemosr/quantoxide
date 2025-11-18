@@ -2,13 +2,16 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::shared::models::{
-    leverage::Leverage,
-    margin::Margin,
-    price::Price,
-    quantity::Quantity,
-    serde_util,
-    trade::{TradeExecution, TradeExecutionType, TradeSide, TradeSize},
+use crate::{
+    api_v3::rest::models::error::FuturesCrossTradeOrderValidationError,
+    shared::models::{
+        leverage::Leverage,
+        margin::Margin,
+        price::Price,
+        quantity::Quantity,
+        serde_util,
+        trade::{TradeExecution, TradeExecutionType, TradeSide, TradeSize},
+    },
 };
 
 use super::error::FuturesIsolatedTradeRequestValidationError;
@@ -595,5 +598,275 @@ impl PaginatedTrades {
     /// ```
     pub fn next_cursor(&self) -> Option<DateTime<Utc>> {
         self.next_cursor
+    }
+}
+
+#[derive(Serialize, Debug)]
+pub(in crate::api_v3) struct FuturesCrossOrderBody {
+    side: TradeSide,
+    quantity: Quantity,
+    #[serde(rename = "type")]
+    trade_type: TradeExecutionType,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    price: Option<Price>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    client_id: Option<String>,
+}
+
+impl FuturesCrossOrderBody {
+    pub fn new(
+        side: TradeSide,
+        quantity: Quantity,
+        execution: TradeExecution,
+        client_id: Option<String>,
+    ) -> Result<Self, FuturesCrossTradeOrderValidationError> {
+        let (trade_type, price) = match execution {
+            TradeExecution::Market => (TradeExecutionType::Market, None),
+            TradeExecution::Limit(price) => (TradeExecutionType::Limit, Some(price)),
+        };
+
+        if client_id
+            .as_ref()
+            .map_or(false, |client_id| client_id.len() > 64)
+        {
+            return Err(FuturesCrossTradeOrderValidationError::ClientIdTooLong);
+        }
+
+        Ok(FuturesCrossOrderBody {
+            side,
+            quantity,
+            trade_type,
+            price,
+            client_id,
+        })
+    }
+}
+
+#[derive(Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct CrossPosition {
+    id: Uuid,
+    #[serde(rename = "type")]
+    trade_type: TradeExecutionType,
+    side: TradeSide,
+    quantity: Quantity,
+    price: Price,
+    trading_fee: u64,
+    created_at: DateTime<Utc>,
+    filled_at: Option<DateTime<Utc>>,
+    canceled_at: Option<DateTime<Utc>>,
+    open: bool,
+    filled: bool,
+    canceled: bool,
+    client_id: Option<String>,
+}
+
+impl CrossPosition {
+    /// Returns the unique identifier for this cross position.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # fn example(position: lnm_sdk::api_v3::models::CrossPosition) -> Result<(), Box<dyn std::error::Error>> {
+    /// let position_id = position.id();
+    ///
+    /// println!("Position ID: {}", position_id);
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn id(&self) -> Uuid {
+        self.id
+    }
+
+    /// Returns the execution type (Market or Limit).
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # fn example(position: lnm_sdk::api_v3::models::CrossPosition) -> Result<(), Box<dyn std::error::Error>> {
+    /// let exec_type = position.trade_type();
+    ///
+    /// println!("Position execution type: {:?}", exec_type);
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn trade_type(&self) -> TradeExecutionType {
+        self.trade_type
+    }
+
+    /// Returns the side of the position (Buy or Sell).
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # fn example(position: lnm_sdk::api_v3::models::CrossPosition) -> Result<(), Box<dyn std::error::Error>> {
+    /// let side = position.side();
+    ///
+    /// println!("Position side: {:?}", side);
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn side(&self) -> TradeSide {
+        self.side
+    }
+
+    /// Returns the quantity (notional value in USD) of the position.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # fn example(position: lnm_sdk::api_v3::models::CrossPosition) -> Result<(), Box<dyn std::error::Error>> {
+    /// let quantity = position.quantity();
+    ///
+    /// println!("Position quantity: {}", quantity);
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn quantity(&self) -> Quantity {
+        self.quantity
+    }
+
+    /// Returns the position price.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # fn example(position: lnm_sdk::api_v3::models::CrossPosition) -> Result<(), Box<dyn std::error::Error>> {
+    /// let price = position.price();
+    ///
+    /// println!("Position price: {}", price);
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn price(&self) -> Price {
+        self.price
+    }
+
+    /// Returns the trading fee charged (in satoshis).
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # fn example(position: lnm_sdk::api_v3::models::CrossPosition) -> Result<(), Box<dyn std::error::Error>> {
+    /// let fee = position.trading_fee();
+    ///
+    /// println!("Trading fee: {} sats", fee);
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn trading_fee(&self) -> u64 {
+        self.trading_fee
+    }
+
+    /// Returns the timestamp when the position was created.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # fn example(position: lnm_sdk::api_v3::models::CrossPosition) -> Result<(), Box<dyn std::error::Error>> {
+    /// let created_at = position.created_at();
+    ///
+    /// println!("Position created at: {}", created_at);
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn created_at(&self) -> DateTime<Utc> {
+        self.created_at
+    }
+
+    /// Returns the timestamp when the position was filled, if applicable.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # fn example(position: lnm_sdk::api_v3::models::CrossPosition) -> Result<(), Box<dyn std::error::Error>> {
+    /// if let Some(filled_at) = position.filled_at() {
+    ///     println!("Position filled at: {}", filled_at);
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn filled_at(&self) -> Option<DateTime<Utc>> {
+        self.filled_at
+    }
+
+    /// Returns the timestamp when the position was canceled, if applicable.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # fn example(position: lnm_sdk::api_v3::models::CrossPosition) -> Result<(), Box<dyn std::error::Error>> {
+    /// if let Some(canceled_at) = position.canceled_at() {
+    ///     println!("Position canceled at: {}", canceled_at);
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn canceled_at(&self) -> Option<DateTime<Utc>> {
+        self.canceled_at
+    }
+
+    /// Returns `true` if the position is open (limit order not yet filled).
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # fn example(position: lnm_sdk::api_v3::models::CrossPosition) -> Result<(), Box<dyn std::error::Error>> {
+    /// if position.open() {
+    ///     println!("Position is open (limit order not filled)");
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn open(&self) -> bool {
+        self.open
+    }
+
+    /// Returns `true` if the position has been filled.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # fn example(position: lnm_sdk::api_v3::models::CrossPosition) -> Result<(), Box<dyn std::error::Error>> {
+    /// if position.filled() {
+    ///     println!("Position has been filled");
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn filled(&self) -> bool {
+        self.filled
+    }
+
+    /// Returns `true` if the position was canceled before being filled.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # fn example(position: lnm_sdk::api_v3::models::CrossPosition) -> Result<(), Box<dyn std::error::Error>> {
+    /// if position.canceled() {
+    ///     println!("Position was canceled");
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn canceled(&self) -> bool {
+        self.canceled
+    }
+
+    /// Returns the client-provided identifier for this position.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # fn example(position: lnm_sdk::api_v3::models::CrossPosition) -> Result<(), Box<dyn std::error::Error>> {
+    /// if let Some(client_id) = position.client_id() {
+    ///     println!("Client ID: {}", client_id);
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn client_id(&self) -> Option<&String> {
+        self.client_id.as_ref()
     }
 }
