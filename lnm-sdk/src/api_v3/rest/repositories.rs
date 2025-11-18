@@ -16,7 +16,7 @@ use crate::shared::{
 
 use super::models::{
     cross_leverage::CrossLeverage,
-    funding::CrossFundingPage,
+    funding::{CrossFundingPage, IsolatedFundingPage},
     ticker::Ticker,
     trade::{CrossOrder, CrossPosition, PaginatedCrossOrders, PaginatedTrades, Trade},
     transfer::PaginatedCrossTransfers,
@@ -130,7 +130,13 @@ pub trait FuturesIsolatedRepository: crate::sealed::Sealed + Send + Sync {
     /// Get the funding fees paid for all the isolated trades, or for a specific trade.
     ///
     /// **Required permissions**: `futures:isolated:read`
-    async fn get_funding_fees(&self) -> Result<()>;
+    async fn get_funding_fees(
+        &self,
+        from: Option<DateTime<Utc>>,
+        to: Option<DateTime<Utc>>,
+        limit: Option<NonZeroU64>,
+        cursor: Option<DateTime<Utc>>,
+    ) -> Result<IsolatedFundingPage>;
 }
 
 /// Methods for interacting with [LNM's v3 API]'s REST Futures Cross endpoints.

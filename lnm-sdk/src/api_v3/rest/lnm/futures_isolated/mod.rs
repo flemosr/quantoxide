@@ -18,7 +18,10 @@ use crate::shared::{
 use super::{
     super::{
         error::RestApiV3Error,
-        models::trade::{FuturesIsolatedTradeRequestBody, PaginatedTrades, Trade},
+        models::{
+            funding::IsolatedFundingPage,
+            trade::{FuturesIsolatedTradeRequestBody, PaginatedTrades, Trade},
+        },
         repositories::FuturesIsolatedRepository,
     },
     path::RestPathV3,
@@ -231,8 +234,39 @@ impl FuturesIsolatedRepository for LnmFuturesIsolatedRepository {
             .await
     }
 
-    async fn get_funding_fees(&self) -> Result<()> {
-        todo!()
+    async fn get_funding_fees(
+        &self,
+        from: Option<DateTime<Utc>>,
+        to: Option<DateTime<Utc>>,
+        limit: Option<NonZeroU64>,
+        cursor: Option<DateTime<Utc>>,
+    ) -> Result<IsolatedFundingPage> {
+        let mut query_params = Vec::new();
+
+        if let Some(from) = from {
+            query_params.push(("from", from.to_rfc3339_opts(SecondsFormat::Millis, true)));
+        }
+        if let Some(to) = to {
+            query_params.push(("to", to.to_rfc3339_opts(SecondsFormat::Millis, true)));
+        }
+        if let Some(limit) = limit {
+            query_params.push(("limit", limit.to_string()));
+        }
+        if let Some(cursor) = cursor {
+            query_params.push((
+                "cursor",
+                cursor.to_rfc3339_opts(SecondsFormat::Millis, true),
+            ));
+        }
+
+        self.base
+            .make_request_with_query_params(
+                Method::GET,
+                RestPathV3::FuturesIsolatedFundingFees,
+                query_params,
+                true,
+            )
+            .await
     }
 }
 

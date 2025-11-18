@@ -409,6 +409,13 @@ async fn test_get_trades_closed(
     }
 }
 
+async fn test_get_funding_fees(repo: &LnmFuturesIsolatedRepository) {
+    let _ = repo
+        .get_funding_fees(None, None, None, None)
+        .await
+        .expect("must get funding fees");
+}
+
 #[tokio::test]
 async fn test_api() {
     let (repo, repo_data) = init_repositories_from_env();
@@ -516,4 +523,6 @@ async fn test_api() {
         "test_get_trades_closed",
         test_get_trades_closed(&repo, vec![&long_market_trade_a, &short_market_trade_b]).await
     );
+
+    time_test!("test_get_funding_fees", test_get_funding_fees(&repo).await);
 }
