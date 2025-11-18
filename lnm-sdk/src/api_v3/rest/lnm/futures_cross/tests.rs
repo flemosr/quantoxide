@@ -5,7 +5,7 @@ use dotenv::dotenv;
 use crate::{
     api_v3::{
         FuturesDataRepository,
-        models::{BoundedPercentage, CrossOrder, TradeExecutionType},
+        models::{BoundedPercentage, CrossLeverage, CrossOrder, TradeExecutionType},
         rest::{lnm::futures_data::LnmFuturesDataRepository, models::ticker::Ticker},
     },
     shared::{config::RestClientConfig, models::quantity::Quantity},
@@ -197,6 +197,17 @@ async fn test_close_position(repo: &LnmFuturesCrossRepository) {
     assert!(short_order_market.client_id().is_none());
 }
 
+async fn test_set_leverage(repo: &LnmFuturesCrossRepository, leverage: CrossLeverage) {
+    let cross_position: CrossPosition = repo
+        .set_leverage(leverage)
+        .await
+        .expect("must set leverage");
+
+    println!("cross_position {:?}", cross_position);
+
+    assert_eq!(cross_position.leverage(), leverage);
+}
+
 #[tokio::test]
 async fn test_api() {
     let (repo, repo_data) = init_repositories_from_env();
@@ -262,6 +273,11 @@ async fn test_api() {
     );
 
     println!("short_order_market {:?}", short_order_market);
+
+    time_test!(
+        "test_set_leverage",
+        test_set_leverage(&repo, CrossLeverage::try_from(1).unwrap()).await
+    );
 
     time_test!("test_close_position", test_close_position(&repo).await);
 }

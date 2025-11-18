@@ -18,6 +18,7 @@ pub(in crate::api_v3) enum RestPathV3 {
     FuturesCrossOrderCancel,
     FuturesCrossOrderCancelAll,
     FuturesCrossPositionClose,
+    FuturesCrossPositionSetLeverage,
     FuturesDataTicker,
 }
 
@@ -52,6 +53,7 @@ impl RestPath for RestPathV3 {
             RestPathV3::FuturesCrossOrderCancel => "/v3/futures/cross/order/cancel".into(),
             RestPathV3::FuturesCrossOrderCancelAll => "/v3/futures/cross/orders/cancel-all".into(),
             RestPathV3::FuturesCrossPositionClose => "/v3/futures/cross/position/close".into(),
+            RestPathV3::FuturesCrossPositionSetLeverage => "/v3/futures/cross/leverage".into(),
             RestPathV3::FuturesDataTicker => "/v3/futures/ticker".into(),
         }
     }

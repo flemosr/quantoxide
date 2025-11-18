@@ -5,18 +5,21 @@ use hyper::Method;
 use serde_json::json;
 use uuid::Uuid;
 
-use crate::shared::{
-    models::{
-        quantity::Quantity,
-        trade::{TradeExecution, TradeSide},
+use crate::{
+    api_v3::models::CrossLeverage,
+    shared::{
+        models::{
+            quantity::Quantity,
+            trade::{TradeExecution, TradeSide},
+        },
+        rest::{error::Result, lnm::base::LnmRestBase},
     },
-    rest::{error::Result, lnm::base::LnmRestBase},
 };
 
 use super::{
     super::{
         error::RestApiV3Error,
-        models::trade::{CrossOrder, FuturesCrossOrderBody},
+        models::trade::{CrossOrder, CrossPosition, FuturesCrossOrderBody},
         repositories::FuturesCrossRepository,
     },
     path::RestPathV3,
@@ -99,8 +102,15 @@ impl FuturesCrossRepository for LnmFuturesCrossRepository {
         todo!()
     }
 
-    async fn set_leverage(&self) -> Result<()> {
-        todo!()
+    async fn set_leverage(&self, leverage: CrossLeverage) -> Result<CrossPosition> {
+        self.base
+            .make_request_with_body(
+                Method::PUT,
+                RestPathV3::FuturesCrossPositionSetLeverage,
+                json!({"leverage": leverage}),
+                true,
+            )
+            .await
     }
 
     async fn withdraw(&self) -> Result<()> {

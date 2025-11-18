@@ -15,8 +15,9 @@ use crate::shared::{
 };
 
 use super::models::{
+    cross_leverage::CrossLeverage,
     ticker::Ticker,
-    trade::{CrossOrder, PaginatedTrades, Trade},
+    trade::{CrossOrder, CrossPosition, PaginatedTrades, Trade},
 };
 
 /// Methods for interacting with [LNM's v3 API]'s REST Utilities endpoints.
@@ -200,7 +201,7 @@ pub trait FuturesCrossRepository: crate::sealed::Sealed + Send + Sync {
     /// Returns the updated position.
     ///
     /// **Required permissions**: `futures:cross:write`
-    async fn set_leverage(&self) -> Result<()>;
+    async fn set_leverage(&self, leverage: CrossLeverage) -> Result<CrossPosition>;
 
     /// Withdraw funds from the cross margin account.
     ///
