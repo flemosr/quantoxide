@@ -24,8 +24,10 @@ pub mod error {
     };
 
     pub use super::{
-        rest::error::RestApiV2Error,
-        rest::models::error::{FuturesTradeRequestValidationError, ValidationError},
+        rest::{
+            error::RestApiV2Error,
+            models::error::{FuturesTradeRequestValidationError, ValidationError},
+        },
         websocket::{
             error::{WebSocketApiError, WebSocketConnectionError},
             models::{JsonRpcResponse, LnmJsonRpcRequest},
