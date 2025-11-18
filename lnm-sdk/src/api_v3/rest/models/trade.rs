@@ -2,19 +2,19 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{
-    api_v3::rest::models::error::FuturesCrossTradeOrderValidationError,
-    shared::models::{
-        leverage::Leverage,
-        margin::Margin,
-        price::Price,
-        quantity::Quantity,
-        serde_util,
-        trade::{TradeExecution, TradeExecutionType, TradeSide, TradeSize},
-    },
+use crate::shared::models::{
+    leverage::Leverage,
+    margin::Margin,
+    price::Price,
+    quantity::Quantity,
+    serde_util,
+    trade::{TradeExecution, TradeExecutionType, TradeSide, TradeSize},
 };
 
-use super::error::FuturesIsolatedTradeRequestValidationError;
+use super::{
+    cross_leverage::CrossLeverage,
+    error::{FuturesCrossTradeOrderValidationError, FuturesIsolatedTradeRequestValidationError},
+};
 
 #[derive(Serialize, Debug)]
 pub(in crate::api_v3) struct FuturesIsolatedTradeRequestBody {
@@ -572,7 +572,7 @@ impl PaginatedTrades {
     /// ```no_run
     /// # fn example(paginated_trades: lnm_sdk::api_v3::models::PaginatedTrades) -> Result<(), Box<dyn std::error::Error>> {
     /// for trade in paginated_trades.data() {
-    ///     println!("trade: {trade}");
+    ///     println!("trade: {:?}", trade);
     /// }
     /// # Ok(())
     /// # }
@@ -868,5 +868,245 @@ impl CrossOrder {
     /// ```
     pub fn client_id(&self) -> Option<&String> {
         self.client_id.as_ref()
+    }
+}
+
+#[derive(Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct CrossPosition {
+    id: Uuid,
+    margin: Margin,
+    quantity: Quantity,
+    leverage: CrossLeverage,
+    entry_price: Price,
+    running_margin: Margin,
+    initial_margin: Margin,
+    maintenance_margin: Margin,
+    liquidation: Price,
+    trading_fees: u64,
+    funding_fees: u64,
+    total_pl: i64,
+    delta_pl: i64,
+}
+
+impl CrossPosition {
+    /// Returns the unique identifier for this cross position.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # fn example(position: lnm_sdk::api_v3::models::CrossPosition) -> Result<(), Box<dyn std::error::Error>> {
+    /// let position_id = position.id();
+    ///
+    /// println!("Position ID: {}", position_id);
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn id(&self) -> Uuid {
+        self.id
+    }
+
+    /// Returns the margin (collateral in satoshis) allocated to the position.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # fn example(position: lnm_sdk::api_v3::models::CrossPosition) -> Result<(), Box<dyn std::error::Error>> {
+    /// let margin = position.margin();
+    ///
+    /// println!("Position margin: {}", margin);
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn margin(&self) -> Margin {
+        self.margin
+    }
+
+    /// Returns the quantity (notional value in USD) of the position.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # fn example(position: lnm_sdk::api_v3::models::CrossPosition) -> Result<(), Box<dyn std::error::Error>> {
+    /// let quantity = position.quantity();
+    ///
+    /// println!("Position quantity: {}", quantity);
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn quantity(&self) -> Quantity {
+        self.quantity
+    }
+
+    /// Returns the leverage multiplier applied to the position.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # fn example(position: lnm_sdk::api_v3::models::CrossPosition) -> Result<(), Box<dyn std::error::Error>> {
+    /// let leverage = position.leverage();
+    ///
+    /// println!("Position leverage: {}", leverage);
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn leverage(&self) -> CrossLeverage {
+        self.leverage
+    }
+
+    /// Returns the entry price of the position.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # fn example(position: lnm_sdk::api_v3::models::CrossPosition) -> Result<(), Box<dyn std::error::Error>> {
+    /// let entry_price = position.entry_price();
+    ///
+    /// println!("Entry price: {}", entry_price);
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn entry_price(&self) -> Price {
+        self.entry_price
+    }
+
+    /// Returns the running margin (current margin including P/L) in satoshis.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # fn example(position: lnm_sdk::api_v3::models::CrossPosition) -> Result<(), Box<dyn std::error::Error>> {
+    /// let running_margin = position.running_margin();
+    ///
+    /// println!("Running margin: {}", running_margin);
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn running_margin(&self) -> Margin {
+        self.running_margin
+    }
+
+    /// Returns the initial margin requirement (in satoshis).
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # fn example(position: lnm_sdk::api_v3::models::CrossPosition) -> Result<(), Box<dyn std::error::Error>> {
+    /// let initial_margin = position.initial_margin();
+    ///
+    /// println!("Initial margin: {}", initial_margin);
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn initial_margin(&self) -> Margin {
+        self.initial_margin
+    }
+
+    /// Returns the maintenance margin requirement (in satoshis).
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # fn example(position: lnm_sdk::api_v3::models::CrossPosition) -> Result<(), Box<dyn std::error::Error>> {
+    /// let maintenance_margin = position.maintenance_margin();
+    ///
+    /// println!("Maintenance margin: {}", maintenance_margin);
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn maintenance_margin(&self) -> Margin {
+        self.maintenance_margin
+    }
+
+    /// Returns the liquidation price at which the position will be automatically closed.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # fn example(position: lnm_sdk::api_v3::models::CrossPosition) -> Result<(), Box<dyn std::error::Error>> {
+    /// let liq_price = position.liquidation();
+    ///
+    /// println!("Liquidation price: {}", liq_price);
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn liquidation(&self) -> Price {
+        self.liquidation
+    }
+
+    /// Returns the total trading fees paid on this position in satoshis.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # fn example(position: lnm_sdk::api_v3::models::CrossPosition) -> Result<(), Box<dyn std::error::Error>> {
+    /// let fees = position.trading_fees();
+    ///
+    /// println!("Trading fees: {} sats", fees);
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn trading_fees(&self) -> u64 {
+        self.trading_fees
+    }
+
+    /// Returns the net funding fees for this position in satoshis.
+    ///
+    /// Funding fees are periodic payments that can be either paid by the user (positive value)
+    /// or received by the user (negative value), depending on the funding rate. The funding rate
+    /// varies according to the current balance between long and short positions on the exchange.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # fn example(position: lnm_sdk::api_v3::models::CrossPosition) -> Result<(), Box<dyn std::error::Error>> {
+    /// let fees = position.funding_fees();
+    ///
+    /// println!("Funding fees: {} sats", fees);
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn funding_fees(&self) -> u64 {
+        self.funding_fees
+    }
+
+    /// Returns the total profit/loss in satoshis.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # fn example(position: lnm_sdk::api_v3::models::CrossPosition) -> Result<(), Box<dyn std::error::Error>> {
+    /// let total_pl = position.total_pl();
+    ///
+    /// if total_pl > 0 {
+    ///     println!("Total profit: {} sats", total_pl);
+    /// } else {
+    ///     println!("Total loss: {} sats", total_pl.abs());
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn total_pl(&self) -> i64 {
+        self.total_pl
+    }
+
+    /// Returns the delta profit/loss in satoshis since last update.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # fn example(position: lnm_sdk::api_v3::models::CrossPosition) -> Result<(), Box<dyn std::error::Error>> {
+    /// let delta_pl = position.delta_pl();
+    ///
+    /// if delta_pl > 0 {
+    ///     println!("P/L change: +{} sats", delta_pl);
+    /// } else {
+    ///     println!("P/L change: {} sats", delta_pl);
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn delta_pl(&self) -> i64 {
+        self.delta_pl
     }
 }
