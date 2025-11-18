@@ -1,25 +1,26 @@
-use std::sync::Arc;
+use std::{num::NonZeroU64, sync::Arc};
 
 use async_trait::async_trait;
+use chrono::{DateTime, SecondsFormat, Utc};
 use hyper::Method;
 use serde_json::json;
 use uuid::Uuid;
 
-use crate::{
-    api_v3::models::CrossLeverage,
-    shared::{
-        models::{
-            quantity::Quantity,
-            trade::{TradeExecution, TradeSide},
-        },
-        rest::{error::Result, lnm::base::LnmRestBase},
+use crate::shared::{
+    models::{
+        quantity::Quantity,
+        trade::{TradeExecution, TradeSide},
     },
+    rest::{error::Result, lnm::base::LnmRestBase},
 };
 
 use super::{
     super::{
         error::RestApiV3Error,
-        models::trade::{CrossOrder, CrossPosition, FuturesCrossOrderBody},
+        models::{
+            cross_leverage::CrossLeverage,
+            trade::{CrossOrder, CrossPosition, FuturesCrossOrderBody, PaginatedCrossOrders},
+        },
         repositories::FuturesCrossRepository,
     },
     path::RestPathV3,
@@ -42,7 +43,11 @@ impl crate::sealed::Sealed for LnmFuturesCrossRepository {}
 impl FuturesCrossRepository for LnmFuturesCrossRepository {
     async fn cancel_all_orders(&self) -> Result<Vec<CrossOrder>> {
         self.base
-            .make_request_without_params(Method::POST, RestPathV3::FuturesCrossOrderCancelAll, true)
+            .make_request_without_params(
+                Method::POST,
+                RestPathV3::FuturesCrossOrdersCancelAll,
+                true,
+            )
             .await
     }
 
@@ -72,8 +77,10 @@ impl FuturesCrossRepository for LnmFuturesCrossRepository {
             .await
     }
 
-    async fn get_open_orders(&self) -> Result<()> {
-        todo!()
+    async fn get_open_orders(&self) -> Result<Vec<CrossOrder>> {
+        self.base
+            .make_request_without_params(Method::GET, RestPathV3::FuturesCrossOrdersOpen, true)
+            .await
     }
 
     async fn get_position(&self) -> Result<CrossPosition> {
@@ -82,8 +89,39 @@ impl FuturesCrossRepository for LnmFuturesCrossRepository {
             .await
     }
 
-    async fn get_filled_orders(&self) -> Result<()> {
-        todo!()
+    async fn get_filled_orders(
+        &self,
+        from: Option<DateTime<Utc>>,
+        to: Option<DateTime<Utc>>,
+        limit: Option<NonZeroU64>,
+        cursor: Option<DateTime<Utc>>,
+    ) -> Result<PaginatedCrossOrders> {
+        let mut query_params = Vec::new();
+
+        if let Some(from) = from {
+            query_params.push(("from", from.to_rfc3339_opts(SecondsFormat::Millis, true)));
+        }
+        if let Some(to) = to {
+            query_params.push(("to", to.to_rfc3339_opts(SecondsFormat::Millis, true)));
+        }
+        if let Some(limit) = limit {
+            query_params.push(("limit", limit.to_string()));
+        }
+        if let Some(cursor) = cursor {
+            query_params.push((
+                "cursor",
+                cursor.to_rfc3339_opts(SecondsFormat::Millis, true),
+            ));
+        }
+
+        self.base
+            .make_request_with_query_params(
+                Method::GET,
+                RestPathV3::FuturesCrossOrdersFilled,
+                query_params,
+                true,
+            )
+            .await
     }
 
     async fn close_position(&self) -> Result<CrossOrder> {

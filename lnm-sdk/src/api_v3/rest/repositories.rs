@@ -17,7 +17,7 @@ use crate::shared::{
 use super::models::{
     cross_leverage::CrossLeverage,
     ticker::Ticker,
-    trade::{CrossOrder, CrossPosition, PaginatedTrades, Trade},
+    trade::{CrossOrder, CrossPosition, PaginatedCrossOrders, PaginatedTrades, Trade},
 };
 
 /// Methods for interacting with [LNM's v3 API]'s REST Utilities endpoints.
@@ -162,7 +162,7 @@ pub trait FuturesCrossRepository: crate::sealed::Sealed + Send + Sync {
     /// Get all the cross orders that are still open.
     ///
     /// **Required permissions**: `futures:cross:read`
-    async fn get_open_orders(&self) -> Result<()>;
+    async fn get_open_orders(&self) -> Result<Vec<CrossOrder>>;
 
     /// Get the current cross margin position.
     ///
@@ -172,7 +172,13 @@ pub trait FuturesCrossRepository: crate::sealed::Sealed + Send + Sync {
     /// Get the cross orders that have been filled.
     ///
     /// **Required permissions**: `futures:cross:read`
-    async fn get_filled_orders(&self) -> Result<()>;
+    async fn get_filled_orders(
+        &self,
+        from: Option<DateTime<Utc>>,
+        to: Option<DateTime<Utc>>,
+        limit: Option<NonZeroU64>,
+        cursor: Option<DateTime<Utc>>,
+    ) -> Result<PaginatedCrossOrders>;
 
     /// Close the running cross margin position. This will pass a market order opposite to the
     /// current position.

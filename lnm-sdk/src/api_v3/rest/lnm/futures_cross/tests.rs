@@ -216,6 +216,35 @@ async fn test_set_leverage(repo: &LnmFuturesCrossRepository, leverage: CrossLeve
     assert_eq!(cross_position.leverage(), leverage);
 }
 
+async fn test_get_open_orders(repo: &LnmFuturesCrossRepository, exp_open_orders: Vec<&CrossOrder>) {
+    let open_orders: Vec<CrossOrder> = repo.get_open_orders().await.expect("must get open orders");
+
+    assert_eq!(open_orders.len(), exp_open_orders.len());
+
+    for order in &open_orders {
+        let ok = exp_open_orders.iter().any(|exp| exp.id() == order.id());
+        assert!(ok, "open order {} was not returned", order.id());
+    }
+}
+
+async fn test_get_filled_orders(
+    repo: &LnmFuturesCrossRepository,
+    exp_filled_orders: Vec<&CrossOrder>,
+) {
+    let limit = NonZeroU64::try_from(exp_filled_orders.len() as u64).unwrap();
+    let filled_orders: PaginatedCrossOrders = repo
+        .get_filled_orders(None, None, Some(limit), None)
+        .await
+        .expect("must get open orders");
+
+    assert_eq!(filled_orders.data().len(), exp_filled_orders.len());
+
+    for order in filled_orders.data() {
+        let ok = exp_filled_orders.iter().any(|exp| exp.id() == order.id());
+        assert!(ok, "filled order {} was not returned", order.id());
+    }
+}
+
 #[tokio::test]
 async fn test_api() {
     let (repo, repo_data) = init_repositories_from_env();
@@ -285,6 +314,11 @@ async fn test_api() {
     println!("short_limit_trade_a {:?}", short_order_limit);
 
     time_test!(
+        "test_get_open_orders",
+        test_get_open_orders(&repo, vec![&short_order_limit]).await
+    );
+
+    time_test!(
         "test_cancel_all_orders",
         test_cancel_all_orders(&repo, vec![&short_order_limit]).await
     );
@@ -307,6 +341,11 @@ async fn test_api() {
     );
 
     println!("short_order_market {:?}", short_order_market);
+
+    time_test!(
+        "test_get_filled_orders",
+        test_get_filled_orders(&repo, vec![&long_order_market, &short_order_market]).await
+    );
 
     time_test!("test_close_position", test_close_position(&repo).await);
 }
