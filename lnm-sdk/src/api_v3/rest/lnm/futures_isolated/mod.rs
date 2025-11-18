@@ -44,7 +44,7 @@ impl FuturesIsolatedRepository for LnmFuturesIsolatedRepository {
             .make_request_with_body(
                 Method::POST,
                 RestPathV3::FuturesIsolatedTradeAddMargin,
-                json!({"id": id, "amount": amount}),
+                json!({ "id": id, "amount": amount }),
                 true,
             )
             .await
@@ -65,7 +65,7 @@ impl FuturesIsolatedRepository for LnmFuturesIsolatedRepository {
             .make_request_with_body(
                 Method::POST,
                 RestPathV3::FuturesIsolatedTradeCancel,
-                json!({"id": id}),
+                json!({ "id": id }),
                 true,
             )
             .await
@@ -76,7 +76,7 @@ impl FuturesIsolatedRepository for LnmFuturesIsolatedRepository {
             .make_request_with_body(
                 Method::POST,
                 RestPathV3::FuturesIsolatedTradeCashIn,
-                json!({"id": id, "amount": amount}),
+                json!({ "id": id, "amount": amount }),
                 true,
             )
             .await
@@ -87,7 +87,7 @@ impl FuturesIsolatedRepository for LnmFuturesIsolatedRepository {
             .make_request_with_body(
                 Method::POST,
                 RestPathV3::FuturesIsolatedTradeClose,
-                json!({"id": id}),
+                json!({ "id": id }),
                 true,
             )
             .await
@@ -181,8 +181,8 @@ impl FuturesIsolatedRepository for LnmFuturesIsolatedRepository {
 
     async fn update_takeprofit(&self, id: Uuid, value: Option<Price>) -> Result<Trade> {
         let body = match value {
-            Some(price) => json!({"id": id, "value": price}),
-            None => json!({"id": id, "value": 0}),
+            Some(price) => json!({ "id": id, "value": price }),
+            None => json!({ "id": id, "value": 0 }),
         };
 
         self.base
@@ -197,8 +197,8 @@ impl FuturesIsolatedRepository for LnmFuturesIsolatedRepository {
 
     async fn update_stoploss(&self, id: Uuid, value: Option<Price>) -> Result<Trade> {
         let body = match value {
-            Some(price) => json!({"id": id, "value": price}),
-            None => json!({"id": id, "value": 0}),
+            Some(price) => json!({ "id": id, "value": price }),
+            None => json!({ "id": id, "value": 0 }),
         };
 
         self.base
