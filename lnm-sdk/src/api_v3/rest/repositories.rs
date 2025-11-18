@@ -18,7 +18,7 @@ use super::models::{
     cross_leverage::CrossLeverage,
     funding::{CrossFundingPage, IsolatedFundingPage},
     ticker::Ticker,
-    trade::{CrossOrder, CrossOrderPage, CrossPosition, PaginatedTrades, Trade},
+    trade::{CrossOrder, CrossOrderPage, CrossPosition, Trade, TradePage},
     transfer::CrossTransferPage,
 };
 
@@ -88,7 +88,7 @@ pub trait FuturesIsolatedRepository: crate::sealed::Sealed + Send + Sync {
         to: Option<DateTime<Utc>>,
         limit: Option<NonZeroU64>,
         cursor: Option<DateTime<Utc>>,
-    ) -> Result<PaginatedTrades>;
+    ) -> Result<TradePage>;
 
     /// Get canceled trades.
     ///
@@ -99,7 +99,7 @@ pub trait FuturesIsolatedRepository: crate::sealed::Sealed + Send + Sync {
         to: Option<DateTime<Utc>>,
         limit: Option<NonZeroU64>,
         cursor: Option<DateTime<Utc>>,
-    ) -> Result<PaginatedTrades>;
+    ) -> Result<TradePage>;
 
     /// Update an open or running trade takeprofit. If the provided `value` is `None`, the
     /// takeprofit will be removed.

@@ -559,19 +559,19 @@ impl Trade {
 
 #[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
-pub struct PaginatedTrades {
+pub struct TradePage {
     data: Vec<Trade>,
     next_cursor: Option<DateTime<Utc>>,
 }
 
-impl PaginatedTrades {
+impl TradePage {
     /// Vector of trades.
     ///
     /// # Examples
     ///
     /// ```no_run
-    /// # fn example(paginated_trades: lnm_sdk::api_v3::models::PaginatedTrades) -> Result<(), Box<dyn std::error::Error>> {
-    /// for trade in paginated_trades.data() {
+    /// # fn example(trade_page: lnm_sdk::api_v3::models::TradePage) -> Result<(), Box<dyn std::error::Error>> {
+    /// for trade in trade_page.data() {
     ///     println!("trade: {:?}", trade);
     /// }
     /// # Ok(())
@@ -587,8 +587,8 @@ impl PaginatedTrades {
     /// # Examples
     ///
     /// ```no_run
-    /// # fn example(paginated_trades: lnm_sdk::api_v3::models::PaginatedTrades) -> Result<(), Box<dyn std::error::Error>> {
-    /// if let Some(cursor) = paginated_trades.next_cursor() {
+    /// # fn example(trade_page: lnm_sdk::api_v3::models::TradePage) -> Result<(), Box<dyn std::error::Error>> {
+    /// if let Some(cursor) = trade_page.next_cursor() {
     ///     println!("More trades can be fetched using cursor: {cursor}");
     /// } else {
     ///     println!("There are no more trades available.");
