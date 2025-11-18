@@ -212,7 +212,7 @@ pub trait FuturesCrossRepository: crate::sealed::Sealed + Send + Sync {
     /// Withdraw funds from the cross margin account.
     ///
     /// **Required permissions**: `futures:cross:write`
-    async fn withdraw(&self) -> Result<()>;
+    async fn withdraw(&self, amount: NonZeroU64) -> Result<CrossPosition>;
 }
 
 /// Methods for interacting with [LNM's v3 API]'s REST Futures Data endpoints.

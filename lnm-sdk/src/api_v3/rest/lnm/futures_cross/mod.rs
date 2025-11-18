@@ -160,8 +160,15 @@ impl FuturesCrossRepository for LnmFuturesCrossRepository {
             .await
     }
 
-    async fn withdraw(&self) -> Result<()> {
-        todo!()
+    async fn withdraw(&self, amount: NonZeroU64) -> Result<CrossPosition> {
+        self.base
+            .make_request_with_body(
+                Method::POST,
+                RestPathV3::FuturesCrossWithdraw,
+                json!({ "amount": amount }),
+                true,
+            )
+            .await
     }
 }
 
