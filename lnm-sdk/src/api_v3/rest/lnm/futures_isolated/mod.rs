@@ -2,7 +2,7 @@ use std::{num::NonZeroU64, sync::Arc};
 
 use async_trait::async_trait;
 use chrono::{DateTime, SecondsFormat, Utc};
-use reqwest::{self, Method};
+use reqwest::Method;
 use serde_json::json;
 use uuid::Uuid;
 
