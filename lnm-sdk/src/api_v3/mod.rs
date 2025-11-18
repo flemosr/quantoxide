@@ -6,7 +6,7 @@ pub(crate) mod rest;
 pub use client::ApiClient;
 pub use rest::{
     RestClient,
-    repositories::{FuturesDataRepository, FuturesIsolatedRepository},
+    repositories::{FuturesCrossRepository, FuturesDataRepository, FuturesIsolatedRepository},
 };
 
 pub mod error {
@@ -21,7 +21,9 @@ pub mod error {
 
     pub use super::{
         rest::error::RestApiV3Error,
-        rest::models::error::FuturesIsolatedTradeRequestValidationError,
+        rest::models::error::{
+            FuturesCrossTradeOrderValidationError, FuturesIsolatedTradeRequestValidationError,
+        },
     };
 }
 
@@ -40,5 +42,5 @@ pub mod models {
         },
     };
 
-    pub use super::rest::models::trade::{PaginatedTrades, Trade};
+    pub use super::rest::models::trade::{CrossPosition, PaginatedTrades, Trade};
 }
