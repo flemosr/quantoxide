@@ -30,6 +30,7 @@ pub(in crate::api_v3) enum RestPathV3 {
     FuturesCrossGetTransfers,
     FuturesCrossFundingFees,
     FuturesDataTicker,
+    Account,
 }
 
 impl RestPath for RestPathV3 {
@@ -75,6 +76,7 @@ impl RestPath for RestPathV3 {
             RestPathV3::FuturesCrossGetTransfers => "/v3/futures/cross/transfers".into(),
             RestPathV3::FuturesCrossFundingFees => "/v3/futures/cross/funding-fees".into(),
             RestPathV3::FuturesDataTicker => "/v3/futures/ticker".into(),
+            RestPathV3::Account => "/v3/account".into(),
         }
     }
 }
