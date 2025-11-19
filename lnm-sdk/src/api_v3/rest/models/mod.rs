@@ -2,6 +2,7 @@ pub(in crate::api_v3) mod account;
 pub(in crate::api_v3) mod cross_leverage;
 pub(in crate::api_v3) mod error;
 pub(in crate::api_v3) mod funding;
+pub(in crate::api_v3) mod oracle;
 pub(in crate::api_v3) mod ticker;
 pub(in crate::api_v3) mod trade;
 pub(in crate::api_v3) mod transfer;
