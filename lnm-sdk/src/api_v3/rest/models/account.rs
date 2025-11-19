@@ -116,9 +116,9 @@ impl Account {
     ///
     /// ```no_run
     /// # fn example(account: lnm_sdk::api_v3::models::Account) -> Result<(), Box<dyn std::error::Error>> {
-    /// let public_key = account.linking_public_key();
-    ///
-    /// println!("Linking public key: {}", public_key);
+    /// if let Some(public_key) = account.linking_public_key() {
+    ///     println!("Linking public key: {}", public_key);
+    /// }
     /// # Ok(())
     /// # }
     /// ```
