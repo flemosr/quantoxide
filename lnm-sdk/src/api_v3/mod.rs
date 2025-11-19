@@ -7,8 +7,8 @@ pub use client::ApiClient;
 pub use rest::{
     RestClient,
     repositories::{
-        FuturesCrossRepository, FuturesDataRepository, FuturesIsolatedRepository,
-        UtilitiesRepository,
+        AccountRepository, FuturesCrossRepository, FuturesDataRepository,
+        FuturesIsolatedRepository, UtilitiesRepository,
     },
 };
 
@@ -46,6 +46,7 @@ pub mod models {
     };
 
     pub use super::rest::models::{
+        account::Account,
         cross_leverage::CrossLeverage,
         funding::{CrossFunding, CrossFundingPage, IsolatedFunding, IsolatedFundingPage},
         trade::{CrossOrder, CrossOrderPage, CrossPosition, Trade, TradePage},
