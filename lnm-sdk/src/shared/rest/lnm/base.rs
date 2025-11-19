@@ -243,4 +243,29 @@ impl<S: SignatureGenerator> LnmRestBase<S> {
 
         self.make_request(method, url, None, authenticated).await
     }
+
+    pub async fn make_get_request_plain_text(&self, path: impl RestPath) -> Result<String> {
+        let url = self.build_url(path)?;
+
+        let req = self.client.request(Method::GET, url);
+
+        let response = req.send().await.map_err(RestApiError::SendFailed)?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let text = response
+                .text()
+                .await
+                .map_err(RestApiError::ResponseDecoding)?;
+
+            return Err(RestApiError::ErrorResponse { status, text });
+        }
+
+        let raw_response = response
+            .text()
+            .await
+            .map_err(RestApiError::ResponseDecoding)?;
+
+        Ok(raw_response)
+    }
 }
