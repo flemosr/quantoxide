@@ -11,12 +11,13 @@ pub(super) mod models;
 pub(super) mod repositories;
 
 use lnm::{
-    futures_cross::LnmFuturesCrossRepository, futures_data::LnmFuturesDataRepository,
-    futures_isolated::LnmFuturesIsolatedRepository, signature::SignatureGeneratorV3,
-    utilities::LnmUtilitiesRepository,
+    account::LnmAccountRepository, futures_cross::LnmFuturesCrossRepository,
+    futures_data::LnmFuturesDataRepository, futures_isolated::LnmFuturesIsolatedRepository,
+    signature::SignatureGeneratorV3, utilities::LnmUtilitiesRepository,
 };
 use repositories::{
-    FuturesCrossRepository, FuturesDataRepository, FuturesIsolatedRepository, UtilitiesRepository,
+    AccountRepository, FuturesCrossRepository, FuturesDataRepository, FuturesIsolatedRepository,
+    UtilitiesRepository,
 };
 
 /// Client for interacting with the [LNM's v3 API] via REST.
@@ -48,6 +49,11 @@ pub struct RestClient {
     ///
     /// [LNM's v3 API]: https://api.lnmarkets.com/v3
     pub futures_data: Box<dyn FuturesDataRepository>,
+
+    /// Methods for interacting with [LNM's v3 API]'s REST Account endpoints.
+    ///
+    /// [LNM's v3 API]: https://api.lnmarkets.com/v3
+    pub account: Box<dyn AccountRepository>,
 }
 
 impl RestClient {
@@ -56,7 +62,8 @@ impl RestClient {
         let utilities = Box::new(LnmUtilitiesRepository::new(base.clone()));
         let futures_isolated = Box::new(LnmFuturesIsolatedRepository::new(base.clone()));
         let futures_cross = Box::new(LnmFuturesCrossRepository::new(base.clone()));
-        let futures_data = Box::new(LnmFuturesDataRepository::new(base));
+        let futures_data = Box::new(LnmFuturesDataRepository::new(base.clone()));
+        let account = Box::new(LnmAccountRepository::new(base));
 
         Self {
             has_credentials,
@@ -64,6 +71,7 @@ impl RestClient {
             futures_isolated,
             futures_cross,
             futures_data,
+            account,
         }
     }
 
