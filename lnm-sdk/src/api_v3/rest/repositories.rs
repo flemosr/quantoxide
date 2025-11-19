@@ -18,6 +18,7 @@ use super::models::{
     account::Account,
     cross_leverage::CrossLeverage,
     funding::{CrossFundingPage, IsolatedFundingPage},
+    oracle::{Index, LastPrice},
     ticker::Ticker,
     trade::{CrossOrder, CrossOrderPage, CrossPosition, Trade, TradePage},
     transfer::CrossTransferPage,
@@ -392,8 +393,20 @@ pub trait WithdrawalsRepository: crate::sealed::Sealed + Send + Sync {
 #[async_trait]
 pub trait OracleRepository: crate::sealed::Sealed + Send + Sync {
     /// Samples index history (default 100, max 1000 entries)
-    async fn get_index(&self) -> Result<()>;
+    async fn get_index(
+        &self,
+        from: Option<DateTime<Utc>>,
+        to: Option<DateTime<Utc>>,
+        limit: Option<NonZeroU64>,
+        cursor: Option<DateTime<Utc>>,
+    ) -> Result<Vec<Index>>;
 
     /// Samples last price history at most 1000 entries between two given timestamps.
-    async fn get_last_price(&self) -> Result<()>;
+    async fn get_last_price(
+        &self,
+        from: Option<DateTime<Utc>>,
+        to: Option<DateTime<Utc>>,
+        limit: Option<NonZeroU64>,
+        cursor: Option<DateTime<Utc>>,
+    ) -> Result<Vec<LastPrice>>;
 }

@@ -31,6 +31,8 @@ pub(in crate::api_v3) enum RestPathV3 {
     FuturesCrossFundingFees,
     FuturesDataTicker,
     Account,
+    OracleIndex,
+    OracleLastPrice,
 }
 
 impl RestPath for RestPathV3 {
@@ -77,6 +79,8 @@ impl RestPath for RestPathV3 {
             RestPathV3::FuturesCrossFundingFees => "/v3/futures/cross/funding-fees".into(),
             RestPathV3::FuturesDataTicker => "/v3/futures/ticker".into(),
             RestPathV3::Account => "/v3/account".into(),
+            RestPathV3::OracleIndex => "/v3/oracle/index".into(),
+            RestPathV3::OracleLastPrice => "/v3/oracle/last-price".into(),
         }
     }
 }
