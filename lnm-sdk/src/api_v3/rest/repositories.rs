@@ -15,6 +15,7 @@ use crate::shared::{
 };
 
 use super::models::{
+    account::Account,
     cross_leverage::CrossLeverage,
     funding::{CrossFundingPage, IsolatedFundingPage},
     ticker::Ticker,
@@ -263,6 +264,7 @@ pub trait FuturesDataRepository: crate::sealed::Sealed + Send + Sync {
 /// This trait is sealed and not meant to be implemented outside of `lnm-sdk`.
 ///
 /// [LNM's v3 API]: https://docs.lnmarkets.com/api/#overview
+#[async_trait]
 pub trait SyntheticUsdRepository: crate::sealed::Sealed + Send + Sync {
     /// Fetch the user's swaps.
     ///
@@ -318,6 +320,7 @@ pub trait AccountRepository: crate::sealed::Sealed + Send + Sync {
 /// This trait is sealed and not meant to be implemented outside of `lnm-sdk`.
 ///
 /// [LNM's v3 API]: https://docs.lnmarkets.com/api/#overview
+#[async_trait]
 pub trait DepositsRepository: crate::sealed::Sealed + Send + Sync {
     /// Get internal deposits.
     ///
@@ -345,6 +348,7 @@ pub trait DepositsRepository: crate::sealed::Sealed + Send + Sync {
 /// This trait is sealed and not meant to be implemented outside of `lnm-sdk`.
 ///
 /// [LNM's v3 API]: https://docs.lnmarkets.com/api/#overview
+#[async_trait]
 pub trait WithdrawalsRepository: crate::sealed::Sealed + Send + Sync {
     /// Get internal withdrawals.
     ///
@@ -385,6 +389,7 @@ pub trait WithdrawalsRepository: crate::sealed::Sealed + Send + Sync {
 /// This trait is sealed and not meant to be implemented outside of `lnm-sdk`.
 ///
 /// [LNM's v3 API]: https://docs.lnmarkets.com/api/#overview
+#[async_trait]
 pub trait OracleRepository: crate::sealed::Sealed + Send + Sync {
     /// Samples index history (default 100, max 1000 entries)
     async fn get_index(&self) -> Result<()>;
