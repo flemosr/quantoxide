@@ -2,6 +2,8 @@ use chrono::{DateTime, Utc};
 use serde::Deserialize;
 use uuid::Uuid;
 
+use crate::shared::models::price::Price;
+
 #[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct CrossFunding {
@@ -137,6 +139,81 @@ impl IsolatedFundingPage {
     ///     println!("More isolated fundings can be fetched using cursor: {cursor}");
     /// } else {
     ///     println!("There are no more isolated fundings available.");
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn next_cursor(&self) -> Option<DateTime<Utc>> {
+        self.next_cursor
+    }
+}
+
+#[derive(Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct FundingSettlement {
+    id: Uuid,
+    time: DateTime<Utc>,
+    fixing_price: Price,
+    funding_rate: f64,
+}
+
+impl FundingSettlement {
+    /// Unique identifier for the funding settlement.
+    pub fn id(&self) -> Uuid {
+        self.id
+    }
+
+    /// Timestamp of the funding settlement.
+    pub fn time(&self) -> DateTime<Utc> {
+        self.time
+    }
+
+    /// The fixing price used for the funding settlement.
+    pub fn fixing_price(&self) -> Price {
+        self.fixing_price
+    }
+
+    /// The funding rate applied.
+    pub fn funding_rate(&self) -> f64 {
+        self.funding_rate
+    }
+}
+
+#[derive(Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct FundingSettlementPage {
+    data: Vec<FundingSettlement>,
+    next_cursor: Option<DateTime<Utc>>,
+}
+
+impl FundingSettlementPage {
+    /// Vector of funding settlements.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # fn example(funding_settlements: lnm_sdk::api_v3::models::FundingSettlementPage) -> Result<(), Box<dyn std::error::Error>> {
+    /// for funding_settlement in funding_settlements.data() {
+    ///     println!("funding_settlement: {:?}", funding_settlement);
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn data(&self) -> &Vec<FundingSettlement> {
+        &self.data
+    }
+
+    /// Cursor that can be used to fetch the next page of results. `None` if there are no more
+    /// results.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # fn example(funding_settlements: lnm_sdk::api_v3::models::FundingSettlementPage) -> Result<(), Box<dyn std::error::Error>> {
+    /// if let Some(cursor) = funding_settlements.next_cursor() {
+    ///     println!("More funding settlements can be fetched using cursor: {cursor}");
+    /// } else {
+    ///     println!("There are no more funding settlements available.");
     /// }
     /// # Ok(())
     /// # }
