@@ -42,6 +42,13 @@ async fn test_ticker(repo: &LnmFuturesDataRepository) {
     assert!(ticker.prices().len() > 0);
 }
 
+async fn test_get_candles(repo: &LnmFuturesDataRepository) {
+    let _ = repo
+        .get_candles(None, None, None, None, None)
+        .await
+        .expect("must get candles");
+}
+
 #[tokio::test]
 async fn test_api() {
     let repo = init_repository_from_env();
@@ -65,4 +72,6 @@ async fn test_api() {
         "test_get_funding_settlements",
         test_get_funding_settlements(&repo).await
     );
+
+    time_test!("test_get_candles", test_get_candles(&repo).await);
 }

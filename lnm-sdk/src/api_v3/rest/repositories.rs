@@ -18,6 +18,7 @@ use super::models::{
     account::Account,
     cross_leverage::CrossLeverage,
     funding::{CrossFundingPage, FundingSettlementPage, IsolatedFundingPage},
+    futures_data::{OhlcCandlePage, OhlcRange},
     oracle::{Index, LastPrice},
     ticker::Ticker,
     trade::{CrossOrder, CrossOrderPage, CrossPosition, Trade, TradePage},
@@ -260,7 +261,14 @@ pub trait FuturesDataRepository: crate::sealed::Sealed + Send + Sync {
     async fn get_ticker(&self) -> Result<Ticker>;
 
     /// Get the candles (OHLCs) history for a given range.
-    async fn get_candles(&self) -> Result<()>;
+    async fn get_candles(
+        &self,
+        from: Option<DateTime<Utc>>,
+        to: Option<DateTime<Utc>>,
+        limit: Option<NonZeroU64>,
+        cursor: Option<DateTime<Utc>>,
+        range: Option<OhlcRange>,
+    ) -> Result<OhlcCandlePage>;
 
     /// Get the 10 first users by P&L, broken down by day/week/month/all-time.
     async fn get_leaderboard(&self) -> Result<()>;

@@ -8,7 +8,11 @@ use crate::shared::rest::{error::Result, lnm::base::LnmRestBase};
 
 use super::{
     super::{
-        models::{funding::FundingSettlementPage, ticker::Ticker},
+        models::{
+            funding::FundingSettlementPage,
+            futures_data::{OhlcCandlePage, OhlcRange},
+            ticker::Ticker,
+        },
         repositories::FuturesDataRepository,
     },
     path::RestPathV3,
@@ -70,8 +74,46 @@ impl FuturesDataRepository for LnmFuturesDataRepository {
             .await
     }
 
-    async fn get_candles(&self) -> Result<()> {
-        todo!()
+    async fn get_candles(
+        &self,
+        from: Option<DateTime<Utc>>,
+        to: Option<DateTime<Utc>>,
+        limit: Option<NonZeroU64>,
+        cursor: Option<DateTime<Utc>>,
+        range: Option<OhlcRange>,
+    ) -> Result<OhlcCandlePage> {
+        let mut query_params = Vec::new();
+
+        if let Some(from) = from {
+            query_params.push(("from", from.to_rfc3339_opts(SecondsFormat::Millis, true)));
+        }
+        if let Some(to) = to {
+            query_params.push(("to", to.to_rfc3339_opts(SecondsFormat::Millis, true)));
+        }
+        if let Some(limit) = limit {
+            query_params.push(("limit", limit.to_string()));
+        }
+        if let Some(cursor) = cursor {
+            query_params.push((
+                "cursor",
+                cursor.to_rfc3339_opts(SecondsFormat::Millis, true),
+            ));
+        }
+        if let Some(limit) = limit {
+            query_params.push(("limit", limit.to_string()));
+        }
+        if let Some(range) = range {
+            query_params.push(("range", range.to_string()));
+        }
+
+        self.base
+            .make_request_with_query_params(
+                Method::GET,
+                RestPathV3::FuturesDataGetCandles,
+                query_params,
+                false,
+            )
+            .await
     }
 
     async fn get_leaderboard(&self) -> Result<()> {
