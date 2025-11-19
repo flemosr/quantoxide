@@ -283,11 +283,12 @@ pub trait SyntheticUsdRepository: crate::sealed::Sealed + Send + Sync {
 /// This trait is sealed and not meant to be implemented outside of `lnm-sdk`.
 ///
 /// [LNM's v3 API]: https://docs.lnmarkets.com/api/#overview
+#[async_trait]
 pub trait AccountRepository: crate::sealed::Sealed + Send + Sync {
     /// Get account information.
     ///
     /// **Required permissions**: `account:read`
-    async fn get_account(&self) -> Result<()>;
+    async fn get_account(&self) -> Result<Account>;
 
     /// Get the most recently generated, still unused on-chain address.
     ///
