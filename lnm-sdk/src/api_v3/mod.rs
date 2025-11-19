@@ -8,7 +8,7 @@ pub use rest::{
     RestClient,
     repositories::{
         AccountRepository, FuturesCrossRepository, FuturesDataRepository,
-        FuturesIsolatedRepository, UtilitiesRepository,
+        FuturesIsolatedRepository, OracleRepository, UtilitiesRepository,
     },
 };
 
@@ -49,6 +49,7 @@ pub mod models {
         account::Account,
         cross_leverage::CrossLeverage,
         funding::{CrossFunding, CrossFundingPage, IsolatedFunding, IsolatedFundingPage},
+        oracle::{Index, LastPrice},
         trade::{CrossOrder, CrossOrderPage, CrossPosition, Trade, TradePage},
         transfer::{CrossTransfer, CrossTransferPage},
     };
