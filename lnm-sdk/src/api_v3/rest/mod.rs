@@ -13,11 +13,12 @@ pub(super) mod repositories;
 use lnm::{
     account::LnmAccountRepository, futures_cross::LnmFuturesCrossRepository,
     futures_data::LnmFuturesDataRepository, futures_isolated::LnmFuturesIsolatedRepository,
-    signature::SignatureGeneratorV3, utilities::LnmUtilitiesRepository,
+    oracle::LnmOracleRepository, signature::SignatureGeneratorV3,
+    utilities::LnmUtilitiesRepository,
 };
 use repositories::{
     AccountRepository, FuturesCrossRepository, FuturesDataRepository, FuturesIsolatedRepository,
-    UtilitiesRepository,
+    OracleRepository, UtilitiesRepository,
 };
 
 /// Client for interacting with the [LNM's v3 API] via REST.
@@ -54,6 +55,11 @@ pub struct RestClient {
     ///
     /// [LNM's v3 API]: https://api.lnmarkets.com/v3
     pub account: Box<dyn AccountRepository>,
+
+    /// Methods for interacting with [LNM's v3 API]'s REST Oracle endpoints.
+    ///
+    /// [LNM's v3 API]: https://api.lnmarkets.com/v3
+    pub oracle: Box<dyn OracleRepository>,
 }
 
 impl RestClient {
@@ -63,7 +69,8 @@ impl RestClient {
         let futures_isolated = Box::new(LnmFuturesIsolatedRepository::new(base.clone()));
         let futures_cross = Box::new(LnmFuturesCrossRepository::new(base.clone()));
         let futures_data = Box::new(LnmFuturesDataRepository::new(base.clone()));
-        let account = Box::new(LnmAccountRepository::new(base));
+        let account = Box::new(LnmAccountRepository::new(base.clone()));
+        let oracle = Box::new(LnmOracleRepository::new(base));
 
         Self {
             has_credentials,
@@ -72,6 +79,7 @@ impl RestClient {
             futures_cross,
             futures_data,
             account,
+            oracle,
         }
     }
 
