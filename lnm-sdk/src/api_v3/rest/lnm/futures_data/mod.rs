@@ -1,12 +1,16 @@
-use std::sync::Arc;
+use std::{num::NonZeroU64, sync::Arc};
 
 use async_trait::async_trait;
+use chrono::{DateTime, SecondsFormat, Utc};
 use reqwest::{self, Method};
 
 use crate::shared::rest::{error::Result, lnm::base::LnmRestBase};
 
 use super::{
-    super::{models::ticker::Ticker, repositories::FuturesDataRepository},
+    super::{
+        models::{funding::FundingSettlementPage, ticker::Ticker},
+        repositories::FuturesDataRepository,
+    },
     path::RestPathV3,
     signature::SignatureGeneratorV3,
 };
@@ -25,8 +29,39 @@ impl crate::sealed::Sealed for LnmFuturesDataRepository {}
 
 #[async_trait]
 impl FuturesDataRepository for LnmFuturesDataRepository {
-    async fn get_funding_settlements(&self) -> Result<()> {
-        todo!()
+    async fn get_funding_settlements(
+        &self,
+        from: Option<DateTime<Utc>>,
+        to: Option<DateTime<Utc>>,
+        limit: Option<NonZeroU64>,
+        cursor: Option<DateTime<Utc>>,
+    ) -> Result<FundingSettlementPage> {
+        let mut query_params = Vec::new();
+
+        if let Some(from) = from {
+            query_params.push(("from", from.to_rfc3339_opts(SecondsFormat::Millis, true)));
+        }
+        if let Some(to) = to {
+            query_params.push(("to", to.to_rfc3339_opts(SecondsFormat::Millis, true)));
+        }
+        if let Some(limit) = limit {
+            query_params.push(("limit", limit.to_string()));
+        }
+        if let Some(cursor) = cursor {
+            query_params.push((
+                "cursor",
+                cursor.to_rfc3339_opts(SecondsFormat::Millis, true),
+            ));
+        }
+
+        self.base
+            .make_request_with_query_params(
+                Method::GET,
+                RestPathV3::FuturesDataFundingSettlements,
+                query_params,
+                false,
+            )
+            .await
     }
 
     async fn get_ticker(&self) -> Result<Ticker> {

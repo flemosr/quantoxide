@@ -17,7 +17,7 @@ use crate::shared::{
 use super::models::{
     account::Account,
     cross_leverage::CrossLeverage,
-    funding::{CrossFundingPage, IsolatedFundingPage},
+    funding::{CrossFundingPage, FundingSettlementPage, IsolatedFundingPage},
     oracle::{Index, LastPrice},
     ticker::Ticker,
     trade::{CrossOrder, CrossOrderPage, CrossPosition, Trade, TradePage},
@@ -246,7 +246,13 @@ pub trait FuturesCrossRepository: crate::sealed::Sealed + Send + Sync {
 pub trait FuturesDataRepository: crate::sealed::Sealed + Send + Sync {
     /// Get the funding settlement history. A settlement happens every 8 hours (00:00, 08:00,
     /// 16:00 UTC).
-    async fn get_funding_settlements(&self) -> Result<()>;
+    async fn get_funding_settlements(
+        &self,
+        from: Option<DateTime<Utc>>,
+        to: Option<DateTime<Utc>>,
+        limit: Option<NonZeroU64>,
+        cursor: Option<DateTime<Utc>>,
+    ) -> Result<FundingSettlementPage>;
 
     /// Get the futures ticker. [LNM docs].
     ///

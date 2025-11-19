@@ -29,12 +29,17 @@ fn init_repository_from_env() -> LnmFuturesDataRepository {
     LnmFuturesDataRepository::new(base)
 }
 
-async fn test_ticker(repo: &LnmFuturesDataRepository) -> Ticker {
+async fn test_get_funding_settlements(repo: &LnmFuturesDataRepository) {
+    let _ = repo
+        .get_funding_settlements(None, None, None, None)
+        .await
+        .expect("must get funding settlements");
+}
+
+async fn test_ticker(repo: &LnmFuturesDataRepository) {
     let ticker = repo.get_ticker().await.expect("must get ticker");
 
     assert!(ticker.prices().len() > 0);
-
-    ticker
 }
 
 #[tokio::test]
@@ -54,7 +59,10 @@ async fn test_api() {
 
     // Start tests
 
-    let ticker = time_test!("test_ticker", test_ticker(&repo).await);
+    time_test!("test_ticker", test_ticker(&repo).await);
 
-    println!("ticker {:?}", ticker)
+    time_test!(
+        "test_get_funding_settlements",
+        test_get_funding_settlements(&repo).await
+    );
 }
