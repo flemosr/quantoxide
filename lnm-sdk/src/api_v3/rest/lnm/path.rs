@@ -2,6 +2,8 @@ use crate::shared::rest::lnm::base::RestPath;
 
 #[derive(Clone)]
 pub(in crate::api_v3) enum RestPathV3 {
+    UtilitiesPing,
+    UtilitiesTime,
     FuturesIsolatedTrade,
     FuturesIsolatedTradeAddMargin,
     FuturesIsolatedTradeCancel,
@@ -33,6 +35,8 @@ pub(in crate::api_v3) enum RestPathV3 {
 impl RestPath for RestPathV3 {
     fn to_path_string(self) -> String {
         match self {
+            RestPathV3::UtilitiesPing => "/v3/ping".into(),
+            RestPathV3::UtilitiesTime => "/v3/time".into(),
             RestPathV3::FuturesIsolatedTrade => "/v3/futures/isolated/trade".into(),
             RestPathV3::FuturesIsolatedTradeAddMargin => {
                 "/v3/futures/isolated/trade/add-margin".into()

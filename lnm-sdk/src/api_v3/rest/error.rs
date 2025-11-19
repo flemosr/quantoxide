@@ -11,4 +11,7 @@ pub enum RestApiV3Error {
 
     #[error("Invalid futures cross place order error: {0}")]
     FuturesCrossTradeOrderValidation(FuturesCrossTradeOrderValidationError),
+
+    #[error("Unexpected 'ping' response error: {0}")]
+    UnexpectedPingResponse(String),
 }
