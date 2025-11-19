@@ -6,7 +6,10 @@ pub(crate) mod rest;
 pub use client::ApiClient;
 pub use rest::{
     RestClient,
-    repositories::{FuturesCrossRepository, FuturesDataRepository, FuturesIsolatedRepository},
+    repositories::{
+        FuturesCrossRepository, FuturesDataRepository, FuturesIsolatedRepository,
+        UtilitiesRepository,
+    },
 };
 
 pub mod error {
