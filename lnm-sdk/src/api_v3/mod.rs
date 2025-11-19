@@ -52,6 +52,7 @@ pub mod models {
             CrossFunding, CrossFundingPage, FundingSettlement, FundingSettlementPage,
             IsolatedFunding, IsolatedFundingPage,
         },
+        futures_data::{OhlcCandle, OhlcCandlePage},
         oracle::{Index, LastPrice},
         trade::{CrossOrder, CrossOrderPage, CrossPosition, Trade, TradePage},
         transfer::{CrossTransfer, CrossTransferPage},
