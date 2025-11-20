@@ -137,7 +137,10 @@ impl LiveEngine {
     pub fn with_signal_operator(
         config: LiveConfig,
         db: Arc<Database>,
-        api: Arc<ApiClient>,
+        api_domain: impl ToString,
+        api_key: impl ToString,
+        api_secret: impl ToString,
+        api_passphrase: impl ToString,
         evaluators: Vec<ConfiguredSignalEvaluator>,
         operator: Box<dyn SignalOperator>,
     ) -> Result<Self> {
@@ -159,7 +162,16 @@ impl LiveEngine {
             }
         };
 
-        let sync_engine = SyncEngine::new(&config, db.clone(), api.clone(), sync_mode);
+        let api = ApiClient::with_credentials(
+            (&config).into(),
+            api_domain.to_string(),
+            api_key.to_string(),
+            api_secret.to_string(),
+            api_passphrase.to_string(),
+        )
+        .map_err(LiveError::ApiInit)?;
+
+        let sync_engine = SyncEngine::with_api(&config, db.clone(), api.clone(), sync_mode);
 
         let signal_engine = LiveSignalEngine::new(
             &config,
@@ -192,7 +204,10 @@ impl LiveEngine {
     pub fn with_raw_operator(
         config: LiveConfig,
         db: Arc<Database>,
-        api: Arc<ApiClient>,
+        api_domain: impl ToString,
+        api_key: impl ToString,
+        api_secret: impl ToString,
+        api_passphrase: impl ToString,
         operator: Box<dyn RawOperator>,
     ) -> Result<Self> {
         let operator = WrappedRawOperator::from(operator);
@@ -209,7 +224,16 @@ impl LiveEngine {
             }
         };
 
-        let sync_engine = SyncEngine::new(&config, db.clone(), api.clone(), sync_mode);
+        let api = ApiClient::with_credentials(
+            (&config).into(),
+            api_domain.to_string(),
+            api_key.to_string(),
+            api_secret.to_string(),
+            api_passphrase.to_string(),
+        )
+        .map_err(LiveError::ApiInit)?;
+
+        let sync_engine = SyncEngine::with_api(&config, db.clone(), api.clone(), sync_mode);
 
         let operator_pending = OperatorPending::raw(db.clone(), sync_engine.reader(), operator);
 
