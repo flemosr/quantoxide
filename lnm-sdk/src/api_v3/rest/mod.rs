@@ -63,7 +63,7 @@ pub struct RestClient {
 }
 
 impl RestClient {
-    fn new_inner(base: Arc<LnmRestBase<SignatureGeneratorV3>>) -> Self {
+    fn new_inner(base: Arc<LnmRestBase<SignatureGeneratorV3>>) -> Arc<Self> {
         let has_credentials = base.has_credentials();
         let utilities = Box::new(LnmUtilitiesRepository::new(base.clone()));
         let futures_isolated = Box::new(LnmFuturesIsolatedRepository::new(base.clone()));
@@ -72,7 +72,7 @@ impl RestClient {
         let account = Box::new(LnmAccountRepository::new(base.clone()));
         let oracle = Box::new(LnmOracleRepository::new(base));
 
-        Self {
+        Arc::new(Self {
             has_credentials,
             utilities,
             futures_isolated,
@@ -80,25 +80,22 @@ impl RestClient {
             futures_data,
             account,
             oracle,
-        }
+        })
     }
 
-    pub(in crate::api_v3) fn new(
-        config: impl Into<RestClientConfig>,
-        domain: String,
-    ) -> Result<Self> {
+    pub fn new(config: impl Into<RestClientConfig>, domain: String) -> Result<Arc<Self>> {
         let base = LnmRestBase::new(config.into(), domain)?;
 
         Ok(Self::new_inner(base))
     }
 
-    pub(in crate::api_v3) fn with_credentials(
+    pub fn with_credentials(
         config: impl Into<RestClientConfig>,
         domain: String,
         key: String,
         secret: String,
         passphrase: String,
-    ) -> Result<Self> {
+    ) -> Result<Arc<Self>> {
         let base = LnmRestBase::with_credentials(
             config.into(),
             domain,
