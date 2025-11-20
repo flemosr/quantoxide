@@ -115,10 +115,6 @@ impl FuturesDataRepository for LnmFuturesDataRepository {
             )
             .await
     }
-
-    async fn get_leaderboard(&self) -> Result<()> {
-        todo!()
-    }
 }
 
 #[cfg(test)]

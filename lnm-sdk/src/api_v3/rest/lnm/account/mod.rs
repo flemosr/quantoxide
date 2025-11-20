@@ -30,22 +30,6 @@ impl AccountRepository for LnmAccountRepository {
             .make_request_without_params(Method::GET, RestPathV3::Account, true)
             .await
     }
-
-    async fn get_last_unused_onchain_address(&self) -> Result<()> {
-        todo!()
-    }
-
-    async fn generate_new_bitcoin_address(&self) -> Result<()> {
-        todo!()
-    }
-
-    async fn get_notifications(&self) -> Result<()> {
-        todo!()
-    }
-
-    async fn mark_notifications_read(&self) -> Result<()> {
-        todo!()
-    }
 }
 
 #[cfg(test)]

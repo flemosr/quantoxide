@@ -29,7 +29,7 @@ use super::models::{
 ///
 /// This trait is sealed and not meant to be implemented outside of `lnm-sdk`.
 ///
-/// [LNM's v3 API]: https://docs.lnmarkets.com/api/#overview
+/// [LNM's v3 API]: https://api.lnmarkets.com/v3
 #[async_trait]
 pub trait UtilitiesRepository: crate::sealed::Sealed + Send + Sync {
     async fn ping(&self) -> Result<()>;
@@ -41,7 +41,7 @@ pub trait UtilitiesRepository: crate::sealed::Sealed + Send + Sync {
 ///
 /// This trait is sealed and not meant to be implemented outside of `lnm-sdk`.
 ///
-/// [LNM's v3 API]: https://docs.lnmarkets.com/api/#overview
+/// [LNM's v3 API]: https://api.lnmarkets.com/v3
 #[async_trait]
 pub trait FuturesIsolatedRepository: crate::sealed::Sealed + Send + Sync {
     /// Add margin to a running trade. This will lower the trade liquidation price and thus decrease
@@ -146,7 +146,7 @@ pub trait FuturesIsolatedRepository: crate::sealed::Sealed + Send + Sync {
 ///
 /// This trait is sealed and not meant to be implemented outside of `lnm-sdk`.
 ///
-/// [LNM's v3 API]: https://docs.lnmarkets.com/api/#overview
+/// [LNM's v3 API]: https://api.lnmarkets.com/v3
 #[async_trait]
 pub trait FuturesCrossRepository: crate::sealed::Sealed + Send + Sync {
     /// Cancel all open cross orders.
@@ -242,7 +242,7 @@ pub trait FuturesCrossRepository: crate::sealed::Sealed + Send + Sync {
 ///
 /// This trait is sealed and not meant to be implemented outside of `lnm-sdk`.
 ///
-/// [LNM's v3 API]: https://docs.lnmarkets.com/api/#overview
+/// [LNM's v3 API]: https://api.lnmarkets.com/v3
 #[async_trait]
 pub trait FuturesDataRepository: crate::sealed::Sealed + Send + Sync {
     /// Get the funding settlement history. A settlement happens every 8 hours (00:00, 08:00,
@@ -255,9 +255,7 @@ pub trait FuturesDataRepository: crate::sealed::Sealed + Send + Sync {
         cursor: Option<DateTime<Utc>>,
     ) -> Result<FundingSettlementPage>;
 
-    /// Get the futures ticker. [LNM docs].
-    ///
-    /// [LNM docs]: https://api.lnmarkets.com/v3#tag/futures-data/get/futures/ticker
+    /// Get the futures ticker.
     async fn get_ticker(&self) -> Result<Ticker>;
 
     /// Get the candles (OHLCs) history for a given range.
@@ -270,36 +268,44 @@ pub trait FuturesDataRepository: crate::sealed::Sealed + Send + Sync {
         range: Option<OhlcRange>,
     ) -> Result<OhlcCandlePage>;
 
-    /// Get the 10 first users by P&L, broken down by day/week/month/all-time.
-    async fn get_leaderboard(&self) -> Result<()>;
+    // /// Get the 10 first users by P&L, broken down by day/week/month/all-time.
+    // async fn get_leaderboard(&self) -> Result<()> {
+    //     todo!()
+    // }
 }
 
 /// Methods for interacting with [LNM's v3 API]'s REST Synthetic USD endpoints.
 ///
 /// This trait is sealed and not meant to be implemented outside of `lnm-sdk`.
 ///
-/// [LNM's v3 API]: https://docs.lnmarkets.com/api/#overview
+/// [LNM's v3 API]: https://api.lnmarkets.com/v3
 #[async_trait]
 pub trait SyntheticUsdRepository: crate::sealed::Sealed + Send + Sync {
     /// Fetch the user's swaps.
     ///
     /// **Required permissions**: `synthetic-usd:read`
-    async fn get_swaps(&self) -> Result<()>;
+    async fn get_swaps(&self) -> Result<()> {
+        todo!()
+    }
 
     /// Create a new swap.
     ///
     /// **Required permissions**: `synthetic-usd:write`
-    async fn create_new_swap(&self) -> Result<()>;
+    async fn create_new_swap(&self) -> Result<()> {
+        todo!()
+    }
 
     /// Get best price.
-    async fn get_best_price(&self) -> Result<()>;
+    async fn get_best_price(&self) -> Result<()> {
+        todo!()
+    }
 }
 
 /// Methods for interacting with [LNM's v3 API]'s REST Account endpoints.
 ///
 /// This trait is sealed and not meant to be implemented outside of `lnm-sdk`.
 ///
-/// [LNM's v3 API]: https://docs.lnmarkets.com/api/#overview
+/// [LNM's v3 API]: https://api.lnmarkets.com/v3
 #[async_trait]
 pub trait AccountRepository: crate::sealed::Sealed + Send + Sync {
     /// Get account information.
@@ -307,55 +313,71 @@ pub trait AccountRepository: crate::sealed::Sealed + Send + Sync {
     /// **Required permissions**: `account:read`
     async fn get_account(&self) -> Result<Account>;
 
-    /// Get the most recently generated, still unused on-chain address.
-    ///
-    /// **Required permissions**: `account:deposits:read`
-    async fn get_last_unused_onchain_address(&self) -> Result<()>;
+    // /// Get the most recently generated, still unused on-chain address.
+    // ///
+    // /// **Required permissions**: `account:deposits:read`
+    // async fn get_last_unused_onchain_address(&self) -> Result<()> {
+    //     todo!()
+    // }
 
-    /// Generates a new, unused, Bitcoin address. If no format is provided, the address will be
-    /// generated in the format specified in the user's settings.
-    ///
-    /// **Required permissions**: `account:deposits:write`
-    async fn generate_new_bitcoin_address(&self) -> Result<()>;
+    // /// Generates a new, unused, Bitcoin address. If no format is provided, the address will be
+    // /// generated in the format specified in the user's settings.
+    // ///
+    // /// **Required permissions**: `account:deposits:write`
+    // async fn generate_new_bitcoin_address(&self) -> Result<()> {
+    //     todo!()
+    // }
 
-    /// Get notifications for the current user. By default returns unread notifications. Use the
-    /// read parameter to filter by read status.
-    ///
-    /// **Required permissions**: `account:notifications:read`
-    async fn get_notifications(&self) -> Result<()>;
+    // /// Get notifications for the current user. By default returns unread notifications. Use the
+    // /// read parameter to filter by read status.
+    // ///
+    // /// **Required permissions**: `account:notifications:read`
+    // async fn get_notifications(&self) -> Result<()> {
+    //     todo!()
+    // }
 
-    /// Mark all notifications as read for the current user.
-    ///
-    /// **Required permissions**: `account:notifications:write`
-    async fn mark_notifications_read(&self) -> Result<()>;
+    // /// Mark all notifications as read for the current user.
+    // ///
+    // /// **Required permissions**: `account:notifications:write`
+    // async fn mark_notifications_read(&self) -> Result<()> {
+    //     todo!()
+    // }
 }
 
 /// Methods for interacting with [LNM's v3 API]'s REST Deposits endpoints.
 ///
 /// This trait is sealed and not meant to be implemented outside of `lnm-sdk`.
 ///
-/// [LNM's v3 API]: https://docs.lnmarkets.com/api/#overview
+/// [LNM's v3 API]: https://api.lnmarkets.com/v3
 #[async_trait]
 pub trait DepositsRepository: crate::sealed::Sealed + Send + Sync {
     /// Get internal deposits.
     ///
     /// **Required permissions**: `account:deposits:read`
-    async fn get_internal_deposits(&self) -> Result<()>;
+    async fn get_internal_deposits(&self) -> Result<()> {
+        todo!()
+    }
 
     /// Get on-chain deposits.
     ///
     /// **Required permissions**: `account:deposits:read`
-    async fn get_onchain_deposits(&self) -> Result<()>;
+    async fn get_onchain_deposits(&self) -> Result<()> {
+        todo!()
+    }
 
     /// Get Lightning deposits.
     ///
     /// **Required permissions**: `account:deposits:read`
-    async fn get_lightning_deposits(&self) -> Result<()>;
+    async fn get_lightning_deposits(&self) -> Result<()> {
+        todo!()
+    }
 
     /// Initiates a new Lightning deposit.
     ///
     /// **Required permissions**: `account:deposits:write`
-    async fn deposit(&self) -> Result<()>;
+    async fn deposit(&self) -> Result<()> {
+        todo!()
+    }
 }
 
 /// Methods for interacting with [LNM's v3 API]'s REST Withdrawals endpoints.
@@ -368,45 +390,57 @@ pub trait WithdrawalsRepository: crate::sealed::Sealed + Send + Sync {
     /// Get internal withdrawals.
     ///
     /// **Required permissions**: `account:withdrawals:read`
-    async fn get_internal_withdrawals(&self) -> Result<()>;
+    async fn get_internal_withdrawals(&self) -> Result<()> {
+        todo!()
+    }
 
     /// Get multiple on-chain withdrawals.
     ///
     /// **Required permissions**: `account:withdrawals:read`
-    async fn get_onchain_withdrawals(&self) -> Result<()>;
+    async fn get_onchain_withdrawals(&self) -> Result<()> {
+        todo!()
+    }
 
     /// Get multiple Lightning withdrawals.
     ///
     /// **Required permissions**: `account:withdrawals:read`
-    async fn get_lightning_withdrawals(&self) -> Result<()>;
+    async fn get_lightning_withdrawals(&self) -> Result<()> {
+        todo!()
+    }
 
     /// Create a new internal withdrawal.
     ///
     /// **Required permissions**: `account:withdrawals:write`
-    async fn withdrawal_internal(&self) -> Result<()>;
+    async fn withdrawal_internal(&self) -> Result<()> {
+        todo!()
+    }
 
     /// Request a new on-chain withdrawal. The withdrawal request will be reviewed and processed
     /// asynchronously.
     ///
     /// **Required permissions**: `account:withdrawals:write`
-    async fn withdrawal_onchain(&self) -> Result<()>;
+    async fn withdrawal_onchain(&self) -> Result<()> {
+        todo!()
+    }
 
     /// Request a new Lightning withdrawal. The `max_fees` amount will be reserved from the user's
     /// balance to pay routing fees. Any unused portion of this reserve will be returned to the
     /// user's balance after the withdrawal completes.
     ///
     /// **Required permissions**: `account:withdrawals:write`
-    async fn withdrawal_lightning(&self) -> Result<()>;
+    async fn withdrawal_lightning(&self) -> Result<()> {
+        todo!()
+    }
 }
 
 /// Methods for interacting with [LNM's v3 API]'s REST Oracle endpoints.
 ///
 /// This trait is sealed and not meant to be implemented outside of `lnm-sdk`.
 ///
-/// [LNM's v3 API]: https://docs.lnmarkets.com/api/#overview
+/// [LNM's v3 API]: https://api.lnmarkets.com/v3
 #[async_trait]
 pub trait OracleRepository: crate::sealed::Sealed + Send + Sync {
-    /// Samples index history (default 100, max 1000 entries)
+    /// Samples index history (default 100, max 1000 entries).
     async fn get_index(
         &self,
         from: Option<DateTime<Utc>>,
