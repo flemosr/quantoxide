@@ -6,7 +6,7 @@ use crate::shared::{config::ApiClientConfig, rest::error::Result as RestResult};
 
 use super::{
     rest::RestClient,
-    websocket::{self, WebSocketClient, error::Result},
+    websocket::{WebSocketClient, error::Result},
 };
 
 /// Client for interacting with the [LNM's v2 API] via REST and WebSocket.
@@ -19,12 +19,12 @@ use super::{
 pub struct ApiClient {
     config: ApiClientConfig,
     domain: String,
-    pub rest: RestClient,
-    ws: Mutex<Option<WebSocketClient>>,
+    pub rest: Arc<RestClient>,
+    ws: Mutex<Option<Arc<WebSocketClient>>>,
 }
 
 impl ApiClient {
-    fn new_inner(config: ApiClientConfig, domain: String, rest: RestClient) -> Arc<Self> {
+    fn new_inner(config: ApiClientConfig, domain: String, rest: Arc<RestClient>) -> Arc<Self> {
         Arc::new(Self {
             config,
             domain,
@@ -116,7 +116,7 @@ impl ApiClient {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn connect_ws(&self) -> Result<WebSocketClient> {
+    pub async fn connect_ws(&self) -> Result<Arc<WebSocketClient>> {
         let mut ws_guard = self.ws.lock().await;
 
         if let Some(ws) = ws_guard.as_ref() {
@@ -126,7 +126,7 @@ impl ApiClient {
         }
 
         let domain = self.domain.clone();
-        let new_ws = websocket::new(&self.config, domain).await?;
+        let new_ws = WebSocketClient::new(&self.config, domain).await?;
 
         *ws_guard = Some(new_ws.clone());
 
