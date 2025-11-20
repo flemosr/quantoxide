@@ -76,13 +76,18 @@ impl ApiClientConfig {
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct RestClientConfig {
+pub struct RestClientConfig {
     timeout: Duration,
 }
 
 impl RestClientConfig {
     pub fn timeout(&self) -> Duration {
         self.timeout
+    }
+
+    pub fn with_timeout(mut self, timeout: Duration) -> Self {
+        self.timeout = timeout;
+        self
     }
 }
 
@@ -95,6 +100,36 @@ impl From<&ApiClientConfig> for RestClientConfig {
 }
 
 impl Default for RestClientConfig {
+    fn default() -> Self {
+        (&ApiClientConfig::default()).into()
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct WebSocketClientConfig {
+    disconnect_timeout: Duration,
+}
+
+impl WebSocketClientConfig {
+    pub fn disconnect_timeout(&self) -> Duration {
+        self.disconnect_timeout
+    }
+
+    pub fn with_disconnect_timeout(mut self, disconnect_timeout: Duration) -> Self {
+        self.disconnect_timeout = disconnect_timeout;
+        self
+    }
+}
+
+impl From<&ApiClientConfig> for WebSocketClientConfig {
+    fn from(value: &ApiClientConfig) -> Self {
+        Self {
+            disconnect_timeout: value.ws_disconnect_timeout(),
+        }
+    }
+}
+
+impl Default for WebSocketClientConfig {
     fn default() -> Self {
         (&ApiClientConfig::default()).into()
     }
