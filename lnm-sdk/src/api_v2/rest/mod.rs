@@ -37,34 +37,31 @@ pub struct RestClient {
 }
 
 impl RestClient {
-    fn new_inner(base: Arc<LnmRestBase<SignatureGeneratorV2>>) -> Self {
+    fn new_inner(base: Arc<LnmRestBase<SignatureGeneratorV2>>) -> Arc<Self> {
         let has_credentials = base.has_credentials();
         let futures = Box::new(LnmFuturesRepository::new(base.clone()));
         let user = Box::new(LnmUserRepository::new(base));
 
-        Self {
+        Arc::new(Self {
             has_credentials,
             futures,
             user,
-        }
+        })
     }
 
-    pub(in crate::api_v2) fn new(
-        config: impl Into<RestClientConfig>,
-        domain: String,
-    ) -> Result<Self> {
+    pub fn new(config: impl Into<RestClientConfig>, domain: String) -> Result<Arc<Self>> {
         let base = LnmRestBase::new(config.into(), domain)?;
 
         Ok(Self::new_inner(base))
     }
 
-    pub(in crate::api_v2) fn with_credentials(
+    pub fn with_credentials(
         config: impl Into<RestClientConfig>,
         domain: String,
         key: String,
         secret: String,
         passphrase: String,
-    ) -> Result<Self> {
+    ) -> Result<Arc<Self>> {
         let base = LnmRestBase::with_credentials(
             config.into(),
             domain,
