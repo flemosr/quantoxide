@@ -4,17 +4,17 @@ use crate::shared::{config::ApiClientConfig, rest::error::Result as RestResult};
 
 use super::rest::RestClient;
 
-/// Client for interacting with the [LNM's v3 API] via REST and WebSocket.
+/// Client for interacting with the [LNM's v3 API] via REST.
 ///
 /// `ApiClient` provides a interface for making REST API calls.
 ///
 /// [LNM's v3 API]: https://api.lnmarkets.com/v3
 pub struct ApiClient {
-    pub rest: RestClient,
+    pub rest: Arc<RestClient>,
 }
 
 impl ApiClient {
-    fn new_inner(rest: RestClient) -> Arc<Self> {
+    fn new_inner(rest: Arc<RestClient>) -> Arc<Self> {
         Arc::new(Self { rest })
     }
 
