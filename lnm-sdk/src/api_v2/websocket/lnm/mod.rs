@@ -44,7 +44,7 @@ pub(super) struct LnmWebSocketRepo {
 }
 
 impl LnmWebSocketRepo {
-    pub async fn new(config: WebSocketClientConfig, api_domain: String) -> Result<Arc<Self>> {
+    pub async fn new(config: WebSocketClientConfig, domain: String) -> Result<Self> {
         // Internal channel for disconnect signal
         let (disconnect_tx, disconnect_rx) = mpsc::channel::<()>(1);
 
@@ -55,16 +55,12 @@ impl LnmWebSocketRepo {
         // External channel for API responses
         let (response_tx, _) = broadcast::channel::<WebSocketUpdate>(1000);
 
-        let (event_loop_handle, connection_status_manager) = WebSocketEventLoop::try_spawn(
-            api_domain,
-            disconnect_rx,
-            request_rx,
-            response_tx.clone(),
-        )
-        .await
-        .map_err(WebSocketApiError::FailedToSpawnEventLoop)?;
+        let (event_loop_handle, connection_status_manager) =
+            WebSocketEventLoop::try_spawn(domain, disconnect_rx, request_rx, response_tx.clone())
+                .await
+                .map_err(WebSocketApiError::FailedToSpawnEventLoop)?;
 
-        Ok(Arc::new(Self {
+        Ok(Self {
             config,
             event_loop_handle: SyncMutex::new(Some(event_loop_handle)),
             disconnect_tx,
@@ -72,7 +68,7 @@ impl LnmWebSocketRepo {
             response_tx,
             connection_status_manager,
             subscriptions: AsyncMutex::new(HashMap::new()),
-        }))
+        })
     }
 
     async fn evaluate_connection_status(&self) -> Result<()> {
