@@ -134,7 +134,7 @@ pub struct SyncEngine {
 }
 
 impl SyncEngine {
-    pub fn new(
+    pub(crate) fn with_api(
         config: impl Into<SyncConfig>,
         db: Arc<Database>,
         api: Arc<ApiClient>,
@@ -152,6 +152,18 @@ impl SyncEngine {
             status_manager,
             update_tx,
         }
+    }
+
+    pub fn new(
+        config: impl Into<SyncConfig>,
+        db: Arc<Database>,
+        api_domain: impl ToString,
+        mode: SyncMode,
+    ) -> Result<Self> {
+        let config: SyncConfig = config.into();
+        let api = ApiClient::new((&config).into(), api_domain).map_err(SyncError::ApiInit)?;
+
+        Ok(SyncEngine::with_api(config, db, api, mode))
     }
 
     pub fn reader(&self) -> Arc<dyn SyncReader> {

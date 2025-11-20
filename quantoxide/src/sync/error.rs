@@ -2,10 +2,15 @@ use std::{result, sync::Arc};
 
 use thiserror::Error;
 
+use lnm_sdk::api_v2::error::RestApiError;
+
 use super::{process::error::SyncProcessFatalError, state::SyncStatus};
 
 #[derive(Error, Debug)]
 pub enum SyncError {
+    #[error("API initialization error: {0}")]
+    ApiInit(RestApiError),
+
     #[error("Sync already shutdown error")]
     SyncAlreadyShutdown,
 
