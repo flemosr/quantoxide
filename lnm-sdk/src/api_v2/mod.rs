@@ -1,4 +1,4 @@
-pub use crate::shared::config::ApiClientConfig;
+pub use crate::shared::config::{ApiClientConfig, RestClientConfig, WebSocketClientConfig};
 
 mod client;
 pub(crate) mod rest;
