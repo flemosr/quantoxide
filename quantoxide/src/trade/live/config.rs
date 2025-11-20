@@ -1,12 +1,14 @@
 use chrono::Duration;
 use tokio::time;
 
-use lnm_sdk::api_v2::models::BoundedPercentage;
+use lnm_sdk::api_v2::{ApiClientConfig, models::BoundedPercentage};
 
 use super::executor::state::live_trading_session::TradingSessionRefreshOffset;
 
 #[derive(Clone, Debug)]
 pub struct LiveConfig {
+    api_rest_timeout: time::Duration,
+    api_ws_disconnect_timeout: time::Duration,
     api_cooldown: time::Duration,
     api_error_cooldown: time::Duration,
     api_error_max_trials: u32,
@@ -33,6 +35,8 @@ impl Default for LiveConfig {
             .expect("must be valid `LiveTradingSessionRefreshOffset`");
 
         Self {
+            api_rest_timeout: time::Duration::from_secs(20),
+            api_ws_disconnect_timeout: time::Duration::from_secs(6),
             api_cooldown: time::Duration::from_secs(2),
             api_error_cooldown: time::Duration::from_secs(10),
             api_error_max_trials: 3,
@@ -56,6 +60,14 @@ impl Default for LiveConfig {
 }
 
 impl LiveConfig {
+    pub fn api_rest_timeout(&self) -> time::Duration {
+        self.api_rest_timeout
+    }
+
+    pub fn api_ws_disconnect_timeout(&self) -> time::Duration {
+        self.api_ws_disconnect_timeout
+    }
+
     pub fn api_cooldown(&self) -> time::Duration {
         self.api_cooldown
     }
@@ -122,6 +134,16 @@ impl LiveConfig {
 
     pub fn shutdown_timeout(&self) -> time::Duration {
         self.shutdown_timeout
+    }
+
+    pub fn with_api_rest_timeout(mut self, secs: u64) -> Self {
+        self.api_rest_timeout = time::Duration::from_secs(secs);
+        self
+    }
+
+    pub fn with_api_ws_disconnect_timeout(mut self, secs: u64) -> Self {
+        self.api_ws_disconnect_timeout = time::Duration::from_secs(secs);
+        self
     }
 
     pub fn with_api_cooldown(mut self, secs: u64) -> Self {
@@ -210,6 +232,14 @@ impl LiveConfig {
     pub fn with_shutdown_timeout(mut self, secs: u64) -> Self {
         self.shutdown_timeout = time::Duration::from_secs(secs);
         self
+    }
+}
+
+impl From<&LiveConfig> for ApiClientConfig {
+    fn from(value: &LiveConfig) -> Self {
+        ApiClientConfig::default()
+            .with_rest_timeout(value.api_rest_timeout())
+            .with_ws_disconnect_timeout(value.api_ws_disconnect_timeout())
     }
 }
 
