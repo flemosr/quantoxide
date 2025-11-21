@@ -18,9 +18,9 @@ pub struct WebSocketClient(Box<dyn WebSocketRepository>);
 impl WebSocketClient {
     pub async fn new(
         config: impl Into<WebSocketClientConfig>,
-        domain: String,
+        domain: impl ToString,
     ) -> Result<Arc<Self>> {
-        let ws_repo = Box::new(LnmWebSocketRepo::new(config.into(), domain).await?);
+        let ws_repo = Box::new(LnmWebSocketRepo::new(config.into(), domain.to_string()).await?);
 
         Ok(Arc::new(Self(ws_repo)))
     }

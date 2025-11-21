@@ -122,8 +122,7 @@ impl ApiClient {
             }
         }
 
-        let domain = self.domain.clone();
-        let new_ws = WebSocketClient::new(&self.config, domain).await?;
+        let new_ws = WebSocketClient::new(&self.config, self.domain.clone()).await?;
 
         *ws_guard = Some(new_ws.clone());
 
