@@ -1,7 +1,8 @@
 use std::{result, sync::Arc};
 
-use lnm_sdk::api_v2::error::RestApiError;
 use thiserror::Error;
+
+use lnm_sdk::api_v2::error::RestApiError;
 
 use crate::signal::error::SignalError;
 
@@ -12,8 +13,8 @@ use super::{
 
 #[derive(Error, Debug)]
 pub enum LiveError {
-    #[error("API initialization error: {0}")]
-    ApiInit(RestApiError),
+    #[error("REST API client initialization error: {0}")]
+    RestApiInit(RestApiError),
 
     #[error("Setup executor error {0}")]
     SetupExecutor(LiveTradeExecutorError),
