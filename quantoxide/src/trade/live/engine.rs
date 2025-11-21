@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use chrono::Duration;
 use tokio::{sync::broadcast, time};
 
-use lnm_sdk::api_v2::ApiClient;
+use lnm_sdk::api_v2::{ApiClientConfig, RestClient, WebSocketClient};
 
 use crate::{
     db::Database,
@@ -162,16 +162,19 @@ impl LiveEngine {
             }
         };
 
-        let api = ApiClient::with_credentials(
-            (&config).into(),
+        let api_config = ApiClientConfig::from(&config);
+        let api_rest = RestClient::with_credentials(
+            &api_config,
             api_domain.to_string(),
             api_key.to_string(),
             api_secret.to_string(),
             api_passphrase.to_string(),
         )
-        .map_err(LiveError::ApiInit)?;
+        .map_err(LiveError::RestApiInit)?;
+        let ws_rest = WebSocketClient::new(&api_config, api_domain.to_string());
 
-        let sync_engine = SyncEngine::with_api(&config, db.clone(), api.clone(), sync_mode);
+        let sync_engine =
+            SyncEngine::with_api(&config, db.clone(), api_rest.clone(), ws_rest, sync_mode);
 
         let signal_engine = LiveSignalEngine::new(
             &config,
@@ -184,7 +187,7 @@ impl LiveEngine {
         let operator_pending = OperatorPending::signal(signal_engine, operator.into());
 
         let trade_executor_launcher =
-            LiveTradeExecutorLauncher::new(&config, db, api, sync_engine.update_receiver())
+            LiveTradeExecutorLauncher::new(&config, db, api_rest, sync_engine.update_receiver())
                 .map_err(LiveError::SetupExecutor)?;
 
         let (update_tx, _) = broadcast::channel::<LiveUpdate>(100);
@@ -224,21 +227,24 @@ impl LiveEngine {
             }
         };
 
-        let api = ApiClient::with_credentials(
-            (&config).into(),
+        let api_config = ApiClientConfig::from(&config);
+        let api_rest = RestClient::with_credentials(
+            &api_config,
             api_domain.to_string(),
             api_key.to_string(),
             api_secret.to_string(),
             api_passphrase.to_string(),
         )
-        .map_err(LiveError::ApiInit)?;
+        .map_err(LiveError::RestApiInit)?;
+        let ws_rest = WebSocketClient::new(&api_config, api_domain.to_string());
 
-        let sync_engine = SyncEngine::with_api(&config, db.clone(), api.clone(), sync_mode);
+        let sync_engine =
+            SyncEngine::with_api(&config, db.clone(), api_rest.clone(), ws_rest, sync_mode);
 
         let operator_pending = OperatorPending::raw(db.clone(), sync_engine.reader(), operator);
 
         let trade_executor_launcher =
-            LiveTradeExecutorLauncher::new(&config, db, api, sync_engine.update_receiver())
+            LiveTradeExecutorLauncher::new(&config, db, api_rest, sync_engine.update_receiver())
                 .map_err(LiveError::SetupExecutor)?;
 
         let (update_tx, _) = broadcast::channel::<LiveUpdate>(100);
