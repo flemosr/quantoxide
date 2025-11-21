@@ -1,6 +1,7 @@
 use chrono::Duration;
-use lnm_sdk::api_v3::ApiClientConfig;
 use tokio::time;
+
+use lnm_sdk::api_v2::{RestClientConfig, WebSocketClientConfig};
 
 use crate::trade::LiveConfig;
 
@@ -127,11 +128,15 @@ impl SyncConfig {
     }
 }
 
-impl From<&SyncConfig> for ApiClientConfig {
+impl From<&SyncConfig> for RestClientConfig {
     fn from(value: &SyncConfig) -> Self {
-        ApiClientConfig::default()
-            .with_rest_timeout(value.api_rest_timeout())
-            .with_ws_disconnect_timeout(value.api_ws_disconnect_timeout())
+        RestClientConfig::new(value.api_rest_timeout())
+    }
+}
+
+impl From<&SyncConfig> for WebSocketClientConfig {
+    fn from(value: &SyncConfig) -> Self {
+        WebSocketClientConfig::new(value.api_ws_disconnect_timeout())
     }
 }
 

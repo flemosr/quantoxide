@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use chrono::Duration;
 use tokio::{sync::broadcast, time};
 
-use lnm_sdk::api_v2::{ApiClientConfig, RestClient, WebSocketClient};
+use lnm_sdk::api_v2::{RestClient, WebSocketClient};
 
 use crate::{
     db::Database,
@@ -164,12 +164,10 @@ impl SyncEngine {
         mode: SyncMode,
     ) -> Result<Self> {
         let config: SyncConfig = config.into();
-        let api_config = ApiClientConfig::from(&config);
         let domain = api_domain.to_string();
 
-        let api_rest =
-            RestClient::new(&api_config, domain.clone()).map_err(SyncError::RestApiInit)?;
-        let api_ws = WebSocketClient::new(&api_config, domain);
+        let api_rest = RestClient::new(&config, domain.clone()).map_err(SyncError::RestApiInit)?;
+        let api_ws = WebSocketClient::new(&config, domain);
 
         Ok(SyncEngine::with_api(config, db, api_rest, api_ws, mode))
     }
