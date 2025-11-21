@@ -3,7 +3,7 @@ use std::{collections::HashSet, sync::Arc};
 use chrono::{DateTime, Duration, Utc};
 use tokio::{sync::mpsc, time};
 
-use lnm_sdk::api_v2::{ApiClient, models::PriceEntry};
+use lnm_sdk::api_v2::{RestClient, models::PriceEntry};
 
 use crate::db::Database;
 
@@ -21,7 +21,7 @@ pub(super) type PriceHistoryStateTransmiter = mpsc::Sender<PriceHistoryState>;
 pub(super) struct SyncPriceHistoryTask {
     config: SyncPriceHistoryTaskConfig,
     db: Arc<Database>,
-    api: Arc<ApiClient>,
+    api_rest: Arc<RestClient>,
     history_state_tx: Option<PriceHistoryStateTransmiter>,
 }
 
@@ -29,13 +29,13 @@ impl SyncPriceHistoryTask {
     pub fn new(
         config: &SyncProcessConfig,
         db: Arc<Database>,
-        api: Arc<ApiClient>,
+        api_rest: Arc<RestClient>,
         history_state_tx: Option<PriceHistoryStateTransmiter>,
     ) -> Self {
         Self {
             config: config.into(),
             db,
-            api,
+            api_rest,
             history_state_tx,
         }
     }
@@ -51,8 +51,7 @@ impl SyncPriceHistoryTask {
                 time::sleep(self.config.api_cooldown()).await;
 
                 match self
-                    .api
-                    .rest
+                    .api_rest
                     .futures
                     .price_history(
                         None,
