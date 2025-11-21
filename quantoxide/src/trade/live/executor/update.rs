@@ -4,7 +4,7 @@ use tokio::sync::broadcast;
 use uuid::Uuid;
 
 use lnm_sdk::api_v2::{
-    ApiClient,
+    RestClient,
     models::{Leverage, Price, Trade, TradeExecution, TradeSide, TradeSize, User},
 };
 
@@ -119,20 +119,23 @@ impl From<LiveTradingSession> for LiveTradeExecutorUpdate {
 pub(super) type LiveTradeExecutorTransmiter = broadcast::Sender<LiveTradeExecutorUpdate>;
 pub type LiveTradeExecutorReceiver = broadcast::Receiver<LiveTradeExecutorUpdate>;
 
+// TODO: Rename to `WrappedRestClient`
 #[derive(Clone)]
 pub(in crate::trade) struct WrappedApiContext {
-    api: Arc<ApiClient>,
+    api_rest: Arc<RestClient>,
     update_tx: LiveTradeExecutorTransmiter,
 }
 
 impl WrappedApiContext {
-    pub fn new(api: Arc<ApiClient>, update_tx: LiveTradeExecutorTransmiter) -> Self {
-        Self { api, update_tx }
+    pub fn new(api_rest: Arc<RestClient>, update_tx: LiveTradeExecutorTransmiter) -> Self {
+        Self {
+            api_rest,
+            update_tx,
+        }
     }
 
     pub async fn get_trades_running(&self) -> ExecutorActionResult<Vec<Trade>> {
-        self.api
-            .rest
+        self.api_rest
             .futures
             .get_trades_running(None, None, None)
             .await
@@ -140,8 +143,7 @@ impl WrappedApiContext {
     }
 
     pub async fn get_user(&self) -> ExecutorActionResult<User> {
-        self.api
-            .rest
+        self.api_rest
             .user
             .get_user()
             .await
@@ -149,8 +151,7 @@ impl WrappedApiContext {
     }
 
     pub async fn get_trade(&self, id: Uuid) -> ExecutorActionResult<Trade> {
-        self.api
-            .rest
+        self.api_rest
             .futures
             .get_trade(id)
             .await
@@ -177,8 +178,7 @@ impl WrappedApiContext {
             takeprofit,
         });
 
-        self.api
-            .rest
+        self.api_rest
             .futures
             .create_new_trade(
                 side,
@@ -199,8 +199,7 @@ impl WrappedApiContext {
     ) -> ExecutorActionResult<Trade> {
         self.send_order_update(LiveTradeExecutorUpdateOrder::UpdateTradeStoploss { id, stoploss });
 
-        self.api
-            .rest
+        self.api_rest
             .futures
             .update_trade_stoploss(id, stoploss)
             .await
@@ -210,8 +209,7 @@ impl WrappedApiContext {
     pub async fn add_margin(&self, id: Uuid, amount: NonZeroU64) -> ExecutorActionResult<Trade> {
         self.send_order_update(LiveTradeExecutorUpdateOrder::AddMargin { id, amount });
 
-        self.api
-            .rest
+        self.api_rest
             .futures
             .add_margin(id, amount)
             .await
@@ -221,8 +219,7 @@ impl WrappedApiContext {
     pub async fn cash_in(&self, id: Uuid, amount: NonZeroU64) -> ExecutorActionResult<Trade> {
         self.send_order_update(LiveTradeExecutorUpdateOrder::CashIn { id, amount });
 
-        self.api
-            .rest
+        self.api_rest
             .futures
             .cash_in(id, amount)
             .await
@@ -232,8 +229,7 @@ impl WrappedApiContext {
     pub async fn close_trade(&self, id: Uuid) -> ExecutorActionResult<Trade> {
         self.send_order_update(LiveTradeExecutorUpdateOrder::CloseTrade { id });
 
-        self.api
-            .rest
+        self.api_rest
             .futures
             .close_trade(id)
             .await
@@ -243,8 +239,7 @@ impl WrappedApiContext {
     pub async fn cancel_all_trades(&self) -> ExecutorActionResult<Vec<Trade>> {
         self.send_order_update(LiveTradeExecutorUpdateOrder::CancelAllTrades);
 
-        self.api
-            .rest
+        self.api_rest
             .futures
             .cancel_all_trades()
             .await
@@ -254,8 +249,7 @@ impl WrappedApiContext {
     pub async fn close_all_trades(&self) -> ExecutorActionResult<Vec<Trade>> {
         self.send_order_update(LiveTradeExecutorUpdateOrder::CloseAllTrades);
 
-        self.api
-            .rest
+        self.api_rest
             .futures
             .close_all_trades()
             .await
