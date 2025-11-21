@@ -1,7 +1,7 @@
 use chrono::Duration;
 use tokio::time;
 
-use lnm_sdk::api_v2::{ApiClientConfig, models::BoundedPercentage};
+use lnm_sdk::api_v2::{RestClientConfig, WebSocketClientConfig, models::BoundedPercentage};
 
 use super::executor::state::live_trading_session::TradingSessionRefreshOffset;
 
@@ -235,11 +235,15 @@ impl LiveConfig {
     }
 }
 
-impl From<&LiveConfig> for ApiClientConfig {
+impl From<&LiveConfig> for RestClientConfig {
     fn from(value: &LiveConfig) -> Self {
-        ApiClientConfig::default()
-            .with_rest_timeout(value.api_rest_timeout())
-            .with_ws_disconnect_timeout(value.api_ws_disconnect_timeout())
+        RestClientConfig::new(value.api_rest_timeout())
+    }
+}
+
+impl From<&LiveConfig> for WebSocketClientConfig {
+    fn from(value: &LiveConfig) -> Self {
+        WebSocketClientConfig::new(value.api_ws_disconnect_timeout())
     }
 }
 

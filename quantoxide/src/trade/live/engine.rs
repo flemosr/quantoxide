@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use chrono::Duration;
 use tokio::{sync::broadcast, time};
 
-use lnm_sdk::api_v2::{ApiClientConfig, RestClient, WebSocketClient};
+use lnm_sdk::api_v2::{RestClient, WebSocketClient};
 
 use crate::{
     db::Database,
@@ -162,19 +162,18 @@ impl LiveEngine {
             }
         };
 
-        let api_config = ApiClientConfig::from(&config);
         let api_rest = RestClient::with_credentials(
-            &api_config,
+            &config,
             api_domain.to_string(),
             api_key.to_string(),
             api_secret.to_string(),
             api_passphrase.to_string(),
         )
         .map_err(LiveError::RestApiInit)?;
-        let ws_rest = WebSocketClient::new(&api_config, api_domain.to_string());
+        let api_ws = WebSocketClient::new(&config, api_domain.to_string());
 
         let sync_engine =
-            SyncEngine::with_api(&config, db.clone(), api_rest.clone(), ws_rest, sync_mode);
+            SyncEngine::with_api(&config, db.clone(), api_rest.clone(), api_ws, sync_mode);
 
         let signal_engine = LiveSignalEngine::new(
             &config,
@@ -227,19 +226,18 @@ impl LiveEngine {
             }
         };
 
-        let api_config = ApiClientConfig::from(&config);
         let api_rest = RestClient::with_credentials(
-            &api_config,
+            &config,
             api_domain.to_string(),
             api_key.to_string(),
             api_secret.to_string(),
             api_passphrase.to_string(),
         )
         .map_err(LiveError::RestApiInit)?;
-        let ws_rest = WebSocketClient::new(&api_config, api_domain.to_string());
+        let api_ws = WebSocketClient::new(&config, api_domain.to_string());
 
         let sync_engine =
-            SyncEngine::with_api(&config, db.clone(), api_rest.clone(), ws_rest, sync_mode);
+            SyncEngine::with_api(&config, db.clone(), api_rest.clone(), api_ws, sync_mode);
 
         let operator_pending = OperatorPending::raw(db.clone(), sync_engine.reader(), operator);
 
