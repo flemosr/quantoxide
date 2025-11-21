@@ -10,7 +10,7 @@ use tokio::sync::broadcast::{self, error::RecvError};
 use uuid::Uuid;
 
 use lnm_sdk::api_v2::{
-    ApiClient,
+    RestClient,
     models::{BoundedPercentage, Leverage, Price, TradeSide, TradeSize, trade_util},
 };
 
@@ -456,7 +456,7 @@ impl TradeExecutor for LiveTradeExecutor {
 pub struct LiveTradeExecutorLauncher {
     config: LiveTradeExecutorConfig,
     db: Arc<Database>,
-    api: WrappedApiContext,
+    api_rest: WrappedApiContext,
     update_tx: LiveTradeExecutorTransmiter,
     state_manager: Arc<LiveTradeExecutorStateManager>,
     sync_rx: SyncReceiver,
@@ -466,23 +466,23 @@ impl LiveTradeExecutorLauncher {
     pub fn new(
         config: impl Into<LiveTradeExecutorConfig>,
         db: Arc<Database>,
-        api: Arc<ApiClient>,
+        api_rest: Arc<RestClient>,
         sync_rx: SyncReceiver,
     ) -> LiveTradeExecutorResult<Self> {
-        if !api.rest.has_credentials {
+        if !api_rest.has_credentials {
             return Err(LiveTradeExecutorError::ApiCredentialsNotSet);
         }
 
         let (update_tx, _) = broadcast::channel::<LiveTradeExecutorUpdate>(100);
 
-        let api = WrappedApiContext::new(api, update_tx.clone());
+        let api_rest = WrappedApiContext::new(api_rest, update_tx.clone());
 
         let state_manager = LiveTradeExecutorStateManager::new(update_tx.clone());
 
         Ok(Self {
             config: config.into(),
             db,
-            api,
+            api_rest,
             update_tx,
             state_manager,
             sync_rx,
@@ -617,9 +617,11 @@ impl LiveTradeExecutorLauncher {
 
     pub async fn launch(self) -> LiveTradeExecutorResult<Arc<LiveTradeExecutor>> {
         if self.config.clean_up_trades_on_startup() {
-            let (_, _) =
-                futures::try_join!(self.api.cancel_all_trades(), self.api.close_all_trades())
-                    .map_err(LiveTradeExecutorError::LaunchCleanUp)?;
+            let (_, _) = futures::try_join!(
+                self.api_rest.cancel_all_trades(),
+                self.api_rest.close_all_trades()
+            )
+            .map_err(LiveTradeExecutorError::LaunchCleanUp)?;
         }
 
         let handle = Self::spawn_sync_processor(
@@ -627,7 +629,7 @@ impl LiveTradeExecutorLauncher {
             self.config.trailing_stoploss_step_size(),
             self.config.session_refresh_offset(),
             self.db.clone(),
-            self.api.clone(),
+            self.api_rest.clone(),
             self.update_tx.clone(),
             self.state_manager.clone(),
             self.sync_rx,
@@ -636,7 +638,7 @@ impl LiveTradeExecutorLauncher {
         Ok(LiveTradeExecutor::new(
             self.config,
             self.db,
-            self.api,
+            self.api_rest,
             self.update_tx,
             self.state_manager,
             handle,
