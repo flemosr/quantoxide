@@ -1,9 +1,7 @@
-pub use crate::shared::config::{ApiClientConfig, RestClientConfig};
+pub use crate::shared::config::RestClientConfig;
 
-mod client;
 pub(crate) mod rest;
 
-pub use client::ApiClient;
 pub use rest::{
     RestClient,
     repositories::{
