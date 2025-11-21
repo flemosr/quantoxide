@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use chrono::Duration;
 use tokio::{sync::broadcast, time};
 
-use lnm_sdk::api_v2::ApiClient;
+use lnm_sdk::api_v2::{ApiClientConfig, RestClient, WebSocketClient};
 
 use crate::{
     db::Database,
@@ -127,7 +127,8 @@ pub enum SyncMode {
 pub struct SyncEngine {
     config: SyncConfig,
     db: Arc<Database>,
-    api: Arc<ApiClient>,
+    api_rest: Arc<RestClient>,
+    api_ws: Arc<WebSocketClient>,
     mode: SyncMode,
     status_manager: Arc<SyncStatusManager>,
     update_tx: SyncTransmiter,
@@ -137,7 +138,8 @@ impl SyncEngine {
     pub(crate) fn with_api(
         config: impl Into<SyncConfig>,
         db: Arc<Database>,
-        api: Arc<ApiClient>,
+        api_rest: Arc<RestClient>,
+        api_ws: Arc<WebSocketClient>,
         mode: SyncMode,
     ) -> Self {
         let (update_tx, _) = broadcast::channel::<SyncUpdate>(1000);
@@ -147,7 +149,8 @@ impl SyncEngine {
         Self {
             config: config.into(),
             db,
-            api,
+            api_rest,
+            api_ws,
             mode,
             status_manager,
             update_tx,
@@ -161,9 +164,14 @@ impl SyncEngine {
         mode: SyncMode,
     ) -> Result<Self> {
         let config: SyncConfig = config.into();
-        let api = ApiClient::new((&config).into(), api_domain).map_err(SyncError::ApiInit)?;
+        let api_config = ApiClientConfig::from(&config);
+        let domain = api_domain.to_string();
 
-        Ok(SyncEngine::with_api(config, db, api, mode))
+        let api_rest =
+            RestClient::new(&api_config, domain.clone()).map_err(SyncError::RestApiInit)?;
+        let api_ws = WebSocketClient::new(&api_config, domain);
+
+        Ok(SyncEngine::with_api(config, db, api_rest, api_ws, mode))
     }
 
     pub fn reader(&self) -> Arc<dyn SyncReader> {
@@ -185,7 +193,8 @@ impl SyncEngine {
         let handle = SyncProcess::spawn(
             &self.config,
             self.db,
-            self.api,
+            self.api_rest,
+            self.api_ws,
             self.mode,
             shutdown_tx.clone(),
             self.status_manager.clone(),
