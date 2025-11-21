@@ -87,9 +87,6 @@ impl ApiClient {
         passphrase: impl ToString,
     ) -> RestResult<Arc<Self>> {
         let domain = domain.to_string();
-        let key = key.to_string();
-        let secret = secret.to_string();
-        let passphrase = passphrase.to_string();
 
         let rest = RestClient::with_credentials(&config, domain.clone(), key, secret, passphrase)?;
 

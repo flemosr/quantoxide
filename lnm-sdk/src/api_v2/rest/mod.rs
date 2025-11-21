@@ -49,25 +49,25 @@ impl RestClient {
         })
     }
 
-    pub fn new(config: impl Into<RestClientConfig>, domain: String) -> Result<Arc<Self>> {
-        let base = LnmRestBase::new(config.into(), domain)?;
+    pub fn new(config: impl Into<RestClientConfig>, domain: impl ToString) -> Result<Arc<Self>> {
+        let base = LnmRestBase::new(config.into(), domain.to_string())?;
 
         Ok(Self::new_inner(base))
     }
 
     pub fn with_credentials(
         config: impl Into<RestClientConfig>,
-        domain: String,
-        key: String,
-        secret: String,
-        passphrase: String,
+        domain: impl ToString,
+        key: impl ToString,
+        secret: impl ToString,
+        passphrase: impl ToString,
     ) -> Result<Arc<Self>> {
         let base = LnmRestBase::with_credentials(
             config.into(),
-            domain,
-            key,
-            passphrase,
-            SignatureGeneratorV2::new(secret),
+            domain.to_string(),
+            key.to_string(),
+            passphrase.to_string(),
+            SignatureGeneratorV2::new(secret.to_string()),
         )?;
 
         Ok(Self::new_inner(base))
