@@ -36,8 +36,6 @@ impl ApiClient {
     /// # }
     /// ```
     pub fn new(config: ApiClientConfig, domain: impl ToString) -> RestResult<Arc<Self>> {
-        let domain = domain.to_string();
-
         let rest = RestClient::new(&config, domain)?;
 
         Ok(Self::new_inner(rest))
@@ -71,11 +69,6 @@ impl ApiClient {
         secret: impl ToString,
         passphrase: impl ToString,
     ) -> RestResult<Arc<Self>> {
-        let domain = domain.to_string();
-        let key = key.to_string();
-        let secret = secret.to_string();
-        let passphrase = passphrase.to_string();
-
         let rest = RestClient::with_credentials(&config, domain, key, secret, passphrase)?;
 
         Ok(Self::new_inner(rest))
