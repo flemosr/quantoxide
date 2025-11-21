@@ -7,7 +7,7 @@ use tokio::{
     time,
 };
 
-use lnm_sdk::api_v2::ApiClient;
+use lnm_sdk::api_v2::{RestClient, WebSocketClient};
 
 use crate::{
     db::{Database, models::PriceTickRow},
@@ -33,7 +33,8 @@ use sync_price_history_task::{
 pub(super) struct SyncProcess {
     config: SyncProcessConfig,
     db: Arc<Database>,
-    api: Arc<ApiClient>,
+    api_rest: Arc<RestClient>,
+    api_ws: Arc<WebSocketClient>,
     mode: SyncMode,
     shutdown_tx: broadcast::Sender<()>,
     status_manager: Arc<SyncStatusManager>,
@@ -44,7 +45,8 @@ impl SyncProcess {
     pub fn spawn(
         config: &SyncConfig,
         db: Arc<Database>,
-        api: Arc<ApiClient>,
+        api_rest: Arc<RestClient>,
+        api_ws: Arc<WebSocketClient>,
         mode: SyncMode,
         shutdown_tx: broadcast::Sender<()>,
         status_manager: Arc<SyncStatusManager>,
@@ -56,7 +58,8 @@ impl SyncProcess {
             let process = Self {
                 config,
                 db,
-                api,
+                api_rest,
+                api_ws,
                 mode,
                 shutdown_tx,
                 status_manager,
@@ -263,7 +266,7 @@ impl SyncProcess {
         SyncPriceHistoryTask::new(
             &self.config,
             self.db.clone(),
-            self.api.clone(),
+            self.api_rest.clone(),
             history_state_tx,
         )
         .backfill()
@@ -279,7 +282,7 @@ impl SyncProcess {
         SyncPriceHistoryTask::new(
             &self.config,
             self.db.clone(),
-            self.api.clone(),
+            self.api_rest.clone(),
             history_state_tx,
         )
         .live(range)
@@ -308,7 +311,7 @@ impl SyncProcess {
     ) -> AbortOnDropHandle<Result<()>> {
         let task = RealTimeCollectionTask::new(
             self.db.clone(),
-            self.api.clone(),
+            self.api_ws.clone(),
             self.shutdown_tx.clone(),
             price_tick_tx,
         );
