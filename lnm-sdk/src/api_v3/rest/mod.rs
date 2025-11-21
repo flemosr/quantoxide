@@ -23,12 +23,15 @@ use repositories::{
 
 /// Client for interacting with the [LNM's v3 API] via REST.
 ///
+/// Some endpoints require credentials with specific permissions. Such requirements will be
+/// mentioned in the corresponding method's documentation".
+///
 /// [LNM's v3 API]: https://api.lnmarkets.com/v3
 pub struct RestClient {
-    /// Will be `true` if LNM credentials were provided, and `false` otherwise.
-    /// See [`ApiClient::with_credentials`].
+    /// Indicates whether LNM credentials were provided during client initialization.
     ///
-    /// [`ApiClient::with_credentials`]: crate::ApiClient::with_credentials
+    /// Will be `true` if the client was created with [`RestClient::with_credentials`],
+    /// and `false` if created with [`RestClient::new`].
     pub has_credentials: bool,
 
     /// Methods for interacting with [LNM's v3 API]'s REST Utilities endpoints.
@@ -83,12 +86,50 @@ impl RestClient {
         })
     }
 
+    /// Creates a new unauthenticated REST client.
+    ///
+    /// For authenticated endpoints, use [`RestClient::with_credentials`].
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// use std::env;
+    /// use lnm_sdk::api_v3::rest::{RestClient, RestClientConfig};
+    ///
+    /// let domain = env::var("LNM_API_DOMAIN").unwrap();
+    ///
+    /// let client = RestClient::new(RestClientConfig::default(), domain)?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn new(config: impl Into<RestClientConfig>, domain: impl ToString) -> Result<Arc<Self>> {
         let base = LnmRestBase::new(config.into(), domain.to_string())?;
 
         Ok(Self::new_inner(base))
     }
 
+    /// Creates a new authenticated REST client with credentials.
+    ///
+    /// If not accessing authenticated endpoints, consider using [`RestClient::new`].
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// use std::env;
+    /// use lnm_sdk::api_v3::rest::{RestClient, RestClientConfig};
+    ///
+    /// let domain = env::var("LNM_API_DOMAIN").unwrap();
+    /// let key = env::var("LNM_API_KEY").unwrap();
+    /// let secret = env::var("LNM_API_SECRET").unwrap();
+    /// let pphrase = env::var("LNM_API_PASSPHRASE").unwrap();
+    ///
+    /// let config = RestClientConfig::default();
+    /// let client = RestClient::with_credentials(config, domain, key, secret, pphrase)?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn with_credentials(
         config: impl Into<RestClientConfig>,
         domain: impl ToString,
