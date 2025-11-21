@@ -1,10 +1,8 @@
-pub use crate::shared::config::{ApiClientConfig, RestClientConfig, WebSocketClientConfig};
+pub use crate::shared::config::{RestClientConfig, WebSocketClientConfig};
 
-mod client;
 pub(crate) mod rest;
 mod websocket;
 
-pub use client::ApiClient;
 pub use rest::{
     RestClient,
     repositories::{FuturesRepository, UserRepository},
