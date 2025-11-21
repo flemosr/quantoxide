@@ -10,7 +10,8 @@ pub use rest::{
     repositories::{FuturesRepository, UserRepository},
 };
 pub use websocket::{
-    WebSocketClient, repositories::WebSocketRepository, state::WsConnectionStatus,
+    WebSocketClient, WebSocketConnection, repositories::WebSocketRepository,
+    state::WsConnectionStatus,
 };
 
 pub mod error {
