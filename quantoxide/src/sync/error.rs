@@ -8,8 +8,8 @@ use super::{process::error::SyncProcessFatalError, state::SyncStatus};
 
 #[derive(Error, Debug)]
 pub enum SyncError {
-    #[error("API initialization error: {0}")]
-    ApiInit(RestApiError),
+    #[error("REST API client initialization error: {0}")]
+    RestApiInit(RestApiError),
 
     #[error("Sync already shutdown error")]
     SyncAlreadyShutdown,
