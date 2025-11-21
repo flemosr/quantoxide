@@ -1,12 +1,13 @@
 use std::sync::Arc;
 
-use tokio::sync::Mutex;
-
-use crate::shared::{config::ApiClientConfig, rest::error::Result as RestResult};
+use crate::{
+    api_v2::websocket::WebSocketConnection,
+    shared::{config::ApiClientConfig, rest::error::Result as RestResult},
+};
 
 use super::{
     rest::RestClient,
-    websocket::{WebSocketClient, error::Result},
+    websocket::{WebSocketClient, error::Result as WsResult},
 };
 
 /// Client for interacting with the [LNM's v2 API] via REST and WebSocket.
@@ -17,19 +18,15 @@ use super::{
 ///
 /// [LNM's v2 API]: https://docs.lnmarkets.com/api/#overview
 pub struct ApiClient {
-    config: ApiClientConfig,
-    domain: String,
     pub rest: Arc<RestClient>,
-    ws: Mutex<Option<Arc<WebSocketClient>>>,
+    ws: Arc<WebSocketClient>,
 }
 
 impl ApiClient {
     fn new_inner(config: ApiClientConfig, domain: String, rest: Arc<RestClient>) -> Arc<Self> {
         Arc::new(Self {
-            config,
-            domain,
             rest,
-            ws: Mutex::new(None),
+            ws: WebSocketClient::new(&config, domain),
         })
     }
 
@@ -113,19 +110,7 @@ impl ApiClient {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn connect_ws(&self) -> Result<Arc<WebSocketClient>> {
-        let mut ws_guard = self.ws.lock().await;
-
-        if let Some(ws) = ws_guard.as_ref() {
-            if ws.is_connected().await {
-                return Ok(ws.clone());
-            }
-        }
-
-        let new_ws = WebSocketClient::new(&self.config, self.domain.clone()).await?;
-
-        *ws_guard = Some(new_ws.clone());
-
-        Ok(new_ws)
+    pub async fn connect_ws(&self) -> WsResult<WebSocketConnection> {
+        self.ws.connect().await
     }
 }
