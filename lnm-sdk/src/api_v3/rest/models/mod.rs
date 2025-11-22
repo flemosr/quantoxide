@@ -4,6 +4,7 @@ pub(in crate::api_v3) mod error;
 pub(in crate::api_v3) mod funding;
 pub(in crate::api_v3) mod futures_data;
 pub(in crate::api_v3) mod oracle;
+pub(in crate::api_v3) mod page;
 pub(in crate::api_v3) mod ticker;
 pub(in crate::api_v3) mod trade;
 pub(in crate::api_v3) mod transfer;
