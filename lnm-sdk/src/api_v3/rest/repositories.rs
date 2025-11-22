@@ -190,7 +190,7 @@ pub trait FuturesCrossRepository: crate::sealed::Sealed + Send + Sync {
         to: Option<DateTime<Utc>>,
         limit: Option<NonZeroU64>,
         cursor: Option<DateTime<Utc>>,
-    ) -> Result<CrossOrderPage>;
+    ) -> Result<Page<CrossOrder>>;
 
     /// Close the running cross margin position. This will pass a market order opposite to the
     /// current position.
@@ -207,7 +207,7 @@ pub trait FuturesCrossRepository: crate::sealed::Sealed + Send + Sync {
         to: Option<DateTime<Utc>>,
         limit: Option<NonZeroU64>,
         cursor: Option<DateTime<Utc>>,
-    ) -> Result<CrossFundingPage>;
+    ) -> Result<Page<CrossFunding>>;
 
     /// Get the transfers history for the cross margin position (deposits to and withdrawals from
     /// the cross margin account). Positive amounts are deposits, negative amounts are withdrawals.
@@ -219,7 +219,7 @@ pub trait FuturesCrossRepository: crate::sealed::Sealed + Send + Sync {
         to: Option<DateTime<Utc>>,
         limit: Option<NonZeroU64>,
         cursor: Option<DateTime<Utc>>,
-    ) -> Result<CrossTransferPage>;
+    ) -> Result<Page<CrossTransfer>>;
 
     /// Deposit funds to the cross margin account.
     ///

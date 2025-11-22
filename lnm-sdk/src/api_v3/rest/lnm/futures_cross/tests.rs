@@ -230,7 +230,7 @@ async fn test_get_filled_orders(
     exp_filled_orders: Vec<&CrossOrder>,
 ) {
     let limit = NonZeroU64::try_from(exp_filled_orders.len() as u64).unwrap();
-    let filled_orders: CrossOrderPage = repo
+    let filled_orders: Page<CrossOrder> = repo
         .get_filled_orders(None, None, Some(limit), None)
         .await
         .expect("must get open orders");
@@ -285,7 +285,7 @@ async fn test_get_transfers(
     withdrawal_amount: u64,
 ) {
     let limit = NonZeroU64::try_from(2).unwrap();
-    let transfers: CrossTransferPage = repo
+    let transfers: Page<CrossTransfer> = repo
         .get_transfers(None, None, Some(limit), None)
         .await
         .expect("must get transfers");

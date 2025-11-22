@@ -19,9 +19,10 @@ use super::{
         error::RestApiV3Error,
         models::{
             cross_leverage::CrossLeverage,
-            funding::CrossFundingPage,
-            trade::{CrossOrder, CrossOrderPage, CrossPosition, FuturesCrossOrderBody},
-            transfer::CrossTransferPage,
+            funding::CrossFunding,
+            page::Page,
+            trade::{CrossOrder, CrossPosition, FuturesCrossOrderBody},
+            transfer::CrossTransfer,
         },
         repositories::FuturesCrossRepository,
     },
@@ -97,7 +98,7 @@ impl FuturesCrossRepository for LnmFuturesCrossRepository {
         to: Option<DateTime<Utc>>,
         limit: Option<NonZeroU64>,
         cursor: Option<DateTime<Utc>>,
-    ) -> Result<CrossOrderPage> {
+    ) -> Result<Page<CrossOrder>> {
         let mut query_params = Vec::new();
 
         if let Some(from) = from {
@@ -138,7 +139,7 @@ impl FuturesCrossRepository for LnmFuturesCrossRepository {
         to: Option<DateTime<Utc>>,
         limit: Option<NonZeroU64>,
         cursor: Option<DateTime<Utc>>,
-    ) -> Result<CrossFundingPage> {
+    ) -> Result<Page<CrossFunding>> {
         let mut query_params = Vec::new();
 
         if let Some(from) = from {
@@ -173,7 +174,7 @@ impl FuturesCrossRepository for LnmFuturesCrossRepository {
         to: Option<DateTime<Utc>>,
         limit: Option<NonZeroU64>,
         cursor: Option<DateTime<Utc>>,
-    ) -> Result<CrossTransferPage> {
+    ) -> Result<Page<CrossTransfer>> {
         let mut query_params = Vec::new();
 
         if let Some(from) = from {
