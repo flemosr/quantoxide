@@ -20,6 +20,10 @@ use repositories::{FuturesRepository, UserRepository};
 /// When credentials are provided, it supports authenticated endpoints.
 ///
 /// [LNM's v2 API]: https://docs.lnmarkets.com/api/#overview
+#[deprecated(
+    since = "0.1.0",
+    note = "Use `lnm_sdk::api_v3::RestClient` instead. The v2 REST API is deprecated."
+)]
 pub struct RestClient {
     /// Will be `true` if LNM credentials were provided, and `false` otherwise.
     /// See [`RestClient::with_credentials`].
@@ -36,6 +40,7 @@ pub struct RestClient {
     pub user: Box<dyn UserRepository>,
 }
 
+#[allow(deprecated)]
 impl RestClient {
     fn new_inner(base: Arc<LnmRestBase<SignatureGeneratorV2>>) -> Arc<Self> {
         let has_credentials = base.has_credentials();
