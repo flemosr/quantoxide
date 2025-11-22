@@ -557,50 +557,6 @@ impl Trade {
     }
 }
 
-#[derive(Deserialize, Debug, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct TradePage {
-    data: Vec<Trade>,
-    next_cursor: Option<DateTime<Utc>>,
-}
-
-impl TradePage {
-    /// Vector of trades.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// # fn example(trade_page: lnm_sdk::api_v3::models::TradePage) -> Result<(), Box<dyn std::error::Error>> {
-    /// for trade in trade_page.data() {
-    ///     println!("trade: {:?}", trade);
-    /// }
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub fn data(&self) -> &Vec<Trade> {
-        &self.data
-    }
-
-    /// Cursor that can be used to fetch the next page of results. `None` if there are no more
-    /// results.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// # fn example(trade_page: lnm_sdk::api_v3::models::TradePage) -> Result<(), Box<dyn std::error::Error>> {
-    /// if let Some(cursor) = trade_page.next_cursor() {
-    ///     println!("More trades can be fetched using cursor: {cursor}");
-    /// } else {
-    ///     println!("There are no more trades available.");
-    /// }
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub fn next_cursor(&self) -> Option<DateTime<Utc>> {
-        self.next_cursor
-    }
-}
-
 #[derive(Serialize, Debug)]
 pub(in crate::api_v3) struct FuturesCrossOrderBody {
     side: TradeSide,
@@ -1109,49 +1065,5 @@ impl CrossPosition {
     /// ```
     pub fn delta_pl(&self) -> i64 {
         self.delta_pl
-    }
-}
-
-#[derive(Deserialize, Debug, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct CrossOrderPage {
-    data: Vec<CrossOrder>,
-    next_cursor: Option<DateTime<Utc>>,
-}
-
-impl CrossOrderPage {
-    /// Vector of cross orders.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// # fn example(cross_order_page: lnm_sdk::api_v3::models::CrossOrderPage) -> Result<(), Box<dyn std::error::Error>> {
-    /// for order in cross_order_page.data() {
-    ///     println!("order: {:?}", order);
-    /// }
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub fn data(&self) -> &Vec<CrossOrder> {
-        &self.data
-    }
-
-    /// Cursor that can be used to fetch the next page of results. `None` if there are no more
-    /// results.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// # fn example(cross_order_page: lnm_sdk::api_v3::models::CrossOrderPage) -> Result<(), Box<dyn std::error::Error>> {
-    /// if let Some(cursor) = cross_order_page.next_cursor() {
-    ///     println!("More orders can be fetched using cursor: {cursor}");
-    /// } else {
-    ///     println!("There are no more orders available.");
-    /// }
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub fn next_cursor(&self) -> Option<DateTime<Utc>> {
-        self.next_cursor
     }
 }
