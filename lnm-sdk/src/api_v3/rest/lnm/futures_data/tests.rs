@@ -42,9 +42,18 @@ async fn test_ticker(repo: &LnmFuturesDataRepository) {
     assert!(ticker.prices().len() > 0);
 }
 
-async fn test_get_candles(repo: &LnmFuturesDataRepository) {
+async fn test_get_max_candles(repo: &LnmFuturesDataRepository) {
+    let limit = 1000.try_into().unwrap();
     let _ = repo
-        .get_candles(None, None, None, None, None)
+        .get_candles(None, None, Some(limit), None, Some(OhlcRange::OneMinute))
+        .await
+        .expect("must get candles");
+}
+
+async fn test_get_last_candle(repo: &LnmFuturesDataRepository) {
+    let limit = 1.try_into().unwrap();
+    let _ = repo
+        .get_candles(None, None, Some(limit), None, Some(OhlcRange::OneMinute))
         .await
         .expect("must get candles");
 }
@@ -73,5 +82,7 @@ async fn test_api() {
         test_get_funding_settlements(&repo).await
     );
 
-    time_test!("test_get_candles", test_get_candles(&repo).await);
+    time_test!("test_get_max_candles", test_get_max_candles(&repo).await);
+
+    time_test!("test_get_last_candle", test_get_last_candle(&repo).await);
 }
