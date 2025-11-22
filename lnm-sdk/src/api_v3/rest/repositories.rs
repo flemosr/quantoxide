@@ -17,12 +17,13 @@ use crate::shared::{
 use super::models::{
     account::Account,
     cross_leverage::CrossLeverage,
-    funding::{CrossFundingPage, FundingSettlementPage, IsolatedFundingPage},
-    futures_data::{OhlcCandlePage, OhlcRange},
+    funding::{CrossFunding, FundingSettlement, IsolatedFunding},
+    futures_data::{OhlcCandle, OhlcRange},
     oracle::{Index, LastPrice},
+    page::Page,
     ticker::Ticker,
-    trade::{CrossOrder, CrossOrderPage, CrossPosition, Trade, TradePage},
-    transfer::CrossTransferPage,
+    trade::{CrossOrder, CrossPosition, Trade},
+    transfer::CrossTransfer,
 };
 
 /// Methods for interacting with [LNM's v3 API]'s REST Utilities endpoints.
@@ -91,7 +92,7 @@ pub trait FuturesIsolatedRepository: crate::sealed::Sealed + Send + Sync {
         to: Option<DateTime<Utc>>,
         limit: Option<NonZeroU64>,
         cursor: Option<DateTime<Utc>>,
-    ) -> Result<TradePage>;
+    ) -> Result<Page<Trade>>;
 
     /// Get canceled trades.
     ///
@@ -102,7 +103,7 @@ pub trait FuturesIsolatedRepository: crate::sealed::Sealed + Send + Sync {
         to: Option<DateTime<Utc>>,
         limit: Option<NonZeroU64>,
         cursor: Option<DateTime<Utc>>,
-    ) -> Result<TradePage>;
+    ) -> Result<Page<Trade>>;
 
     /// Update an open or running trade takeprofit. If the provided `value` is `None`, the
     /// takeprofit will be removed.
@@ -139,7 +140,7 @@ pub trait FuturesIsolatedRepository: crate::sealed::Sealed + Send + Sync {
         to: Option<DateTime<Utc>>,
         limit: Option<NonZeroU64>,
         cursor: Option<DateTime<Utc>>,
-    ) -> Result<IsolatedFundingPage>;
+    ) -> Result<Page<IsolatedFunding>>;
 }
 
 /// Methods for interacting with [LNM's v3 API]'s REST Futures Cross endpoints.

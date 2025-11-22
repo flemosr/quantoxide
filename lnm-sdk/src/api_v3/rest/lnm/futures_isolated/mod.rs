@@ -19,8 +19,9 @@ use super::{
     super::{
         error::RestApiV3Error,
         models::{
-            funding::IsolatedFundingPage,
-            trade::{FuturesIsolatedTradeRequestBody, Trade, TradePage},
+            funding::IsolatedFunding,
+            page::Page,
+            trade::{FuturesIsolatedTradeRequestBody, Trade},
         },
         repositories::FuturesIsolatedRepository,
     },
@@ -118,7 +119,7 @@ impl FuturesIsolatedRepository for LnmFuturesIsolatedRepository {
         to: Option<DateTime<Utc>>,
         limit: Option<NonZeroU64>,
         cursor: Option<DateTime<Utc>>,
-    ) -> Result<TradePage> {
+    ) -> Result<Page<Trade>> {
         let mut query_params = Vec::new();
 
         if let Some(from) = from {
@@ -153,7 +154,7 @@ impl FuturesIsolatedRepository for LnmFuturesIsolatedRepository {
         to: Option<DateTime<Utc>>,
         limit: Option<NonZeroU64>,
         cursor: Option<DateTime<Utc>>,
-    ) -> Result<TradePage> {
+    ) -> Result<Page<Trade>> {
         let mut query_params = Vec::new();
 
         if let Some(from) = from {
@@ -240,7 +241,7 @@ impl FuturesIsolatedRepository for LnmFuturesIsolatedRepository {
         to: Option<DateTime<Utc>>,
         limit: Option<NonZeroU64>,
         cursor: Option<DateTime<Utc>>,
-    ) -> Result<IsolatedFundingPage> {
+    ) -> Result<Page<IsolatedFunding>> {
         let mut query_params = Vec::new();
 
         if let Some(from) = from {
