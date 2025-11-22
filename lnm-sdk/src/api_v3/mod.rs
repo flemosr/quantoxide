@@ -46,13 +46,11 @@ pub mod models {
     pub use super::rest::models::{
         account::Account,
         cross_leverage::CrossLeverage,
-        funding::{
-            CrossFunding, CrossFundingPage, FundingSettlement, FundingSettlementPage,
-            IsolatedFunding, IsolatedFundingPage,
-        },
+        funding::{CrossFunding, FundingSettlement, IsolatedFunding},
         futures_data::{OhlcCandle, OhlcCandlePage},
         oracle::{Index, LastPrice},
-        trade::{CrossOrder, CrossOrderPage, CrossPosition, Trade, TradePage},
+        page::Page,
+        trade::{CrossOrder, CrossPosition, Trade},
         transfer::{CrossTransfer, CrossTransferPage},
     };
 }
