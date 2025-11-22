@@ -93,17 +93,14 @@ impl FuturesDataRepository for LnmFuturesDataRepository {
         if let Some(limit) = limit {
             query_params.push(("limit", limit.to_string()));
         }
+        if let Some(range) = range {
+            query_params.push(("range", range.to_string()));
+        }
         if let Some(cursor) = cursor {
             query_params.push((
                 "cursor",
                 cursor.to_rfc3339_opts(SecondsFormat::Millis, true),
             ));
-        }
-        if let Some(limit) = limit {
-            query_params.push(("limit", limit.to_string()));
-        }
-        if let Some(range) = range {
-            query_params.push(("range", range.to_string()));
         }
 
         self.base
