@@ -119,14 +119,13 @@ impl From<LiveTradingSession> for LiveTradeExecutorUpdate {
 pub(super) type LiveTradeExecutorTransmiter = broadcast::Sender<LiveTradeExecutorUpdate>;
 pub type LiveTradeExecutorReceiver = broadcast::Receiver<LiveTradeExecutorUpdate>;
 
-// TODO: Rename to `WrappedRestClient`
 #[derive(Clone)]
-pub(in crate::trade) struct WrappedApiContext {
+pub(in crate::trade) struct WrappedRestClient {
     api_rest: Arc<RestClient>,
     update_tx: LiveTradeExecutorTransmiter,
 }
 
-impl WrappedApiContext {
+impl WrappedRestClient {
     pub fn new(api_rest: Arc<RestClient>, update_tx: LiveTradeExecutorTransmiter) -> Self {
         Self {
             api_rest,

@@ -43,13 +43,13 @@ use state::{
 };
 use update::{
     LiveTradeExecutorReceiver, LiveTradeExecutorTransmiter, LiveTradeExecutorUpdate,
-    WrappedApiContext,
+    WrappedRestClient,
 };
 
 pub struct LiveTradeExecutor {
     config: LiveTradeExecutorConfig,
     db: Arc<Database>,
-    api: WrappedApiContext,
+    api: WrappedRestClient,
     update_tx: LiveTradeExecutorTransmiter,
     state_manager: Arc<LiveTradeExecutorStateManager>,
     handle: Mutex<Option<AbortOnDropHandle<()>>>,
@@ -59,7 +59,7 @@ impl LiveTradeExecutor {
     fn new(
         config: LiveTradeExecutorConfig,
         db: Arc<Database>,
-        api: WrappedApiContext,
+        api: WrappedRestClient,
         update_tx: LiveTradeExecutorTransmiter,
         state_manager: Arc<LiveTradeExecutorStateManager>,
         handle: AbortOnDropHandle<()>,
@@ -456,7 +456,7 @@ impl TradeExecutor for LiveTradeExecutor {
 pub struct LiveTradeExecutorLauncher {
     config: LiveTradeExecutorConfig,
     db: Arc<Database>,
-    api_rest: WrappedApiContext,
+    api_rest: WrappedRestClient,
     update_tx: LiveTradeExecutorTransmiter,
     state_manager: Arc<LiveTradeExecutorStateManager>,
     sync_rx: SyncReceiver,
@@ -475,7 +475,7 @@ impl LiveTradeExecutorLauncher {
 
         let (update_tx, _) = broadcast::channel::<LiveTradeExecutorUpdate>(100);
 
-        let api_rest = WrappedApiContext::new(api_rest, update_tx.clone());
+        let api_rest = WrappedRestClient::new(api_rest, update_tx.clone());
 
         let state_manager = LiveTradeExecutorStateManager::new(update_tx.clone());
 
@@ -498,7 +498,7 @@ impl LiveTradeExecutorLauncher {
         tsl_step_size: BoundedPercentage,
         session_refresh_offset: TradingSessionRefreshOffset,
         db: Arc<Database>,
-        api: WrappedApiContext,
+        api: WrappedRestClient,
         update_tx: LiveTradeExecutorTransmiter,
         state_manager: Arc<LiveTradeExecutorStateManager>,
         sync_rx: SyncReceiver,

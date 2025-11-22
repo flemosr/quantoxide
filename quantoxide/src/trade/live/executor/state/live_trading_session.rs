@@ -14,7 +14,7 @@ use super::super::super::{
         TradeTrailingStoploss, TradingState,
     },
     executor::{
-        WrappedApiContext,
+        WrappedRestClient,
         error::{ExecutorActionError, ExecutorActionResult},
     },
 };
@@ -64,7 +64,7 @@ impl LiveTradingSession {
         tsl_step_size: BoundedPercentage,
         refresh_offset: TradingSessionRefreshOffset,
         db: &Database,
-        api: &WrappedApiContext,
+        api: &WrappedRestClient,
         prev_trading_session: Option<Self>,
     ) -> ExecutorActionResult<Self> {
         let (lastest_entry_time, lastest_entry_price) = db
@@ -147,7 +147,7 @@ impl LiveTradingSession {
     pub async fn reevaluate(
         &mut self,
         db: &Database,
-        api: &WrappedApiContext,
+        api: &WrappedRestClient,
     ) -> ExecutorActionResult<Vec<Trade>> {
         let (range_min, range_max, lastest_entry_time, latest_entry_price) = db
             .price_ticks
