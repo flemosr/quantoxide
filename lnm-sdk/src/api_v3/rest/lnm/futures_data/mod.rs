@@ -9,8 +9,9 @@ use crate::shared::rest::{error::Result, lnm::base::LnmRestBase};
 use super::{
     super::{
         models::{
-            funding::FundingSettlementPage,
-            futures_data::{OhlcCandlePage, OhlcRange},
+            funding::FundingSettlement,
+            futures_data::{OhlcCandle, OhlcRange},
+            page::Page,
             ticker::Ticker,
         },
         repositories::FuturesDataRepository,
@@ -39,7 +40,7 @@ impl FuturesDataRepository for LnmFuturesDataRepository {
         to: Option<DateTime<Utc>>,
         limit: Option<NonZeroU64>,
         cursor: Option<DateTime<Utc>>,
-    ) -> Result<FundingSettlementPage> {
+    ) -> Result<Page<FundingSettlement>> {
         let mut query_params = Vec::new();
 
         if let Some(from) = from {
@@ -81,7 +82,7 @@ impl FuturesDataRepository for LnmFuturesDataRepository {
         limit: Option<NonZeroU64>,
         cursor: Option<DateTime<Utc>>,
         range: Option<OhlcRange>,
-    ) -> Result<OhlcCandlePage> {
+    ) -> Result<Page<OhlcCandle>> {
         let mut query_params = Vec::new();
 
         if let Some(from) = from {

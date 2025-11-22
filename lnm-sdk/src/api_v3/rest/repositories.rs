@@ -254,7 +254,7 @@ pub trait FuturesDataRepository: crate::sealed::Sealed + Send + Sync {
         to: Option<DateTime<Utc>>,
         limit: Option<NonZeroU64>,
         cursor: Option<DateTime<Utc>>,
-    ) -> Result<FundingSettlementPage>;
+    ) -> Result<Page<FundingSettlement>>;
 
     /// Get the futures ticker.
     async fn get_ticker(&self) -> Result<Ticker>;
@@ -267,7 +267,7 @@ pub trait FuturesDataRepository: crate::sealed::Sealed + Send + Sync {
         limit: Option<NonZeroU64>,
         cursor: Option<DateTime<Utc>>,
         range: Option<OhlcRange>,
-    ) -> Result<OhlcCandlePage>;
+    ) -> Result<Page<OhlcCandle>>;
 
     // /// Get the 10 first users by P&L, broken down by day/week/month/all-time.
     // async fn get_leaderboard(&self) -> Result<()> {
