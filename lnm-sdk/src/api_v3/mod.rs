@@ -47,7 +47,7 @@ pub mod models {
         account::Account,
         cross_leverage::CrossLeverage,
         funding::{CrossFunding, FundingSettlement, IsolatedFunding},
-        futures_data::{OhlcCandle, OhlcCandlePage},
+        futures_data::OhlcCandle,
         oracle::{Index, LastPrice},
         page::Page,
         trade::{CrossOrder, CrossPosition, Trade},
