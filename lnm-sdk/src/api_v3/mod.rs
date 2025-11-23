@@ -51,6 +51,6 @@ pub mod models {
         oracle::{Index, LastPrice},
         page::Page,
         trade::{CrossOrder, CrossPosition, Trade},
-        transfer::{CrossTransfer, CrossTransferPage},
+        transfer::CrossTransfer,
     };
 }
