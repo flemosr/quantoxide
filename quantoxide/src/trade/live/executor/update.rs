@@ -3,9 +3,9 @@ use std::{fmt, num::NonZeroU64, sync::Arc};
 use tokio::sync::broadcast;
 use uuid::Uuid;
 
-use lnm_sdk::api_v2::{
+use lnm_sdk::api_v3::{
     RestClient,
-    models::{Leverage, Price, Trade, TradeExecution, TradeSide, TradeSize, User},
+    models::{Account, Leverage, Price, Trade, TradeExecution, TradeSide, TradeSize},
 };
 
 use super::{
@@ -135,24 +135,27 @@ impl WrappedRestClient {
 
     pub async fn get_trades_running(&self) -> ExecutorActionResult<Vec<Trade>> {
         self.api_rest
-            .futures
-            .get_trades_running(None, None, None)
+            .futures_isolated
+            .get_running_trades()
             .await
             .map_err(ExecutorActionError::RestApi)
     }
 
-    pub async fn get_user(&self) -> ExecutorActionResult<User> {
-        self.api_rest
-            .user
-            .get_user()
+    pub async fn get_trades_closed(&self, limit: NonZeroU64) -> ExecutorActionResult<Vec<Trade>> {
+        let trade_page = self
+            .api_rest
+            .futures_isolated
+            .get_closed_trades(None, None, Some(limit), None)
             .await
-            .map_err(ExecutorActionError::RestApi)
+            .map_err(ExecutorActionError::RestApi)?;
+
+        Ok(trade_page.into())
     }
 
-    pub async fn get_trade(&self, id: Uuid) -> ExecutorActionResult<Trade> {
+    pub async fn get_user(&self) -> ExecutorActionResult<Account> {
         self.api_rest
-            .futures
-            .get_trade(id)
+            .account
+            .get_account()
             .await
             .map_err(ExecutorActionError::RestApi)
     }
@@ -178,14 +181,15 @@ impl WrappedRestClient {
         });
 
         self.api_rest
-            .futures
-            .create_new_trade(
+            .futures_isolated
+            .new_trade(
                 side,
                 size,
                 leverage,
                 TradeExecution::Market,
                 stoploss,
                 takeprofit,
+                None,
             )
             .await
             .map_err(ExecutorActionError::RestApi)
@@ -199,8 +203,8 @@ impl WrappedRestClient {
         self.send_order_update(LiveTradeExecutorUpdateOrder::UpdateTradeStoploss { id, stoploss });
 
         self.api_rest
-            .futures
-            .update_trade_stoploss(id, stoploss)
+            .futures_isolated
+            .update_stoploss(id, Some(stoploss))
             .await
             .map_err(ExecutorActionError::RestApi)
     }
@@ -209,8 +213,8 @@ impl WrappedRestClient {
         self.send_order_update(LiveTradeExecutorUpdateOrder::AddMargin { id, amount });
 
         self.api_rest
-            .futures
-            .add_margin(id, amount)
+            .futures_isolated
+            .add_margin_to_trade(id, amount)
             .await
             .map_err(ExecutorActionError::RestApi)
     }
@@ -219,8 +223,8 @@ impl WrappedRestClient {
         self.send_order_update(LiveTradeExecutorUpdateOrder::CashIn { id, amount });
 
         self.api_rest
-            .futures
-            .cash_in(id, amount)
+            .futures_isolated
+            .cash_in_trade(id, amount)
             .await
             .map_err(ExecutorActionError::RestApi)
     }
@@ -229,7 +233,7 @@ impl WrappedRestClient {
         self.send_order_update(LiveTradeExecutorUpdateOrder::CloseTrade { id });
 
         self.api_rest
-            .futures
+            .futures_isolated
             .close_trade(id)
             .await
             .map_err(ExecutorActionError::RestApi)
@@ -239,7 +243,7 @@ impl WrappedRestClient {
         self.send_order_update(LiveTradeExecutorUpdateOrder::CancelAllTrades);
 
         self.api_rest
-            .futures
+            .futures_isolated
             .cancel_all_trades()
             .await
             .map_err(ExecutorActionError::RestApi)
@@ -248,10 +252,26 @@ impl WrappedRestClient {
     pub async fn close_all_trades(&self) -> ExecutorActionResult<Vec<Trade>> {
         self.send_order_update(LiveTradeExecutorUpdateOrder::CloseAllTrades);
 
-        self.api_rest
-            .futures
-            .close_all_trades()
+        let running_trades = self
+            .api_rest
+            .futures_isolated
+            .get_running_trades()
             .await
-            .map_err(ExecutorActionError::RestApi)
+            .map_err(ExecutorActionError::RestApi)?;
+
+        let mut closed_trades = Vec::new();
+
+        for trade in running_trades {
+            let closed_trade = self
+                .api_rest
+                .futures_isolated
+                .close_trade(trade.id())
+                .await
+                .map_err(ExecutorActionError::RestApi)?;
+
+            closed_trades.push(closed_trade);
+        }
+
+        Ok(closed_trades)
     }
 }
