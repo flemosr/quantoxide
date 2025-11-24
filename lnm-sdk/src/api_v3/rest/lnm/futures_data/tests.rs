@@ -45,7 +45,7 @@ async fn test_ticker(repo: &LnmFuturesDataRepository) {
 async fn test_get_max_candles(repo: &LnmFuturesDataRepository) {
     let limit = 1000.try_into().unwrap();
     let _ = repo
-        .get_candles(None, None, Some(limit), None, Some(OhlcRange::OneMinute))
+        .get_candles(None, None, Some(limit), Some(OhlcRange::OneMinute), None)
         .await
         .expect("must get candles");
 }
@@ -53,7 +53,7 @@ async fn test_get_max_candles(repo: &LnmFuturesDataRepository) {
 async fn test_get_last_candle(repo: &LnmFuturesDataRepository) {
     let limit = 1.try_into().unwrap();
     let _ = repo
-        .get_candles(None, None, Some(limit), None, Some(OhlcRange::OneMinute))
+        .get_candles(None, None, Some(limit), Some(OhlcRange::OneMinute), None)
         .await
         .expect("must get candles");
 }

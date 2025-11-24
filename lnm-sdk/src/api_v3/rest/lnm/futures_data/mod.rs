@@ -80,8 +80,8 @@ impl FuturesDataRepository for LnmFuturesDataRepository {
         from: Option<DateTime<Utc>>,
         to: Option<DateTime<Utc>>,
         limit: Option<NonZeroU64>,
-        cursor: Option<DateTime<Utc>>,
         range: Option<OhlcRange>,
+        cursor: Option<DateTime<Utc>>,
     ) -> Result<Page<OhlcCandle>> {
         let mut query_params = Vec::new();
 

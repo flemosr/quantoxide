@@ -265,8 +265,8 @@ pub trait FuturesDataRepository: crate::sealed::Sealed + Send + Sync {
         from: Option<DateTime<Utc>>,
         to: Option<DateTime<Utc>>,
         limit: Option<NonZeroU64>,
-        cursor: Option<DateTime<Utc>>,
         range: Option<OhlcRange>,
+        cursor: Option<DateTime<Utc>>,
     ) -> Result<Page<OhlcCandle>>;
 
     // /// Get the 10 first users by P&L, broken down by day/week/month/all-time.
