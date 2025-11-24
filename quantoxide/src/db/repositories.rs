@@ -4,9 +4,12 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
-use lnm_sdk::api_v2::models::{PriceEntry, PriceTick};
+use lnm_sdk::{
+    api_v2::models::{PriceEntry, PriceTick},
+    api_v3::models::OhlcCandle,
+};
 
-use crate::trade::TradeTrailingStoploss;
+use crate::{db::models::OhlcCandleRow, trade::TradeTrailingStoploss};
 
 use super::{
     error::Result,
@@ -188,4 +191,15 @@ pub(crate) trait RunningTradesRepository: Send + Sync {
     async fn get_running_trades_map(&self) -> Result<HashMap<Uuid, Option<TradeTrailingStoploss>>>;
 
     async fn remove_running_trades(&self, trade_ids: &[Uuid]) -> Result<()>;
+}
+
+#[async_trait]
+pub(crate) trait OhlcCandlesRepository: Send + Sync {
+    async fn add_candles(&self, candles: &[OhlcCandle]) -> Result<()>;
+
+    async fn get_earliest_candle(&self) -> Result<Option<OhlcCandleRow>>;
+
+    async fn get_latest_candle(&self) -> Result<Option<OhlcCandleRow>>;
+
+    async fn get_gaps(&self) -> Result<Vec<(DateTime<Utc>, DateTime<Utc>)>>;
 }
