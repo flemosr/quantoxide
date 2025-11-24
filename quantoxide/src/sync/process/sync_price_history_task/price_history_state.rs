@@ -6,6 +6,7 @@ use crate::{db::Database, util::DateTimeExt};
 
 use super::error::{Result, SyncPriceHistoryError};
 
+// FIXME: Rename
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PriceHistoryState {
     reach_time: Option<DateTime<Utc>>,
@@ -17,7 +18,7 @@ impl PriceHistoryState {
     async fn new(db: &Database, reach_opt: Option<Duration>) -> Result<Self> {
         let reach_time = reach_opt.map_or(None, |reach| Some(Utc::now() - reach));
 
-        let Some(earliest_entry) = db.price_history.get_earliest_entry().await? else {
+        let Some(earliest_candle) = db.ohlc_candles.get_earliest_candle().await? else {
             // DB is empty
             return Ok(Self {
                 reach_time,
@@ -26,34 +27,34 @@ impl PriceHistoryState {
             });
         };
 
-        let lastest_entry = db
-            .price_history
-            .get_latest_entry()
+        let lastest_candle = db
+            .ohlc_candles
+            .get_latest_candle()
             .await?
             .expect("db not empty");
 
-        if earliest_entry.time == lastest_entry.time {
-            // DB has a single entry
+        if earliest_candle.time == lastest_candle.time {
+            // DB has a single candle
 
-            if reach_time.map_or(false, |reach_time| earliest_entry.time < reach_time) {
+            if reach_time.map_or(false, |reach_time| earliest_candle.time < reach_time) {
                 return Err(SyncPriceHistoryError::UnreachableDbGap {
-                    gap: earliest_entry.time,
+                    gap: earliest_candle.time,
                     reach: reach_time.expect("`reach_time_opt` can't be `None`"),
                 });
             }
 
             return Ok(Self {
                 reach_time,
-                bounds: Some((earliest_entry.time, earliest_entry.time)),
+                bounds: Some((earliest_candle.time, earliest_candle.time)),
                 gaps: Vec::new(),
             });
         }
 
-        let entry_gaps = db.price_history.get_gaps().await?;
+        let gaps = db.ohlc_candles.get_gaps().await?;
 
-        if let Some((from_time, _)) = entry_gaps.first() {
+        if let Some((from_time, _)) = gaps.first() {
             if reach_time.map_or(false, |reach_time| *from_time < reach_time) {
-                // There is a price gap before `reach_time`. Since entries before `reach_time`
+                // There is a price gap before `reach_time`. Since candles before `reach_time`
                 // can't be fetched, said gap can't be closed.
                 // Therefore the DB can't be synced.
                 return Err(SyncPriceHistoryError::UnreachableDbGap {
@@ -65,8 +66,8 @@ impl PriceHistoryState {
 
         Ok(Self {
             reach_time,
-            bounds: Some((earliest_entry.time, lastest_entry.time)),
-            gaps: entry_gaps,
+            bounds: Some((earliest_candle.time, lastest_candle.time)),
+            gaps,
         })
     }
 
