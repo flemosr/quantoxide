@@ -9,7 +9,7 @@ use futures::future;
 use tokio::sync::broadcast::{self, error::RecvError};
 use uuid::Uuid;
 
-use lnm_sdk::api_v2::{
+use lnm_sdk::api_v3::{
     RestClient,
     models::{BoundedPercentage, Leverage, Price, TradeSide, TradeSize, trade_util},
 };
