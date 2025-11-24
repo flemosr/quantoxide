@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE ohlc_candles SET gap = false WHERE time = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "c1372b9d99d0b0a9bd16f0a10b1f815221ca3714f38d8a1b360daf727728e89c"
+}
