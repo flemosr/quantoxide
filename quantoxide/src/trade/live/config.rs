@@ -1,3 +1,5 @@
+use std::num::NonZeroU64;
+
 use chrono::Duration;
 use tokio::time;
 
@@ -11,8 +13,8 @@ pub struct LiveConfig {
     api_ws_disconnect_timeout: time::Duration,
     api_cooldown: time::Duration,
     api_error_cooldown: time::Duration,
-    api_error_max_trials: u32,
-    api_history_batch_size: usize,
+    api_error_max_trials: NonZeroU64,
+    api_history_batch_size: NonZeroU64,
     sync_mode_full: bool,
     sync_history_reach: Duration,
     re_sync_history_interval: time::Duration,
@@ -39,8 +41,8 @@ impl Default for LiveConfig {
             api_ws_disconnect_timeout: time::Duration::from_secs(6),
             api_cooldown: time::Duration::from_secs(2),
             api_error_cooldown: time::Duration::from_secs(10),
-            api_error_max_trials: 3,
-            api_history_batch_size: 1000,
+            api_error_max_trials: 3.try_into().expect("not zero"),
+            api_history_batch_size: 1000.try_into().expect("not zero"),
             sync_mode_full: false,
             sync_history_reach: Duration::hours(24 * 7 * 4),
             re_sync_history_interval: time::Duration::from_secs(300),
@@ -76,11 +78,11 @@ impl LiveConfig {
         self.api_error_cooldown
     }
 
-    pub fn api_error_max_trials(&self) -> u32 {
+    pub fn api_error_max_trials(&self) -> NonZeroU64 {
         self.api_error_max_trials
     }
 
-    pub fn api_history_batch_size(&self) -> usize {
+    pub fn api_history_batch_size(&self) -> NonZeroU64 {
         self.api_history_batch_size
     }
 
@@ -156,12 +158,12 @@ impl LiveConfig {
         self
     }
 
-    pub fn with_api_error_max_trials(mut self, max_trials: u32) -> Self {
+    pub fn with_api_error_max_trials(mut self, max_trials: NonZeroU64) -> Self {
         self.api_error_max_trials = max_trials;
         self
     }
 
-    pub fn with_api_history_batch_size(mut self, size: usize) -> Self {
+    pub fn with_api_history_batch_size(mut self, size: NonZeroU64) -> Self {
         self.api_history_batch_size = size;
         self
     }
