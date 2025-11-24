@@ -1,9 +1,12 @@
-use std::{collections::HashSet, sync::Arc};
+use std::sync::Arc;
 
-use chrono::{DateTime, Duration, Utc};
+use chrono::{DateTime, Duration, Timelike, Utc};
 use tokio::{sync::mpsc, time};
 
-use lnm_sdk::api_v2::{RestClient, models::PriceEntry};
+use lnm_sdk::api_v3::{
+    RestClient,
+    models::{OhlcCandle, OhlcRange},
+};
 
 use crate::db::Database;
 
@@ -40,30 +43,32 @@ impl SyncPriceHistoryTask {
         }
     }
 
-    async fn get_new_price_entries(
+    async fn get_new_ohlc_candles(
         &self,
         from_observed_time: Option<DateTime<Utc>>,
         to_observed_time: Option<DateTime<Utc>>,
-    ) -> Result<(Vec<PriceEntry>, bool)> {
-        let mut price_entries = {
+    ) -> Result<Vec<OhlcCandle>> {
+        let mut candles: Vec<OhlcCandle> = {
             let mut trials = 0;
             loop {
                 time::sleep(self.config.api_cooldown()).await;
 
                 match self
                     .api_rest
-                    .futures
-                    .price_history(
+                    .futures_data
+                    .get_candles(
                         None,
-                        to_observed_time,
+                        None,
                         Some(self.config.api_history_batch_size()),
+                        Some(OhlcRange::OneMinute),
+                        to_observed_time,
                     )
                     .await
                 {
-                    Ok(price_entries) => break price_entries,
+                    Ok(ohlc_candle_page) => break ohlc_candle_page.into(),
                     Err(error) => {
                         trials += 1;
-                        if trials >= self.config.api_error_max_trials() {
+                        if trials >= self.config.api_error_max_trials().get() {
                             return Err(SyncPriceHistoryError::RestApiMaxTrialsReached {
                                 error,
                                 trials: self.config.api_error_max_trials(),
@@ -77,45 +82,53 @@ impl SyncPriceHistoryTask {
             }
         };
 
-        // Remove entries with duplicated 'time'
-        let mut seen = HashSet::new();
-        price_entries.retain(|price_entry| seen.insert(price_entry.time()));
-
-        let is_sorted_time_desc = price_entries.is_sorted_by(|a, b| a.time() > b.time());
-        if !is_sorted_time_desc {
-            return Err(SyncPriceHistoryError::PriceEntriesUnsorted);
+        if candles.is_empty() {
+            return Ok(candles);
         }
 
-        // If `before_observed_time` is set, ensure that the first (latest) entry matches it
-        if let Some(observed_time) = to_observed_time {
-            let first_entry = price_entries.remove(0);
-            if first_entry.time() != observed_time {
-                return Err(SyncPriceHistoryError::PriceEntriesWithoutOverlap);
+        // Validate: times must be rounded to the minute and continuous (1 minute apart, descending)
+        for window in candles.windows(2) {
+            // Check if current candle time is rounded
+            if window[0].time().second() != 0 || window[0].time().nanosecond() != 0 {
+                return Err(SyncPriceHistoryError::NewCandlesTimesNotRoundedToMinute);
+            }
+
+            // Check continuity: next candle should be exactly 1 minute before current
+            let expected_prev_time = window[0].time() - Duration::minutes(1);
+            if window[1].time() != expected_prev_time {
+                return Err(SyncPriceHistoryError::NewCandlesNotContinuous);
             }
         }
 
-        let from_observed_time_received = if let Some(time) = from_observed_time {
-            if let Some(entry_i) = price_entries
-                .iter()
-                .position(|price_entry| price_entry.time() <= time)
-            {
-                // Remove the entries before the `limit`
-                let before_limit = price_entries.split_off(entry_i);
-                let overlap = before_limit.first().expect("not empty").time() == time;
+        let period_start = candles.last().expect("not empty").time();
+        let period_end = candles.first().expect("not empty").time();
 
-                if !overlap {
-                    return Err(SyncPriceHistoryError::FromObservedTimeNotReceived(time));
-                }
+        // Check the last candle's time is rounded. Not checked when iterating over
+        // `candles.windows(2)`. Also handles single candles.
+        if period_start.second() != 0 || period_start.nanosecond() != 0 {
+            return Err(SyncPriceHistoryError::NewCandlesTimesNotRoundedToMinute);
+        }
 
-                true
-            } else {
-                false
+        if let Some(observed_time) = to_observed_time {
+            // If `to_observed_time` was provided, ensure that the first (latest) candle has the
+            // expected `time`
+            if period_end != observed_time - Duration::minutes(1) {
+                return Err(SyncPriceHistoryError::NewCandlesNotContinuous);
             }
         } else {
-            false
-        };
+            // If the the latest candles were fetched, discard the first one since it can't be
+            // considered final.
+            candles.remove(0);
+        }
 
-        Ok((price_entries, from_observed_time_received))
+        if let Some(time) = from_observed_time {
+            if let Some(candle_i) = candles.iter().position(|candle| candle.time() == time) {
+                // Remove candles with time at `from_observed_time` or before
+                let _ = candles.split_off(candle_i);
+            }
+        }
+
+        Ok(candles)
     }
 
     async fn partial_download(
@@ -123,38 +136,15 @@ impl SyncPriceHistoryTask {
         from_observed_time: Option<DateTime<Utc>>,
         to_observed_time: Option<DateTime<Utc>>,
     ) -> Result<bool> {
-        let (new_price_entries, from_observed_time_received) = self
-            .get_new_price_entries(from_observed_time, to_observed_time)
+        let new_ohlc_candles = self
+            .get_new_ohlc_candles(from_observed_time, to_observed_time)
             .await?;
 
-        if !new_price_entries.is_empty() {
-            self.db
-                .price_history
-                .add_entries(&new_price_entries, to_observed_time)
-                .await?;
+        if !new_ohlc_candles.is_empty() {
+            self.db.ohlc_candles.add_candles(&new_ohlc_candles).await?;
         }
 
-        if from_observed_time_received {
-            // `next` property of `from_observed_time` entry needs to be updated
-
-            // If there is a `to_observed_time`, the first entry received from the server matched
-            // its time (upper overlap enforcement).
-            // From this we can infer that, if no new entries were received, there are no entries
-            // to be fetched between `from_observed_time` and `to_observed_time` (edge case).
-            let next_from_observed_time = new_price_entries
-                .last()
-                .map(|earliest_new_entry| earliest_new_entry.time())
-                .or_else(|| to_observed_time);
-
-            if let Some(next) = next_from_observed_time {
-                self.db
-                    .price_history
-                    .update_entry_next(from_observed_time.expect("from received"), next)
-                    .await?;
-            }
-        }
-
-        Ok(!new_price_entries.is_empty())
+        Ok(!new_ohlc_candles.is_empty())
     }
 
     async fn handle_history_update(&self, new_history_state: &PriceHistoryState) -> Result<()> {

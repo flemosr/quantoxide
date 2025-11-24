@@ -1,4 +1,4 @@
-use std::result;
+use std::{num::NonZeroU64, result};
 
 use chrono::{DateTime, Duration, Utc};
 use thiserror::Error;
@@ -10,16 +10,18 @@ use crate::db::error::DbError;
 #[derive(Error, Debug)]
 pub enum SyncPriceHistoryError {
     #[error("RestApiMaxTrialsReached error: error {error}, trials {trials}")]
-    RestApiMaxTrialsReached { error: RestApiError, trials: u32 },
+    RestApiMaxTrialsReached {
+        error: RestApiError,
+        trials: NonZeroU64,
+    },
 
-    #[error("PriceEntriesUnsorted error")]
-    PriceEntriesUnsorted,
+    #[error("New candles must have times rounded to the minute (no seconds/nanoseconds)")]
+    NewCandlesTimesNotRoundedToMinute,
 
-    #[error("PriceEntriesWithoutOverlap error")]
-    PriceEntriesWithoutOverlap,
-
-    #[error("FromObservedTimeNotReceived error: {0}")]
-    FromObservedTimeNotReceived(DateTime<Utc>),
+    #[error(
+        "New candles must be continuous (each candle time must be exactly 1 minute before the previous)"
+    )]
+    NewCandlesNotContinuous,
 
     #[error("HistoryUpdateHandlerFailed error")]
     HistoryUpdateHandlerFailed,
