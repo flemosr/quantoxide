@@ -7,7 +7,7 @@ use tokio::{
     time,
 };
 
-use lnm_sdk::api_v2::{RestClient, WebSocketClient};
+use lnm_sdk::{api_v2::WebSocketClient, api_v3::RestClient};
 
 use crate::{
     db::{Database, models::PriceTickRow},
