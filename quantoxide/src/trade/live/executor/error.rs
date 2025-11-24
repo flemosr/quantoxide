@@ -74,6 +74,12 @@ pub enum ExecutorActionError {
         TradingSessionRefreshOffset::MIN
     )]
     InvalidTradingSessionRefreshOffset { value: Duration },
+
+    #[error("Unexpected closed trade returned by the server. Id: {trade_id}")]
+    UnexpectedClosedTrade { trade_id: Uuid },
+
+    #[error("Closed trade not confirmed by the server. Id: {trade_id}")]
+    ClosedTradeNotConfirmed { trade_id: Uuid },
 }
 
 pub(super) type ExecutorActionResult<T> = result::Result<T, ExecutorActionError>;

@@ -1,10 +1,14 @@
-use std::{collections::HashMap, result, slice, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    result, slice,
+    sync::Arc,
+};
 
 use chrono::{DateTime, Duration, Timelike, Utc};
 use futures::future;
 use uuid::Uuid;
 
-use lnm_sdk::api_v2::models::{BoundedPercentage, Price, Trade};
+use lnm_sdk::api_v3::models::{BoundedPercentage, Price, Trade};
 
 use crate::db::Database;
 
@@ -163,12 +167,12 @@ impl LiveTradingSession {
             return Ok(Vec::new());
         }
 
-        let mut to_get = Vec::new();
+        let mut to_confirm_closed = HashSet::new();
         let mut to_update = Vec::new();
 
         for (trade, trade_tsl_opt) in self.running_map().trades_desc() {
             if trade.was_closed_on_range(range_min, range_max) {
-                to_get.push(trade.id());
+                to_confirm_closed.insert(trade.id());
                 continue;
             }
 
@@ -186,6 +190,30 @@ impl LiveTradingSession {
                     to_update.push((trade.id(), new_stoploss));
                 }
             }
+        }
+
+        let mut closed_trades = Vec::new();
+
+        if to_confirm_closed.len() > 0 {
+            let limit = (to_confirm_closed.len() as u64)
+                .try_into()
+                .expect("valid `NonZeroU64`");
+            let recently_closed_trades = api.get_trades_closed(limit).await?;
+
+            for closed_trade in &recently_closed_trades {
+                let trade_id = closed_trade.id();
+
+                if !to_confirm_closed.remove(&trade_id) {
+                    return Err(ExecutorActionError::UnexpectedClosedTrade { trade_id });
+                }
+            }
+
+            if to_confirm_closed.len() != 0 {
+                let trade_id = to_confirm_closed.drain().next().expect("not empty");
+                return Err(ExecutorActionError::ClosedTradeNotConfirmed { trade_id });
+            }
+
+            closed_trades.extend(recently_closed_trades);
         }
 
         let mut updated_trades = HashMap::new();
@@ -220,26 +248,11 @@ impl LiveTradingSession {
             close_results.extend(new_close_results);
         }
 
-        let mut closed_trades = close_results
+        let new_closed_trades = close_results
             .into_iter()
             .collect::<result::Result<Vec<_>, _>>()?;
 
-        for chunk in to_get.chunks(1) {
-            let get_futures = chunk
-                .iter()
-                .map(|&trade_id| api.get_trade(trade_id))
-                .collect::<Vec<_>>();
-
-            let new_closed_trades = future::join_all(get_futures)
-                .await
-                .into_iter()
-                .collect::<result::Result<Vec<_>, _>>()?
-                .into_iter()
-                .filter_map(|trade| if trade.closed() { Some(trade) } else { None })
-                .collect::<Vec<_>>();
-
-            closed_trades.extend(new_closed_trades);
-        }
+        closed_trades.extend(new_closed_trades);
 
         self.update_running_trades(updated_trades)?;
 
@@ -268,9 +281,9 @@ impl LiveTradingSession {
 
         if self
             .last_trade_time
-            .map_or(true, |last| new_trade.creation_ts() > last)
+            .map_or(true, |last| new_trade.created_at() > last)
         {
-            self.last_trade_time = Some(new_trade.creation_ts());
+            self.last_trade_time = Some(new_trade.created_at());
         }
 
         if update_balance {
@@ -359,9 +372,9 @@ impl LiveTradingSession {
         let mut new_last_trade_time: Option<DateTime<Utc>> = None;
 
         for closed_trade in closed_trades {
-            let closed_ts =
+            let closed_at =
                 closed_trade
-                    .closed_ts()
+                    .closed_at()
                     .ok_or_else(|| ExecutorActionError::TradeNotClosed {
                         trade_id: closed_trade.id(),
                     })?;
@@ -372,8 +385,8 @@ impl LiveTradingSession {
                 });
             }
 
-            if new_last_trade_time.map_or(true, |last| closed_ts > last) {
-                new_last_trade_time = Some(closed_ts);
+            if new_last_trade_time.map_or(true, |last| closed_at > last) {
+                new_last_trade_time = Some(closed_at);
             }
 
             closed_map.insert(closed_trade.id(), closed_trade);
