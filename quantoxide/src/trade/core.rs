@@ -11,7 +11,7 @@ use chrono::{DateTime, Duration, Utc};
 use futures::FutureExt;
 use uuid::Uuid;
 
-use lnm_sdk::api_v2::{
+use lnm_sdk::api_v3::{
     error::TradeValidationError,
     models::{
         BoundedPercentage, Leverage, LowerBoundedPercentage, Margin, Price, Quantity, Trade,
@@ -135,16 +135,19 @@ impl TradeCore for Trade {
         self.exit_price()
     }
 
+    // FIXME
     fn creation_ts(&self) -> DateTime<Utc> {
-        self.creation_ts()
+        self.created_at()
     }
 
+    // FIXME
     fn market_filled_ts(&self) -> Option<DateTime<Utc>> {
-        self.market_filled_ts()
+        self.filled_at()
     }
 
+    // FIXME
     fn closed_ts(&self) -> Option<DateTime<Utc>> {
-        self.closed_ts()
+        self.closed_at()
     }
 
     fn closed(&self) -> bool {
