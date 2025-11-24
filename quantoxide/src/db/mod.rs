@@ -3,7 +3,11 @@ use std::sync::Arc;
 use chrono::{DateTime, Duration, Utc};
 use sqlx::postgres::{PgPool, PgPoolOptions};
 
-use crate::{indicators::IndicatorsEvaluator, util::DateTimeExt};
+use crate::{
+    db::{postgres::ohlc_candles::PgOhlcCandlesRepo, repositories::OhlcCandlesRepository},
+    indicators::IndicatorsEvaluator,
+    util::DateTimeExt,
+};
 
 pub(crate) mod error;
 pub(crate) mod models;
@@ -22,6 +26,7 @@ pub struct Database {
     pub(crate) price_history: Box<dyn PriceHistoryRepository>,
     pub(crate) price_ticks: Box<dyn PriceTicksRepository>,
     pub(crate) running_trades: Box<dyn RunningTradesRepository>,
+    pub(crate) ohlc_candles: Box<dyn OhlcCandlesRepository>,
 }
 
 impl Database {
@@ -43,11 +48,13 @@ impl Database {
         let price_history = Box::new(PgPriceHistoryRepo::new(pool.clone()));
         let price_ticks = Box::new(PgPriceTicksRepo::new(pool.clone()));
         let running_trades = Box::new(PgRunningTradesRepo::new(pool.clone()));
+        let ohlc_candles = Box::new(PgOhlcCandlesRepo::new(pool.clone()));
 
         Ok(Arc::new(Self {
             price_history,
             price_ticks,
             running_trades,
+            ohlc_candles,
         }))
     }
 
