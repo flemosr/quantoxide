@@ -41,6 +41,14 @@ pub enum DbError {
     )]
     InvalidLocfRange { start_locf_sec: DateTime<Utc> },
 
+    #[error("New candles must have times rounded to the minute (no seconds/nanoseconds)")]
+    NewCandlesTimesNotRoundedToMinute,
+
+    #[error(
+        "New candles must be continuous (each candle time must be exactly 1 minute before the previous)"
+    )]
+    NewCandlesNotContinuous,
+
     #[error(transparent)]
     IndicatorEvaluation(#[from] IndicatorError),
 }
