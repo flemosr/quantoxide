@@ -32,88 +32,128 @@ impl PgOhlcCandlesRepo {
 
 #[async_trait]
 impl OhlcCandlesRepository for PgOhlcCandlesRepo {
-    async fn add_candles(&self, candles: &[OhlcCandle]) -> Result<()> {
-        if candles.is_empty() {
+    async fn add_candles(
+        &self,
+        before_candle_time: Option<DateTime<Utc>>,
+        new_candles: &[OhlcCandle],
+    ) -> Result<()> {
+        if new_candles.is_empty() {
             return Ok(());
         }
 
-        // Validate: times must be rounded to the minute and continuous (1 minute apart, descending)
-        for window in candles.windows(2) {
-            // Check if current candle time is rounded
-            if window[0].time().second() != 0 || window[0].time().nanosecond() != 0 {
-                return Err(DbError::NewCandlesTimesNotRoundedToMinute);
+        for window in new_candles.windows(2) {
+            let [current, next] = window else {
+                unreachable!()
+            };
+
+            if current.time().second() != 0 || current.time().nanosecond() != 0 {
+                return Err(DbError::NewDbCandlesTimesNotRoundedToMinute);
             }
 
-            // Check continuity: next candle should be exactly 1 minute before current
-            let expected_prev_time = window[0].time() - Duration::minutes(1);
-            if window[1].time() != expected_prev_time {
-                return Err(DbError::NewCandlesNotContinuous);
+            if next.time() >= current.time() {
+                return Err(DbError::NewDbCandlesNotOrderedByTimeDesc {
+                    inconsistency_at: next.time(),
+                });
             }
         }
 
-        let period_start = candles.last().expect("not empty").time();
-        let period_end = candles.first().expect("not empty").time();
+        let period_start = new_candles.last().expect("not empty").time();
+        let period_end = new_candles.first().expect("not empty").time();
 
-        // Check the last candle's time is rounded. Not checked when iterating over
-        // `candles.windows(2)`. Also handles single candles.
+        // Validate the last candle's time (also handles single candles)
         if period_start.second() != 0 || period_start.nanosecond() != 0 {
-            return Err(DbError::NewCandlesTimesNotRoundedToMinute);
+            return Err(DbError::NewDbCandlesTimesNotRoundedToMinute);
         }
 
         let mut tx = self.start_transaction().await?;
 
-        // If a candle exists at period_end + 1 minute, set its gap to false (gap being filled)
-        let next_candle_time = period_end + Duration::minutes(1);
-        sqlx::query!(
-            "UPDATE ohlc_candles SET gap = false WHERE time = $1",
-            next_candle_time
-        )
-        .execute(&mut *tx)
-        .await
-        .map_err(DbError::Query)?;
+        let conflicting_stable = sqlx::query_scalar!(
+                "SELECT time FROM ohlc_candles WHERE time >= $1 AND time <= $2 AND stable = true LIMIT 1",
+                period_start,
+                period_end
+            )
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(DbError::Query)?;
 
-        // Check if a candle exists at period_start - 1 minute (to determine if earliest candle has a gap)
-        let prev_candle_time = period_start - Duration::minutes(1);
-        let prev_candle_exists = sqlx::query_scalar!(
-            "SELECT EXISTS(SELECT 1 FROM ohlc_candles WHERE time = $1)",
-            prev_candle_time
+        if let Some(conflicting_time) = conflicting_stable {
+            return Err(DbError::AttemptedToUpdateStableCandle {
+                time: conflicting_time,
+            });
+        }
+
+        if let Some(before_candle_time) = before_candle_time {
+            sqlx::query!(
+                "UPDATE ohlc_candles SET gap = false WHERE time = $1",
+                before_candle_time
+            )
+            .execute(&mut *tx)
+            .await
+            .map_err(DbError::Query)?;
+        }
+
+        let mut times = Vec::with_capacity(new_candles.len());
+        let mut opens = Vec::with_capacity(new_candles.len());
+        let mut highs = Vec::with_capacity(new_candles.len());
+        let mut lows = Vec::with_capacity(new_candles.len());
+        let mut closes = Vec::with_capacity(new_candles.len());
+        let mut volumes = Vec::with_capacity(new_candles.len());
+
+        for candle in new_candles {
+            times.push(candle.time());
+            opens.push(candle.open().into_f64());
+            highs.push(candle.high().into_f64());
+            lows.push(candle.low().into_f64());
+            closes.push(candle.close().into_f64());
+            volumes.push(candle.volume() as i64);
+        }
+
+        let before_period_time = period_start - Duration::minutes(1);
+        let before_period_candle_exists = sqlx::query_scalar!(
+            "SELECT EXISTS(SELECT 1 FROM ohlc_candles WHERE time = $1 AND stable = true)",
+            before_period_time
         )
         .fetch_one(&mut *tx)
         .await
         .map_err(DbError::Query)?
         .unwrap_or(false);
 
-        // Prepare batch insert data
-        let times: Vec<DateTime<Utc>> = candles.iter().map(|c| c.time()).collect();
-        let opens: Vec<f64> = candles.iter().map(|c| c.open().into_f64()).collect();
-        let highs: Vec<f64> = candles.iter().map(|c| c.high().into_f64()).collect();
-        let lows: Vec<f64> = candles.iter().map(|c| c.low().into_f64()).collect();
-        let closes: Vec<f64> = candles.iter().map(|c| c.close().into_f64()).collect();
-        let volumes: Vec<i64> = candles.iter().map(|c| c.volume() as i64).collect();
+        let mut gaps: Vec<bool> = vec![false; new_candles.len()];
+        gaps[new_candles.len() - 1] = !before_period_candle_exists;
 
-        // All candles have gap=false except the last one (earliest time) which has a gap if no previous candle
-        let mut gaps: Vec<bool> = vec![false; candles.len()];
-        if !prev_candle_exists {
-            gaps[candles.len() - 1] = true;
-        }
+        // The presence of `before_candle_time` indicates that the latest candle of the period is
+        // not the candle corresponding to the current minute, and therefore can be considered
+        // stable.
+        let mut stables: Vec<bool> = vec![true; new_candles.len()];
+        stables[0] = before_candle_time.is_some();
 
-        // Batch insert all candles
+        // Batch insert all candles, overwriting provisional candles if any
+
         sqlx::query!(
-            r#"
-                INSERT INTO ohlc_candles (time, open, high, low, close, volume, gap)
-                SELECT * FROM unnest($1::timestamptz[], $2::float8[], $3::float8[], $4::float8[], $5::float8[], $6::bigint[], $7::bool[])
-            "#,
-            &times,
-            &opens,
-            &highs,
-            &lows,
-            &closes,
-            &volumes,
-            &gaps
-        )
-        .execute(&mut *tx)
-        .await
-        .map_err(DbError::Query)?;
+                r#"
+                    INSERT INTO ohlc_candles (time, open, high, low, close, volume, gap, stable)
+                    SELECT * FROM unnest($1::timestamptz[], $2::float8[], $3::float8[], $4::float8[], $5::float8[], $6::bigint[], $7::bool[], $8::bool[])
+                    ON CONFLICT (time) DO UPDATE
+                    SET open = EXCLUDED.open,
+                        high = EXCLUDED.high,
+                        low = EXCLUDED.low,
+                        close = EXCLUDED.close,
+                        volume = EXCLUDED.volume,
+                        gap = EXCLUDED.gap,
+                        stable = EXCLUDED.stable
+                "#,
+                &times,
+                &opens,
+                &highs,
+                &lows,
+                &closes,
+                &volumes,
+                &gaps,
+                &stables
+            )
+            .execute(&mut *tx)
+            .await
+            .map_err(DbError::Query)?;
 
         tx.commit().await.map_err(DbError::TransactionCommit)?;
 
