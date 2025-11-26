@@ -88,37 +88,27 @@ impl SyncPriceHistoryTask {
 
         // Validate: times must be rounded to the minute and continuous (1 minute apart, descending)
         for window in candles.windows(2) {
-            // Check if current candle time is rounded
-            if window[0].time().second() != 0 || window[0].time().nanosecond() != 0 {
-                return Err(SyncPriceHistoryError::NewCandlesTimesNotRoundedToMinute);
+            let [current, next] = window else {
+                unreachable!()
+            };
+
+            if current.time().second() != 0 || current.time().nanosecond() != 0 {
+                return Err(SyncPriceHistoryError::ApiCandlesTimesNotRoundedToMinute);
             }
 
-            // Check continuity: next candle should be exactly 1 minute before current
-            let expected_prev_time = window[0].time() - Duration::minutes(1);
-            if window[1].time() != expected_prev_time {
-                return Err(SyncPriceHistoryError::NewCandlesNotContinuous);
+            if next.time() >= current.time() {
+                return Err(SyncPriceHistoryError::ApíCandlesNotOrderedByTimeDesc {
+                    inconsistency_at: next.time(),
+                });
             }
         }
 
         let period_start = candles.last().expect("not empty").time();
-        let period_end = candles.first().expect("not empty").time();
 
         // Check the last candle's time is rounded. Not checked when iterating over
         // `candles.windows(2)`. Also handles single candles.
         if period_start.second() != 0 || period_start.nanosecond() != 0 {
-            return Err(SyncPriceHistoryError::NewCandlesTimesNotRoundedToMinute);
-        }
-
-        if let Some(observed_time) = to_observed_time {
-            // If `to_observed_time` was provided, ensure that the first (latest) candle has the
-            // expected `time`
-            if period_end != observed_time - Duration::minutes(1) {
-                return Err(SyncPriceHistoryError::NewCandlesNotContinuous);
-            }
-        } else {
-            // If the the latest candles were fetched, discard the first one since it can't be
-            // considered final.
-            candles.remove(0);
+            return Err(SyncPriceHistoryError::ApiCandlesTimesNotRoundedToMinute);
         }
 
         if let Some(time) = from_observed_time {
@@ -136,15 +126,16 @@ impl SyncPriceHistoryTask {
         from_observed_time: Option<DateTime<Utc>>,
         to_observed_time: Option<DateTime<Utc>>,
     ) -> Result<bool> {
-        let new_ohlc_candles = self
+        let new_candles = self
             .get_new_ohlc_candles(from_observed_time, to_observed_time)
             .await?;
 
-        if !new_ohlc_candles.is_empty() {
-            self.db.ohlc_candles.add_candles(&new_ohlc_candles).await?;
-        }
+        self.db
+            .ohlc_candles
+            .add_candles(to_observed_time, &new_candles)
+            .await?;
 
-        Ok(!new_ohlc_candles.is_empty())
+        Ok(!new_candles.is_empty())
     }
 
     async fn handle_history_update(&self, new_history_state: &PriceHistoryState) -> Result<()> {
@@ -159,6 +150,8 @@ impl SyncPriceHistoryTask {
     }
 
     pub async fn backfill(self) -> Result<()> {
+        self.db.ohlc_candles.flag_missing_candles().await?;
+
         let mut history_state =
             PriceHistoryState::evaluate_with_reach(&self.db, self.config.sync_history_reach())
                 .await?;
