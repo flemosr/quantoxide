@@ -18,7 +18,7 @@ impl PriceHistoryState {
     async fn new(db: &Database, reach_opt: Option<Duration>) -> Result<Self> {
         let reach_time = reach_opt.map_or(None, |reach| Some(Utc::now() - reach));
 
-        let Some(earliest_candle) = db.ohlc_candles.get_earliest_candle().await? else {
+        let Some(earliest_candle) = db.ohlc_candles.get_earliest_stable_candle().await? else {
             // DB is empty
             return Ok(Self {
                 reach_time,
@@ -29,7 +29,7 @@ impl PriceHistoryState {
 
         let lastest_candle = db
             .ohlc_candles
-            .get_latest_candle()
+            .get_latest_stable_candle()
             .await?
             .expect("db not empty");
 
