@@ -228,4 +228,91 @@ impl OhlcCandlesRepository for PgOhlcCandlesRepo {
 
         Ok(gaps)
     }
+
+    async fn flag_missing_candles(&self) -> Result<()> {
+        let mut tx = self.start_transaction().await?;
+
+        // Find all stable candles where the next candle is more than 1 minute away and it is marked
+        // as 'stable' and not marked as a 'gap' (unflagged gaps)
+        let gap_after_times = sqlx::query_scalar!(
+            r#"
+                SELECT c1.time
+                FROM ohlc_candles c1
+                INNER JOIN LATERAL (
+                    SELECT time, gap, stable
+                    FROM ohlc_candles
+                    WHERE time > c1.time
+                    ORDER BY time ASC
+                    LIMIT 1
+                ) c2 ON true
+                WHERE c1.stable = true
+                AND c2.time > c1.time + INTERVAL '1 minute'
+                AND c2.stable = true
+                AND c2.gap = false
+                ORDER BY c1.time ASC
+            "#
+        )
+        .fetch_all(&mut *tx)
+        .await
+        .map_err(DbError::Query)?;
+
+        if gap_after_times.is_empty() {
+            return Ok(());
+        }
+
+        for gap_after_time in gap_after_times {
+            // Mark the 5 candles before and after `gap_after_time` as unstable
+            // Time ranges shouldn't be relied upon directly since there's a gap
+            sqlx::query!(
+                r#"
+                    UPDATE ohlc_candles
+                    SET stable = false
+                    WHERE time IN (
+                        SELECT time FROM ohlc_candles
+                        WHERE time <= $1
+                        ORDER BY time DESC
+                        LIMIT 5
+                    )
+                    OR time IN (
+                        SELECT time FROM ohlc_candles
+                        WHERE time > $1
+                        ORDER BY time ASC
+                        LIMIT 5
+                    )
+                "#,
+                gap_after_time
+            )
+            .execute(&mut *tx)
+            .await
+            .map_err(DbError::Query)?;
+
+            // Mark the 6th candle after `gap_after_time` as a gap
+            let sixth_candle = sqlx::query_scalar!(
+                r#"
+                    SELECT time FROM ohlc_candles
+                    WHERE time > $1
+                    ORDER BY time ASC
+                    LIMIT 1 OFFSET 5
+                "#,
+                gap_after_time
+            )
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(DbError::Query)?;
+
+            if let Some(sixth_candle_time) = sixth_candle {
+                sqlx::query!(
+                    "UPDATE ohlc_candles SET gap = true WHERE time = $1",
+                    sixth_candle_time
+                )
+                .execute(&mut *tx)
+                .await
+                .map_err(DbError::Query)?;
+            }
+        }
+
+        tx.commit().await.map_err(DbError::TransactionCommit)?;
+
+        Ok(())
+    }
 }
