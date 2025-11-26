@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT EXISTS(SELECT 1 FROM ohlc_candles WHERE time = $1)",
+  "query": "SELECT EXISTS(SELECT 1 FROM ohlc_candles WHERE time = $1 AND stable = true)",
   "describe": {
     "columns": [
       {
@@ -18,5 +18,5 @@
       null
     ]
   },
-  "hash": "cc265740b5e1cfffe5e280f2221aa35d8b71494c6a63abfcab97be9430ba28dc"
+  "hash": "356267755890b45a531e4ac78541bf70f372db50e018660005731ded19b8c90f"
 }

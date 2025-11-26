@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                    UPDATE ohlc_candles\n                    SET stable = false\n                    WHERE time IN (\n                        SELECT time FROM ohlc_candles\n                        WHERE time <= $1\n                        ORDER BY time DESC\n                        LIMIT 5\n                    )\n                    OR time IN (\n                        SELECT time FROM ohlc_candles\n                        WHERE time > $1\n                        ORDER BY time ASC\n                        LIMIT 5\n                    )\n                ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "cf3bb84cb138c2170309e347f5b2a45db94ed0bef0613c45ec8308961a7431a8"
+}
