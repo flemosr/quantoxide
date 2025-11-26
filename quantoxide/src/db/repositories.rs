@@ -195,11 +195,20 @@ pub(crate) trait RunningTradesRepository: Send + Sync {
 
 #[async_trait]
 pub(crate) trait OhlcCandlesRepository: Send + Sync {
-    async fn add_candles(&self, candles: &[OhlcCandle]) -> Result<()>;
+    /// Adds OHLC candles to the database, distinguishing between stable and unstable candles.
+    async fn add_candles(
+        &self,
+        before_candle_time: Option<DateTime<Utc>>,
+        new_candles: &[OhlcCandle],
+    ) -> Result<()>;
 
-    async fn get_earliest_candle(&self) -> Result<Option<OhlcCandleRow>>;
+    async fn get_earliest_stable_candle(&self) -> Result<Option<OhlcCandleRow>>;
 
-    async fn get_latest_candle(&self) -> Result<Option<OhlcCandleRow>>;
+    async fn get_latest_stable_candle(&self) -> Result<Option<OhlcCandleRow>>;
 
     async fn get_gaps(&self) -> Result<Vec<(DateTime<Utc>, DateTime<Utc>)>>;
+
+    /// Finds unflagged gaps in the candle history and marks surrounding candles as unstable
+    /// so they can be re-fetched from the API.
+    async fn flag_missing_candles(&self) -> Result<()>;
 }
