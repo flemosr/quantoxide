@@ -15,13 +15,11 @@ pub enum SyncPriceHistoryError {
         trials: NonZeroU64,
     },
 
-    #[error("New candles must have times rounded to the minute (no seconds/nanoseconds)")]
-    NewCandlesTimesNotRoundedToMinute,
+    #[error("API candles must have times rounded to the minute (no seconds/nanoseconds)")]
+    ApiCandlesTimesNotRoundedToMinute,
 
-    #[error(
-        "New candles must be continuous (each candle time must be exactly 1 minute before the previous)"
-    )]
-    NewCandlesNotContinuous,
+    #[error("API candles must be ordered by time desc. Inconsistency at: {inconsistency_at}")]
+    ApíCandlesNotOrderedByTimeDesc { inconsistency_at: DateTime<Utc> },
 
     #[error("HistoryUpdateHandlerFailed error")]
     HistoryUpdateHandlerFailed,
