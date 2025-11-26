@@ -65,7 +65,7 @@ pub(crate) struct RunningTrade {
 }
 
 #[derive(Debug, FromRow)]
-pub struct OhlcCandleRow {
+pub(crate) struct OhlcCandleRow {
     pub time: DateTime<Utc>,
     pub open: f64,
     pub high: f64,
@@ -73,5 +73,7 @@ pub struct OhlcCandleRow {
     pub close: f64,
     pub volume: i64,
     pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
     pub gap: bool,
+    pub stable: bool,
 }
