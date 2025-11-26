@@ -160,12 +160,13 @@ impl OhlcCandlesRepository for PgOhlcCandlesRepo {
         Ok(())
     }
 
-    async fn get_earliest_candle(&self) -> Result<Option<OhlcCandleRow>> {
+    async fn get_earliest_stable_candle(&self) -> Result<Option<OhlcCandleRow>> {
         let row = sqlx::query_as!(
             OhlcCandleRow,
             r#"
-                SELECT time, open, high, low, close, volume, created_at, gap
+                SELECT time, open, high, low, close, volume, created_at, updated_at, gap, stable
                 FROM ohlc_candles
+                WHERE stable = true
                 ORDER BY time ASC
                 LIMIT 1
             "#
@@ -177,12 +178,13 @@ impl OhlcCandlesRepository for PgOhlcCandlesRepo {
         Ok(row)
     }
 
-    async fn get_latest_candle(&self) -> Result<Option<OhlcCandleRow>> {
+    async fn get_latest_stable_candle(&self) -> Result<Option<OhlcCandleRow>> {
         let row = sqlx::query_as!(
             OhlcCandleRow,
             r#"
-                SELECT time, open, high, low, close, volume, created_at, gap
+                SELECT time, open, high, low, close, volume, created_at, updated_at, gap, stable
                 FROM ohlc_candles
+                WHERE stable = true
                 ORDER BY time DESC
                 LIMIT 1
             "#
