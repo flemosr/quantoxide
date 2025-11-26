@@ -197,21 +197,25 @@ impl OhlcCandlesRepository for PgOhlcCandlesRepo {
     }
 
     async fn get_gaps(&self) -> Result<Vec<(DateTime<Utc>, DateTime<Utc>)>> {
-        // Find all candles with gap=true, excluding the earliest one (db bound)
-        // For each, also get the latest candle before it
+        // Find all stable candles with gap=true, excluding the earliest one (db bound)
+        // For each, also get the latest stable candle before it
         let gaps = sqlx::query!(
             r#"
                 SELECT
                     (
                         SELECT time FROM ohlc_candles
-                        WHERE time < gap_candle.time
+                        WHERE time < gap_candle.time AND stable = true
                         ORDER BY time DESC
                         LIMIT 1
                     ) as "from_time!",
                     gap_candle.time as "gap_time!"
                 FROM ohlc_candles gap_candle
                 WHERE gap_candle.gap = true
-                AND gap_candle.time > (SELECT MIN(time) FROM ohlc_candles)
+                AND gap_candle.stable = true
+                AND EXISTS (
+                    SELECT 1 FROM ohlc_candles
+                    WHERE time < gap_candle.time AND stable = true
+                )
                 ORDER BY gap_candle.time ASC
             "#
         )
