@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{num::NonZeroU64, sync::Arc};
 
 use chrono::{DateTime, Duration, Timelike, Utc};
 use tokio::{sync::mpsc, time};
@@ -48,6 +48,16 @@ impl SyncPriceHistoryTask {
         from_observed_time: Option<DateTime<Utc>>,
         to_observed_time: Option<DateTime<Utc>>,
     ) -> Result<Vec<OhlcCandle>> {
+        let limit = if let (Some(from), Some(to)) = (from_observed_time, to_observed_time) {
+            let minutes = (to - from).num_minutes().max(0) as u64;
+            let Ok(expected_candle_qtd) = NonZeroU64::try_from(minutes) else {
+                return Err(SyncPriceHistoryError::InvalidPeriod { from, to });
+            };
+            expected_candle_qtd.min(self.config.api_history_batch_size())
+        } else {
+            self.config.api_history_batch_size()
+        };
+
         let mut candles: Vec<OhlcCandle> = {
             let mut trials = 0;
             loop {
@@ -59,7 +69,7 @@ impl SyncPriceHistoryTask {
                     .get_candles(
                         None,
                         None,
-                        Some(self.config.api_history_batch_size()),
+                        Some(limit),
                         Some(OhlcRange::OneMinute),
                         to_observed_time,
                     )

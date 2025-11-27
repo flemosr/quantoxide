@@ -9,6 +9,12 @@ use crate::db::error::DbError;
 
 #[derive(Error, Debug)]
 pub enum SyncPriceHistoryError {
+    #[error("Invalid period: from {from} to {to}")]
+    InvalidPeriod {
+        from: DateTime<Utc>,
+        to: DateTime<Utc>,
+    },
+
     #[error("RestApiMaxTrialsReached error: error {error}, trials {trials}")]
     RestApiMaxTrialsReached {
         error: RestApiError,
