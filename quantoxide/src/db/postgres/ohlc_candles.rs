@@ -160,6 +160,14 @@ impl OhlcCandlesRepository for PgOhlcCandlesRepo {
         Ok(())
     }
 
+    async fn remove_gap_flag(&self, time: DateTime<Utc>) -> Result<()> {
+        sqlx::query!("UPDATE ohlc_candles SET gap = false WHERE time = $1", time)
+            .execute(self.pool())
+            .await
+            .map_err(DbError::Query)?;
+        Ok(())
+    }
+
     async fn get_earliest_stable_candle(&self) -> Result<Option<OhlcCandleRow>> {
         let row = sqlx::query_as!(
             OhlcCandleRow,
