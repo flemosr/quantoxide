@@ -48,14 +48,17 @@ impl SyncPriceHistoryTask {
         from_observed_time: Option<DateTime<Utc>>,
         to_observed_time: Option<DateTime<Utc>>,
     ) -> Result<Vec<OhlcCandle>> {
-        let limit = if let (Some(from), Some(to)) = (from_observed_time, to_observed_time) {
-            let minutes = (to - from).num_minutes().max(0) as u64;
-            let Ok(expected_candle_qtd) = NonZeroU64::try_from(minutes) else {
-                return Err(SyncPriceHistoryError::InvalidPeriod { from, to });
-            };
-            expected_candle_qtd.min(self.config.api_history_batch_size())
-        } else {
-            self.config.api_history_batch_size()
+        let limit = match (from_observed_time, to_observed_time) {
+            (Some(from), to_opt) => {
+                // Always get at least 3 candles. It is assumed that `Utc::now()` will be close to
+                // the API server time, but small differences should be expected.
+                let to_est = to_opt.unwrap_or(Utc::now());
+                let exp_candle_qtd = (to_est - from).num_minutes().max(3) as u64;
+                let exp_candle_qtd = NonZeroU64::try_from(exp_candle_qtd).expect("must be gte 0");
+
+                exp_candle_qtd.min(self.config.api_history_batch_size())
+            }
+            _ => self.config.api_history_batch_size(),
         };
 
         let mut candles: Vec<OhlcCandle> = {
