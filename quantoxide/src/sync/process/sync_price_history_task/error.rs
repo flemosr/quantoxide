@@ -24,9 +24,6 @@ pub enum SyncPriceHistoryError {
     #[error("HistoryUpdateHandlerFailed error")]
     HistoryUpdateHandlerFailed,
 
-    #[error("NoGapEntriesReceived error")]
-    NoGapEntriesReceived,
-
     #[error("[Db] {0}")]
     Db(#[from] DbError),
 

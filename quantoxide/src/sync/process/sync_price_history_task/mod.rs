@@ -175,8 +175,10 @@ impl SyncPriceHistoryTask {
 
             let new_entries_received = self.partial_download(download_from, download_to).await?;
             if !new_entries_received {
-                if history_state.has_gaps()? {
-                    return Err(SyncPriceHistoryError::NoGapEntriesReceived);
+                if let Some(download_to) = download_to {
+                    // No new entries before `download_to` are currently available. Missing candles
+                    // will be flagged by `flag_missing_candles` next time it runs.
+                    self.db.ohlc_candles.remove_gap_flag(download_to).await?;
                 } else {
                     if let Some(bound_end) = history_state.bound_end() {
                         // Synced with full history. Remove redundant price ticks
