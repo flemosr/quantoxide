@@ -1,4 +1,4 @@
-use std::{pin::Pin, sync::Arc};
+use std::{future, pin::Pin, sync::Arc};
 
 use chrono::Duration;
 use futures::TryFutureExt;
@@ -151,17 +151,18 @@ impl SyncProcess {
         self.status_manager
             .update(SyncStatusNotSynced::InProgress.into());
 
-        // Always keep at least the last 5 minute candles up-to-date
-        range = range.max(Duration::minutes(5));
+        if range > Duration::zero() {
+            // If a candle range is required, backfill at least 5 candles
 
-        // Backfill historical price data for the specified range
+            range = range.max(Duration::minutes(5));
 
-        let (history_state_tx, history_state_rx) = mpsc::channel::<PriceHistoryState>(100);
+            let (history_state_tx, history_state_rx) = mpsc::channel::<PriceHistoryState>(100);
 
-        self.spawn_history_state_update_handler(history_state_rx);
+            self.spawn_history_state_update_handler(history_state_rx);
 
-        self.run_price_history_task_live(Some(history_state_tx), range)
-            .await?;
+            self.run_price_history_task_live(Some(history_state_tx), range)
+                .await?;
+        }
 
         // Start to collect real-time data
 
@@ -185,7 +186,12 @@ impl SyncProcess {
         let mut price_tick_rx = price_tick_tx.subscribe();
 
         let new_re_sync_timer = || Box::pin(time::sleep(self.config.re_sync_history_interval()));
-        let mut re_sync_timer = new_re_sync_timer();
+        let mut re_sync_timer: Pin<Box<dyn std::future::Future<Output = ()> + Send>> =
+            if range > Duration::zero() {
+                new_re_sync_timer()
+            } else {
+                Box::pin(future::pending::<()>())
+            };
 
         loop {
             tokio::select! {
