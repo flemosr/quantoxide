@@ -131,6 +131,8 @@ impl SyncProcess {
             self.status_manager
                 .update(SyncStatusNotSynced::InProgress.into());
 
+            // Backfill full historical price data
+
             let (history_state_tx, history_state_rx) = mpsc::channel::<PriceHistoryState>(100);
 
             self.spawn_history_state_update_handler(history_state_rx);
@@ -145,9 +147,21 @@ impl SyncProcess {
         }
     }
 
-    async fn run_live(&self, range: Duration) -> Result<Never> {
+    async fn run_live(&self, mut range: Duration) -> Result<Never> {
         self.status_manager
             .update(SyncStatusNotSynced::InProgress.into());
+
+        // Always keep at least the last 5 minute candles up-to-date
+        range = range.max(Duration::minutes(5));
+
+        // Backfill historical price data for the specified range
+
+        let (history_state_tx, history_state_rx) = mpsc::channel::<PriceHistoryState>(100);
+
+        self.spawn_history_state_update_handler(history_state_rx);
+
+        self.run_price_history_task_live(Some(history_state_tx), range)
+            .await?;
 
         // Start to collect real-time data
 
@@ -155,17 +169,6 @@ impl SyncProcess {
 
         let mut real_time_collection_handle =
             self.spawn_real_time_collection_task(price_tick_tx.clone());
-
-        if range > Duration::zero() {
-            // Backfill historical price data for the specified range.
-
-            let (history_state_tx, history_state_rx) = mpsc::channel::<PriceHistoryState>(100);
-
-            self.spawn_history_state_update_handler(history_state_rx);
-
-            self.run_price_history_task_live(Some(history_state_tx), range)
-                .await?;
-        }
 
         if real_time_collection_handle.is_finished() {
             real_time_collection_handle
@@ -175,11 +178,14 @@ impl SyncProcess {
             return Err(SyncProcessRecoverableError::UnexpectedRealTimeCollectionShutdown.into());
         }
 
-        // Sync achieved
-
         self.status_manager.update(SyncStatus::Synced);
 
+        // Handle updates and re-syncs
+
         let mut price_tick_rx = price_tick_tx.subscribe();
+
+        let new_re_sync_timer = || Box::pin(time::sleep(self.config.re_sync_history_interval()));
+        let mut re_sync_timer = new_re_sync_timer();
 
         loop {
             tokio::select! {
@@ -192,6 +198,11 @@ impl SyncProcess {
                     let tick = tick_res.map_err(SyncProcessRecoverableError::PriceTickRecv)?;
                     let _ = self.update_tx.send(tick.into());
                 }
+                _ = &mut re_sync_timer => {
+                    // Ensure the OHLC candles DB remains up-to-date
+                    self.run_price_history_task_live(None, range).await?;
+                    re_sync_timer = new_re_sync_timer();
+                }
             }
         }
     }
@@ -199,6 +210,8 @@ impl SyncProcess {
     async fn run_full(&self) -> Result<Never> {
         self.status_manager
             .update(SyncStatusNotSynced::InProgress.into());
+
+        // Backfill full historical price data
 
         let (history_state_tx, history_state_rx) = mpsc::channel::<PriceHistoryState>(100);
 
@@ -214,10 +227,6 @@ impl SyncProcess {
         let mut real_time_collection_handle =
             self.spawn_real_time_collection_task(price_tick_tx.clone());
 
-        // Additional price history backfill to ensure overlap with real-time data
-
-        self.run_price_history_task_backfill(None).await?;
-
         if real_time_collection_handle.is_finished() {
             real_time_collection_handle
                 .await
@@ -226,9 +235,9 @@ impl SyncProcess {
             return Err(SyncProcessRecoverableError::UnexpectedRealTimeCollectionShutdown.into());
         }
 
-        // Sync achieved
-
         self.status_manager.update(SyncStatus::Synced);
+
+        // Handle updates and re-syncs
 
         let mut price_tick_rx = price_tick_tx.subscribe();
 
@@ -251,7 +260,7 @@ impl SyncProcess {
                     }
                 }
                 _ = &mut re_sync_timer => {
-                    // Ensure the price history db remains relatively up-to-date
+                    // Ensure the OHLC candles DB remains up-to-date
                     self.run_price_history_task_backfill(None).await?;
                     re_sync_timer = new_re_sync_timer();
                 }
