@@ -179,13 +179,6 @@ impl SyncPriceHistoryTask {
                     // No new entries before `download_to` are currently available. Missing candles
                     // will be flagged by `flag_missing_candles` next time it runs.
                     self.db.ohlc_candles.remove_gap_flag(download_to).await?;
-                } else {
-                    if let Some(bound_end) = history_state.bound_end() {
-                        // Synced with full history. Remove redundant price ticks
-                        self.db.price_ticks.remove_ticks(bound_end).await?;
-                    }
-
-                    return Ok(());
                 }
             }
 
@@ -193,6 +186,12 @@ impl SyncPriceHistoryTask {
                 PriceHistoryState::evaluate_with_reach(&self.db, self.config.sync_history_reach())
                     .await?;
             self.handle_history_update(&history_state).await?;
+
+            if download_to.is_none() && !history_state.has_gaps()? {
+                // Latest entries received. No gaps remain. Backfilling complete.
+
+                return Ok(());
+            }
         }
     }
 
