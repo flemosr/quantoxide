@@ -45,7 +45,7 @@ impl Default for LiveConfig {
             api_history_batch_size: 1000.try_into().expect("not zero"),
             sync_mode_full: false,
             sync_history_reach: Duration::hours(24 * 7 * 4),
-            re_sync_history_interval: time::Duration::from_secs(300),
+            re_sync_history_interval: time::Duration::from_secs(10),
             sync_update_timeout: time::Duration::from_secs(5),
             tsl_step_size: BoundedPercentage::MIN,
             clean_up_trades_on_startup: true,

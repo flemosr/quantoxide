@@ -31,7 +31,7 @@ impl Default for SyncConfig {
             api_error_max_trials: 3.try_into().expect("not zero"),
             api_history_batch_size: 1000.try_into().expect("not zero"),
             sync_history_reach: Duration::hours(24 * 7 * 4),
-            re_sync_history_interval: time::Duration::from_secs(300),
+            re_sync_history_interval: time::Duration::from_secs(10),
             restart_interval: time::Duration::from_secs(10),
             shutdown_timeout: time::Duration::from_secs(6),
         }
