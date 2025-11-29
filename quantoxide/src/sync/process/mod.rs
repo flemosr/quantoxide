@@ -1,6 +1,5 @@
 use std::{future, pin::Pin, sync::Arc};
 
-use chrono::Duration;
 use futures::TryFutureExt;
 use tokio::{
     sync::{broadcast, mpsc},
@@ -16,7 +15,7 @@ use crate::{
 
 use super::{
     config::{SyncConfig, SyncProcessConfig},
-    engine::SyncMode,
+    engine::{LookbackPeriod, SyncMode},
     state::{SyncStatus, SyncStatusManager, SyncStatusNotSynced, SyncTransmiter},
 };
 
@@ -121,7 +120,7 @@ impl SyncProcess {
     fn run_mode(&self) -> Pin<Box<dyn Future<Output = Result<Never>> + Send + '_>> {
         match &self.mode {
             SyncMode::Backfill => Box::pin(self.run_backfill()),
-            SyncMode::Live { range } => Box::pin(self.run_live(*range)),
+            SyncMode::Live(range) => Box::pin(self.run_live(*range)),
             SyncMode::Full => Box::pin(self.run_full()),
         }
     }
@@ -147,20 +146,16 @@ impl SyncProcess {
         }
     }
 
-    async fn run_live(&self, mut range: Duration) -> Result<Never> {
+    async fn run_live(&self, lookback: Option<LookbackPeriod>) -> Result<Never> {
         self.status_manager
             .update(SyncStatusNotSynced::InProgress.into());
 
-        if range > Duration::zero() {
-            // If a candle range is required, backfill at least 5 candles
-
-            range = range.max(Duration::minutes(5));
-
+        if let Some(ref range) = lookback {
             let (history_state_tx, history_state_rx) = mpsc::channel::<PriceHistoryState>(100);
 
             self.spawn_history_state_update_handler(history_state_rx);
 
-            self.run_price_history_task_live(Some(history_state_tx), range)
+            self.run_price_history_task_live(Some(history_state_tx), *range)
                 .await?;
         }
 
@@ -187,7 +182,7 @@ impl SyncProcess {
 
         let new_re_sync_timer = || Box::pin(time::sleep(self.config.re_sync_history_interval()));
         let mut re_sync_timer: Pin<Box<dyn std::future::Future<Output = ()> + Send>> =
-            if range > Duration::zero() {
+            if lookback.is_some() {
                 new_re_sync_timer()
             } else {
                 Box::pin(future::pending::<()>())
@@ -206,6 +201,7 @@ impl SyncProcess {
                 }
                 _ = &mut re_sync_timer => {
                     // Ensure the OHLC candles DB remains up-to-date
+                    let range = lookback.expect("must be `Some` from `re_sync_timer` definition");
                     self.run_price_history_task_live(None, range).await?;
                     re_sync_timer = new_re_sync_timer();
                 }
@@ -292,7 +288,7 @@ impl SyncProcess {
     async fn run_price_history_task_live(
         &self,
         history_state_tx: Option<PriceHistoryStateTransmiter>,
-        range: Duration,
+        lookback: LookbackPeriod,
     ) -> Result<()> {
         SyncPriceHistoryTask::new(
             &self.config,
@@ -300,7 +296,7 @@ impl SyncProcess {
             self.api_rest.clone(),
             history_state_tx,
         )
-        .live(range)
+        .live(lookback)
         .await
         .map_err(|e| SyncProcessRecoverableError::SyncPriceHistory(e).into())
     }
