@@ -118,10 +118,45 @@ impl TuiControllerShutdown for SyncController {
 }
 
 #[derive(Debug)]
+#[non_exhaustive]
 pub enum SyncMode {
     Backfill,
     Live { range: Duration },
     Full,
+}
+
+impl SyncMode {
+    pub const MIN_LIVE_RANGE: Duration = Duration::minutes(5);
+
+    pub const MAX_LIVE_RANGE: Duration = Duration::days(1);
+
+    pub fn backfill() -> Self {
+        SyncMode::Backfill
+    }
+
+    pub fn full() -> Self {
+        SyncMode::Full
+    }
+
+    pub fn live(range: Duration) -> Result<Self> {
+        let total_nanos = range
+            .num_nanoseconds()
+            .ok_or(SyncError::InvalidLiveRangeNotRoundMinutes)?;
+
+        if total_nanos % 60_000_000_000 != 0 {
+            return Err(SyncError::InvalidLiveRangeNotRoundMinutes);
+        }
+
+        if range < Self::MIN_LIVE_RANGE {
+            return Err(SyncError::InvalidLiveRangeTooShort);
+        }
+
+        if range > Self::MAX_LIVE_RANGE {
+            return Err(SyncError::InvalidLiveRangeTooLong);
+        }
+
+        Ok(SyncMode::Live { range })
+    }
 }
 
 pub struct SyncEngine {
