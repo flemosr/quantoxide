@@ -1,7 +1,6 @@
 use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
-use chrono::Duration;
 use tokio::{sync::broadcast, time};
 
 use lnm_sdk::{api_v2::WebSocketClient, api_v3::RestClient};
@@ -157,9 +156,9 @@ impl LiveEngine {
                 .max()
                 .expect("`evaluators` can't be empty");
 
-            SyncMode::Live {
-                range: Duration::seconds(max_evaluator_window_secs as i64),
-            }
+            // FIXME
+            SyncMode::live_with_lookback(max_evaluator_window_secs as u64 / 60)
+                .expect("evaluator window should be within valid lookback period")
         };
 
         let api_rest = RestClient::with_credentials(
@@ -221,9 +220,9 @@ impl LiveEngine {
                 .context_window_secs()
                 .map_err(LiveError::SetupOperatorError)?;
 
-            SyncMode::Live {
-                range: Duration::seconds(context_window_secs as i64),
-            }
+            // FIXME
+            SyncMode::live_with_lookback(context_window_secs as u64 / 60)
+                .expect("operator window should be within valid lookback period")
         };
 
         let api_rest = RestClient::with_credentials(
