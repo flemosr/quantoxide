@@ -2,23 +2,20 @@ use std::{result, sync::Arc};
 
 use thiserror::Error;
 
-use lnm_sdk::api_v2::error::RestApiError;
+use lnm_sdk::api_v3::error::RestApiError;
 
-use super::{engine::SyncMode, process::error::SyncProcessFatalError, state::SyncStatus};
+use super::{engine::LookbackPeriod, process::error::SyncProcessFatalError, state::SyncStatus};
 
 #[derive(Error, Debug)]
 pub enum SyncError {
     #[error("REST API client initialization error: {0}")]
     RestApiInit(RestApiError),
 
-    #[error("Invalid live range, must be in round minutes")]
-    InvalidLiveRangeNotRoundMinutes,
+    #[error("Invalid lookback period, must be at least {}", LookbackPeriod::MIN)]
+    InvalidLookbackPeriodTooShort,
 
-    #[error("Invalid live range, must be at least {}", SyncMode::MIN_LIVE_RANGE)]
-    InvalidLiveRangeTooShort,
-
-    #[error("Invalid live range, must be at most {}", SyncMode::MAX_LIVE_RANGE)]
-    InvalidLiveRangeTooLong,
+    #[error("Invalid lookback period, must be at most {}", LookbackPeriod::MAX)]
+    InvalidLookbackPeriodTooLong,
 
     #[error("Sync already shutdown error")]
     SyncAlreadyShutdown,

@@ -117,19 +117,42 @@ impl TuiControllerShutdown for SyncController {
     }
 }
 
-#[derive(Debug)]
-#[non_exhaustive]
+#[derive(Debug, Clone, Copy)]
 pub enum SyncMode {
     Backfill,
-    Live { range: Duration },
+    Live(Option<LookbackPeriod>),
     Full,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct LookbackPeriod(u64);
+
+impl LookbackPeriod {
+    pub const MIN: u64 = 5;
+
+    pub const MAX: u64 = 1440;
+
+    pub fn as_duration(&self) -> Duration {
+        Duration::minutes(self.0 as i64)
+    }
+}
+
+impl TryFrom<u64> for LookbackPeriod {
+    type Error = SyncError;
+    fn try_from(value: u64) -> std::result::Result<Self, Self::Error> {
+        if value < Self::MIN {
+            return Err(SyncError::InvalidLookbackPeriodTooShort);
+        }
+
+        if value > Self::MAX {
+            return Err(SyncError::InvalidLookbackPeriodTooLong);
+        }
+
+        Ok(Self(value))
+    }
+}
+
 impl SyncMode {
-    pub const MIN_LIVE_RANGE: Duration = Duration::minutes(5);
-
-    pub const MAX_LIVE_RANGE: Duration = Duration::days(1);
-
     pub fn backfill() -> Self {
         SyncMode::Backfill
     }
@@ -138,24 +161,14 @@ impl SyncMode {
         SyncMode::Full
     }
 
-    pub fn live(range: Duration) -> Result<Self> {
-        let total_nanos = range
-            .num_nanoseconds()
-            .ok_or(SyncError::InvalidLiveRangeNotRoundMinutes)?;
+    pub fn live_no_lookback() -> Self {
+        SyncMode::Live(None)
+    }
 
-        if total_nanos % 60_000_000_000 != 0 {
-            return Err(SyncError::InvalidLiveRangeNotRoundMinutes);
-        }
+    pub fn live_with_lookback(minutes: u64) -> Result<Self> {
+        let lookback = LookbackPeriod::try_from(minutes)?;
 
-        if range < Self::MIN_LIVE_RANGE {
-            return Err(SyncError::InvalidLiveRangeTooShort);
-        }
-
-        if range > Self::MAX_LIVE_RANGE {
-            return Err(SyncError::InvalidLiveRangeTooLong);
-        }
-
-        Ok(SyncMode::Live { range })
+        Ok(SyncMode::Live(Some(lookback)))
     }
 }
 
