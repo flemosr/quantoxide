@@ -1,6 +1,6 @@
 use std::{num::NonZeroU64, sync::Arc};
 
-use chrono::{DateTime, Duration, Timelike, Utc};
+use chrono::{DateTime, Timelike, Utc};
 use tokio::{sync::mpsc, time};
 
 use lnm_sdk::api_v3::{
@@ -10,7 +10,10 @@ use lnm_sdk::api_v3::{
 
 use crate::db::Database;
 
-use super::super::config::{SyncPriceHistoryTaskConfig, SyncProcessConfig};
+use super::super::{
+    config::{SyncPriceHistoryTaskConfig, SyncProcessConfig},
+    engine::LookbackPeriod,
+};
 
 pub(crate) mod error;
 pub(in crate::sync) mod price_history_state;
@@ -195,10 +198,12 @@ impl SyncPriceHistoryTask {
         }
     }
 
-    pub async fn live(self, range: Duration) -> Result<()> {
-        if range > self.config.sync_history_reach() {
-            return Err(SyncPriceHistoryError::InvalidLiveRange {
-                range,
+    pub async fn live(self, lookback: LookbackPeriod) -> Result<()> {
+        let lookback = lookback.as_duration();
+
+        if lookback > self.config.sync_history_reach() {
+            return Err(SyncPriceHistoryError::InvalidLookbackPeriod {
+                lookback,
                 sync_history_reach: self.config.sync_history_reach(),
             });
         }
@@ -217,7 +222,7 @@ impl SyncPriceHistoryTask {
             self.handle_history_update(&history_state).await?;
 
             if let Some(lastest_history_range) = history_state.tail_continuous_duration() {
-                if lastest_history_range >= range {
+                if lastest_history_range >= lookback {
                     return Ok(());
                 }
             }

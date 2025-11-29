@@ -33,9 +33,11 @@ pub enum SyncPriceHistoryError {
         reach: DateTime<Utc>,
     },
 
-    #[error("Live range {range} must be lte `sync_history_reach` {sync_history_reach}")]
-    InvalidLiveRange {
-        range: Duration,
+    #[error(
+        "Live lookback period {lookback} must be lte `sync_history_reach` {sync_history_reach}"
+    )]
+    InvalidLookbackPeriod {
+        lookback: Duration,
         sync_history_reach: Duration,
     },
 
