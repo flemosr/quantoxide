@@ -150,15 +150,13 @@ impl LiveEngine {
         let sync_mode = if config.sync_mode_full() {
             SyncMode::Full
         } else {
-            let max_evaluator_window_secs = evaluators
+            let max_lookback = evaluators
                 .iter()
-                .map(|evaluator| evaluator.context_window_secs())
+                .map(|evaluator| evaluator.lookback())
                 .max()
                 .expect("`evaluators` can't be empty");
 
-            // FIXME
-            SyncMode::live_with_lookback(max_evaluator_window_secs as u64 / 60)
-                .expect("evaluator window should be within valid lookback period")
+            SyncMode::live_with_lookback_opt(max_lookback)
         };
 
         let api_rest = RestClient::with_credentials(
@@ -216,13 +214,9 @@ impl LiveEngine {
         let sync_mode = if config.sync_mode_full() {
             SyncMode::Full
         } else {
-            let context_window_secs = operator
-                .context_window_secs()
-                .map_err(LiveError::SetupOperatorError)?;
+            let lookback = operator.lookback().map_err(LiveError::SetupOperatorError)?;
 
-            // FIXME
-            SyncMode::live_with_lookback(context_window_secs as u64 / 60)
-                .expect("operator window should be within valid lookback period")
+            SyncMode::live_with_lookback_opt(lookback)
         };
 
         let api_rest = RestClient::with_credentials(
