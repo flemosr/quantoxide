@@ -1,0 +1,77 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                SELECT time, open, high, low, close, volume, created_at, updated_at, gap, stable\n                FROM ohlc_candles\n                WHERE time >= $1 AND time <= $2\n                ORDER BY time DESC\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "time",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 1,
+        "name": "open",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 2,
+        "name": "high",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 3,
+        "name": "low",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 4,
+        "name": "close",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 5,
+        "name": "volume",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 6,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 7,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 8,
+        "name": "gap",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 9,
+        "name": "stable",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Timestamptz",
+        "Timestamptz"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "96772d2e5c9d61bd855437e235e2298e187dfd04ca62f087fe22e87088c3dd9d"
+}
