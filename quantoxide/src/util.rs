@@ -7,7 +7,7 @@ use std::{
     task::{Context, Poll},
 };
 
-use chrono::{DateTime, Duration, Local, SubsecRound, Utc};
+use chrono::{DateTime, Duration, Local, SubsecRound, Timelike, Utc};
 use tokio::task::{JoinError, JoinHandle};
 
 /// A type that can not be instantiated
@@ -15,6 +15,8 @@ pub(crate) enum Never {}
 
 pub(crate) trait DateTimeExt {
     fn ceil_sec(&self) -> DateTime<Utc>;
+
+    fn floor_minute(&self) -> DateTime<Utc>;
 
     fn is_round(&self) -> bool;
 
@@ -31,6 +33,12 @@ impl DateTimeExt for DateTime<Utc> {
         } else {
             trunc_time_sec + Duration::seconds(1)
         }
+    }
+
+    fn floor_minute(&self) -> DateTime<Utc> {
+        self.trunc_subsecs(0)
+            .with_second(0)
+            .expect("second is always valid")
     }
 
     fn is_round(&self) -> bool {
