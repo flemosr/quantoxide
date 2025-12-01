@@ -64,7 +64,7 @@ impl LiveSignalProcess {
 
     async fn run(&self) -> ProcessResult<Never> {
         let mut min_evaluation_interval = Duration::MAX;
-        let mut max_ctx_window = usize::MIN;
+        let mut max_lookback_len = 0;
         let mut evaluators = Vec::with_capacity(self.evaluators.len());
 
         let now = Utc::now().ceil_sec();
@@ -72,8 +72,10 @@ impl LiveSignalProcess {
             if evaluator.evaluation_interval() < min_evaluation_interval {
                 min_evaluation_interval = evaluator.evaluation_interval();
             }
-            if evaluator.context_window_secs() > max_ctx_window {
-                max_ctx_window = evaluator.context_window_secs();
+            if let Some(lookback) = evaluator.lookback() {
+                if lookback.as_usize() > max_lookback_len {
+                    max_lookback_len = lookback.as_usize();
+                }
             }
 
             evaluators.push((now, evaluator));
@@ -135,12 +137,14 @@ impl LiveSignalProcess {
                 now = Utc::now().ceil_sec();
             }
 
-            let all_ctx_entries = self
-                .db
-                .price_ticks
-                .compute_locf_entries_for_range(now, max_ctx_window)
-                .await
-                .map_err(SignalProcessRecoverableError::Db)?;
+            // FIXME
+            let all_ctx_entries = Vec::new();
+            // let all_ctx_entries = self
+            //     .db
+            //     .price_ticks
+            //     .compute_locf_entries_for_range(now, max_lookback)
+            //     .await
+            //     .map_err(SignalProcessRecoverableError::Db)?;
 
             next_eval = DateTime::<Utc>::MAX_UTC;
 
@@ -156,7 +160,8 @@ impl LiveSignalProcess {
                     next_eval = evaluator_next_eval;
                 }
 
-                let start_idx = all_ctx_entries.len() - evaluator.context_window_secs();
+                let start_idx =
+                    all_ctx_entries.len() - evaluator.lookback().map_or(0, |l| l.as_usize());
                 let signal_ctx_entries = &all_ctx_entries[start_idx..];
 
                 let signal = Signal::try_evaluate(evaluator, now, signal_ctx_entries).await?;
