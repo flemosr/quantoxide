@@ -218,20 +218,16 @@ impl LiveProcess {
                 .iteration_interval()
                 .map_err(LiveProcessRecoverableError::OperatorError)?;
 
-            let now = {
-                let target_exec = (last_eval + iteration_interval).ceil_sec();
-                let now = Utc::now();
+            let target_exec = (last_eval + iteration_interval).ceil_sec();
+            let now = Utc::now();
 
-                if now >= target_exec {
-                    return Err(LiveProcessRecoverableError::OperatorIterationTimeTooLong.into());
-                }
+            if now >= target_exec {
+                return Err(LiveProcessRecoverableError::OperatorIterationTimeTooLong.into());
+            }
 
-                let wait_duration = (target_exec - now).to_std().expect("valid duration");
-                time::sleep(wait_duration).await;
-                last_eval = target_exec;
-
-                target_exec
-            };
+            let wait_duration = (target_exec - now).to_std().expect("valid duration");
+            time::sleep(wait_duration).await;
+            last_eval = target_exec;
 
             if let SyncStatus::NotSynced(sync_status_not_synced) = sync_reader.status_snapshot() {
                 self.status_manager
@@ -312,20 +308,24 @@ impl LiveProcess {
                 }
             }
 
-            // let lookback = raw_operator
-            //     .lookback()
-            //     .map_err(LiveProcessRecoverableError::OperatorError)?;
+            let lookback = raw_operator
+                .lookback()
+                .map_err(LiveProcessRecoverableError::OperatorError)?;
 
-            // FIXME
-            let ctx_entries = Vec::new();
-            // let ctx_entries = db
-            // .price_ticks
-            // .compute_locf_entries_for_range(now, ctx_window)
-            // .await
-            // .map_err(LiveProcessRecoverableError::Db)?;
+            let candles = if let Some(lookback) = lookback {
+                let to = Utc::now().floor_minute();
+                let from = to - lookback.as_duration();
+
+                db.ohlc_candles
+                    .get_candles(from, to)
+                    .await
+                    .map_err(LiveProcessRecoverableError::Db)?
+            } else {
+                Vec::new()
+            };
 
             raw_operator
-                .iterate(ctx_entries.as_slice())
+                .iterate(candles.as_slice())
                 .await
                 .map_err(LiveProcessRecoverableError::OperatorError)?;
         }
