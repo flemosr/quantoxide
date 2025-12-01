@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use chrono::{DateTime, Duration, Utc};
 use futures::FutureExt;
 
-use crate::{db::models::PriceEntryLOCF, sync::LookbackPeriod, util::DateTimeExt};
+use crate::{db::models::OhlcCandleRow, sync::LookbackPeriod, util::DateTimeExt};
 
 use super::{
     error::{SignalValidationError, ValidationResult},
@@ -74,7 +74,7 @@ impl fmt::Display for SignalAction {
 pub trait SignalActionEvaluator: Send + Sync {
     async fn evaluate(
         &self,
-        entries: &[PriceEntryLOCF],
+        candles: &[OhlcCandleRow],
     ) -> std::result::Result<SignalAction, Box<dyn std::error::Error>>;
 }
 
@@ -82,9 +82,9 @@ pub trait SignalActionEvaluator: Send + Sync {
 impl SignalActionEvaluator for Box<dyn SignalActionEvaluator> {
     async fn evaluate(
         &self,
-        entries: &[PriceEntryLOCF],
+        candles: &[OhlcCandleRow],
     ) -> std::result::Result<SignalAction, Box<dyn std::error::Error>> {
-        (**self).evaluate(entries).await
+        (**self).evaluate(candles).await
     }
 }
 
@@ -128,9 +128,9 @@ impl<T: SignalActionEvaluator> SignalEvaluator<T> {
 
     pub async fn evaluate(
         &self,
-        entries: &[PriceEntryLOCF],
+        candles: &[OhlcCandleRow],
     ) -> ProcessRecoverableResult<SignalAction> {
-        FutureExt::catch_unwind(AssertUnwindSafe(self.action_evaluator.evaluate(entries)))
+        FutureExt::catch_unwind(AssertUnwindSafe(self.action_evaluator.evaluate(candles)))
             .await
             .map_err(|e| SignalProcessRecoverableError::EvaluatePanicked(e.into()))?
             .map_err(|e| SignalProcessRecoverableError::EvaluateError(e.to_string()))
@@ -169,9 +169,9 @@ impl Signal {
     pub(crate) async fn try_evaluate(
         evaluator: &ConfiguredSignalEvaluator,
         time: DateTime<Utc>,
-        entries: &[PriceEntryLOCF],
+        candles: &[OhlcCandleRow],
     ) -> ProcessRecoverableResult<Self> {
-        let signal_action = evaluator.evaluate(entries).await?;
+        let signal_action = evaluator.evaluate(candles).await?;
 
         Ok(Signal {
             time,
