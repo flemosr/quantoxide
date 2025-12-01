@@ -19,7 +19,7 @@ use lnm_sdk::api_v3::{
     },
 };
 
-use crate::{db::models::PriceEntryLOCF, signal::Signal, util::DateTimeExt};
+use crate::{db::models::PriceEntryLOCF, signal::Signal, sync::LookbackPeriod, util::DateTimeExt};
 
 use super::error::{TradeCoreError, TradeCoreResult, TradeExecutorResult};
 
@@ -1023,9 +1023,9 @@ pub trait RawOperator: Send + Sync {
         trade_executor: Arc<dyn TradeExecutor>,
     ) -> std::result::Result<(), Box<dyn std::error::Error>>;
 
-    fn iteration_interval_secs(&self) -> usize;
+    fn lookback(&self) -> Option<LookbackPeriod>;
 
-    fn context_window_secs(&self) -> usize;
+    fn iteration_interval_secs(&self) -> usize;
 
     async fn iterate(
         &self,
@@ -1047,17 +1047,17 @@ impl WrappedRawOperator {
         .map_err(|e| TradeCoreError::RawOperatorSetTradeExecutorError(e.to_string()))
     }
 
+    pub fn lookback(&self) -> TradeCoreResult<Option<LookbackPeriod>> {
+        let lookback = panic::catch_unwind(AssertUnwindSafe(|| self.0.lookback()))
+            .map_err(|e| TradeCoreError::RawOperatorContextWindowPanicked(e.into()))?;
+        Ok(lookback)
+    }
+
     pub fn iteration_interval(&self) -> TradeCoreResult<Duration> {
         let interval_secs =
             panic::catch_unwind(AssertUnwindSafe(|| self.0.iteration_interval_secs()))
                 .map_err(|e| TradeCoreError::RawOperatorIterationIntervalPanicked(e.into()))?;
         Ok(Duration::seconds(interval_secs as i64))
-    }
-
-    pub fn context_window_secs(&self) -> TradeCoreResult<usize> {
-        let window = panic::catch_unwind(AssertUnwindSafe(|| self.0.context_window_secs()))
-            .map_err(|e| TradeCoreError::RawOperatorContextWindowPanicked(e.into()))?;
-        Ok(window)
     }
 
     pub async fn iterate(&self, entries: &[PriceEntryLOCF]) -> TradeCoreResult<()> {
