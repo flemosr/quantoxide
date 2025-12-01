@@ -7,7 +7,7 @@ use tokio::sync::broadcast;
 use crate::{
     db::Database,
     signal::{ConfiguredSignalEvaluator, Signal},
-    sync::PriceHistoryState,
+    sync::{LookbackPeriod, PriceHistoryState},
     trade::backtest::config::BacktestConfig,
     tui::{TuiControllerShutdown, error::Result as TuiResult},
     util::{AbortOnDropHandle, DateTimeExt},
@@ -149,30 +149,26 @@ impl Operator {
         }
     }
 
-    fn max_ctx_window_secs(&self) -> Result<usize> {
+    fn max_lookback(&self) -> Result<Option<LookbackPeriod>> {
         match self {
             Operator::Signal {
                 evaluators,
                 signal_operator: _,
             } => {
-                let max_ctx_window = evaluators
+                let max_lookback = evaluators
                     .iter()
-                    .map(|(_, evaluator)| evaluator.context_window_secs())
+                    .map(|(_, evaluator)| evaluator.lookback())
                     .max()
-                    .expect("evaluators can't be empty");
+                    .expect("`evaluators` must not be empty");
 
-                Ok(max_ctx_window)
+                Ok(max_lookback)
             }
             Operator::Raw {
                 last_eval: _,
                 raw_operator,
-            } => {
-                let ctx_window = raw_operator
-                    .context_window_secs()
-                    .map_err(BacktestError::OperatorError)?;
-
-                Ok(ctx_window)
-            }
+            } => raw_operator
+                .lookback()
+                .map_err(BacktestError::OperatorError),
         }
     }
 }
@@ -206,12 +202,12 @@ impl BacktestEngine {
             return Err(BacktestError::InvalidTimeRangeTooShort { duration_hours });
         }
 
-        let max_ctx_window = operator.max_ctx_window_secs()?;
+        let max_lookback = operator.max_lookback()?;
 
-        if config.buffer_size() < max_ctx_window {
+        if max_lookback.map_or(false, |max| max.as_usize() > config.buffer_size()) {
             return Err(BacktestError::IncompatibleBufferSize {
                 buffer_size: config.buffer_size(),
-                max_ctx_window,
+                max_lookback: max_lookback.expect("not `None`"),
             });
         }
 
@@ -311,7 +307,7 @@ impl BacktestEngine {
 
         operator.set_executor(trades_executor.clone())?;
 
-        let max_ctx_window = operator.max_ctx_window_secs()?;
+        let max_lookback = operator.max_lookback()?;
 
         let buffer_size = self.config.buffer_size();
 
@@ -320,24 +316,26 @@ impl BacktestEngine {
             async move {
                 let buffer_end = time_cursor
                     .checked_add_signed(Duration::seconds(
-                        buffer_size as i64 - max_ctx_window as i64,
+                        buffer_size as i64 - max_lookback.map_or(0, |max| max.as_i64()),
                     ))
                     .ok_or(BacktestError::DateRangeBufferOutOfRange)?;
 
-                let locf_buffer = if max_ctx_window == 0 {
-                    Vec::new()
-                } else {
-                    db.price_ticks
-                        .compute_locf_entries_for_range(buffer_end, buffer_size)
-                        .await?
-                };
+                // FIXME
+                let locf_buffer = Vec::new();
+                // let locf_buffer = if max_lookback == 0 {
+                //     Vec::new()
+                // } else {
+                //     db.price_ticks
+                //         .compute_locf_entries_for_range(buffer_end, buffer_size)
+                //         .await?
+                // };
 
                 let price_ticks = db
                     .price_history
                     .get_entries_between(time_cursor, buffer_end + Duration::seconds(1))
                     .await?;
 
-                let locf_buffer_cursor_idx = max_ctx_window.checked_sub(1).unwrap_or(0);
+                let locf_buffer_cursor_idx = max_lookback.map_or(0, |max| max.as_usize() - 1);
 
                 Ok::<_, BacktestError>((
                     buffer_end,
@@ -376,13 +374,12 @@ impl BacktestEngine {
 
                         *last_eval = time_cursor;
 
-                        let ctx_window_size = evaluator.context_window_secs();
-
-                        let ctx_entries = if ctx_window_size == 0 {
-                            &[]
+                        let ctx_entries = if let Some(lookback) = evaluator.lookback() {
+                            let lookback = lookback.as_usize();
+                            &locf_buffer
+                                [locf_buffer_cursor_idx + 1 - lookback..=locf_buffer_cursor_idx]
                         } else {
-                            &locf_buffer[locf_buffer_cursor_idx + 1 - ctx_window_size
-                                ..=locf_buffer_cursor_idx]
+                            &[]
                         };
 
                         let signal = Signal::try_evaluate(evaluator, time_cursor, ctx_entries)
@@ -406,15 +403,16 @@ impl BacktestEngine {
                     if time_cursor >= *last_eval + iteration_interval {
                         *last_eval = time_cursor;
 
-                        let ctx_window_size = raw_operator
-                            .context_window_secs()
+                        let lookback_opt = raw_operator
+                            .lookback()
                             .map_err(BacktestError::OperatorError)?;
 
-                        let ctx_entries = if ctx_window_size == 0 {
-                            &[]
+                        let ctx_entries = if let Some(lookback) = lookback_opt {
+                            let lookback = lookback.as_usize();
+                            &locf_buffer
+                                [locf_buffer_cursor_idx + 1 - lookback..=locf_buffer_cursor_idx]
                         } else {
-                            &locf_buffer[locf_buffer_cursor_idx + 1 - ctx_window_size
-                                ..=locf_buffer_cursor_idx]
+                            &[]
                         };
 
                         raw_operator
