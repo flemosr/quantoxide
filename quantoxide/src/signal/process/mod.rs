@@ -64,19 +64,14 @@ impl LiveSignalProcess {
 
     async fn run(&self) -> ProcessResult<Never> {
         let mut min_evaluation_interval = Duration::MAX;
-        let mut max_lookback_len = 0;
+        let mut max_lookback = None;
         let mut evaluators = Vec::with_capacity(self.evaluators.len());
 
         let now = Utc::now().ceil_sec();
         for evaluator in self.evaluators.iter() {
-            if evaluator.evaluation_interval() < min_evaluation_interval {
-                min_evaluation_interval = evaluator.evaluation_interval();
-            }
-            if let Some(lookback) = evaluator.lookback() {
-                if lookback.as_usize() > max_lookback_len {
-                    max_lookback_len = lookback.as_usize();
-                }
-            }
+            min_evaluation_interval = min_evaluation_interval.min(evaluator.evaluation_interval());
+
+            max_lookback = max_lookback.max(evaluator.lookback());
 
             evaluators.push((now, evaluator));
         }
@@ -133,18 +128,20 @@ impl LiveSignalProcess {
                         }
                     }
                 }
-
-                now = Utc::now().ceil_sec();
             }
 
-            // FIXME
-            let all_ctx_entries = Vec::new();
-            // let all_ctx_entries = self
-            //     .db
-            //     .price_ticks
-            //     .compute_locf_entries_for_range(now, max_lookback)
-            //     .await
-            //     .map_err(SignalProcessRecoverableError::Db)?;
+            let candle_buffer = if let Some(max_lookback) = max_lookback {
+                let to = Utc::now().floor_minute();
+                let from = to - max_lookback.as_duration();
+
+                self.db
+                    .ohlc_candles
+                    .get_candles(from, to)
+                    .await
+                    .map_err(SignalProcessRecoverableError::Db)?
+            } else {
+                Vec::new()
+            };
 
             next_eval = DateTime::<Utc>::MAX_UTC;
 
@@ -161,10 +158,10 @@ impl LiveSignalProcess {
                 }
 
                 let start_idx =
-                    all_ctx_entries.len() - evaluator.lookback().map_or(0, |l| l.as_usize());
-                let signal_ctx_entries = &all_ctx_entries[start_idx..];
+                    candle_buffer.len() - evaluator.lookback().map_or(0, |l| l.as_usize());
+                let candles = &candle_buffer[start_idx..];
 
-                let signal = Signal::try_evaluate(evaluator, now, signal_ctx_entries).await?;
+                let signal = Signal::try_evaluate(evaluator, now, candles).await?;
 
                 let _ = self.update_tx.send(signal.into());
             }
