@@ -312,15 +312,17 @@ impl LiveProcess {
                 }
             }
 
-            let ctx_window = raw_operator
-                .context_window_secs()
-                .map_err(LiveProcessRecoverableError::OperatorError)?;
+            // let lookback = raw_operator
+            //     .lookback()
+            //     .map_err(LiveProcessRecoverableError::OperatorError)?;
 
-            let ctx_entries = db
-                .price_ticks
-                .compute_locf_entries_for_range(now, ctx_window)
-                .await
-                .map_err(LiveProcessRecoverableError::Db)?;
+            // FIXME
+            let ctx_entries = Vec::new();
+            // let ctx_entries = db
+            // .price_ticks
+            // .compute_locf_entries_for_range(now, ctx_window)
+            // .await
+            // .map_err(LiveProcessRecoverableError::Db)?;
 
             raw_operator
                 .iterate(ctx_entries.as_slice())
