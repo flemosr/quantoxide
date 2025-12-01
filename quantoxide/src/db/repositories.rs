@@ -202,6 +202,12 @@ pub(crate) trait OhlcCandlesRepository: Send + Sync {
         new_candles: &[OhlcCandle],
     ) -> Result<()>;
 
+    async fn get_candles(
+        &self,
+        from: DateTime<Utc>,
+        to: DateTime<Utc>,
+    ) -> Result<Vec<OhlcCandleRow>>;
+
     async fn remove_gap_flag(&self, time: DateTime<Utc>) -> Result<()>;
 
     async fn get_earliest_stable_candle(&self) -> Result<Option<OhlcCandleRow>>;
