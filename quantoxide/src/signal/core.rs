@@ -4,13 +4,11 @@ use async_trait::async_trait;
 use chrono::{DateTime, Duration, Utc};
 use futures::FutureExt;
 
-use crate::{
-    db::models::PriceEntryLOCF, signal::process::error::ProcessRecoverableResult, util::DateTimeExt,
-};
+use crate::{db::models::PriceEntryLOCF, sync::LookbackPeriod, util::DateTimeExt};
 
 use super::{
     error::{SignalValidationError, ValidationResult},
-    process::error::SignalProcessRecoverableError,
+    process::error::{ProcessRecoverableResult, SignalProcessRecoverableError},
 };
 
 #[derive(Debug, Clone)]
@@ -93,7 +91,7 @@ impl SignalActionEvaluator for Box<dyn SignalActionEvaluator> {
 pub struct SignalEvaluator<T: SignalActionEvaluator> {
     name: SignalName,
     evaluation_interval: Duration,
-    context_window_secs: usize,
+    lookback: Option<LookbackPeriod>,
     action_evaluator: T,
 }
 
@@ -101,7 +99,7 @@ impl<T: SignalActionEvaluator> SignalEvaluator<T> {
     pub fn new(
         name: SignalName,
         evaluation_interval_secs: impl TryInto<NonZeroU64>,
-        context_window_secs: usize,
+        lookback: Option<LookbackPeriod>,
         action_evaluator: T,
     ) -> ValidationResult<Self> {
         let evaluation_interval_secs: NonZeroU64 = evaluation_interval_secs
@@ -111,7 +109,7 @@ impl<T: SignalActionEvaluator> SignalEvaluator<T> {
         Ok(Self {
             name,
             evaluation_interval: Duration::seconds(evaluation_interval_secs.get() as i64),
-            context_window_secs,
+            lookback,
             action_evaluator,
         })
     }
@@ -120,12 +118,12 @@ impl<T: SignalActionEvaluator> SignalEvaluator<T> {
         &self.name
     }
 
-    pub fn evaluation_interval(&self) -> Duration {
-        self.evaluation_interval
+    pub fn lookback(&self) -> Option<LookbackPeriod> {
+        self.lookback
     }
 
-    pub fn context_window_secs(&self) -> usize {
-        self.context_window_secs
+    pub fn evaluation_interval(&self) -> Duration {
+        self.evaluation_interval
     }
 
     pub async fn evaluate(
@@ -145,7 +143,7 @@ impl SignalEvaluator<Box<dyn SignalActionEvaluator>> {
     pub fn new_boxed<E>(
         name: SignalName,
         evaluation_interval_secs: impl TryInto<NonZeroU64>,
-        context_window_secs: usize,
+        lookback: Option<LookbackPeriod>,
         action_evaluator: E,
     ) -> ValidationResult<ConfiguredSignalEvaluator>
     where
@@ -154,7 +152,7 @@ impl SignalEvaluator<Box<dyn SignalActionEvaluator>> {
         Self::new(
             name,
             evaluation_interval_secs,
-            context_window_secs,
+            lookback,
             Box::new(action_evaluator),
         )
     }
