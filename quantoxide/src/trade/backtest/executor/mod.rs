@@ -1,11 +1,13 @@
 use std::{num::NonZeroU64, sync::Arc};
 
 use async_trait::async_trait;
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Duration, Utc};
 use tokio::sync::Mutex;
 use uuid::Uuid;
 
 use lnm_sdk::api_v2::models::{Leverage, Price, TradeSide, TradeSize};
+
+use crate::db::models::OhlcCandleRow;
 
 use super::{
     super::{
@@ -38,6 +40,7 @@ impl From<TradeSide> for Close {
 
 struct SimulatedTradeExecutorState {
     time: DateTime<Utc>,
+    // TODO: Remove `last_tick_time`
     last_tick_time: DateTime<Utc>,
     market_price: f64,
     balance: i64,
@@ -57,14 +60,13 @@ pub(super) struct SimulatedTradeExecutor {
 impl SimulatedTradeExecutor {
     pub fn new(
         config: impl Into<SimulatedTradeExecutorConfig>,
-        start_time: DateTime<Utc>,
-        market_price: f64,
+        start_candle: &OhlcCandleRow,
         start_balance: u64,
     ) -> Self {
         let initial_state = SimulatedTradeExecutorState {
-            time: start_time,
-            last_tick_time: start_time,
-            market_price,
+            time: start_candle.time + Duration::seconds(59),
+            last_tick_time: start_candle.time + Duration::seconds(59),
+            market_price: start_candle.close,
             balance: start_balance as i64,
             last_trade_time: None,
             trigger: PriceTrigger::new(),
@@ -80,26 +82,10 @@ impl SimulatedTradeExecutor {
         }
     }
 
-    pub async fn time_update(&self, time: DateTime<Utc>) -> SimulatedTradeExecutorResult<()> {
+    pub async fn candle_update(&self, candle: &OhlcCandleRow) -> SimulatedTradeExecutorResult<()> {
         let mut state_guard = self.state.lock().await;
 
-        if time < state_guard.time {
-            return Err(SimulatedTradeExecutorError::TimeSequenceViolation {
-                new_time: time,
-                current_time: state_guard.time,
-            })?;
-        }
-
-        state_guard.time = time;
-        Ok(())
-    }
-
-    pub async fn tick_update(
-        &self,
-        time: DateTime<Utc>,
-        price: f64,
-    ) -> SimulatedTradeExecutorResult<()> {
-        let mut state_guard = self.state.lock().await;
+        let time = candle.time + Duration::seconds(59);
 
         if time <= state_guard.last_tick_time || time < state_guard.time {
             return Err(SimulatedTradeExecutorError::TimeSequenceViolation {
@@ -110,9 +96,11 @@ impl SimulatedTradeExecutor {
 
         state_guard.time = time;
         state_guard.last_tick_time = time;
-        state_guard.market_price = price;
+        state_guard.market_price = candle.close;
 
-        if !state_guard.trigger.was_reached(price) {
+        if !state_guard.trigger.was_reached(candle.low)
+            && !state_guard.trigger.was_reached(candle.high)
+        {
             return Ok(());
         }
 
@@ -123,9 +111,10 @@ impl SimulatedTradeExecutor {
         let mut new_closed_len = state_guard.closed_len;
         let mut new_closed_pl = state_guard.closed_pl;
         let mut new_closed_fees = state_guard.closed_fees;
+        let mut new_last_trade_time = state_guard.last_trade_time;
 
         let mut close_trade = |trade: &SimulatedTradeRunning, close_price: Price| {
-            let closed_trade = trade.to_closed(self.config.fee_perc(), time, close_price);
+            let closed_trade = trade.to_closed(self.config.fee_perc(), candle.time, close_price);
 
             new_balance += closed_trade.margin().into_i64() + closed_trade.maintenance_margin()
                 - closed_trade.closing_fee() as i64
@@ -134,6 +123,7 @@ impl SimulatedTradeExecutor {
             new_closed_len += 1;
             new_closed_pl += closed_trade.pl();
             new_closed_fees += closed_trade.opening_fee() + closed_trade.closing_fee();
+            new_last_trade_time = Some(time);
         };
 
         let mut new_trigger = PriceTrigger::new();
@@ -148,14 +138,14 @@ impl SimulatedTradeExecutor {
             };
 
             if let Some(trade_min) = trade_min_opt {
-                if price <= trade_min.into_f64() {
+                if candle.low <= trade_min.into_f64() {
                     close_trade(trade.as_ref(), trade_min);
                     continue;
                 }
             }
 
             if let Some(trade_max) = trade_max_opt {
-                if price >= trade_max.into_f64() {
+                if candle.high >= trade_max.into_f64() {
                     close_trade(trade.as_ref(), trade_max);
                     continue;
                 }
@@ -169,7 +159,7 @@ impl SimulatedTradeExecutor {
                     )
                     .map_err(SimulatedTradeExecutorError::StoplossEvaluation)?;
 
-                let market_price = Price::round(price)
+                let market_price = Price::round(candle.close)
                     .map_err(SimulatedTradeExecutorError::TickUpdatePriceValidation)?;
 
                 let new_stoploss = match trade.side() {
@@ -211,6 +201,7 @@ impl SimulatedTradeExecutor {
         state_guard.closed_len = new_closed_len;
         state_guard.closed_pl = new_closed_pl;
         state_guard.closed_fees = new_closed_fees;
+        state_guard.last_trade_time = new_last_trade_time;
 
         Ok(())
     }
