@@ -77,3 +77,20 @@ pub struct OhlcCandleRow {
     pub gap: bool,
     pub stable: bool,
 }
+
+impl OhlcCandleRow {
+    pub(crate) fn new_simple(time: DateTime<Utc>, price: f64, volume: i64) -> Self {
+        Self {
+            time,
+            open: price,
+            high: price,
+            low: price,
+            close: price,
+            volume,
+            created_at: time,
+            updated_at: time,
+            gap: false,
+            stable: true,
+        }
+    }
+}
