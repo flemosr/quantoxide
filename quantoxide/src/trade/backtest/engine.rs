@@ -287,25 +287,7 @@ impl BacktestEngine {
     async fn run(self) -> Result<TradingState> {
         self.status_manager.update(BacktestStatus::Starting);
 
-        let trades_executor = {
-            let start_time_entry = self
-                .db
-                .price_history
-                .get_latest_entry_at_or_before(self.start_time)
-                .await?
-                .ok_or(BacktestError::DatabaseNoEntriesBeforeStartTime)?;
-
-            Arc::new(SimulatedTradeExecutor::new(
-                &self.config,
-                self.start_time,
-                start_time_entry.value,
-                self.start_balance,
-            ))
-        };
-
         let mut operator = self.operator;
-
-        operator.set_executor(trades_executor.clone())?;
 
         let max_lookback = operator.max_lookback()?;
 
@@ -314,50 +296,40 @@ impl BacktestEngine {
         let get_buffers = |time_cursor: DateTime<Utc>| {
             let db = &self.db;
             async move {
-                let buffer_end = time_cursor
-                    .checked_add_signed(Duration::seconds(
-                        buffer_size as i64 - max_lookback.map_or(0, |max| max.as_i64()),
-                    ))
-                    .ok_or(BacktestError::DateRangeBufferOutOfRange)?;
+                let candle_buffer = if let Some(max_lookback) = max_lookback {
+                    let to = time_cursor
+                        .checked_add_signed(Duration::minutes(
+                            buffer_size as i64 - max_lookback.as_i64(),
+                        ))
+                        .ok_or(BacktestError::DateRangeBufferOutOfRange)?;
+                    let from = to - max_lookback.as_duration();
 
-                // FIXME
-                let locf_buffer = Vec::new();
-                // let locf_buffer = if max_lookback == 0 {
-                //     Vec::new()
-                // } else {
-                //     db.price_ticks
-                //         .compute_locf_entries_for_range(buffer_end, buffer_size)
-                //         .await?
-                // };
+                    db.ohlc_candles.get_candles(from, to).await?
+                } else {
+                    Vec::new()
+                };
 
-                let price_ticks = db
-                    .price_history
-                    .get_entries_between(time_cursor, buffer_end + Duration::seconds(1))
-                    .await?;
+                let buffer_cursor_idx = max_lookback.map_or(0, |max| max.as_usize() - 1);
 
-                let locf_buffer_cursor_idx = max_lookback.map_or(0, |max| max.as_usize() - 1);
-
-                Ok::<_, BacktestError>((
-                    buffer_end,
-                    locf_buffer,
-                    locf_buffer_cursor_idx,
-                    price_ticks,
-                    0,
-                ))
+                Ok::<_, BacktestError>((candle_buffer, buffer_cursor_idx))
             }
         };
 
-        let mut time_cursor = self.start_time;
+        let (mut candle_buffer, mut buffer_cursor_idx) = get_buffers(self.start_time).await?;
 
-        let (
-            mut buffer_end,
-            mut locf_buffer,
-            mut locf_buffer_cursor_idx,
-            mut price_ticks,
-            mut price_ticks_cursor_idx,
-        ) = get_buffers(time_cursor).await?;
+        let start_candle = &candle_buffer[buffer_cursor_idx];
 
-        let mut send_next_update_at = self.start_time + self.config.update_interval();
+        let trades_executor = Arc::new(SimulatedTradeExecutor::new(
+            &self.config,
+            &start_candle,
+            self.start_balance,
+        ));
+
+        operator.set_executor(trades_executor.clone())?;
+
+        let mut time_cursor = start_candle.time + Duration::seconds(59);
+
+        let mut send_next_update_at = time_cursor + self.config.update_interval();
 
         self.status_manager.update(BacktestStatus::Running);
 
@@ -374,15 +346,14 @@ impl BacktestEngine {
 
                         *last_eval = time_cursor;
 
-                        let ctx_entries = if let Some(lookback) = evaluator.lookback() {
+                        let ctx_candles = if let Some(lookback) = evaluator.lookback() {
                             let lookback = lookback.as_usize();
-                            &locf_buffer
-                                [locf_buffer_cursor_idx + 1 - lookback..=locf_buffer_cursor_idx]
+                            &candle_buffer[buffer_cursor_idx + 1 - lookback..=buffer_cursor_idx]
                         } else {
                             &[]
                         };
 
-                        let signal = Signal::try_evaluate(evaluator, time_cursor, ctx_entries)
+                        let signal = Signal::try_evaluate(evaluator, time_cursor, ctx_candles)
                             .await
                             .map_err(BacktestError::SignalEvaluationError)?;
 
@@ -407,16 +378,15 @@ impl BacktestEngine {
                             .lookback()
                             .map_err(BacktestError::OperatorError)?;
 
-                        let ctx_entries = if let Some(lookback) = lookback_opt {
+                        let ctx_candles = if let Some(lookback) = lookback_opt {
                             let lookback = lookback.as_usize();
-                            &locf_buffer
-                                [locf_buffer_cursor_idx + 1 - lookback..=locf_buffer_cursor_idx]
+                            &candle_buffer[buffer_cursor_idx + 1 - lookback..=buffer_cursor_idx]
                         } else {
                             &[]
                         };
 
                         raw_operator
-                            .iterate(ctx_entries)
+                            .iterate(ctx_candles)
                             .await
                             .map_err(BacktestError::OperatorError)?;
                     }
@@ -435,43 +405,29 @@ impl BacktestEngine {
                 send_next_update_at += self.config.update_interval();
             }
 
-            time_cursor += Duration::seconds(1);
+            if time_cursor + Duration::minutes(1) >= self.end_time {
+                break;
+            }
+
+            if buffer_cursor_idx < candle_buffer.len() - 1 {
+                buffer_cursor_idx += 1;
+            } else {
+                (candle_buffer, buffer_cursor_idx) =
+                    get_buffers(time_cursor.floor_minute()).await?;
+            }
+
+            let next_candle = &candle_buffer[buffer_cursor_idx];
+
+            time_cursor = next_candle.time + Duration::seconds(59);
 
             if time_cursor >= self.end_time {
                 break;
             }
 
-            // Update `SimulatedTradeExecutor` with all the price ticks with time lte the new
-            // `time_cursor`.
-            while let Some(next_price_tick) = price_ticks.get(price_ticks_cursor_idx) {
-                if next_price_tick.time > time_cursor {
-                    break;
-                }
-
-                trades_executor
-                    .tick_update(next_price_tick.time, next_price_tick.value)
-                    .await
-                    .map_err(BacktestError::ExecutorTickUpdate)?;
-
-                price_ticks_cursor_idx += 1;
-            }
-
-            if time_cursor <= buffer_end {
-                locf_buffer_cursor_idx += 1;
-            } else {
-                (
-                    buffer_end,
-                    locf_buffer,
-                    locf_buffer_cursor_idx,
-                    price_ticks,
-                    price_ticks_cursor_idx,
-                ) = get_buffers(time_cursor).await?;
-            }
-
             trades_executor
-                .time_update(time_cursor)
+                .candle_update(next_candle)
                 .await
-                .map_err(BacktestError::ExecutorTimeUpdate)?;
+                .map_err(BacktestError::ExecutorTickUpdate)?;
         }
 
         let final_state = trades_executor
