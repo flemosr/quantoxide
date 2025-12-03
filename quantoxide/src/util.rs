@@ -18,6 +18,8 @@ pub(crate) trait DateTimeExt {
 
     fn floor_minute(&self) -> DateTime<Utc>;
 
+    fn next_minute(&self) -> DateTime<Utc>;
+
     fn is_round(&self) -> bool;
 
     fn format_local_secs(&self) -> String;
@@ -39,6 +41,10 @@ impl DateTimeExt for DateTime<Utc> {
         self.trunc_subsecs(0)
             .with_second(0)
             .expect("second is always valid")
+    }
+
+    fn next_minute(&self) -> DateTime<Utc> {
+        self.floor_minute() + Duration::minutes(1)
     }
 
     fn is_round(&self) -> bool {
