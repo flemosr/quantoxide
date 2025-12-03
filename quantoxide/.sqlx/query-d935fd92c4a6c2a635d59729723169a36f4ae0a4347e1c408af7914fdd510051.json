@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n                SELECT time, open, high, low, close, volume, created_at, updated_at, gap, stable\n                FROM ohlc_candles\n                WHERE time >= $1 AND time <= $2\n                ORDER BY time DESC\n            ",
+  "query": "\n                SELECT time, open, high, low, close, volume, created_at, updated_at, gap, stable\n                FROM ohlc_candles\n                WHERE time >= $1 AND time <= $2\n                ORDER BY time ASC\n            ",
   "describe": {
     "columns": [
       {
@@ -73,5 +73,5 @@
       false
     ]
   },
-  "hash": "96772d2e5c9d61bd855437e235e2298e187dfd04ca62f087fe22e87088c3dd9d"
+  "hash": "d935fd92c4a6c2a635d59729723169a36f4ae0a4347e1c408af7914fdd510051"
 }
