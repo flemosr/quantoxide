@@ -132,7 +132,7 @@ impl LiveSignalProcess {
 
             let candle_buffer = if let Some(max_lookback) = max_lookback {
                 let to = Utc::now().floor_minute();
-                let from = to - max_lookback.as_duration();
+                let from = to - max_lookback.as_duration() + Duration::minutes(1);
 
                 self.db
                     .ohlc_candles
@@ -157,8 +157,9 @@ impl LiveSignalProcess {
                     next_eval = evaluator_next_eval;
                 }
 
-                let start_idx =
-                    candle_buffer.len() - evaluator.lookback().map_or(0, |l| l.as_usize());
+                let start_idx = candle_buffer
+                    .len()
+                    .saturating_sub(evaluator.lookback().map_or(0, |l| l.as_usize()));
                 let candles = &candle_buffer[start_idx..];
 
                 let signal = Signal::try_evaluate(evaluator, now, candles).await?;
