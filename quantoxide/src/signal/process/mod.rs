@@ -63,20 +63,21 @@ impl LiveSignalProcess {
     }
 
     async fn run(&self) -> ProcessResult<Never> {
-        let mut min_evaluation_interval = Duration::MAX;
+        let mut min_iteration_interval = Duration::MAX;
         let mut max_lookback = None;
         let mut evaluators = Vec::with_capacity(self.evaluators.len());
 
         let now = Utc::now().ceil_sec();
         for evaluator in self.evaluators.iter() {
-            min_evaluation_interval = min_evaluation_interval.min(evaluator.evaluation_interval());
+            min_iteration_interval =
+                min_iteration_interval.min(evaluator.min_iteration_interval().as_duration());
 
             max_lookback = max_lookback.max(evaluator.lookback());
 
             evaluators.push((now, evaluator));
         }
 
-        let mut next_eval = now + min_evaluation_interval;
+        let mut next_eval = now + min_iteration_interval;
 
         loop {
             let mut now = Utc::now();
@@ -146,13 +147,13 @@ impl LiveSignalProcess {
             next_eval = DateTime::<Utc>::MAX_UTC;
 
             for (last_eval, evaluator) in evaluators.iter_mut() {
-                if now < *last_eval + evaluator.evaluation_interval() {
+                if now < *last_eval + evaluator.min_iteration_interval().as_duration() {
                     continue;
                 }
 
                 *last_eval = now;
 
-                let evaluator_next_eval = now + evaluator.evaluation_interval();
+                let evaluator_next_eval = now + evaluator.min_iteration_interval().as_duration();
                 if evaluator_next_eval < next_eval {
                     next_eval = evaluator_next_eval;
                 }
