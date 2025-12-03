@@ -214,20 +214,18 @@ impl LiveProcess {
         let mut last_eval = Utc::now();
 
         loop {
-            let iteration_interval = raw_operator
-                .iteration_interval()
-                .map_err(LiveProcessRecoverableError::OperatorError)?;
+            let min_iteration_interval = raw_operator
+                .min_iteration_interval()
+                .map_err(LiveProcessRecoverableError::OperatorError)?
+                .as_duration();
 
-            let target_exec = (last_eval + iteration_interval).ceil_sec();
+            let target_exec = (last_eval + min_iteration_interval).ceil_sec();
             let now = Utc::now();
 
-            if now >= target_exec {
-                return Err(LiveProcessRecoverableError::OperatorIterationTimeTooLong.into());
+            if now < target_exec {
+                let wait_duration = (target_exec - now).to_std().expect("valid duration");
+                time::sleep(wait_duration).await;
             }
-
-            let wait_duration = (target_exec - now).to_std().expect("valid duration");
-            time::sleep(wait_duration).await;
-            last_eval = target_exec;
 
             if let SyncStatus::NotSynced(sync_status_not_synced) = sync_reader.status_snapshot() {
                 self.status_manager
@@ -272,9 +270,10 @@ impl LiveProcess {
                     }
                 }
 
-                last_eval = Utc::now();
                 continue;
             }
+
+            last_eval = Utc::now();
 
             let tex_state = self.trade_executor.state_snapshot().await;
             let tex_status = tex_state.status();
