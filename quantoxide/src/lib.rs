@@ -9,7 +9,9 @@ mod util;
 
 pub mod error {
     pub use super::db::error::DbError;
-    pub use super::shared::error::MinIterationIntervalValidationError;
+    pub use super::shared::error::{
+        LookbackPeriodValidationError, MinIterationIntervalValidationError,
+    };
     pub use super::signal::{
         error::{SignalError, SignalValidationError},
         process::error::{
@@ -44,7 +46,7 @@ pub mod error {
 
 pub mod models {
     pub use super::db::models::{OhlcCandleRow, PriceEntryLOCF, PriceEntryRow, PriceTickRow};
-    pub use super::shared::MinIterationInterval;
+    pub use super::shared::{LookbackPeriod, MinIterationInterval};
 }
 
 mod sealed {

@@ -1,6 +1,16 @@
 use thiserror::Error;
 
-use super::MinIterationInterval;
+use super::{LookbackPeriod, MinIterationInterval};
+
+#[derive(Error, Debug)]
+pub enum LookbackPeriodValidationError {
+    #[error("Invalid lookback period, must be at least {}", LookbackPeriod::MIN)]
+    InvalidLookbackPeriodTooShort,
+
+    #[error("Invalid lookback period, must be at most {}", LookbackPeriod::MAX)]
+    InvalidLookbackPeriodTooLong,
+}
+
 
 #[derive(Error, Debug)]
 pub enum MinIterationIntervalValidationError {
@@ -16,3 +26,4 @@ pub enum MinIterationIntervalValidationError {
     )]
     InvalidMinIterationIntervalTooLong,
 }
+

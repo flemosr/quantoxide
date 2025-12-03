@@ -1,16 +1,13 @@
-use std::{
-    fmt,
-    sync::{Arc, Mutex},
-};
+use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
-use chrono::Duration;
 use tokio::{sync::broadcast, time};
 
 use lnm_sdk::{api_v2::WebSocketClient, api_v3::RestClient};
 
 use crate::{
     db::Database,
+    shared::LookbackPeriod,
     sync::config::{SyncConfig, SyncControllerConfig},
     tui::{TuiControllerShutdown, TuiError, error::Result as TuiResult},
     util::AbortOnDropHandle,
@@ -125,52 +122,6 @@ pub enum SyncMode {
     Backfill,
     Live(Option<LookbackPeriod>),
     Full,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Eq, Ord)]
-pub struct LookbackPeriod(u64);
-
-impl LookbackPeriod {
-    pub const MIN: Self = Self(5);
-
-    pub const MAX: Self = Self(1440);
-
-    pub fn as_duration(&self) -> Duration {
-        Duration::minutes(self.0 as i64)
-    }
-
-    pub fn as_u64(&self) -> u64 {
-        self.0
-    }
-
-    pub fn as_usize(&self) -> usize {
-        self.0 as usize
-    }
-
-    pub fn as_i64(&self) -> i64 {
-        self.0 as i64
-    }
-}
-
-impl TryFrom<u64> for LookbackPeriod {
-    type Error = SyncError;
-    fn try_from(value: u64) -> std::result::Result<Self, Self::Error> {
-        if value < Self::MIN.0 {
-            return Err(SyncError::InvalidLookbackPeriodTooShort);
-        }
-
-        if value > Self::MAX.0 {
-            return Err(SyncError::InvalidLookbackPeriodTooLong);
-        }
-
-        Ok(Self(value))
-    }
-}
-
-impl fmt::Display for LookbackPeriod {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.0.fmt(f)
-    }
 }
 
 impl SyncMode {
