@@ -215,12 +215,20 @@ impl BacktestEngine {
             .await
             .map_err(BacktestError::PriceHistoryStateEvaluation)?;
 
+        let lookback_time = if let Some(lookback) = max_lookback {
+            start_time
+                .checked_sub_signed(Duration::minutes(lookback.as_i64() - 1))
+                .ok_or(BacktestError::DateRangeBufferOutOfRange)?
+        } else {
+            start_time
+        };
+
         if !price_history_state
-            .is_range_available(start_time, end_time)
+            .is_range_available(lookback_time, end_time)
             .map_err(BacktestError::PriceHistoryStateEvaluation)?
         {
             return Err(BacktestError::PriceHistoryUnavailable {
-                start_time,
+                lookback_time,
                 end_time,
             });
         }
@@ -293,23 +301,29 @@ impl BacktestEngine {
 
         let buffer_size = self.config.buffer_size();
 
-        let get_buffers = |time_cursor: DateTime<Utc>| {
+        let get_buffers = |start_minute: DateTime<Utc>| {
             let db = &self.db;
             async move {
-                let candle_buffer = if let Some(max_lookback) = max_lookback {
-                    let to = time_cursor
-                        .checked_add_signed(Duration::minutes(
-                            buffer_size as i64 - max_lookback.as_i64(),
-                        ))
-                        .ok_or(BacktestError::DateRangeBufferOutOfRange)?;
-                    let from = to - max_lookback.as_duration();
+                // From `::new`, `max_lookback` must be lte `buffer_size`
 
-                    db.ohlc_candles.get_candles(from, to).await?
-                } else {
-                    Vec::new()
-                };
+                let from = start_minute
+                    .checked_sub_signed(Duration::minutes(
+                        max_lookback.map_or(0, |l| l.as_i64() - 1),
+                    ))
+                    .ok_or(BacktestError::DateRangeBufferOutOfRange)?;
 
-                let buffer_cursor_idx = max_lookback.map_or(0, |max| max.as_usize() - 1);
+                let to = from
+                    .checked_add_signed(Duration::minutes(buffer_size as i64))
+                    .ok_or(BacktestError::DateRangeBufferOutOfRange)?;
+
+                let candle_buffer = db.ohlc_candles.get_candles(from, to).await?;
+
+                // Some candles may have been skipped
+
+                let mut buffer_cursor_idx = 0;
+                while candle_buffer[buffer_cursor_idx].time < start_minute {
+                    buffer_cursor_idx += 1;
+                }
 
                 Ok::<_, BacktestError>((candle_buffer, buffer_cursor_idx))
             }
@@ -412,8 +426,7 @@ impl BacktestEngine {
             if buffer_cursor_idx < candle_buffer.len() - 1 {
                 buffer_cursor_idx += 1;
             } else {
-                (candle_buffer, buffer_cursor_idx) =
-                    get_buffers(time_cursor.floor_minute()).await?;
+                (candle_buffer, buffer_cursor_idx) = get_buffers(time_cursor.next_minute()).await?;
             }
 
             let next_candle = &candle_buffer[buffer_cursor_idx];

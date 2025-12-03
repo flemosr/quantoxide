@@ -47,9 +47,11 @@ pub enum BacktestError {
     #[error("No price history entries found before start time")]
     DatabaseNoEntriesBeforeStartTime,
 
-    #[error("Price history range ({start_time} to {end_time}) is not available")]
+    #[error(
+        "Required price history range including lookback period ({lookback_time} to {end_time}) is not available"
+    )]
     PriceHistoryUnavailable {
-        start_time: DateTime<Utc>,
+        lookback_time: DateTime<Utc>,
         end_time: DateTime<Utc>,
     },
 
