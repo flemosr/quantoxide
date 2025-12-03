@@ -10,12 +10,13 @@ use lnm_sdk::{api_v2::WebSocketClient, api_v3::RestClient};
 
 use crate::{
     db::{Database, models::PriceTickRow},
+    shared::LookbackPeriod,
     util::{AbortOnDropHandle, Never},
 };
 
 use super::{
     config::{SyncConfig, SyncProcessConfig},
-    engine::{LookbackPeriod, SyncMode},
+    engine::SyncMode,
     state::{SyncStatus, SyncStatusManager, SyncStatusNotSynced, SyncTransmiter},
 };
 

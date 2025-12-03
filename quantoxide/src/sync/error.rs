@@ -4,18 +4,17 @@ use thiserror::Error;
 
 use lnm_sdk::api_v3::error::RestApiError;
 
-use super::{engine::LookbackPeriod, process::error::SyncProcessFatalError, state::SyncStatus};
+use crate::shared::error::LookbackPeriodValidationError;
+
+use super::{process::error::SyncProcessFatalError, state::SyncStatus};
 
 #[derive(Error, Debug)]
 pub enum SyncError {
     #[error("REST API client initialization error: {0}")]
     RestApiInit(RestApiError),
 
-    #[error("Invalid lookback period, must be at least {}", LookbackPeriod::MIN)]
-    InvalidLookbackPeriodTooShort,
-
-    #[error("Invalid lookback period, must be at most {}", LookbackPeriod::MAX)]
-    InvalidLookbackPeriodTooLong,
+    #[error(transparent)]
+    InvalidLookbackPeriod(#[from] LookbackPeriodValidationError),
 
     #[error("Sync already shutdown error")]
     SyncAlreadyShutdown,

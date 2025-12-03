@@ -8,12 +8,9 @@ use lnm_sdk::api_v3::{
     models::{OhlcCandle, OhlcRange},
 };
 
-use crate::db::Database;
+use crate::{db::Database, shared::LookbackPeriod};
 
-use super::super::{
-    config::{SyncPriceHistoryTaskConfig, SyncProcessConfig},
-    engine::LookbackPeriod,
-};
+use super::super::config::{SyncPriceHistoryTaskConfig, SyncProcessConfig};
 
 pub(crate) mod error;
 pub(in crate::sync) mod price_history_state;
