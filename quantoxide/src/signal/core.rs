@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use chrono::{DateTime, Duration, Utc};
 use futures::FutureExt;
 
-use crate::{db::models::OhlcCandleRow, sync::LookbackPeriod, util::DateTimeExt};
+use crate::{db::models::OhlcCandleRow, shared::LookbackPeriod, util::DateTimeExt};
 
 use super::{
     error::{SignalValidationError, ValidationResult},
