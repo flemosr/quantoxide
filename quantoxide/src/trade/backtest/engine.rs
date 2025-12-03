@@ -381,11 +381,12 @@ impl BacktestEngine {
                     last_eval,
                     raw_operator,
                 } => {
-                    let iteration_interval = raw_operator
-                        .iteration_interval()
-                        .map_err(BacktestError::OperatorError)?;
+                    let min_iteration_interval = raw_operator
+                        .min_iteration_interval()
+                        .map_err(BacktestError::OperatorError)?
+                        .as_duration();
 
-                    if time_cursor >= *last_eval + iteration_interval {
+                    if time_cursor >= *last_eval + min_iteration_interval {
                         *last_eval = time_cursor;
 
                         let lookback_opt = raw_operator
