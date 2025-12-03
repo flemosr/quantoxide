@@ -7,7 +7,7 @@ use std::{
 };
 
 use async_trait::async_trait;
-use chrono::{DateTime, Duration, Utc};
+use chrono::{DateTime, Utc};
 use futures::FutureExt;
 use uuid::Uuid;
 
@@ -19,7 +19,10 @@ use lnm_sdk::api_v3::{
     },
 };
 
-use crate::{db::models::OhlcCandleRow, signal::Signal, sync::LookbackPeriod, util::DateTimeExt};
+use crate::{
+    db::models::OhlcCandleRow, shared::MinIterationInterval, signal::Signal, sync::LookbackPeriod,
+    util::DateTimeExt,
+};
 
 use super::error::{TradeCoreError, TradeCoreResult, TradeExecutorResult};
 
@@ -1025,7 +1028,7 @@ pub trait RawOperator: Send + Sync {
 
     fn lookback(&self) -> Option<LookbackPeriod>;
 
-    fn iteration_interval_secs(&self) -> usize;
+    fn min_iteration_interval(&self) -> MinIterationInterval;
 
     async fn iterate(
         &self,
@@ -1053,11 +1056,10 @@ impl WrappedRawOperator {
         Ok(lookback)
     }
 
-    pub fn iteration_interval(&self) -> TradeCoreResult<Duration> {
-        let interval_secs =
-            panic::catch_unwind(AssertUnwindSafe(|| self.0.iteration_interval_secs()))
-                .map_err(|e| TradeCoreError::RawOperatorIterationIntervalPanicked(e.into()))?;
-        Ok(Duration::seconds(interval_secs as i64))
+    pub fn min_iteration_interval(&self) -> TradeCoreResult<MinIterationInterval> {
+        let interval = panic::catch_unwind(AssertUnwindSafe(|| self.0.min_iteration_interval()))
+            .map_err(|e| TradeCoreError::RawOperatorIterationIntervalPanicked(e.into()))?;
+        Ok(interval)
     }
 
     pub async fn iterate(&self, candles: &[OhlcCandleRow]) -> TradeCoreResult<()> {
