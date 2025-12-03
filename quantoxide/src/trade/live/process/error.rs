@@ -33,9 +33,8 @@ pub enum LiveProcessRecoverableError {
 
     #[error("`ExecutorRecvLagged` error, skipped: {skipped}")]
     ExecutorRecvLagged { skipped: u64 },
-
-    #[error("Operator iteration time too long for iteration interval")]
-    OperatorIterationTimeTooLong,
+    // #[error("Operator iteration time too long for iteration interval")]
+    // OperatorIterationTimeTooLong,
 }
 
 #[derive(Error, Debug)]

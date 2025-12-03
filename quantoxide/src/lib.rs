@@ -1,5 +1,6 @@
 pub mod db;
 mod indicators;
+mod shared;
 pub mod signal;
 pub mod sync;
 pub mod trade;
@@ -8,6 +9,7 @@ mod util;
 
 pub mod error {
     pub use super::db::error::DbError;
+    pub use super::shared::error::MinIterationIntervalValidationError;
     pub use super::signal::{
         error::{SignalError, SignalValidationError},
         process::error::{
@@ -42,6 +44,7 @@ pub mod error {
 
 pub mod models {
     pub use super::db::models::{OhlcCandleRow, PriceEntryLOCF, PriceEntryRow, PriceTickRow};
+    pub use super::shared::MinIterationInterval;
 }
 
 mod sealed {
