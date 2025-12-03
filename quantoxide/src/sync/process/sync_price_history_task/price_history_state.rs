@@ -6,7 +6,7 @@ use crate::{db::Database, util::DateTimeExt};
 
 use super::error::{Result, SyncPriceHistoryError};
 
-// FIXME: Rename
+// FIXME: Rename?
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PriceHistoryState {
     reach_time: Option<DateTime<Utc>>,
@@ -119,25 +119,24 @@ impl PriceHistoryState {
         Ok(range_within_bounds && range_without_gaps)
     }
 
+    // TODO: Return an enum describing the bound or gap instead?
     pub(crate) fn next_download_range(
         &self,
         backfilling: bool,
     ) -> Result<(Option<DateTime<Utc>>, Option<DateTime<Utc>>)> {
-        let Some(reach_time) = self.reach_time else {
-            return Err(SyncPriceHistoryError::PriceHistoryStateReachNotSet);
-        };
-
         let history_bounds = match &self.bounds {
             Some(bounds) => bounds,
             None => return Ok((None, None)),
         };
 
-        if history_bounds.0 == history_bounds.1 && history_bounds.0 < reach_time {
+        if self.reach_time.map_or(false, |reach_time| {
+            history_bounds.0 == history_bounds.1 && history_bounds.0 < reach_time
+        }) {
             // DB has a single unreachable entry. Edge case
 
             return Err(SyncPriceHistoryError::UnreachableDbGap {
                 gap: history_bounds.0,
-                reach: reach_time,
+                reach: self.reach_time.expect("not `None`"),
             });
         }
 
@@ -148,20 +147,25 @@ impl PriceHistoryState {
         };
 
         if let Some((gap_from, gap_to)) = prioritized_gap {
-            if *gap_from < reach_time {
+            if self
+                .reach_time
+                .map_or(false, |reach_time| *gap_from < reach_time)
+            {
                 // Gap before `reach`. Since entries before `reach` can't be fetched, said gap
                 // can't be closed. Therefore, the DB can't be synced.
                 return Err(SyncPriceHistoryError::UnreachableDbGap {
                     gap: *gap_from,
-                    reach: reach_time,
+                    reach: self.reach_time.expect("not `None`"),
                 });
             }
 
             return Ok((Some(*gap_from), Some(*gap_to)));
         }
 
-        if backfilling && history_bounds.0 > reach_time {
-            // Price history can be extended further into the past
+        if self.reach_time.map_or(false, |reach_time| {
+            backfilling && history_bounds.0 > reach_time
+        }) {
+            // Price history should be extended further into the past
 
             return Ok((None, Some(history_bounds.0)));
         }
