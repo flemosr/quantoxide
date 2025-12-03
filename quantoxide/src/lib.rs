@@ -41,7 +41,7 @@ pub mod error {
 }
 
 pub mod models {
-    pub use super::db::models::{PriceEntryLOCF, PriceEntryRow, PriceTickRow};
+    pub use super::db::models::{OhlcCandleRow, PriceEntryLOCF, PriceEntryRow, PriceTickRow};
 }
 
 mod sealed {
