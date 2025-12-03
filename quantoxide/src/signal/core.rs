@@ -1,10 +1,14 @@
-use std::{fmt, num::NonZeroU64, panic::AssertUnwindSafe};
+use std::{fmt, panic::AssertUnwindSafe};
 
 use async_trait::async_trait;
-use chrono::{DateTime, Duration, Utc};
+use chrono::{DateTime, Utc};
 use futures::FutureExt;
 
-use crate::{db::models::OhlcCandleRow, shared::LookbackPeriod, util::DateTimeExt};
+use crate::{
+    db::models::OhlcCandleRow,
+    shared::{LookbackPeriod, MinIterationInterval},
+    util::DateTimeExt,
+};
 
 use super::{
     error::{SignalValidationError, ValidationResult},
@@ -90,7 +94,7 @@ impl SignalActionEvaluator for Box<dyn SignalActionEvaluator> {
 
 pub struct SignalEvaluator<T: SignalActionEvaluator> {
     name: SignalName,
-    evaluation_interval: Duration,
+    min_iteration_interval: MinIterationInterval,
     lookback: Option<LookbackPeriod>,
     action_evaluator: T,
 }
@@ -98,20 +102,16 @@ pub struct SignalEvaluator<T: SignalActionEvaluator> {
 impl<T: SignalActionEvaluator> SignalEvaluator<T> {
     pub fn new(
         name: SignalName,
-        evaluation_interval_secs: impl TryInto<NonZeroU64>,
+        min_iteration_interval: MinIterationInterval,
         lookback: Option<LookbackPeriod>,
         action_evaluator: T,
-    ) -> ValidationResult<Self> {
-        let evaluation_interval_secs: NonZeroU64 = evaluation_interval_secs
-            .try_into()
-            .map_err(|_| SignalValidationError::InvalidEvaluationInterval)?;
-
-        Ok(Self {
+    ) -> Self {
+        Self {
             name,
-            evaluation_interval: Duration::seconds(evaluation_interval_secs.get() as i64),
+            min_iteration_interval,
             lookback,
             action_evaluator,
-        })
+        }
     }
 
     pub fn name(&self) -> &SignalName {
@@ -122,8 +122,8 @@ impl<T: SignalActionEvaluator> SignalEvaluator<T> {
         self.lookback
     }
 
-    pub fn evaluation_interval(&self) -> Duration {
-        self.evaluation_interval
+    pub fn min_iteration_interval(&self) -> MinIterationInterval {
+        self.min_iteration_interval
     }
 
     pub async fn evaluate(
@@ -142,16 +142,16 @@ pub type ConfiguredSignalEvaluator = SignalEvaluator<Box<dyn SignalActionEvaluat
 impl SignalEvaluator<Box<dyn SignalActionEvaluator>> {
     pub fn new_boxed<E>(
         name: SignalName,
-        evaluation_interval_secs: impl TryInto<NonZeroU64>,
+        min_iteration_interval: MinIterationInterval,
         lookback: Option<LookbackPeriod>,
         action_evaluator: E,
-    ) -> ValidationResult<ConfiguredSignalEvaluator>
+    ) -> ConfiguredSignalEvaluator
     where
         E: SignalActionEvaluator + 'static,
     {
         Self::new(
             name,
-            evaluation_interval_secs,
+            min_iteration_interval,
             lookback,
             Box::new(action_evaluator),
         )

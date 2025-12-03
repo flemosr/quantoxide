@@ -6,9 +6,6 @@ use super::{process::error::SignalProcessFatalError, state::LiveSignalStatus};
 
 #[derive(Error, Debug)]
 pub enum SignalValidationError {
-    #[error("It was not possible to convert `evaluation_interval_secs` to `NonZeroU64`")]
-    InvalidEvaluationInterval,
-
     #[error("`SignalName` cannot be an empty `String`")]
     InvalidSignalNameEmptyString,
 
