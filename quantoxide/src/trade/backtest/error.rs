@@ -5,9 +5,9 @@ use thiserror::Error;
 use tokio::task::JoinError;
 
 use crate::{
-    db::error::DbError,
+    db::error::DbError, shared::LookbackPeriod,
     signal::process::error::SignalProcessRecoverableError,
-    sync::{LookbackPeriod, process::sync_price_history_task::error::SyncPriceHistoryError},
+    sync::process::sync_price_history_task::error::SyncPriceHistoryError,
 };
 
 use super::{

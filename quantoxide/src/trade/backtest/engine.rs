@@ -6,8 +6,9 @@ use tokio::sync::broadcast;
 
 use crate::{
     db::Database,
+    shared::LookbackPeriod,
     signal::{ConfiguredSignalEvaluator, Signal},
-    sync::{LookbackPeriod, PriceHistoryState},
+    sync::PriceHistoryState,
     trade::backtest::config::BacktestConfig,
     tui::{TuiControllerShutdown, error::Result as TuiResult},
     util::{AbortOnDropHandle, DateTimeExt},

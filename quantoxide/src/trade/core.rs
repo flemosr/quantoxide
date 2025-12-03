@@ -20,8 +20,8 @@ use lnm_sdk::api_v3::{
 };
 
 use crate::{
-    db::models::OhlcCandleRow, shared::MinIterationInterval, signal::Signal, sync::LookbackPeriod,
-    util::DateTimeExt,
+    db::models::OhlcCandleRow, shared::LookbackPeriod, shared::MinIterationInterval,
+    signal::Signal, util::DateTimeExt,
 };
 
 use super::error::{TradeCoreError, TradeCoreResult, TradeExecutorResult};
