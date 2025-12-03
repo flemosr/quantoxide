@@ -355,7 +355,9 @@ impl BacktestEngine {
                     signal_operator,
                 } => {
                     for (last_eval, evaluator) in evaluators {
-                        if time_cursor < *last_eval + evaluator.evaluation_interval() {
+                        if time_cursor
+                            < *last_eval + evaluator.min_iteration_interval().as_duration()
+                        {
                             continue;
                         }
 
