@@ -1,6 +1,6 @@
 use std::{pin::Pin, sync::Arc};
 
-use chrono::Utc;
+use chrono::{Duration, Utc};
 use tokio::{
     sync::broadcast::{self, error::RecvError},
     time,
@@ -314,7 +314,7 @@ impl LiveProcess {
 
             let candles = if let Some(lookback) = lookback {
                 let to = Utc::now().floor_minute();
-                let from = to - lookback.as_duration();
+                let from = to - lookback.as_duration() + Duration::minutes(1);
 
                 db.ohlc_candles
                     .get_candles(from, to)
