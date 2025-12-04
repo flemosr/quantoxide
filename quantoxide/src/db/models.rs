@@ -6,15 +6,6 @@ use uuid::Uuid;
 
 use crate::util::DateTimeExt;
 
-#[allow(dead_code)]
-#[derive(Debug, FromRow)]
-pub struct PriceEntryRow {
-    pub time: DateTime<Utc>,
-    pub value: f64,
-    pub created_at: DateTime<Utc>,
-    pub next: Option<DateTime<Utc>>,
-}
-
 #[derive(Debug, FromRow, Clone)]
 pub struct PriceEntryLOCF {
     pub time: DateTime<Utc>,

@@ -4,12 +4,9 @@ use chrono::{DateTime, Utc};
 use thiserror::Error;
 use uuid::Uuid;
 
-use lnm_sdk::api_v2::{
-    error::{PriceValidationError, TradeValidationError},
-    models::TradeSide,
-};
+use lnm_sdk::api_v2::error::{PriceValidationError, TradeValidationError};
 
-use crate::db::{error::DbError, models::PriceEntryRow};
+use crate::db::error::DbError;
 
 use super::super::super::error::TradeCoreError;
 
@@ -32,16 +29,6 @@ pub enum SimulatedTradeExecutorError {
 
     #[error("Max running trades ({max_qtd}) reached")]
     MaxRunningTradesReached { max_qtd: usize },
-
-    #[error("Invalid trade state for price boundary check")]
-    InvalidTradeBoundaryState {
-        start_time: DateTime<Utc>,
-        end_time: DateTime<Utc>,
-        min: f64,
-        max: f64,
-        side: TradeSide,
-        entry: PriceEntryRow,
-    },
 
     #[error("Tick update failed, price validation error: {0}")]
     TickUpdatePriceValidation(PriceValidationError),

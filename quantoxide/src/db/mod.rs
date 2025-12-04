@@ -16,14 +16,10 @@ mod repositories;
 
 use error::{DbError, Result};
 use models::PartialPriceEntryLOCF;
-use postgres::{
-    price_history::PgPriceHistoryRepo, price_ticks::PgPriceTicksRepo,
-    running_trades::PgRunningTradesRepo,
-};
-use repositories::{PriceHistoryRepository, PriceTicksRepository, RunningTradesRepository};
+use postgres::{price_ticks::PgPriceTicksRepo, running_trades::PgRunningTradesRepo};
+use repositories::{PriceTicksRepository, RunningTradesRepository};
 
 pub struct Database {
-    pub(crate) price_history: Box<dyn PriceHistoryRepository>,
     pub(crate) price_ticks: Box<dyn PriceTicksRepository>,
     pub(crate) running_trades: Box<dyn RunningTradesRepository>,
     pub(crate) ohlc_candles: Box<dyn OhlcCandlesRepository>,
@@ -45,13 +41,11 @@ impl Database {
         Self::initialize_locf_table(&pool).await?;
 
         let pool = Arc::new(pool);
-        let price_history = Box::new(PgPriceHistoryRepo::new(pool.clone()));
         let price_ticks = Box::new(PgPriceTicksRepo::new(pool.clone()));
         let running_trades = Box::new(PgRunningTradesRepo::new(pool.clone()));
         let ohlc_candles = Box::new(PgOhlcCandlesRepo::new(pool.clone()));
 
         Ok(Arc::new(Self {
-            price_history,
             price_ticks,
             running_trades,
             ohlc_candles,
