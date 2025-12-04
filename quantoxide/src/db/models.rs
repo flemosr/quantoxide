@@ -7,6 +7,45 @@ use uuid::Uuid;
 use crate::util::DateTimeExt;
 
 #[derive(Debug, Clone, FromRow, PartialEq)]
+pub(crate) struct RunningTrade {
+    pub trade_id: Uuid,
+    pub trailing_stoploss: Option<f64>,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, FromRow)]
+pub struct OhlcCandleRow {
+    pub time: DateTime<Utc>,
+    pub open: f64,
+    pub high: f64,
+    pub low: f64,
+    pub close: f64,
+    pub volume: i64,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    pub gap: bool,
+    pub stable: bool,
+}
+
+impl OhlcCandleRow {
+    #[cfg(test)]
+    pub(crate) fn new_simple(time: DateTime<Utc>, price: f64, volume: i64) -> Self {
+        Self {
+            time,
+            open: price,
+            high: price,
+            low: price,
+            close: price,
+            volume,
+            created_at: time,
+            updated_at: time,
+            gap: false,
+            stable: true,
+        }
+    }
+}
+
+#[derive(Debug, Clone, FromRow, PartialEq)]
 pub struct PriceTickRow {
     pub time: DateTime<Utc>,
     pub last_price: f64,
@@ -30,43 +69,5 @@ impl fmt::Display for PriceTickRow {
             write!(f, "\n  {line}")?;
         }
         Ok(())
-    }
-}
-
-#[derive(Debug, Clone, FromRow, PartialEq)]
-pub(crate) struct RunningTrade {
-    pub trade_id: Uuid,
-    pub trailing_stoploss: Option<f64>,
-    pub created_at: DateTime<Utc>,
-}
-
-#[derive(Debug, FromRow)]
-pub struct OhlcCandleRow {
-    pub time: DateTime<Utc>,
-    pub open: f64,
-    pub high: f64,
-    pub low: f64,
-    pub close: f64,
-    pub volume: i64,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
-    pub gap: bool,
-    pub stable: bool,
-}
-
-impl OhlcCandleRow {
-    pub(crate) fn new_simple(time: DateTime<Utc>, price: f64, volume: i64) -> Self {
-        Self {
-            time,
-            open: price,
-            high: price,
-            low: price,
-            close: price,
-            volume,
-            created_at: time,
-            updated_at: time,
-            gap: false,
-            stable: true,
-        }
     }
 }
