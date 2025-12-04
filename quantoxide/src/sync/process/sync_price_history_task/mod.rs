@@ -190,6 +190,10 @@ impl SyncPriceHistoryTask {
             if download_to.is_none() && !history_state.has_gaps()? {
                 // Latest entries received. No gaps remain. Backfilling complete.
 
+                if let Some(bound_end) = history_state.bound_end() {
+                    self.db.price_ticks.remove_ticks(bound_end).await?;
+                }
+
                 return Ok(());
             }
         }
