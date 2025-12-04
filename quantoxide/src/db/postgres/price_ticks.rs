@@ -1,16 +1,14 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use chrono::{DateTime, Duration, SubsecRound, Utc};
+use chrono::{DateTime, Utc};
 use sqlx::{Pool, Postgres};
 
 use lnm_sdk::api_v2::models::PriceTick;
 
-use crate::indicators::IndicatorsEvaluator;
-
 use super::super::{
     error::{DbError, Result},
-    models::{PartialPriceEntryLOCF, PriceEntryLOCF, PriceTickRow},
+    models::PriceTickRow,
     repositories::PriceTicksRepository,
 };
 
@@ -156,117 +154,6 @@ impl PriceTicksRepository for PgPriceTicksRepo {
         let latest_price = last_entry.price()?;
 
         Ok(Some((min_price, max_price, latest_time, latest_price)))
-    }
-
-    async fn compute_locf_entries_for_range(
-        &self,
-        time: DateTime<Utc>,
-        range_secs: usize,
-    ) -> Result<Vec<PriceEntryLOCF>> {
-        if range_secs == 0 {
-            return Ok(Vec::new());
-        }
-
-        let end_locf_sec = time.trunc_subsecs(0);
-        let start_locf_sec = end_locf_sec - Duration::seconds(range_secs as i64 - 1);
-
-        let entries_locf = sqlx::query_as!(
-            PriceEntryLOCF,
-            "SELECT * FROM price_history_locf WHERE time >= $1 ORDER BY time ASC LIMIT $2",
-            start_locf_sec,
-            range_secs as i32
-        )
-        .fetch_all(self.pool())
-        .await
-        .map_err(DbError::Query)?;
-
-        if entries_locf.len() == range_secs {
-            return Ok(entries_locf);
-        }
-
-        // Range is not present in the current historical data. Indicators will have to be
-        // calculated from historical prices.
-
-        // At least one price entry must exist before `start_locf_sec` in order to compute locf
-        // values and indicators.
-        let is_time_valid = sqlx::query_scalar!(
-            "SELECT EXISTS (SELECT 1 FROM price_history WHERE time <= $1)",
-            start_locf_sec
-        )
-        .fetch_one(self.pool())
-        .await
-        .map_err(DbError::Query)?
-        .unwrap_or(false);
-
-        if !is_time_valid {
-            return Err(DbError::InvalidLocfRange { start_locf_sec });
-        }
-
-        let start_indicator_sec =
-            IndicatorsEvaluator::get_first_required_locf_entry(start_locf_sec);
-
-        struct CoalescedEntry {
-            pub time: Option<DateTime<Utc>>,
-            pub value: Option<f64>,
-        }
-
-        let coalesced_entries = sqlx::query_as!(
-            CoalescedEntry,
-            r#"
-                WITH price_data AS (
-                    SELECT
-                        s.time,
-                        CASE
-                            WHEN pt.last_price IS NOT NULL AND ph.value IS NOT NULL THEN
-                                CASE
-                                    WHEN ph_time < pt_time THEN pt.last_price
-                                    ELSE ph.value
-                                END
-                            ELSE COALESCE(pt.last_price, ph.value)
-                        END AS value
-                    FROM generate_series($1, $2, '1 second'::interval) AS s(time)
-                    LEFT JOIN LATERAL (
-                        SELECT time AS ph_time, value
-                        FROM price_history
-                        WHERE time <= s.time
-                        ORDER BY time DESC
-                        LIMIT 1
-                    ) ph ON true
-                    LEFT JOIN LATERAL (
-                        SELECT time AS pt_time, last_price
-                        FROM price_ticks
-                        WHERE time <= s.time
-                        ORDER BY time DESC
-                        LIMIT 1
-                    ) pt ON true
-                    ORDER BY time ASC
-                )
-                SELECT time, value
-                FROM price_data
-            "#,
-            start_indicator_sec,
-            end_locf_sec
-        )
-        .fetch_all(self.pool())
-        .await
-        .map_err(DbError::Query)?;
-
-        let partial_locf_entries = coalesced_entries
-            .into_iter()
-            .map(|coalesced| PartialPriceEntryLOCF {
-                time: coalesced
-                    .time
-                    .expect("generate_series() can't produce NULL timestamps"),
-                value: coalesced
-                    .value
-                    .expect("COALESCE can't return NULL due to validation and LOCF logic"),
-            })
-            .collect();
-
-        let full_locf_entries =
-            IndicatorsEvaluator::evaluate(partial_locf_entries, start_locf_sec)?;
-
-        Ok(full_locf_entries)
     }
 
     async fn remove_ticks(&self, before: DateTime<Utc>) -> Result<()> {

@@ -8,10 +8,7 @@ use lnm_sdk::{api_v2::models::PriceTick, api_v3::models::OhlcCandle};
 
 use crate::{db::models::OhlcCandleRow, trade::TradeTrailingStoploss};
 
-use super::{
-    error::Result,
-    models::{PriceEntryLOCF, PriceTickRow},
-};
+use super::{error::Result, models::PriceTickRow};
 
 #[async_trait]
 pub(crate) trait PriceTicksRepository: Send + Sync {
@@ -33,38 +30,6 @@ pub(crate) trait PriceTicksRepository: Send + Sync {
         &self,
         start: DateTime<Utc>,
     ) -> Result<Option<(f64, f64, DateTime<Utc>, f64)>>;
-
-    /// Computes Last Observation Carried Forward (LOCF) price entries with technical indicators
-    /// for a specified time range ending at the given timestamp.
-    ///
-    /// This method attempts to retrieve pre-computed LOCF entries from the `price_history_locf`
-    /// table first. If the required entries are not available (e.g., for real-time data or gaps
-    /// in historical data), it dynamically computes them by:
-    /// 1. Fetching raw price data from both `price_history` and `price_ticks` tables
-    /// 2. Applying LOCF logic to fill gaps in the time series
-    /// 3. Computing technical indicators using `IndicatorsEvaluator`
-    ///
-    /// # Arguments
-    ///
-    /// * `time` - The end timestamp for the range (will be truncated to seconds)
-    /// * `range_secs` - The number of seconds to include in the range (working backwards from `time`)
-    ///
-    /// # Returns
-    ///
-    /// Returns a `Vec<PriceHistoryEntryLOCF>` containing exactly `range_secs` entries if successful,
-    /// ordered chronologically from earliest to latest.
-    ///
-    /// # Errors
-    ///
-    /// Returns `DbError` if:
-    /// - No price data exists at or before the start of the requested range
-    /// - Database queries fail
-    /// - Indicator calculation fails due to data inconsistencies
-    async fn compute_locf_entries_for_range(
-        &self,
-        time: DateTime<Utc>,
-        range_secs: usize,
-    ) -> Result<Vec<PriceEntryLOCF>>;
 
     async fn remove_ticks(&self, before: DateTime<Utc>) -> Result<()>;
 }
