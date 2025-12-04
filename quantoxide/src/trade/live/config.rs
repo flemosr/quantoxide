@@ -3,7 +3,10 @@ use std::num::NonZeroU64;
 use chrono::Duration;
 use tokio::time;
 
-use lnm_sdk::api_v2::{RestClientConfig, WebSocketClientConfig, models::BoundedPercentage};
+use lnm_sdk::{
+    api_v2::WebSocketClientConfig,
+    api_v3::{RestClientConfig, models::BoundedPercentage},
+};
 
 use super::executor::state::live_trading_session::TradingSessionRefreshOffset;
 

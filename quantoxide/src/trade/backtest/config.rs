@@ -1,6 +1,6 @@
 use chrono::Duration;
 
-use lnm_sdk::api_v2::models::BoundedPercentage;
+use lnm_sdk::api_v3::models::BoundedPercentage;
 
 use super::error::{BacktestError, Result};
 

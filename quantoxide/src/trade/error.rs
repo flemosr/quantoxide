@@ -3,7 +3,7 @@ use std::result;
 use thiserror::Error;
 use uuid::Uuid;
 
-use lnm_sdk::api_v2::{
+use lnm_sdk::api_v3::{
     error::PriceValidationError,
     models::{BoundedPercentage, LowerBoundedPercentage, Price},
 };

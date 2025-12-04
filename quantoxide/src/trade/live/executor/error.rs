@@ -4,7 +4,7 @@ use chrono::Duration;
 use thiserror::Error;
 use uuid::Uuid;
 
-use lnm_sdk::api_v2::error::{PriceValidationError, RestApiError, TradeValidationError};
+use lnm_sdk::api_v3::error::{PriceValidationError, RestApiError, TradeValidationError};
 
 use crate::{db::error::DbError, sync::process::error::SyncProcessFatalError};
 

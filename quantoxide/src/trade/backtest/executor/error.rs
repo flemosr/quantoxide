@@ -4,7 +4,7 @@ use chrono::{DateTime, Utc};
 use thiserror::Error;
 use uuid::Uuid;
 
-use lnm_sdk::api_v2::error::{PriceValidationError, TradeValidationError};
+use lnm_sdk::api_v3::error::{PriceValidationError, TradeValidationError};
 
 use crate::db::error::DbError;
 

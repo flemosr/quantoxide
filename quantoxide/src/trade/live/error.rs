@@ -2,7 +2,7 @@ use std::{result, sync::Arc};
 
 use thiserror::Error;
 
-use lnm_sdk::api_v2::error::RestApiError;
+use lnm_sdk::api_v3::error::RestApiError;
 
 use crate::signal::error::SignalError;
 

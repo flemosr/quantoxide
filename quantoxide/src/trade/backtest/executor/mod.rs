@@ -5,7 +5,7 @@ use chrono::{DateTime, Duration, Utc};
 use tokio::sync::Mutex;
 use uuid::Uuid;
 
-use lnm_sdk::api_v2::models::{Leverage, Price, TradeSide, TradeSize};
+use lnm_sdk::api_v3::models::{Leverage, Price, TradeSide, TradeSize};
 
 use crate::db::models::OhlcCandleRow;
 
