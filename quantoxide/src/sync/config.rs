@@ -3,7 +3,7 @@ use std::num::NonZeroU64;
 use chrono::Duration;
 use tokio::time;
 
-use lnm_sdk::api_v2::{RestClientConfig, WebSocketClientConfig};
+use lnm_sdk::{api_v2::WebSocketClientConfig, api_v3::RestClientConfig};
 
 use crate::trade::LiveConfig;
 
