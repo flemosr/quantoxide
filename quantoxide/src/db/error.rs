@@ -3,8 +3,6 @@ use std::result;
 use chrono::{DateTime, Utc};
 use thiserror::Error;
 
-use crate::indicators::error::IndicatorError;
-
 #[derive(Error, Debug)]
 pub enum DbError {
     #[error("Connection error: {0}")]
@@ -49,9 +47,6 @@ pub enum DbError {
 
     #[error("Attempted to update a stable candle at time {time}")]
     AttemptedToUpdateStableCandle { time: DateTime<Utc> },
-
-    #[error(transparent)]
-    IndicatorEvaluation(#[from] IndicatorError),
 }
 
 pub(super) type Result<T> = result::Result<T, DbError>;
