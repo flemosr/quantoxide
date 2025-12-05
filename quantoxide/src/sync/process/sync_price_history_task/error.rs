@@ -21,6 +21,9 @@ pub enum SyncPriceHistoryError {
     #[error("API candles must be ordered by time desc. Inconsistency at: {inconsistency_at}")]
     ApíCandlesNotOrderedByTimeDesc { inconsistency_at: DateTime<Utc> },
 
+    #[error("API candles before {history_start} are not available")]
+    ApiCandlesNotAvailableBeforeHistoryStart { history_start: DateTime<Utc> },
+
     #[error("HistoryUpdateHandlerFailed error")]
     HistoryUpdateHandlerFailed,
 

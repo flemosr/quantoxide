@@ -187,14 +187,24 @@ impl SyncPriceHistoryTask {
                     .await?;
             self.handle_history_update(&history_state).await?;
 
-            if download_to.is_none() && !history_state.has_gaps()? {
-                // Latest entries received. No gaps remain. Backfilling complete.
+            if !history_state.has_gaps()? {
+                if download_to.is_none() {
+                    // Latest entries received. No gaps remain. Backfilling complete.
 
-                if let Some(bound_end) = history_state.bound_end() {
-                    self.db.price_ticks.remove_ticks(bound_end).await?;
+                    if let Some(bound_end) = history_state.bound_end() {
+                        self.db.price_ticks.remove_ticks(bound_end).await?;
+                    }
+
+                    return Ok(());
                 }
+            } else if history_state.bound_start() == download_to {
+                // No new entries available before lower bound
 
-                return Ok(());
+                return Err(
+                    SyncPriceHistoryError::ApiCandlesNotAvailableBeforeHistoryStart {
+                        history_start: history_state.bound_start().expect("not `None`"),
+                    },
+                );
             }
         }
     }
