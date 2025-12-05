@@ -23,8 +23,8 @@ pub trait WebSocketRepository: crate::sealed::Sealed + Send + Sync {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example(api: lnm_sdk::api_v2::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
-    /// let ws = api.connect_ws().await?;
+    /// # async fn example(ws_api: lnm_sdk::api_v2::WebSocketClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// let ws = ws_api.connect().await?;
     ///
     /// if ws.is_connected().await {
     ///     // ...
@@ -41,9 +41,9 @@ pub trait WebSocketRepository: crate::sealed::Sealed + Send + Sync {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example(api: lnm_sdk::api_v2::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// # async fn example(ws_api: lnm_sdk::api_v2::WebSocketClient) -> Result<(), Box<dyn std::error::Error>> {
     /// # use lnm_sdk::api_v2::WsConnectionStatus;
-    /// let ws = api.connect_ws().await?;
+    /// let ws = ws_api.connect().await?;
     ///
     /// match ws.connection_status().await {
     ///     WsConnectionStatus::Connected => {
@@ -69,9 +69,9 @@ pub trait WebSocketRepository: crate::sealed::Sealed + Send + Sync {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example(api: lnm_sdk::api_v2::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// # async fn example(ws_api: lnm_sdk::api_v2::WebSocketClient) -> Result<(), Box<dyn std::error::Error>> {
     /// # use lnm_sdk::api_v2::models::WebSocketChannel;
-    /// let ws = api.connect_ws().await?;
+    /// let ws = ws_api.connect().await?;
     ///
     /// ws.subscribe(vec![
     ///     WebSocketChannel::FuturesBtcUsdIndex,
@@ -89,9 +89,9 @@ pub trait WebSocketRepository: crate::sealed::Sealed + Send + Sync {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example(api: lnm_sdk::api_v2::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// # async fn example(ws_api: lnm_sdk::api_v2::WebSocketClient) -> Result<(), Box<dyn std::error::Error>> {
     /// # use lnm_sdk::api_v2::models::WebSocketChannel;
-    /// let ws = api.connect_ws().await?;
+    /// let ws = ws_api.connect().await?;
     ///
     /// ws.subscribe(vec![WebSocketChannel::FuturesBtcUsdIndex]).await?;
     /// ws.unsubscribe(vec![WebSocketChannel::FuturesBtcUsdIndex]).await?;
@@ -107,9 +107,9 @@ pub trait WebSocketRepository: crate::sealed::Sealed + Send + Sync {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example(api: lnm_sdk::api_v2::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// # async fn example(ws_api: lnm_sdk::api_v2::WebSocketClient) -> Result<(), Box<dyn std::error::Error>> {
     /// # use lnm_sdk::api_v2::models::WebSocketChannel;
-    /// let ws = api.connect_ws().await?;
+    /// let ws = ws_api.connect().await?;
     ///
     /// ws.subscribe(vec![
     ///     WebSocketChannel::FuturesBtcUsdIndex,
@@ -127,9 +127,9 @@ pub trait WebSocketRepository: crate::sealed::Sealed + Send + Sync {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example(api: lnm_sdk::api_v2::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// # async fn example(ws_api: lnm_sdk::api_v2::WebSocketClient) -> Result<(), Box<dyn std::error::Error>> {
     /// # use lnm_sdk::api_v2::models::WebSocketChannel;
-    /// let ws = api.connect_ws().await?;
+    /// let ws = ws_api.connect().await?;
     ///
     /// let mut ws_rx = ws.receiver().await?;
     ///
@@ -149,9 +149,9 @@ pub trait WebSocketRepository: crate::sealed::Sealed + Send + Sync {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example(api: lnm_sdk::api_v2::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// # async fn example(ws_api: lnm_sdk::api_v2::WebSocketClient) -> Result<(), Box<dyn std::error::Error>> {
     /// # use lnm_sdk::api_v2::WsConnectionStatus;
-    /// let ws = api.connect_ws().await?;
+    /// let ws = ws_api.connect().await?;
     ///
     /// assert!(matches!(ws.connection_status().await, WsConnectionStatus::Connected));
     ///

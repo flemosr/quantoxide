@@ -27,22 +27,20 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example(api: lnm_sdk::api_v2::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// #[allow(deprecated)]
+    /// # async fn example(rest_api: lnm_sdk::api_v2::RestClient) -> Result<(), Box<dyn std::error::Error>> {
     /// # use lnm_sdk::api_v2::models::{Trade, TradeStatus};
-    /// let open_trades: Vec<Trade> = api
-    ///     .rest
+    /// let open_trades: Vec<Trade> = rest_api
     ///     .futures
     ///     .get_trades(TradeStatus::Open, None, None, None)
     ///     .await?;
     ///
-    /// let running_trades: Vec<Trade> = api
-    ///     .rest
+    /// let running_trades: Vec<Trade> = rest_api
     ///     .futures
     ///     .get_trades(TradeStatus::Running, None, None, None)
     ///     .await?;
     ///
-    /// let closed_trades: Vec<Trade> = api
-    ///     .rest
+    /// let closed_trades: Vec<Trade> = rest_api
     ///     .futures
     ///     .get_trades(TradeStatus::Closed, None, None, None)
     ///     .await?;
@@ -62,10 +60,10 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example(api: lnm_sdk::api_v2::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// #[allow(deprecated)]
+    /// # async fn example(rest_api: lnm_sdk::api_v2::RestClient) -> Result<(), Box<dyn std::error::Error>> {
     /// # use lnm_sdk::api_v2::models::Trade;
-    /// let open_trades: Vec<Trade> = api
-    ///     .rest
+    /// let open_trades: Vec<Trade> = rest_api
     ///     .futures
     ///     .get_trades_open(None, None, None)
     ///     .await?;
@@ -84,10 +82,10 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example(api: lnm_sdk::api_v2::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// #[allow(deprecated)]
+    /// # async fn example(rest_api: lnm_sdk::api_v2::RestClient) -> Result<(), Box<dyn std::error::Error>> {
     /// # use lnm_sdk::api_v2::models::Trade;
-    /// let running_trades: Vec<Trade> = api
-    ///     .rest
+    /// let running_trades: Vec<Trade> = rest_api
     ///     .futures
     ///     .get_trades_running(None, None, None)
     ///     .await?;
@@ -106,10 +104,10 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example(api: lnm_sdk::api_v2::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// #[allow(deprecated)]
+    /// # async fn example(rest_api: lnm_sdk::api_v2::RestClient) -> Result<(), Box<dyn std::error::Error>> {
     /// # use lnm_sdk::api_v2::models::Trade;
-    /// let closed_trades: Vec<Trade> = api
-    ///     .rest
+    /// let closed_trades: Vec<Trade> = rest_api
     ///     .futures
     ///     .get_trades_closed(None, None, None)
     ///     .await?;
@@ -128,10 +126,10 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example(api: lnm_sdk::api_v2::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// #[allow(deprecated)]
+    /// # async fn example(rest_api: lnm_sdk::api_v2::RestClient) -> Result<(), Box<dyn std::error::Error>> {
     /// # use lnm_sdk::api_v2::models::PriceEntry;
-    /// let price_history: Vec<PriceEntry> = api
-    ///     .rest
+    /// let price_history: Vec<PriceEntry> = rest_api
     ///     .futures
     ///     .price_history(None, None, None)
     ///     .await?;
@@ -150,15 +148,15 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example(api: lnm_sdk::api_v2::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// #[allow(deprecated)]
+    /// # async fn example(rest_api: lnm_sdk::api_v2::RestClient) -> Result<(), Box<dyn std::error::Error>> {
     /// # use lnm_sdk::api_v2::models::{
     /// #     Leverage, Trade, Margin, Price, Quantity, TradeExecution,
     /// #     TradeSide, TradeSize
     /// # };
     /// // Create long market order with 10,000 sats of margin and no leverage,
     /// // stoploss or takeprofit.
-    /// let trade: Trade = api
-    ///     .rest
+    /// let trade: Trade = rest_api
     ///     .futures
     ///     .create_new_trade(
     ///         TradeSide::Buy,
@@ -174,8 +172,7 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// // of quantity and 2x leverage.
     /// // Stoploss at the price of 110,000 [USD/BTC] and takeprofit at the
     /// // price of 130,000 [USD/BTC].
-    /// let trade: Trade = api
-    ///     .rest
+    /// let trade: Trade = rest_api
     ///     .futures
     ///     .create_new_trade(
     ///         TradeSide::Buy,
@@ -192,8 +189,7 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// // of quantity and 3x leverage.
     /// // Stoploss at the price of 140,000 [USD/BTC] and takeprofit at the
     /// // price of 120,000 [USD/BTC].
-    /// let trade: Trade = api
-    ///     .rest
+    /// let trade: Trade = rest_api
     ///     .futures
     ///     .create_new_trade(
     ///         TradeSide::Sell,
@@ -223,12 +219,12 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example(api: lnm_sdk::api_v2::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// #[allow(deprecated)]
+    /// # async fn example(rest_api: lnm_sdk::api_v2::RestClient) -> Result<(), Box<dyn std::error::Error>> {
     /// # use lnm_sdk::api_v2::models::{
     /// #     Leverage, Trade, Margin, TradeExecution, TradeSide, TradeSize
     /// # };
-    /// let running_trade: Trade = api
-    ///     .rest
+    /// let running_trade: Trade = rest_api
     ///     .futures
     ///     .create_new_trade(
     ///         TradeSide::Buy,
@@ -240,8 +236,7 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     ///     )
     ///     .await?;
     ///
-    /// let same_trade: Trade = api
-    ///     .rest
+    /// let same_trade: Trade = rest_api
     ///     .futures
     ///     .get_trade(running_trade.id()).await?;
     ///
@@ -256,12 +251,12 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example(api: lnm_sdk::api_v2::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// #[allow(deprecated)]
+    /// # async fn example(rest_api: lnm_sdk::api_v2::RestClient) -> Result<(), Box<dyn std::error::Error>> {
     /// # use lnm_sdk::api_v2::models::{
     /// #     Leverage, Trade, Price, Quantity, TradeExecution, TradeSide, TradeSize
     /// # };
-    /// let open_trade: Trade = api
-    ///     .rest
+    /// let open_trade: Trade = rest_api
     ///     .futures
     ///     .create_new_trade(
     ///         TradeSide::Buy,
@@ -276,8 +271,7 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     ///
     /// // Assuming trade is still open
     ///
-    /// let cancelled_trade: Trade = api
-    ///     .rest
+    /// let cancelled_trade: Trade = rest_api
     ///     .futures
     ///     .cancel_trade(open_trade.id()).await?;
     ///
@@ -292,10 +286,10 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example(api: lnm_sdk::api_v2::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// #[allow(deprecated)]
+    /// # async fn example(rest_api: lnm_sdk::api_v2::RestClient) -> Result<(), Box<dyn std::error::Error>> {
     /// # use lnm_sdk::api_v2::models::Trade;
-    /// let cancelled_trades: Vec<Trade> = api
-    ///     .rest
+    /// let cancelled_trades: Vec<Trade> = rest_api
     ///     .futures
     ///     .cancel_all_trades().await?;
     ///
@@ -309,12 +303,12 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example(api: lnm_sdk::api_v2::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// #[allow(deprecated)]
+    /// # async fn example(rest_api: lnm_sdk::api_v2::RestClient) -> Result<(), Box<dyn std::error::Error>> {
     /// # use lnm_sdk::api_v2::models::{
     /// #     Leverage, Trade, Margin, TradeExecution, TradeSide, TradeSize
     /// # };
-    /// let running_trade: Trade = api
-    ///     .rest
+    /// let running_trade: Trade = rest_api
     ///     .futures
     ///     .create_new_trade(
     ///         TradeSide::Buy,
@@ -326,8 +320,7 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     ///     )
     ///     .await?;
     ///
-    /// let closed_trade: Trade = api
-    ///     .rest
+    /// let closed_trade: Trade = rest_api
     ///     .futures
     ///     .close_trade(running_trade.id()).await?;
     ///
@@ -342,10 +335,10 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example(api: lnm_sdk::api_v2::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// #[allow(deprecated)]
+    /// # async fn example(rest_api: lnm_sdk::api_v2::RestClient) -> Result<(), Box<dyn std::error::Error>> {
     /// # use lnm_sdk::api_v2::models::Trade;
-    /// let closed_trades: Vec<Trade> = api
-    ///     .rest
+    /// let closed_trades: Vec<Trade> = rest_api
     ///     .futures
     ///     .close_all_trades().await?;
     ///
@@ -359,9 +352,10 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example(api: lnm_sdk::api_v2::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// #[allow(deprecated)]
+    /// # async fn example(rest_api: lnm_sdk::api_v2::RestClient) -> Result<(), Box<dyn std::error::Error>> {
     /// # use lnm_sdk::api_v2::models::Ticker;
-    /// let ticker: Ticker = api.rest.futures.ticker().await?;
+    /// let ticker: Ticker = rest_api.futures.ticker().await?;
     /// # Ok(())
     /// # }
     async fn ticker(&self) -> Result<Ticker>;
@@ -371,12 +365,12 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example(api: lnm_sdk::api_v2::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// #[allow(deprecated)]
+    /// # async fn example(rest_api: lnm_sdk::api_v2::RestClient) -> Result<(), Box<dyn std::error::Error>> {
     /// # use lnm_sdk::api_v2::models::{
     /// #     Leverage, Trade, Price, Quantity, TradeExecution, TradeSide, TradeSize
     /// # };
-    /// let open_trade: Trade = api
-    ///     .rest
+    /// let open_trade: Trade = rest_api
     ///     .futures
     ///     .create_new_trade(
     ///         TradeSide::Buy,
@@ -392,8 +386,7 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// // Assuming trade is still open or running
     ///
     /// let new_stoploss = Price::try_from(9_000).unwrap();
-    /// let updated_trade: Trade = api
-    ///     .rest
+    /// let updated_trade: Trade = rest_api
     ///     .futures
     ///     .update_trade_stoploss(open_trade.id(), new_stoploss).await?;
     ///
@@ -408,12 +401,12 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example(api: lnm_sdk::api_v2::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// #[allow(deprecated)]
+    /// # async fn example(rest_api: lnm_sdk::api_v2::RestClient) -> Result<(), Box<dyn std::error::Error>> {
     /// # use lnm_sdk::api_v2::models::{
     /// #     Leverage, Trade, Price, Quantity, TradeExecution, TradeSide, TradeSize
     /// # };
-    /// let open_trade: Trade = api
-    ///     .rest
+    /// let open_trade: Trade = rest_api
     ///     .futures
     ///     .create_new_trade(
     ///         TradeSide::Buy,
@@ -429,8 +422,7 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// // Assuming trade is still open or running
     ///
     /// let new_takeprofit = Price::try_from(11_000).unwrap();
-    /// let updated_trade: Trade = api
-    ///     .rest
+    /// let updated_trade: Trade = rest_api
     ///     .futures
     ///     .update_trade_takeprofit(open_trade.id(), new_takeprofit).await?;
     ///
@@ -453,13 +445,13 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example(api: lnm_sdk::api_v2::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// #[allow(deprecated)]
+    /// # async fn example(rest_api: lnm_sdk::api_v2::RestClient) -> Result<(), Box<dyn std::error::Error>> {
     /// # use std::num::NonZeroU64;
     /// # use lnm_sdk::api_v2::models::{
     /// #     Leverage, Trade, Margin, Price, TradeExecution, TradeSide, TradeSize
     /// # };
-    /// let created_trade: Trade = api
-    ///     .rest
+    /// let created_trade: Trade = rest_api
     ///     .futures
     ///     .create_new_trade(
     ///         TradeSide::Buy,
@@ -475,8 +467,7 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// // Assuming trade is still open or running
     ///
     /// let amount = NonZeroU64::try_from(1000).unwrap();
-    /// let updated_trade: Trade = api
-    ///     .rest
+    /// let updated_trade: Trade = rest_api
     ///     .futures
     ///     .add_margin(created_trade.id(), amount).await?;
     ///
@@ -505,13 +496,13 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example(api: lnm_sdk::api_v2::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// #[allow(deprecated)]
+    /// # async fn example(rest_api: lnm_sdk::api_v2::RestClient) -> Result<(), Box<dyn std::error::Error>> {
     /// # use std::num::NonZeroU64;
     /// # use lnm_sdk::api_v2::models::{
     /// #     Leverage, Trade, Margin, Price, TradeExecution, TradeSide, TradeSize
     /// # };
-    /// let created_trade: Trade = api
-    ///     .rest
+    /// let created_trade: Trade = rest_api
     ///     .futures
     ///     .create_new_trade(
     ///         TradeSide::Buy,
@@ -527,8 +518,7 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// // Assuming trade is still open (no PL)
     ///
     /// let amount = NonZeroU64::try_from(1000).unwrap();
-    /// let updated_trade: Trade = api
-    ///     .rest
+    /// let updated_trade: Trade = rest_api
     ///     .futures
     ///     .cash_in(created_trade.id(), amount).await?;
     ///
@@ -555,9 +545,10 @@ pub trait UserRepository: crate::sealed::Sealed + Send + Sync {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example(api: lnm_sdk::api_v2::ApiClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// #[allow(deprecated)]
+    /// # async fn example(rest_api: lnm_sdk::api_v2::RestClient) -> Result<(), Box<dyn std::error::Error>> {
     /// # use lnm_sdk::api_v2::models::User;
-    /// let user: User = api.rest.user.get_user().await?;
+    /// let user: User = rest_api.user.get_user().await?;
     /// # Ok(())
     /// # }
     /// ```
