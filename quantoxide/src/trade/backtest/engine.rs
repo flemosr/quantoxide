@@ -234,7 +234,7 @@ impl BacktestEngine {
             });
         }
 
-        let (update_tx, _) = broadcast::channel::<BacktestUpdate>(100);
+        let (update_tx, _) = broadcast::channel::<BacktestUpdate>(10_000);
 
         let status_manager = BacktestStatusManager::new(update_tx.clone());
 
