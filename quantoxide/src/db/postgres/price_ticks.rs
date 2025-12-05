@@ -48,32 +48,11 @@ impl PriceTicksRepository for PgPriceTicksRepo {
     }
 
     async fn get_latest_entry(&self) -> Result<Option<(DateTime<Utc>, f64)>> {
-        struct UnionPriceEntry {
-            time: Option<DateTime<Utc>>,
-            price: Option<f64>,
-        }
-
-        let latest_entry_opt = sqlx::query_as!(
-            UnionPriceEntry,
+        let last_tick_opt = sqlx::query_as!(
+            PriceTickRow,
             r#"
-                WITH latest_tick AS (
-                    SELECT time, last_price as price
-                    FROM price_ticks
-                    ORDER BY time DESC
-                    LIMIT 1
-                ),
-                latest_history AS (
-                    SELECT time, value as price
-                    FROM price_history
-                    ORDER BY time DESC
-                    LIMIT 1
-                )
-                SELECT time, price
-                FROM (
-                    SELECT time, price FROM latest_tick
-                    UNION ALL
-                    SELECT time, price FROM latest_history
-                ) combined
+                SELECT time, last_price, created_at
+                FROM price_ticks
                 ORDER BY time DESC
                 LIMIT 1
             "#
@@ -82,12 +61,7 @@ impl PriceTicksRepository for PgPriceTicksRepo {
         .await
         .map_err(DbError::Query)?;
 
-        let latest_entry_opt = latest_entry_opt.and_then(|entry| match (entry.time, entry.price) {
-            (Some(time), Some(price)) => Some((time, price)),
-            _ => None,
-        });
-
-        Ok(latest_entry_opt)
+        Ok(last_tick_opt.map(|last_tick| (last_tick.time, last_tick.last_price)))
     }
 
     async fn get_price_range_from(
