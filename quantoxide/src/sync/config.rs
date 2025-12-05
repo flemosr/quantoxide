@@ -30,7 +30,7 @@ impl Default for SyncConfig {
             api_error_cooldown: time::Duration::from_secs(10),
             api_error_max_trials: 3.try_into().expect("not zero"),
             api_history_batch_size: 1000.try_into().expect("not zero"),
-            sync_history_reach: Duration::hours(24 * 7 * 4),
+            sync_history_reach: Duration::days(90),
             re_sync_history_interval: time::Duration::from_secs(10),
             restart_interval: time::Duration::from_secs(10),
             shutdown_timeout: time::Duration::from_secs(6),
@@ -109,8 +109,8 @@ impl SyncConfig {
         self
     }
 
-    pub fn with_sync_history_reach(mut self, hours: u64) -> Self {
-        self.sync_history_reach = Duration::hours(hours as i64);
+    pub fn with_sync_history_reach(mut self, days: NonZeroU64) -> Self {
+        self.sync_history_reach = Duration::days(days.get() as i64);
         self
     }
 
