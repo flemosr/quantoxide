@@ -47,7 +47,7 @@ impl Default for LiveConfig {
             api_error_max_trials: 3.try_into().expect("not zero"),
             api_history_batch_size: 1000.try_into().expect("not zero"),
             sync_mode_full: false,
-            sync_history_reach: Duration::hours(24 * 7 * 4),
+            sync_history_reach: Duration::days(90),
             re_sync_history_interval: time::Duration::from_secs(10),
             sync_update_timeout: time::Duration::from_secs(5),
             tsl_step_size: BoundedPercentage::MIN,
@@ -176,8 +176,8 @@ impl LiveConfig {
         self
     }
 
-    pub fn with_sync_history_reach(mut self, hours: u64) -> Self {
-        self.sync_history_reach = Duration::hours(hours as i64);
+    pub fn with_sync_history_reach(mut self, days: NonZeroU64) -> Self {
+        self.sync_history_reach = Duration::days(days.get() as i64);
         self
     }
 
