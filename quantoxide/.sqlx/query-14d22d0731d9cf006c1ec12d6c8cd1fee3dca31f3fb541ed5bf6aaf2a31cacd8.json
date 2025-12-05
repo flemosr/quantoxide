@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT * FROM price_history ORDER BY time ASC LIMIT 1",
+  "query": "\n                SELECT time, last_price, created_at\n                FROM price_ticks\n                ORDER BY time DESC\n                LIMIT 1\n            ",
   "describe": {
     "columns": [
       {
@@ -10,17 +10,12 @@
       },
       {
         "ordinal": 1,
-        "name": "value",
+        "name": "last_price",
         "type_info": "Float8"
       },
       {
         "ordinal": 2,
         "name": "created_at",
-        "type_info": "Timestamptz"
-      },
-      {
-        "ordinal": 3,
-        "name": "next",
         "type_info": "Timestamptz"
       }
     ],
@@ -30,9 +25,8 @@
     "nullable": [
       false,
       false,
-      false,
-      true
+      false
     ]
   },
-  "hash": "b09111450324485596cfeb9b77d89d7e4a0bdd88bb6642a3a02724553d2acd07"
+  "hash": "14d22d0731d9cf006c1ec12d6c8cd1fee3dca31f3fb541ed5bf6aaf2a31cacd8"
 }
