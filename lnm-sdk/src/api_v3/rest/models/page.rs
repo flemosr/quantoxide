@@ -17,7 +17,8 @@ impl<I> Page<I> {
     /// # Examples
     ///
     /// ```no_run
-    /// # fn example(page: lnm_sdk::api_v3::models::TradePage) -> Result<(), Box<dyn std::error::Error>> {
+    /// # use lnm_sdk::api_v3::models::{Page, Trade};
+    /// # fn example(page: Page<Trade>) -> Result<(), Box<dyn std::error::Error>> {
     /// for item in page.data() {
     ///     println!("item: {:?}", item);
     /// }
@@ -34,7 +35,8 @@ impl<I> Page<I> {
     /// # Examples
     ///
     /// ```no_run
-    /// # fn example(page: lnm_sdk::api_v3::models::TradePage) -> Result<(), Box<dyn std::error::Error>> {
+    /// # use lnm_sdk::api_v3::models::{Page, Trade};
+    /// # fn example(page: Page<Trade>) -> Result<(), Box<dyn std::error::Error>> {
     /// if let Some(cursor) = page.next_cursor() {
     ///     println!("More items can be fetched using cursor: {cursor}");
     /// } else {
