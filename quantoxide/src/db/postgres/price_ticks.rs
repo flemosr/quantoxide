@@ -68,34 +68,11 @@ impl PriceTicksRepository for PgPriceTicksRepo {
         &self,
         start: DateTime<Utc>,
     ) -> Result<Option<(f64, f64, DateTime<Utc>, f64)>> {
-        struct PriceEntry {
-            time: Option<DateTime<Utc>>,
-            price: Option<f64>,
-        }
-
-        impl PriceEntry {
-            fn time(&self) -> Result<DateTime<Utc>> {
-                self.time.ok_or(DbError::UnexpectedQueryResult(
-                    "Combined price entry `time` can't be `None`".into(),
-                ))
-            }
-
-            fn price(&self) -> Result<f64> {
-                self.price.ok_or(DbError::UnexpectedQueryResult(
-                    "Combined price entry `price` can't be `None`".into(),
-                ))
-            }
-        }
-
-        let combined_entries = sqlx::query_as!(
-            PriceEntry,
+        let entries = sqlx::query_as!(
+            PriceTickRow,
             r#"
-                SELECT time, last_price as price
+                SELECT time, last_price, created_at
                 FROM price_ticks
-                WHERE time >= $1
-                UNION ALL
-                SELECT time, value as price
-                FROM price_history
                 WHERE time >= $1
                 ORDER BY time
             "#,
@@ -105,15 +82,15 @@ impl PriceTicksRepository for PgPriceTicksRepo {
         .await
         .map_err(DbError::Query)?;
 
-        if combined_entries.is_empty() {
+        if entries.is_empty() {
             return Ok(None);
         }
 
-        let mut min_price = combined_entries[0].price()?;
-        let mut max_price = combined_entries[0].price()?;
+        let mut min_price = entries[0].last_price;
+        let mut max_price = entries[0].last_price;
 
-        for entry in combined_entries.iter().skip(1) {
-            let entry_price = entry.price()?;
+        for entry in entries.iter().skip(1) {
+            let entry_price = entry.last_price;
 
             if entry_price < min_price {
                 min_price = entry_price;
@@ -123,9 +100,9 @@ impl PriceTicksRepository for PgPriceTicksRepo {
             }
         }
 
-        let last_entry = combined_entries.last().unwrap();
-        let latest_time = last_entry.time()?;
-        let latest_price = last_entry.price()?;
+        let last_entry = entries.last().expect("not `None`");
+        let latest_time = last_entry.time;
+        let latest_price = last_entry.last_price;
 
         Ok(Some((min_price, max_price, latest_time, latest_price)))
     }
