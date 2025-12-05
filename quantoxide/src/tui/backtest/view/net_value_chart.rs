@@ -54,7 +54,7 @@ impl NetValueChartData {
 
     pub fn to_widget(&self) -> Chart<'_> {
         let y_min = 0.; // Keep y axis starting at 0
-        let y_max = self.max_net_value * 1.1; // Add padding to max_net_value
+        let y_max = self.max_net_value * 1.2; // Add padding to max_net_value
 
         let datasets = vec![
             Dataset::default()
@@ -88,7 +88,7 @@ impl NetValueChartData {
         Chart::new(datasets)
             .block(
                 Block::default()
-                    .title("Balance over time")
+                    .title("Balance [sats] over time")
                     .borders(Borders::ALL),
             )
             .x_axis(
