@@ -168,7 +168,7 @@ impl OhlcCandlesRepository for PgOhlcCandlesRepo {
         let rows = sqlx::query_as!(
             OhlcCandleRow,
             r#"
-                SELECT time, open, high, low, close, volume, created_at, updated_at, gap, stable
+                SELECT time, open, high, low, close, volume, created_at, updated_at, stable
                 FROM ohlc_candles
                 WHERE time >= $1 AND time <= $2
                 ORDER BY time ASC
