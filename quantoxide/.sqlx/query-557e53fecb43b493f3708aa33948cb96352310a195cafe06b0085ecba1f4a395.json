@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                SELECT time, high, low, close\n                FROM ohlc_candles\n                WHERE time >= $1\n                ORDER BY time ASC\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "time",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 1,
+        "name": "high",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 2,
+        "name": "low",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 3,
+        "name": "close",
+        "type_info": "Float8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Timestamptz"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "557e53fecb43b493f3708aa33948cb96352310a195cafe06b0085ecba1f4a395"
+}
