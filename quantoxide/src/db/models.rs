@@ -1,19 +1,17 @@
 use std::fmt;
 
 use chrono::{DateTime, Utc};
-use sqlx::FromRow;
 use uuid::Uuid;
 
 use crate::util::DateTimeExt;
 
-#[derive(Debug, Clone, FromRow, PartialEq)]
+#[derive(Debug, Clone)]
 pub(crate) struct RunningTrade {
     pub trade_id: Uuid,
     pub trailing_stoploss: Option<f64>,
-    pub created_at: DateTime<Utc>,
 }
 
-#[derive(Debug, FromRow)]
+#[derive(Debug, Clone)]
 pub struct OhlcCandleRow {
     pub time: DateTime<Utc>,
     pub open: f64,
@@ -23,7 +21,6 @@ pub struct OhlcCandleRow {
     pub volume: i64,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
-    pub gap: bool,
     pub stable: bool,
 }
 
@@ -39,13 +36,12 @@ impl OhlcCandleRow {
             volume,
             created_at: time,
             updated_at: time,
-            gap: false,
             stable: true,
         }
     }
 }
 
-#[derive(Debug, Clone, FromRow, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct PriceTickRow {
     pub time: DateTime<Utc>,
     pub last_price: f64,
