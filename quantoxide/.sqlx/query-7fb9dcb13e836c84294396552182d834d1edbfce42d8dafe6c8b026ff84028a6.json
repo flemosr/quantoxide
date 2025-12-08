@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n                SELECT time, open, high, low, close, volume, created_at, updated_at, gap, stable\n                FROM ohlc_candles\n                WHERE stable = true\n                ORDER BY time ASC\n                LIMIT 1\n            ",
+  "query": "\n                SELECT time, open, high, low, close, volume, created_at, updated_at, stable\n                FROM ohlc_candles\n                WHERE time >= $1 AND time <= $2\n                ORDER BY time ASC\n            ",
   "describe": {
     "columns": [
       {
@@ -45,20 +45,17 @@
       },
       {
         "ordinal": 8,
-        "name": "gap",
-        "type_info": "Bool"
-      },
-      {
-        "ordinal": 9,
         "name": "stable",
         "type_info": "Bool"
       }
     ],
     "parameters": {
-      "Left": []
+      "Left": [
+        "Timestamptz",
+        "Timestamptz"
+      ]
     },
     "nullable": [
-      false,
       false,
       false,
       false,
@@ -70,5 +67,5 @@
       false
     ]
   },
-  "hash": "4578df1814d227b95e324f8e5830aea9cace5e95978d4da7b6887b885465e4ee"
+  "hash": "7fb9dcb13e836c84294396552182d834d1edbfce42d8dafe6c8b026ff84028a6"
 }

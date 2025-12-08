@@ -1,0 +1,20 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                SELECT time\n                FROM ohlc_candles\n                WHERE stable = true\n                ORDER BY time ASC\n                LIMIT 1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "time",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "a40d7abdfce2c1ae722c3bab051c296787da8421b8b525f50fe6f31da97756a1"
+}
