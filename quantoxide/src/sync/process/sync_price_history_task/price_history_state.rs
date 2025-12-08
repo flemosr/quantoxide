@@ -6,6 +6,37 @@ use crate::{db::Database, util::DateTimeExt};
 
 use super::error::{Result, SyncPriceHistoryError};
 
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum DownloadRange {
+    Latest,
+    UpperBound {
+        from: DateTime<Utc>,
+    },
+    Gap {
+        from: DateTime<Utc>,
+        to: DateTime<Utc>,
+    },
+    LowerBound {
+        to: DateTime<Utc>,
+    },
+}
+
+impl DownloadRange {
+    pub fn from(&self) -> Option<DateTime<Utc>> {
+        match self {
+            Self::UpperBound { from } | Self::Gap { from, to: _ } => Some(*from),
+            _ => None,
+        }
+    }
+
+    pub fn to(&self) -> Option<DateTime<Utc>> {
+        match self {
+            Self::LowerBound { to } | Self::Gap { from: _, to } => Some(*to),
+            _ => None,
+        }
+    }
+}
+
 // FIXME: Rename?
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PriceHistoryState {
@@ -119,14 +150,10 @@ impl PriceHistoryState {
         Ok(range_within_bounds && range_without_gaps)
     }
 
-    // TODO: Return an enum describing the bound or gap instead?
-    pub(crate) fn next_download_range(
-        &self,
-        backfilling: bool,
-    ) -> Result<(Option<DateTime<Utc>>, Option<DateTime<Utc>>)> {
+    pub(crate) fn next_download_range(&self, backfilling: bool) -> Result<DownloadRange> {
         let history_bounds = match &self.bounds {
             Some(bounds) => bounds,
-            None => return Ok((None, None)),
+            None => return Ok(DownloadRange::Latest),
         };
 
         if self.reach_time.is_some_and(|reach_time| {
@@ -146,20 +173,17 @@ impl PriceHistoryState {
             self.gaps.last()
         };
 
-        if let Some((gap_from, gap_to)) = prioritized_gap {
-            if self
-                .reach_time
-                .is_some_and(|reach_time| *gap_from < reach_time)
-            {
+        if let Some((from, to)) = prioritized_gap.cloned() {
+            if self.reach_time.is_some_and(|reach_time| from < reach_time) {
                 // Gap before `reach`. Since entries before `reach` can't be fetched, said gap
                 // can't be closed. Therefore, the DB can't be synced.
                 return Err(SyncPriceHistoryError::UnreachableDbGap {
-                    gap: *gap_from,
+                    gap: from,
                     reach: self.reach_time.expect("not `None`"),
                 });
             }
 
-            return Ok((Some(*gap_from), Some(*gap_to)));
+            return Ok(DownloadRange::Gap { from, to });
         }
 
         if self
@@ -168,10 +192,14 @@ impl PriceHistoryState {
         {
             // Price history should be extended further into the past
 
-            return Ok((None, Some(history_bounds.0)));
+            return Ok(DownloadRange::LowerBound {
+                to: history_bounds.0,
+            });
         }
 
-        Ok((Some(history_bounds.1), None))
+        Ok(DownloadRange::UpperBound {
+            from: history_bounds.1,
+        })
     }
 
     pub fn tail_continuous_duration(&self) -> Option<Duration> {
