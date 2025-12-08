@@ -93,13 +93,18 @@ impl PriceTicksRepository for PgPriceTicksRepo {
         &self,
         start: DateTime<Utc>,
     ) -> Result<Option<(f64, f64, DateTime<Utc>, f64)>> {
-        let entries = sqlx::query_as!(
-            PriceTickRow,
+        struct PriceEntry {
+            pub time: DateTime<Utc>,
+            pub price: f64,
+        }
+
+        let tick_entries = sqlx::query_as!(
+            PriceEntry,
             r#"
-                SELECT time, last_price, created_at
+                SELECT time, last_price as price
                 FROM price_ticks
                 WHERE time >= $1
-                ORDER BY time
+                ORDER BY time ASC
             "#,
             start
         )
@@ -107,16 +112,36 @@ impl PriceTicksRepository for PgPriceTicksRepo {
         .await
         .map_err(DbError::Query)?;
 
-        if entries.is_empty() {
+        struct OhlcCandlePartial {
+            pub time: DateTime<Utc>,
+            pub high: f64,
+            pub low: f64,
+            pub close: f64,
+        }
+
+        let candle_entries = sqlx::query_as!(
+            OhlcCandlePartial,
+            r#"
+                SELECT time, high, low, close
+                FROM ohlc_candles
+                WHERE time >= $1
+                ORDER BY time ASC
+            "#,
+            start
+        )
+        .fetch_all(self.pool())
+        .await
+        .map_err(DbError::Query)?;
+
+        if tick_entries.is_empty() && candle_entries.is_empty() {
             return Ok(None);
         }
 
-        let mut min_price = entries[0].last_price;
-        let mut max_price = entries[0].last_price;
+        let mut min_price = f64::INFINITY;
+        let mut max_price = f64::NEG_INFINITY;
 
-        for entry in entries.iter().skip(1) {
-            let entry_price = entry.last_price;
-
+        for entry in &tick_entries {
+            let entry_price = entry.price;
             if entry_price < min_price {
                 min_price = entry_price;
             }
@@ -125,11 +150,35 @@ impl PriceTicksRepository for PgPriceTicksRepo {
             }
         }
 
-        let last_entry = entries.last().expect("not `None`");
-        let latest_time = last_entry.time;
-        let latest_price = last_entry.last_price;
+        for candle in &candle_entries {
+            if candle.low < min_price {
+                min_price = candle.low;
+            }
+            if candle.high > max_price {
+                max_price = candle.high;
+            }
+        }
 
-        Ok(Some((min_price, max_price, latest_time, latest_price)))
+        let last_tick_opt = tick_entries.into_iter().last();
+
+        let last_candle_opt = candle_entries.into_iter().last().map(|c| PriceEntry {
+            time: c.time,
+            price: c.close,
+        });
+
+        // Prefer candle over tick when times are equal, since candles are minute-floored.
+        let latest_entry = [last_tick_opt, last_candle_opt]
+            .into_iter()
+            .flatten()
+            .max_by_key(|entry| entry.time)
+            .expect("at least one entry exists");
+
+        Ok(Some((
+            min_price,
+            max_price,
+            latest_entry.time,
+            latest_entry.price,
+        )))
     }
 
     async fn remove_ticks(&self, before: DateTime<Utc>) -> Result<()> {
