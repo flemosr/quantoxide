@@ -61,7 +61,7 @@ pub enum TuiError {
     ShutdownFailed(String),
 
     #[error("Sync TUI send failed: {0}")]
-    SyncTuiSendFailed(SendError<SyncUiMessage>),
+    SyncTuiSendFailed(Box<SendError<SyncUiMessage>>),
 
     #[error("Sync recv error: {0}")]
     SyncRecv(RecvError),
@@ -73,7 +73,7 @@ pub enum TuiError {
     SyncShutdownFailed(SyncError),
 
     #[error("Live TUI send failed: {0}")]
-    LiveTuiSendFailed(SendError<LiveUiMessage>),
+    LiveTuiSendFailed(Box<SendError<LiveUiMessage>>),
 
     #[error("Live handle closed trade failed: {0}")]
     LiveHandleClosedTradeFailed(TradeCoreError),
@@ -91,7 +91,7 @@ pub enum TuiError {
     LiveShutdownFailed(LiveError),
 
     #[error("Backtest TUI send failed: {0}")]
-    BacktestTuiSendFailed(SendError<BacktestUiMessage>),
+    BacktestTuiSendFailed(Box<SendError<BacktestUiMessage>>),
 
     #[error("Backtest recv error: {0}")]
     BacktestRecv(RecvError),

@@ -132,13 +132,13 @@ impl BacktestTui {
                                 "Backtest status: {backtest_status}{complement}"
                             )))
                             .await
-                            .map_err(TuiError::BacktestTuiSendFailed)?;
+                            .map_err(|e| TuiError::BacktestTuiSendFailed(Box::new(e)))?;
                     }
                     BacktestUpdate::TradingState(trading_state) => {
                         ui_tx
                             .send(BacktestUiMessage::StateUpdate(trading_state))
                             .await
-                            .map_err(TuiError::BacktestTuiSendFailed)?;
+                            .map_err(|e| TuiError::BacktestTuiSendFailed(Box::new(e)))?;
                     }
                 };
 
@@ -158,7 +158,7 @@ impl BacktestTui {
                         if let Err(e) = ui_tx
                             .send(BacktestUiMessage::LogEntry(log_msg))
                             .await
-                            .map_err(TuiError::BacktestTuiSendFailed)
+                            .map_err(|e| TuiError::BacktestTuiSendFailed(Box::new(e)))
                         {
                             status_manager.set_crashed(e);
                             return;
@@ -206,7 +206,7 @@ impl BacktestTui {
         self.ui_tx
             .send(BacktestUiMessage::LogEntry(log_str))
             .await
-            .map_err(TuiError::BacktestTuiSendFailed)?;
+            .map_err(|e| TuiError::BacktestTuiSendFailed(Box::new(e)))?;
 
         let backtest_update_listener_handle = Self::spawn_backtest_update_listener(
             self.status_manager.clone(),
@@ -230,10 +230,7 @@ impl BacktestTui {
     pub async fn shutdown(&self) -> Result<()> {
         self.status_manager.require_running()?;
 
-        let backtest_controller = self
-            .backtest_controller
-            .get()
-            .map(|inner_ref| inner_ref.clone());
+        let backtest_controller = self.backtest_controller.get().cloned();
 
         core::shutdown_inner(
             self.shutdown_timeout,
@@ -264,9 +261,9 @@ impl TuiLogger for BacktestTui {
         // An error here would be an edge case
 
         self.ui_tx
-            .send(BacktestUiMessage::LogEntry(log_entry.into()))
+            .send(BacktestUiMessage::LogEntry(log_entry))
             .await
-            .map_err(TuiError::BacktestTuiSendFailed)
+            .map_err(|e| TuiError::BacktestTuiSendFailed(Box::new(e)))
     }
 }
 

@@ -117,7 +117,7 @@ impl TuiLogManager for BacktestTuiView {
             state.log_file.as_mut(),
             &mut state.log_entries,
             &mut state.log_max_line_width,
-            state.log_rect.clone(),
+            state.log_rect,
             &mut state.log_v_scroll,
         )
     }

@@ -63,30 +63,30 @@ where
             }
         }
 
-        if event::poll(event_check_interval).map_err(TuiError::TerminalEventRead)? {
-            if let Event::Key(key) = event::read().map_err(TuiError::TerminalEventRead)? {
-                match key.code {
-                    KeyCode::Char('c') | KeyCode::Char('C')
-                        if key.modifiers.contains(KeyModifiers::CONTROL) =>
-                    {
-                        tui_view.add_log_entry("'Ctrl+C' pressed. Shutting down.".to_string())?;
+        if event::poll(event_check_interval).map_err(TuiError::TerminalEventRead)?
+            && let Event::Key(key) = event::read().map_err(TuiError::TerminalEventRead)?
+        {
+            match key.code {
+                KeyCode::Char('c') | KeyCode::Char('C')
+                    if key.modifiers.contains(KeyModifiers::CONTROL) =>
+                {
+                    tui_view.add_log_entry("'Ctrl+C' pressed. Shutting down.".to_string())?;
 
-                        shutdown_tx
-                            .send(())
-                            .await
-                            .map_err(TuiError::SendShutdownFailed)?;
+                    shutdown_tx
+                        .send(())
+                        .await
+                        .map_err(TuiError::SendShutdownFailed)?;
 
-                        break;
-                    }
-                    KeyCode::Up => tui_view.scroll_up(),
-                    KeyCode::Down => tui_view.scroll_down(),
-                    KeyCode::Left => tui_view.scroll_left(),
-                    KeyCode::Right => tui_view.scroll_right(),
-                    KeyCode::Char('t') | KeyCode::Char('T') => tui_view.reset_scroll(),
-                    KeyCode::Char('b') | KeyCode::Char('B') => tui_view.scroll_to_bottom(),
-                    KeyCode::Tab => tui_view.switch_pane(),
-                    _ => {}
+                    break;
                 }
+                KeyCode::Up => tui_view.scroll_up(),
+                KeyCode::Down => tui_view.scroll_down(),
+                KeyCode::Left => tui_view.scroll_left(),
+                KeyCode::Right => tui_view.scroll_right(),
+                KeyCode::Char('t') | KeyCode::Char('T') => tui_view.reset_scroll(),
+                KeyCode::Char('b') | KeyCode::Char('B') => tui_view.scroll_to_bottom(),
+                KeyCode::Tab => tui_view.switch_pane(),
+                _ => {}
             }
         }
     }
@@ -228,8 +228,8 @@ where
 {
     tokio::spawn(async move {
         // If `shutdown_tx` is dropped, UI task is finished
-        if let Some(_) = shutdown_rx.recv().await {
-            let sync_controller = sync_controller.get().map(|inner_ref| inner_ref.clone());
+        if shutdown_rx.recv().await.is_some() {
+            let sync_controller = sync_controller.get().cloned();
 
             // Error handling via `TuiStatusManager`
             let _ = shutdown_inner(

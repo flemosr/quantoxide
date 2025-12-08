@@ -42,11 +42,12 @@ impl fmt::Display for TuiStatus {
 
 impl TuiStatus {
     pub fn is_crashed(&self) -> bool {
-        if let TuiStatus::Stopped(ref status_stopped) = *self {
-            if let TuiStatusStopped::Crashed(_) = status_stopped.as_ref() {
-                return true;
-            }
+        if let TuiStatus::Stopped(ref status_stopped) = *self
+            && let TuiStatusStopped::Crashed(_) = status_stopped.as_ref()
+        {
+            return true;
         }
+
         false
     }
 
@@ -115,7 +116,7 @@ impl<TView: TuiLogManager> TuiStatusManager<TView> {
     }
 
     pub fn set_shutdown_initiated(&self) {
-        self.set(TuiStatus::ShutdownInitiated.into());
+        self.set(TuiStatus::ShutdownInitiated);
     }
 
     pub fn set_shutdown(&self) {

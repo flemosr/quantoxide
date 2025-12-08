@@ -116,13 +116,13 @@ impl SyncTui {
                                 "Sync status: {sync_status}"
                             )))
                             .await
-                            .map_err(TuiError::SyncTuiSendFailed)?;
+                            .map_err(|e| TuiError::SyncTuiSendFailed(Box::new(e)))?;
                     }
                     SyncUpdate::PriceTick(tick) => {
                         ui_tx
                             .send(SyncUiMessage::LogEntry(tick.to_string()))
                             .await
-                            .map_err(TuiError::SyncTuiSendFailed)?;
+                            .map_err(|e| TuiError::SyncTuiSendFailed(Box::new(e)))?;
                     }
                     SyncUpdate::PriceHistoryState(price_history_state) => {
                         ui_tx
@@ -131,7 +131,7 @@ impl SyncTui {
                                 price_history_state.summary()
                             )))
                             .await
-                            .map_err(TuiError::SyncTuiSendFailed)?;
+                            .map_err(|e| TuiError::SyncTuiSendFailed(Box::new(e)))?;
                     }
                 }
                 Ok(())
@@ -150,7 +150,7 @@ impl SyncTui {
                         if let Err(e) = ui_tx
                             .send(SyncUiMessage::LogEntry(log_msg))
                             .await
-                            .map_err(TuiError::SyncTuiSendFailed)
+                            .map_err(|e| TuiError::SyncTuiSendFailed(Box::new(e)))
                         {
                             status_manager.set_crashed(e);
                             return;
@@ -205,10 +205,7 @@ impl SyncTui {
     pub async fn shutdown(&self) -> Result<()> {
         self.status_manager.require_running()?;
 
-        let sync_controller = self
-            .sync_controller
-            .get()
-            .map(|inner_ref| inner_ref.clone());
+        let sync_controller = self.sync_controller.get().cloned();
 
         core::shutdown_inner(
             self.shutdown_timeout,
@@ -239,9 +236,9 @@ impl TuiLogger for SyncTui {
         // An error here would be an edge case
 
         self.ui_tx
-            .send(SyncUiMessage::LogEntry(log_entry.into()))
+            .send(SyncUiMessage::LogEntry(log_entry))
             .await
-            .map_err(TuiError::SyncTuiSendFailed)
+            .map_err(|e| TuiError::SyncTuiSendFailed(Box::new(e)))
     }
 }
 

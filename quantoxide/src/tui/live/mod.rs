@@ -116,7 +116,7 @@ impl LiveTui {
                     ui_tx
                         .send(LiveUiMessage::TradesUpdate(tables))
                         .await
-                        .map_err(TuiError::LiveTuiSendFailed)
+                        .map_err(|e| TuiError::LiveTuiSendFailed(Box::new(e)))
                 };
 
             let mut running_trades_table = "No running trades.".to_string();
@@ -129,19 +129,19 @@ impl LiveTui {
                         ui_tx
                             .send(LiveUiMessage::LogEntry(format!("Live status: {live_status}")))
                             .await
-                            .map_err(TuiError::LiveTuiSendFailed)?;
+                            .map_err(|e| TuiError::LiveTuiSendFailed(Box::new(e)))?;
                     }
                     LiveUpdate::Signal(signal) => {
                         ui_tx
                             .send(LiveUiMessage::LogEntry(signal.to_string()))
                             .await
-                            .map_err(TuiError::LiveTuiSendFailed)?;
+                            .map_err(|e| TuiError::LiveTuiSendFailed(Box::new(e)))?;
                     }
                     LiveUpdate::Order(order) => {
                         ui_tx
                             .send(LiveUiMessage::LogEntry(format!("Order: {order}")))
                             .await
-                            .map_err(TuiError::LiveTuiSendFailed)?;
+                            .map_err(|e| TuiError::LiveTuiSendFailed(Box::new(e)))?;
                     }
                     LiveUpdate::TradingState(trading_state) => {
                         ui_tx
@@ -150,7 +150,7 @@ impl LiveTui {
                                 trading_state.summary()
                             )))
                             .await
-                            .map_err(TuiError::LiveTuiSendFailed)?;
+                            .map_err(|e| TuiError::LiveTuiSendFailed(Box::new(e)))?;
 
                         running_trades_table = trading_state.running_trades_table();
 
@@ -178,7 +178,10 @@ impl LiveTui {
                     }
                     Err(RecvError::Lagged(skipped)) => {
                         let log_msg = format!("Live updates lagged by {skipped} messages");
-                        if let Err(e) = ui_tx.send(LiveUiMessage::LogEntry(log_msg)).await.map_err(TuiError::LiveTuiSendFailed) {
+                        let send_res = ui_tx
+                            .send(LiveUiMessage::LogEntry(log_msg)).await
+                            .map_err(|e| TuiError::LiveTuiSendFailed(Box::new(e)));
+                        if let Err(e) = send_res {
                             status_manager.set_crashed(e);
                             return;
                         }
@@ -235,10 +238,7 @@ impl LiveTui {
     pub async fn shutdown(&self) -> Result<()> {
         self.status_manager.require_running()?;
 
-        let live_controller = self
-            .live_controller
-            .get()
-            .map(|inner_ref| inner_ref.clone());
+        let live_controller = self.live_controller.get().cloned();
 
         core::shutdown_inner(
             self.shutdown_timeout,
@@ -269,9 +269,9 @@ impl TuiLogger for LiveTui {
         // An error here would be an edge case
 
         self.ui_tx
-            .send(LiveUiMessage::LogEntry(log_entry.into()))
+            .send(LiveUiMessage::LogEntry(log_entry))
             .await
-            .map_err(TuiError::LiveTuiSendFailed)
+            .map_err(|e| TuiError::LiveTuiSendFailed(Box::new(e)))
     }
 }
 

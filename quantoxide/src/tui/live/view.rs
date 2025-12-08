@@ -19,9 +19,9 @@ use super::{
 
 #[derive(Debug, PartialEq, EnumIter)]
 pub(in crate::tui) enum LiveTuiPane {
-    TradesPane,
-    SummaryPane,
-    LogPane,
+    Trades,
+    Summary,
+    Log,
 }
 
 pub(in crate::tui) struct LiveTuiViewState {
@@ -58,7 +58,7 @@ impl LiveTuiView {
             max_tui_log_len,
             state: Mutex::new(LiveTuiViewState {
                 log_file,
-                active_pane: LiveTuiPane::LogPane,
+                active_pane: LiveTuiPane::Log,
 
                 trades_lines: vec!["Initializing...".to_string()],
                 trades_max_line_width: 0,
@@ -102,7 +102,7 @@ impl TuiLogManager for LiveTuiView {
             state.log_file.as_mut(),
             &mut state.log_entries,
             &mut state.log_max_line_width,
-            state.log_rect.clone(),
+            state.log_rect,
             &mut state.log_v_scroll,
         )
     }
@@ -121,21 +121,21 @@ impl TuiView for LiveTuiView {
 
     fn get_active_scroll_data(state: &Self::State) -> (usize, usize, &Rect, usize, usize) {
         match state.active_pane {
-            LiveTuiPane::TradesPane => (
+            LiveTuiPane::Trades => (
                 state.trades_v_scroll,
                 state.trades_h_scroll,
                 &state.trades_rect,
                 state.trades_lines.len(),
                 state.trades_max_line_width,
             ),
-            LiveTuiPane::SummaryPane => (
+            LiveTuiPane::Summary => (
                 state.summary_v_scroll,
                 state.summary_h_scroll,
                 &state.summary_rect,
                 state.summary_lines.len(),
                 state.summary_max_line_width,
             ),
-            LiveTuiPane::LogPane => (
+            LiveTuiPane::Log => (
                 state.log_v_scroll,
                 state.log_h_scroll,
                 &state.log_rect,
@@ -147,9 +147,9 @@ impl TuiView for LiveTuiView {
 
     fn get_active_scroll_mut(state: &mut Self::State) -> (&mut usize, &mut usize) {
         match state.active_pane {
-            LiveTuiPane::TradesPane => (&mut state.trades_v_scroll, &mut state.trades_h_scroll),
-            LiveTuiPane::SummaryPane => (&mut state.summary_v_scroll, &mut state.summary_h_scroll),
-            LiveTuiPane::LogPane => (&mut state.log_v_scroll, &mut state.log_h_scroll),
+            LiveTuiPane::Trades => (&mut state.trades_v_scroll, &mut state.trades_h_scroll),
+            LiveTuiPane::Summary => (&mut state.summary_v_scroll, &mut state.summary_h_scroll),
+            LiveTuiPane::Log => (&mut state.log_v_scroll, &mut state.log_h_scroll),
         }
     }
 
@@ -158,29 +158,29 @@ impl TuiView for LiveTuiView {
         pane: Self::TuiPane,
     ) -> (&'static str, &Vec<String>, usize, usize, Rect, bool) {
         match pane {
-            LiveTuiPane::TradesPane => (
+            LiveTuiPane::Trades => (
                 "Trades",
                 &state.trades_lines,
                 state.trades_v_scroll,
                 state.trades_h_scroll,
                 state.trades_rect,
-                state.active_pane == LiveTuiPane::TradesPane,
+                state.active_pane == LiveTuiPane::Trades,
             ),
-            LiveTuiPane::SummaryPane => (
+            LiveTuiPane::Summary => (
                 "Trades Summary",
                 &state.summary_lines,
                 state.summary_v_scroll,
                 state.summary_h_scroll,
                 state.summary_rect,
-                state.active_pane == LiveTuiPane::SummaryPane,
+                state.active_pane == LiveTuiPane::Summary,
             ),
-            LiveTuiPane::LogPane => (
+            LiveTuiPane::Log => (
                 "Log",
                 &state.log_entries,
                 state.log_v_scroll,
                 state.log_h_scroll,
                 state.log_rect,
-                state.active_pane == LiveTuiPane::LogPane,
+                state.active_pane == LiveTuiPane::Log,
             ),
         }
     }
@@ -190,17 +190,17 @@ impl TuiView for LiveTuiView {
         pane: Self::TuiPane,
     ) -> (&mut Vec<String>, &mut usize, &mut usize) {
         match pane {
-            LiveTuiPane::TradesPane => (
+            LiveTuiPane::Trades => (
                 &mut state.trades_lines,
                 &mut state.trades_max_line_width,
                 &mut state.trades_v_scroll,
             ),
-            LiveTuiPane::SummaryPane => (
+            LiveTuiPane::Summary => (
                 &mut state.summary_lines,
                 &mut state.summary_max_line_width,
                 &mut state.summary_v_scroll,
             ),
-            LiveTuiPane::LogPane => (
+            LiveTuiPane::Log => (
                 &mut state.log_entries,
                 &mut state.log_max_line_width,
                 &mut state.log_v_scroll,
@@ -211,11 +211,11 @@ impl TuiView for LiveTuiView {
     fn handle_ui_message(&self, message: Self::UiMessage) -> Result<bool> {
         match message {
             LiveUiMessage::TradesUpdate(trades_table) => {
-                self.update_pane_content(LiveTuiPane::TradesPane, trades_table);
+                self.update_pane_content(LiveTuiPane::Trades, trades_table);
                 Ok(false)
             }
             LiveUiMessage::SummaryUpdate(summary) => {
-                self.update_pane_content(LiveTuiPane::SummaryPane, summary);
+                self.update_pane_content(LiveTuiPane::Summary, summary);
                 Ok(false)
             }
             LiveUiMessage::LogEntry(entry) => {
@@ -252,9 +252,9 @@ impl TuiView for LiveTuiView {
         let mut state_guard = self.get_state();
 
         state_guard.active_pane = match state_guard.active_pane {
-            LiveTuiPane::TradesPane => LiveTuiPane::LogPane,
-            LiveTuiPane::LogPane => LiveTuiPane::SummaryPane,
-            LiveTuiPane::SummaryPane => LiveTuiPane::TradesPane,
+            LiveTuiPane::Trades => LiveTuiPane::Log,
+            LiveTuiPane::Log => LiveTuiPane::Summary,
+            LiveTuiPane::Summary => LiveTuiPane::Trades,
         };
     }
 }

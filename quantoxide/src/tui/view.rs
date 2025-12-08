@@ -230,7 +230,7 @@ pub(super) trait TuiView: TuiLogManager {
         // or if current scroll position would be out of bounds
         if new_lines.len() != lines.len() {
             // If new content is shorter, adjust scroll to stay within bounds
-            if *v_scroll >= new_lines.len() && new_lines.len() > 0 {
+            if *v_scroll >= new_lines.len() && !new_lines.is_empty() {
                 *v_scroll = new_lines.len().saturating_sub(1);
             }
         }
