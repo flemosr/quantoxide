@@ -11,7 +11,6 @@ pub enum LookbackPeriodValidationError {
     InvalidLookbackPeriodTooLong,
 }
 
-
 #[derive(Error, Debug)]
 pub enum MinIterationIntervalValidationError {
     #[error(
@@ -26,4 +25,3 @@ pub enum MinIterationIntervalValidationError {
     )]
     InvalidMinIterationIntervalTooLong,
 }
-
