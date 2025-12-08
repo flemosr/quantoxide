@@ -64,9 +64,9 @@ pub(crate) trait OhlcCandlesRepository: Send + Sync {
 
     async fn remove_gap_flag(&self, time: DateTime<Utc>) -> Result<()>;
 
-    async fn get_earliest_stable_candle(&self) -> Result<Option<OhlcCandleRow>>;
+    async fn get_earliest_stable_candle_time(&self) -> Result<Option<DateTime<Utc>>>;
 
-    async fn get_latest_stable_candle(&self) -> Result<Option<OhlcCandleRow>>;
+    async fn get_latest_stable_candle_time(&self) -> Result<Option<DateTime<Utc>>>;
 
     async fn get_gaps(&self) -> Result<Vec<(DateTime<Utc>, DateTime<Utc>)>>;
 

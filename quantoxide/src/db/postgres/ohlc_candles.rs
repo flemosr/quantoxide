@@ -191,11 +191,15 @@ impl OhlcCandlesRepository for PgOhlcCandlesRepo {
         Ok(())
     }
 
-    async fn get_earliest_stable_candle(&self) -> Result<Option<OhlcCandleRow>> {
-        sqlx::query_as!(
-            OhlcCandleRow,
+    async fn get_earliest_stable_candle_time(&self) -> Result<Option<DateTime<Utc>>> {
+        struct OhlcCandlePartial {
+            pub time: DateTime<Utc>,
+        }
+
+        let candle = sqlx::query_as!(
+            OhlcCandlePartial,
             r#"
-                SELECT time, open, high, low, close, volume, created_at, updated_at, gap, stable
+                SELECT time
                 FROM ohlc_candles
                 WHERE stable = true
                 ORDER BY time ASC
@@ -204,14 +208,20 @@ impl OhlcCandlesRepository for PgOhlcCandlesRepo {
         )
         .fetch_optional(self.pool())
         .await
-        .map_err(DbError::Query)
+        .map_err(DbError::Query)?;
+
+        Ok(candle.map(|c| c.time))
     }
 
-    async fn get_latest_stable_candle(&self) -> Result<Option<OhlcCandleRow>> {
-        let row = sqlx::query_as!(
-            OhlcCandleRow,
+    async fn get_latest_stable_candle_time(&self) -> Result<Option<DateTime<Utc>>> {
+        struct OhlcCandlePartial {
+            pub time: DateTime<Utc>,
+        }
+
+        let candle = sqlx::query_as!(
+            OhlcCandlePartial,
             r#"
-                SELECT time, open, high, low, close, volume, created_at, updated_at, gap, stable
+                SELECT time
                 FROM ohlc_candles
                 WHERE stable = true
                 ORDER BY time DESC
@@ -222,7 +232,7 @@ impl OhlcCandlesRepository for PgOhlcCandlesRepo {
         .await
         .map_err(DbError::Query)?;
 
-        Ok(row)
+        Ok(candle.map(|c| c.time))
     }
 
     async fn get_gaps(&self) -> Result<Vec<(DateTime<Utc>, DateTime<Utc>)>> {
