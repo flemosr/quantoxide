@@ -63,7 +63,7 @@ impl BacktestController {
             return handle.await.map_err(BacktestError::TaskJoin);
         }
 
-        return Err(BacktestError::ProcessAlreadyConsumed);
+        Err(BacktestError::ProcessAlreadyConsumed)
     }
 
     /// Consumes the task handle and aborts the backtest.
@@ -205,7 +205,7 @@ impl BacktestEngine {
 
         let max_lookback = operator.max_lookback()?;
 
-        if max_lookback.map_or(false, |max| max.as_usize() > config.buffer_size()) {
+        if max_lookback.is_some_and(|max| max.as_usize() > config.buffer_size()) {
             return Err(BacktestError::IncompatibleBufferSize {
                 buffer_size: config.buffer_size(),
                 max_lookback: max_lookback.expect("not `None`"),
@@ -336,7 +336,7 @@ impl BacktestEngine {
 
         let trades_executor = Arc::new(SimulatedTradeExecutor::new(
             &self.config,
-            &start_candle,
+            start_candle,
             self.start_balance,
         ));
 

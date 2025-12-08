@@ -114,9 +114,7 @@ impl LiveTradingSession {
         let mut registered_trades_map = db.running_trades.get_running_trades_map().await?;
 
         for trade in running_trades {
-            let trade_tsl = registered_trades_map
-                .remove(&trade.id())
-                .and_then(|inner_opt| inner_opt.clone());
+            let trade_tsl = registered_trades_map.remove(&trade.id()).flatten();
 
             // Balance obtained via API is up-to-date
             session.register_running_trade(trade, trade_tsl, false)?;
@@ -194,7 +192,7 @@ impl LiveTradingSession {
 
         let mut closed_trades = Vec::new();
 
-        if to_confirm_closed.len() > 0 {
+        if !to_confirm_closed.is_empty() {
             let limit = (to_confirm_closed.len() as u64)
                 .try_into()
                 .expect("valid `NonZeroU64`");
@@ -208,7 +206,7 @@ impl LiveTradingSession {
                 }
             }
 
-            if to_confirm_closed.len() != 0 {
+            if !to_confirm_closed.is_empty() {
                 let trade_id = to_confirm_closed.drain().next().expect("not empty");
                 return Err(ExecutorActionError::ClosedTradeNotConfirmed { trade_id });
             }
@@ -281,7 +279,7 @@ impl LiveTradingSession {
 
         if self
             .last_trade_time
-            .map_or(true, |last| new_trade.created_at() > last)
+            .is_none_or(|last| new_trade.created_at() > last)
         {
             self.last_trade_time = Some(new_trade.created_at());
         }
@@ -385,7 +383,7 @@ impl LiveTradingSession {
                 });
             }
 
-            if new_last_trade_time.map_or(true, |last| closed_at > last) {
+            if new_last_trade_time.is_none_or(|last| closed_at > last) {
                 new_last_trade_time = Some(closed_at);
             }
 

@@ -251,11 +251,9 @@ pub trait TradeRunning: crate::sealed::Sealed + TradeCore {
 
         let max_margin = Margin::calculate(self.quantity(), self.price(), Leverage::MIN);
 
-        let max_add_margin = max_margin
+        max_margin
             .into_u64()
-            .saturating_sub(self.margin().into_u64());
-
-        return max_add_margin;
+            .saturating_sub(self.margin().into_u64())
     }
 
     /// Estimates the maximum margin that can be withdrawn from the trade.
@@ -284,13 +282,12 @@ pub trait TradeRunning: crate::sealed::Sealed + TradeCore {
 
         let min_margin = Margin::calculate(self.quantity(), self.price(), Leverage::MAX);
 
-        let max_cash_in = self
+        let excess_margin = self
             .margin()
             .into_u64()
-            .saturating_sub(min_margin.into_u64())
-            + extractable_pl;
+            .saturating_sub(min_margin.into_u64());
 
-        return max_cash_in;
+        excess_margin + extractable_pl
     }
 
     /// Calculates the collateral adjustment needed to achieve a target liquidation price.
@@ -378,9 +375,12 @@ impl TradeClosed for Trade {
     }
 }
 
+/// A reference to a trade, containing `(creation_timestamp, trade_uuid)`.
+pub type TradeReference = (DateTime<Utc>, Uuid);
+
 #[derive(Debug)]
 pub struct RunningTradesMap<T: TradeRunning + ?Sized> {
-    trades: BTreeMap<(DateTime<Utc>, Uuid), (Arc<T>, Option<TradeTrailingStoploss>)>,
+    trades: BTreeMap<TradeReference, (Arc<T>, Option<TradeTrailingStoploss>)>,
     id_to_time: HashMap<Uuid, DateTime<Utc>>,
 }
 
@@ -409,7 +409,7 @@ impl<T: TradeRunning + ?Sized> RunningTradesMap<T> {
     }
 
     pub fn contains(&self, trade_id: &Uuid) -> bool {
-        self.id_to_time.get(trade_id).is_some()
+        self.id_to_time.contains_key(trade_id)
     }
 
     pub fn get_trade_by_id(&self, id: Uuid) -> Option<&(Arc<T>, Option<TradeTrailingStoploss>)> {
@@ -494,6 +494,7 @@ pub struct TradingState {
 }
 
 impl TradingState {
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn new(
         last_tick_time: DateTime<Utc>,
         balance: u64,
@@ -848,6 +849,12 @@ impl<T: TradeClosed> ClosedTradeHistory<T> {
     }
 }
 
+impl<T: TradeClosed> Default for ClosedTradeHistory<T> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Stoploss {
     Fixed(Price),
@@ -1118,7 +1125,7 @@ pub(super) trait TradeRunningExt: TradeRunning {
                 let next_stoploss = curr_stoploss.apply_discount(tsl_step_size).map_err(|e| {
                     TradeCoreError::InvalidPriceApplyDiscount {
                         price: curr_stoploss,
-                        discount: tsl_step_size.into(),
+                        discount: tsl_step_size,
                         e,
                     }
                 })?;
@@ -1152,9 +1159,8 @@ pub(super) trait TradeRunningExt: TradeRunning {
                 let upper_bound =
                     takeprofit_trigger.min(next_stoploss_update_trigger.unwrap_or(Price::MAX));
 
-                return Ok((lower_bound, upper_bound));
+                Ok((lower_bound, upper_bound))
             }
-
             TradeSide::Sell => {
                 let takeprofit_trigger = self.takeprofit().unwrap_or(Price::MIN);
                 let lower_bound =
@@ -1162,9 +1168,9 @@ pub(super) trait TradeRunningExt: TradeRunning {
 
                 let upper_bound = self.stoploss().unwrap_or(Price::MAX);
 
-                return Ok((lower_bound, upper_bound));
+                Ok((lower_bound, upper_bound))
             }
-        };
+        }
     }
 
     fn was_closed_on_range(&self, range_min: f64, range_max: f64) -> bool {
@@ -1172,24 +1178,24 @@ pub(super) trait TradeRunningExt: TradeRunning {
             TradeSide::Buy => {
                 let stoploss_reached = self
                     .stoploss()
-                    .map_or(false, |stoploss| range_min <= stoploss.into_f64());
+                    .is_some_and(|stoploss| range_min <= stoploss.into_f64());
                 let takeprofit_reached = self
                     .takeprofit()
-                    .map_or(false, |takeprofit| range_max >= takeprofit.into_f64());
+                    .is_some_and(|takeprofit| range_max >= takeprofit.into_f64());
 
-                return stoploss_reached || takeprofit_reached;
+                stoploss_reached || takeprofit_reached
             }
             TradeSide::Sell => {
                 let stoploss_reached = self
                     .stoploss()
-                    .map_or(false, |stoploss| range_max >= stoploss.into_f64());
+                    .is_some_and(|stoploss| range_max >= stoploss.into_f64());
                 let takeprofit_reached = self
                     .takeprofit()
-                    .map_or(false, |takeprofit| range_min <= takeprofit.into_f64());
+                    .is_some_and(|takeprofit| range_min <= takeprofit.into_f64());
 
-                return stoploss_reached || takeprofit_reached;
+                stoploss_reached || takeprofit_reached
             }
-        };
+        }
     }
 
     fn eval_new_stoploss_on_range(

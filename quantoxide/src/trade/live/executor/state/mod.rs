@@ -170,7 +170,7 @@ impl LiveTradeExecutorStateManager {
         Arc::new(Self { state, update_tx })
     }
 
-    pub async fn lock_state(&self) -> LockedLiveTradeExecutorState {
+    pub async fn lock_state(&self) -> LockedLiveTradeExecutorState<'_> {
         let state_guard = self.state.lock().await;
 
         LockedLiveTradeExecutorState {
@@ -181,7 +181,7 @@ impl LiveTradeExecutorStateManager {
 
     pub async fn try_lock_ready_state(
         &self,
-    ) -> ExecutorActionResult<LockedLiveTradeExecutorStateReady> {
+    ) -> ExecutorActionResult<LockedLiveTradeExecutorStateReady<'_>> {
         let locked_state = self.lock_state().await;
         LockedLiveTradeExecutorStateReady::try_from(locked_state)
     }
@@ -203,6 +203,6 @@ impl LiveTradeExecutorStateManager {
         self.lock_state()
             .await
             .trading_session()
-            .map_or(false, |session| !session.running_map().is_empty())
+            .is_some_and(|session| !session.running_map().is_empty())
     }
 }

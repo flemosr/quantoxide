@@ -30,6 +30,7 @@ pub(super) struct SimulatedTradeRunning {
 }
 
 impl SimulatedTradeRunning {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         side: TradeSide,
         size: TradeSize,
@@ -65,7 +66,7 @@ impl SimulatedTradeRunning {
             stoploss,
             takeprofit,
             entry_time,
-            entry_price: entry_price,
+            entry_price,
         }))
     }
 

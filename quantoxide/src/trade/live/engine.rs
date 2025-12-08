@@ -133,6 +133,7 @@ pub struct LiveEngine {
 }
 
 impl LiveEngine {
+    #[allow(clippy::too_many_arguments)]
     pub fn with_signal_operator(
         config: LiveConfig,
         db: Arc<Database>,

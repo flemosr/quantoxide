@@ -229,7 +229,7 @@ impl LiveProcess {
 
             if let SyncStatus::NotSynced(sync_status_not_synced) = sync_reader.status_snapshot() {
                 self.status_manager
-                    .update(LiveStatus::WaitingForSync(sync_status_not_synced).into());
+                    .update(LiveStatus::WaitingForSync(sync_status_not_synced));
 
                 let mut sync_rx = sync_reader.update_receiver();
                 loop {
@@ -241,7 +241,6 @@ impl LiveProcess {
                                         SyncStatus::NotSynced(sync_status_not_synced) => {
                                             self.status_manager.update(
                                                 LiveStatus::WaitingForSync(sync_status_not_synced)
-                                                    .into(),
                                             );
                                         }
                                         SyncStatus::Synced => break,
@@ -418,19 +417,19 @@ impl LiveProcess {
             .trade_executor
             .shutdown()
             .await
-            .map_err(|e| LiveProcessFatalError::ExecutorShutdownError(e).into());
+            .map_err(LiveProcessFatalError::ExecutorShutdownError);
 
         let signal_shutdown_res = match self.operator_running.signal_controller() {
             Some(signal_controller) => signal_controller.shutdown().await,
             None => Ok(()),
         }
-        .map_err(|e| LiveProcessFatalError::LiveSignalShutdown(e).into());
+        .map_err(LiveProcessFatalError::LiveSignalShutdown);
 
         let sync_shutdown_res = self
             .sync_controller
             .shutdown()
             .await
-            .map_err(|e| LiveProcessFatalError::SyncShutdown(e).into());
+            .map_err(LiveProcessFatalError::SyncShutdown);
 
         executor_shutdown_res
             .and(signal_shutdown_res)

@@ -155,7 +155,7 @@ impl LiveTradeExecutor {
 
         self.db
             .running_trades
-            .add_running_trade(trade.id(), trade_tsl.clone())
+            .add_running_trade(trade.id(), trade_tsl)
             .await?;
 
         let mut new_trading_session = locked_ready_state.trading_session().to_owned();
@@ -493,6 +493,7 @@ impl LiveTradeExecutorLauncher {
         self.update_tx.subscribe()
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn spawn_sync_processor(
         recover_trades_on_startup: bool,
         tsl_step_size: BoundedPercentage,

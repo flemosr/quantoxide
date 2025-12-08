@@ -137,18 +137,18 @@ impl SimulatedTradeExecutor {
                 TradeSide::Sell => (trade.takeprofit(), trade.stoploss()),
             };
 
-            if let Some(trade_min) = trade_min_opt {
-                if candle.low <= trade_min.into_f64() {
-                    close_trade(trade.as_ref(), trade_min);
-                    continue;
-                }
+            if let Some(trade_min) = trade_min_opt
+                && candle.low <= trade_min.into_f64()
+            {
+                close_trade(trade.as_ref(), trade_min);
+                continue;
             }
 
-            if let Some(trade_max) = trade_max_opt {
-                if candle.high >= trade_max.into_f64() {
-                    close_trade(trade.as_ref(), trade_max);
-                    continue;
-                }
+            if let Some(trade_max) = trade_max_opt
+                && candle.high >= trade_max.into_f64()
+            {
+                close_trade(trade.as_ref(), trade_max);
+                continue;
             }
 
             if let Some(trade_tsl) = *trade_tsl_opt {
