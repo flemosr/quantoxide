@@ -75,7 +75,7 @@ impl RunningTradesRepository for PgRunningTradesRepo {
                                 "`trailing_stoploss` ({tsl}) cannot be casted as `BoundedPercentage`: {e}"
                             ))
                         })
-                        .map(|tsl| TradeTrailingStoploss::prev_validated(tsl))
+                        .map(TradeTrailingStoploss::prev_validated)
                 })
                 .transpose()?;
 
