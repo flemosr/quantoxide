@@ -54,7 +54,7 @@ impl RunningTradesRepository for PgRunningTradesRepo {
         let running_trades = sqlx::query_as!(
             RunningTrade,
             r#"
-                SELECT trade_id, trailing_stoploss, created_at
+                SELECT trade_id, trailing_stoploss
                 FROM running_trades
                 ORDER BY created_at ASC
             "#
