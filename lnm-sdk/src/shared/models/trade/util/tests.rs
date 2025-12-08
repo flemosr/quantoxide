@@ -512,9 +512,10 @@ fn test_cash_in_from_long_profit() {
         estimate_liquidation_price(side, quantity, original_price, original_leverage);
     assert_eq!(original_liquidation.into_f64(), 90_909.0);
 
-    let original_stoploss = Some(Price::try_from(95_000.0).unwrap());
-    assert!(original_stoploss.unwrap() > original_liquidation);
-    assert!(original_stoploss.unwrap() < original_price);
+    let original_stoploss = Price::try_from(95_000.0).unwrap();
+    assert!(original_stoploss > original_liquidation);
+    assert!(original_stoploss < original_price);
+    let original_stoploss = Some(original_stoploss);
 
     let market_price = Price::try_from(110_000).unwrap();
 
@@ -639,9 +640,10 @@ fn test_cash_in_from_long_loss() {
         estimate_liquidation_price(side, quantity, original_price, original_leverage);
     assert_eq!(original_liquidation.into_f64(), 90_909.0);
 
-    let original_stoploss = Some(Price::try_from(95_000.0).unwrap());
-    assert!(original_stoploss.unwrap() > original_liquidation);
-    assert!(original_stoploss.unwrap() < original_price);
+    let original_stoploss = Price::try_from(95_000.0).unwrap();
+    assert!(original_stoploss > original_liquidation);
+    assert!(original_stoploss < original_price);
+    let original_stoploss = Some(original_stoploss);
 
     let market_price = Price::try_from(98_000.0).unwrap();
 
@@ -691,9 +693,10 @@ fn test_cash_in_from_short_profit() {
         estimate_liquidation_price(side, quantity, original_price, original_leverage);
     assert_eq!(original_liquidation.into_f64(), 111_111.0);
 
-    let original_stoploss = Some(Price::try_from(105_000.0).unwrap());
-    assert!(original_stoploss.unwrap() < original_liquidation);
-    assert!(original_stoploss.unwrap() > original_price);
+    let original_stoploss = Price::try_from(105_000.0).unwrap();
+    assert!(original_stoploss < original_liquidation);
+    assert!(original_stoploss > original_price);
+    let original_stoploss = Some(original_stoploss);
 
     let market_price = Price::try_from(92_000).unwrap();
 
@@ -818,9 +821,10 @@ fn test_cash_in_from_short_loss() {
         estimate_liquidation_price(side, quantity, original_price, original_leverage);
     assert_eq!(original_liquidation.into_f64(), 111_111.0);
 
-    let original_stoploss = Some(Price::try_from(105_000.0).unwrap());
-    assert!(original_stoploss.unwrap() < original_liquidation);
-    assert!(original_stoploss.unwrap() > original_price);
+    let original_stoploss = Price::try_from(105_000.0).unwrap();
+    assert!(original_stoploss < original_liquidation);
+    assert!(original_stoploss > original_price);
+    let original_stoploss = Some(original_stoploss);
 
     let market_price = Price::try_from(102_000).unwrap();
 
@@ -894,7 +898,7 @@ fn test_collateral_delta_estimation_long_profit_leverage_up() {
     assert_eq!(collateral_delta, -47_368);
     assert!(collateral_delta.abs() < original_pl as i64);
 
-    let cash_in_amount = NonZeroU64::new(collateral_delta.abs() as u64).unwrap();
+    let cash_in_amount = NonZeroU64::new(collateral_delta.unsigned_abs()).unwrap();
 
     let (_, _, _, new_liquidation, _) = evaluate_cash_in(
         side,
@@ -928,7 +932,7 @@ fn test_collateral_delta_estimation_long_profit_leverage_up() {
     assert_eq!(collateral_delta, -147_618);
     assert!(collateral_delta.abs() > original_pl as i64);
 
-    let cash_in_amount = NonZeroU64::new(collateral_delta.abs() as u64).unwrap();
+    let cash_in_amount = NonZeroU64::new(collateral_delta.unsigned_abs()).unwrap();
 
     let (_, _, _, new_liquidation, _) = evaluate_cash_in(
         side,
@@ -1036,7 +1040,7 @@ fn test_collateral_delta_estimation_short_profit_leverage_up() {
     assert_eq!(collateral_delta, -52_380);
     assert!(collateral_delta.abs() < original_pl as i64);
 
-    let cash_in_amount = NonZeroU64::new(collateral_delta.abs() as u64).unwrap();
+    let cash_in_amount = NonZeroU64::new(collateral_delta.unsigned_abs()).unwrap();
 
     let (_, _, _, new_liquidation, _) = evaluate_cash_in(
         side,
@@ -1070,7 +1074,7 @@ fn test_collateral_delta_estimation_short_profit_leverage_up() {
     assert_eq!(collateral_delta, -152_631);
     assert!(collateral_delta.abs() > original_pl as i64);
 
-    let cash_in_amount = NonZeroU64::new(collateral_delta.abs() as u64).unwrap();
+    let cash_in_amount = NonZeroU64::new(collateral_delta.unsigned_abs()).unwrap();
 
     let (_, _, _, new_liquidation, _) = evaluate_cash_in(
         side,

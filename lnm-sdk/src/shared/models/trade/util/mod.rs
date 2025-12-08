@@ -83,13 +83,13 @@ pub fn evaluate_open_trade_params(
                     });
                 }
             }
-            if let Some(takeprofit) = takeprofit {
-                if takeprofit <= entry_price {
-                    return Err(TradeValidationError::TakeprofitBelowEntryForLong {
-                        takeprofit,
-                        entry_price,
-                    });
-                }
+            if let Some(takeprofit) = takeprofit
+                && takeprofit <= entry_price
+            {
+                return Err(TradeValidationError::TakeprofitBelowEntryForLong {
+                    takeprofit,
+                    entry_price,
+                });
             }
         }
         TradeSide::Sell => {
@@ -107,13 +107,13 @@ pub fn evaluate_open_trade_params(
                     });
                 }
             }
-            if let Some(takeprofit) = takeprofit {
-                if takeprofit >= entry_price {
-                    return Err(TradeValidationError::TakeprofitAboveEntryForShort {
-                        takeprofit,
-                        entry_price,
-                    });
-                }
+            if let Some(takeprofit) = takeprofit
+                && takeprofit >= entry_price
+            {
+                return Err(TradeValidationError::TakeprofitAboveEntryForShort {
+                    takeprofit,
+                    entry_price,
+                });
             }
         }
     };
@@ -201,13 +201,13 @@ pub fn evaluate_new_stoploss(
                     market_price,
                 });
             }
-            if let Some(takeprofit) = takeprofit {
-                if new_stoploss >= takeprofit {
-                    return Err(TradeValidationError::NewStoplossNotBelowTakeprofitForLong {
-                        new_stoploss,
-                        takeprofit,
-                    });
-                }
+            if let Some(takeprofit) = takeprofit
+                && new_stoploss >= takeprofit
+            {
+                return Err(TradeValidationError::NewStoplossNotBelowTakeprofitForLong {
+                    new_stoploss,
+                    takeprofit,
+                });
             }
         }
         TradeSide::Sell => {
@@ -223,15 +223,15 @@ pub fn evaluate_new_stoploss(
                     market_price,
                 });
             }
-            if let Some(takeprofit) = takeprofit {
-                if new_stoploss <= takeprofit {
-                    return Err(
-                        TradeValidationError::NewStoplossNotAboveTakeprofitForShort {
-                            new_stoploss,
-                            takeprofit,
-                        },
-                    );
-                }
+            if let Some(takeprofit) = takeprofit
+                && new_stoploss <= takeprofit
+            {
+                return Err(
+                    TradeValidationError::NewStoplossNotAboveTakeprofitForShort {
+                        new_stoploss,
+                        takeprofit,
+                    },
+                );
             }
         }
     }
@@ -274,7 +274,7 @@ pub fn evaluate_cash_in(
     market_price: Price,
     amount: NonZeroU64,
 ) -> Result<(Price, Margin, Leverage, Price, Option<Price>), TradeValidationError> {
-    let amount = amount.get() as u64;
+    let amount = amount.get();
     let current_pl = estimate_pl(side, quantity, price, market_price);
 
     let (new_price, remaining_amount) = if current_pl > 0. {
@@ -361,8 +361,7 @@ pub fn evaluate_closing_fee(
     close_price: Price,
 ) -> u64 {
     let fee_calc = SATS_PER_BTC * fee_perc.into_f64() / 100.;
-    let closing_fee = (fee_calc * quantity.into_f64() / close_price.into_f64()).floor() as u64;
-    closing_fee
+    (fee_calc * quantity.into_f64() / close_price.into_f64()).floor() as u64
 }
 
 #[cfg(test)]

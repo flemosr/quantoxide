@@ -32,7 +32,7 @@ use super::{
 /// ```
 ///
 /// [`Trade`]: crate::models::Trade
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Leverage(f64);
 
 impl Leverage {
@@ -119,7 +119,15 @@ impl Eq for Leverage {}
 
 impl Ord for Leverage {
     fn cmp(&self, other: &Self) -> Ordering {
-        self.partial_cmp(other).expect("`Leverage` must be finite")
+        self.0
+            .partial_cmp(&other.0)
+            .expect("`Leverage` must be finite")
+    }
+}
+
+impl PartialOrd for Leverage {
+    fn partial_cmp(&self, other: &Leverage) -> Option<Ordering> {
+        Some(self.cmp(other))
     }
 }
 

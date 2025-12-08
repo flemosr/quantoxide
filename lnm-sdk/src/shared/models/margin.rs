@@ -218,7 +218,7 @@ impl TryFrom<u64> for Margin {
             return Err(MarginValidationError::TooLow);
         }
 
-        Ok(Self(value as u64))
+        Ok(Self(value))
     }
 }
 

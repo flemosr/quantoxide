@@ -185,9 +185,10 @@ impl TradeStatus {
             TradeStatus::Closed => "closed",
         }
     }
+}
 
-    /// Converts the status to an owned String.
-    pub fn to_string(&self) -> String {
-        self.as_str().to_string()
+impl fmt::Display for TradeStatus {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.as_str())
     }
 }

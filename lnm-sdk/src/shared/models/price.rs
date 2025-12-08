@@ -32,7 +32,7 @@ use super::{
 /// assert!(BoundedPercentage::try_from(0.05).is_err());
 /// assert!(BoundedPercentage::try_from(100.0).is_err());
 /// ```
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct BoundedPercentage(f64);
 
 impl BoundedPercentage {
@@ -90,8 +90,15 @@ impl Eq for BoundedPercentage {}
 
 impl Ord for BoundedPercentage {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.partial_cmp(other)
+        self.0
+            .partial_cmp(&other.0)
             .expect("`BoundedPercentage` must be finite")
+    }
+}
+
+impl PartialOrd for BoundedPercentage {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
     }
 }
 
@@ -126,7 +133,7 @@ impl fmt::Display for BoundedPercentage {
 /// // Non-finite values will fail
 /// assert!(LowerBoundedPercentage::try_from(f64::INFINITY).is_err());
 /// ```
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct LowerBoundedPercentage(f64);
 
 impl LowerBoundedPercentage {
@@ -181,8 +188,15 @@ impl Eq for LowerBoundedPercentage {}
 
 impl Ord for LowerBoundedPercentage {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.partial_cmp(other)
+        self.0
+            .partial_cmp(&other.0)
             .expect("`LowerBoundedPercentage` must be finite")
+    }
+}
+
+impl PartialOrd for LowerBoundedPercentage {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
     }
 }
 
@@ -225,7 +239,7 @@ impl fmt::Display for LowerBoundedPercentage {
 /// // Values not aligned to the tick size will fail
 /// assert!(Price::try_from(100_000.25).is_err());
 /// ```
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Price(f64);
 
 impl Price {
@@ -429,7 +443,15 @@ impl Eq for Price {}
 
 impl Ord for Price {
     fn cmp(&self, other: &Self) -> Ordering {
-        self.partial_cmp(other).expect("`Price` must be finite")
+        self.0
+            .partial_cmp(&other.0)
+            .expect("`Price` must be finite")
+    }
+}
+
+impl PartialOrd for Price {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
     }
 }
 
