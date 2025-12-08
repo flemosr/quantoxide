@@ -1,6 +1,6 @@
 use std::{num::NonZeroU64, sync::Arc};
 
-use chrono::{DateTime, Timelike, Utc};
+use chrono::{Timelike, Utc};
 use tokio::{sync::mpsc, time};
 
 use lnm_sdk::api_v3::{
@@ -16,7 +16,7 @@ pub(crate) mod error;
 pub(in crate::sync) mod price_history_state;
 
 use error::{Result, SyncPriceHistoryError};
-use price_history_state::PriceHistoryState;
+use price_history_state::{DownloadRange, PriceHistoryState};
 
 pub(super) type PriceHistoryStateTransmiter = mpsc::Sender<PriceHistoryState>;
 
@@ -43,12 +43,11 @@ impl SyncPriceHistoryTask {
         }
     }
 
-    async fn get_new_ohlc_candles(
-        &self,
-        from_observed_time: Option<DateTime<Utc>>,
-        to_observed_time: Option<DateTime<Utc>>,
-    ) -> Result<Vec<OhlcCandle>> {
-        let limit = match (from_observed_time, to_observed_time) {
+    async fn get_new_ohlc_candles(&self, download_range: DownloadRange) -> Result<Vec<OhlcCandle>> {
+        let candles_from = download_range.from();
+        let candles_to = download_range.to();
+
+        let limit = match (candles_from, candles_to) {
             (Some(from), to_opt) => {
                 // Always get at least 3 candles. It is assumed that `Utc::now()` will be close to
                 // the API server time, but small differences should be expected.
@@ -74,7 +73,7 @@ impl SyncPriceHistoryTask {
                         None,
                         Some(limit),
                         Some(OhlcRange::OneMinute),
-                        to_observed_time,
+                        candles_to,
                     )
                     .await
                 {
@@ -124,7 +123,7 @@ impl SyncPriceHistoryTask {
             return Err(SyncPriceHistoryError::ApiCandlesTimesNotRoundedToMinute);
         }
 
-        if let Some(time) = from_observed_time
+        if let Some(time) = candles_from
             && let Some(candle_i) = candles.iter().position(|candle| candle.time() == time)
         {
             // Remove candles with time at `from_observed_time` or before
@@ -134,18 +133,12 @@ impl SyncPriceHistoryTask {
         Ok(candles)
     }
 
-    async fn partial_download(
-        &self,
-        from_observed_time: Option<DateTime<Utc>>,
-        to_observed_time: Option<DateTime<Utc>>,
-    ) -> Result<bool> {
-        let new_candles = self
-            .get_new_ohlc_candles(from_observed_time, to_observed_time)
-            .await?;
+    async fn partial_download(&self, download_range: DownloadRange) -> Result<bool> {
+        let new_candles = self.get_new_ohlc_candles(download_range).await?;
 
         self.db
             .ohlc_candles
-            .add_candles(to_observed_time, &new_candles)
+            .add_candles(download_range.to(), &new_candles)
             .await?;
 
         Ok(!new_candles.is_empty())
@@ -171,13 +164,28 @@ impl SyncPriceHistoryTask {
         self.handle_history_update(&history_state).await?;
 
         loop {
-            let (download_from, download_to) = history_state.next_download_range(true)?;
+            let download_range = history_state.next_download_range(true)?;
 
-            let new_entries_received = self.partial_download(download_from, download_to).await?;
-            if !new_entries_received && let Some(download_to) = download_to {
-                // No new entries before `download_to` are currently available. Missing candles
-                // will be flagged by `flag_missing_candles` next time it runs.
-                self.db.ohlc_candles.remove_gap_flag(download_to).await?;
+            let new_entries_received = self.partial_download(download_range).await?;
+
+            if !new_entries_received {
+                match download_range {
+                    DownloadRange::LowerBound { to } => {
+                        // No new entries available before lower bound. Invalid reach config.
+                        return Err(
+                            SyncPriceHistoryError::ApiCandlesNotAvailableBeforeHistoryStart {
+                                history_start: to,
+                            },
+                        );
+                    }
+                    DownloadRange::Gap { from: _, to } => {
+                        // No new entries before `to` are currently available, so the gap flag
+                        // should be temporarily removed. Missing candles will be flagged by
+                        // `flag_missing_candles` next time it runs.
+                        self.db.ohlc_candles.remove_gap_flag(to).await?;
+                    }
+                    DownloadRange::Latest | DownloadRange::UpperBound { from: _ } => {}
+                }
             }
 
             history_state =
@@ -185,24 +193,18 @@ impl SyncPriceHistoryTask {
                     .await?;
             self.handle_history_update(&history_state).await?;
 
-            if !history_state.has_gaps()? {
-                if download_to.is_none() {
-                    // Latest entries received. No gaps remain. Backfilling complete.
+            if history_state.has_gaps()? {
+                continue;
+            }
 
-                    if let Some(bound_end) = history_state.bound_end() {
-                        self.db.price_ticks.remove_ticks(bound_end).await?;
-                    }
+            if download_range.to().is_none() {
+                // Latest entries received. No gaps remain. Backfilling complete.
 
-                    return Ok(());
+                if let Some(bound_end) = history_state.bound_end() {
+                    self.db.price_ticks.remove_ticks(bound_end).await?;
                 }
-            } else if history_state.bound_start() == download_to {
-                // No new entries available before lower bound
 
-                return Err(
-                    SyncPriceHistoryError::ApiCandlesNotAvailableBeforeHistoryStart {
-                        history_start: history_state.bound_start().expect("not `None`"),
-                    },
-                );
+                return Ok(());
             }
         }
     }
@@ -220,9 +222,12 @@ impl SyncPriceHistoryTask {
         let history_state = PriceHistoryState::evaluate(&self.db).await?;
         self.handle_history_update(&history_state).await?;
 
-        let initial_bound_end = history_state.bound_end();
+        let initial_download_range = match history_state.bound_end() {
+            Some(bound_end) => DownloadRange::UpperBound { from: bound_end },
+            None => DownloadRange::Latest,
+        };
 
-        self.partial_download(initial_bound_end, None).await?;
+        self.partial_download(initial_download_range).await?;
 
         // Now it can be assumed that the history upper bound matches the current time
 
@@ -236,9 +241,9 @@ impl SyncPriceHistoryTask {
                 return Ok(());
             }
 
-            let (download_from, download_to) = history_state.next_download_range(false)?;
+            let download_range = history_state.next_download_range(false)?;
 
-            self.partial_download(download_from, download_to).await?;
+            self.partial_download(download_range).await?;
         }
     }
 }
