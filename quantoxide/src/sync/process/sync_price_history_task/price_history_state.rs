@@ -37,7 +37,6 @@ impl DownloadRange {
     }
 }
 
-// FIXME: Rename?
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PriceHistoryState {
     reach_time: Option<DateTime<Utc>>,
@@ -49,7 +48,8 @@ impl PriceHistoryState {
     async fn new(db: &Database, reach_opt: Option<Duration>) -> Result<Self> {
         let reach_time = reach_opt.map(|reach| Utc::now() - reach);
 
-        let Some(earliest_candle) = db.ohlc_candles.get_earliest_stable_candle().await? else {
+        let Some(earliest_candle_time) = db.ohlc_candles.get_earliest_stable_candle_time().await?
+        else {
             // DB is empty
             return Ok(Self {
                 reach_time,
@@ -58,25 +58,25 @@ impl PriceHistoryState {
             });
         };
 
-        let lastest_candle = db
+        let lastest_candle_time = db
             .ohlc_candles
-            .get_latest_stable_candle()
+            .get_latest_stable_candle_time()
             .await?
             .expect("db not empty");
 
-        if earliest_candle.time == lastest_candle.time {
+        if earliest_candle_time == lastest_candle_time {
             // DB has a single candle
 
-            if reach_time.is_some_and(|reach_time| earliest_candle.time < reach_time) {
+            if reach_time.is_some_and(|reach_time| earliest_candle_time < reach_time) {
                 return Err(SyncPriceHistoryError::UnreachableDbGap {
-                    gap: earliest_candle.time,
+                    gap: earliest_candle_time,
                     reach: reach_time.expect("`reach_time_opt` can't be `None`"),
                 });
             }
 
             return Ok(Self {
                 reach_time,
-                bounds: Some((earliest_candle.time, earliest_candle.time)),
+                bounds: Some((earliest_candle_time, earliest_candle_time)),
                 gaps: Vec::new(),
             });
         }
@@ -97,7 +97,7 @@ impl PriceHistoryState {
 
         Ok(Self {
             reach_time,
-            bounds: Some((earliest_candle.time, lastest_candle.time)),
+            bounds: Some((earliest_candle_time, lastest_candle_time)),
             gaps,
         })
     }
