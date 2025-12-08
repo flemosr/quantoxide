@@ -42,6 +42,7 @@ pub(super) struct SyncProcess {
 }
 
 impl SyncProcess {
+    #[allow(clippy::too_many_arguments)]
     pub fn spawn(
         config: &SyncConfig,
         db: Arc<Database>,

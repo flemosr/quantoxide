@@ -16,7 +16,7 @@ pub struct PriceHistoryState {
 
 impl PriceHistoryState {
     async fn new(db: &Database, reach_opt: Option<Duration>) -> Result<Self> {
-        let reach_time = reach_opt.map_or(None, |reach| Some(Utc::now() - reach));
+        let reach_time = reach_opt.map(|reach| Utc::now() - reach);
 
         let Some(earliest_candle) = db.ohlc_candles.get_earliest_stable_candle().await? else {
             // DB is empty
@@ -36,7 +36,7 @@ impl PriceHistoryState {
         if earliest_candle.time == lastest_candle.time {
             // DB has a single candle
 
-            if reach_time.map_or(false, |reach_time| earliest_candle.time < reach_time) {
+            if reach_time.is_some_and(|reach_time| earliest_candle.time < reach_time) {
                 return Err(SyncPriceHistoryError::UnreachableDbGap {
                     gap: earliest_candle.time,
                     reach: reach_time.expect("`reach_time_opt` can't be `None`"),
@@ -52,16 +52,16 @@ impl PriceHistoryState {
 
         let gaps = db.ohlc_candles.get_gaps().await?;
 
-        if let Some((from_time, _)) = gaps.first() {
-            if reach_time.map_or(false, |reach_time| *from_time < reach_time) {
-                // There is a price gap before `reach_time`. Since candles before `reach_time`
-                // can't be fetched, said gap can't be closed.
-                // Therefore the DB can't be synced.
-                return Err(SyncPriceHistoryError::UnreachableDbGap {
-                    gap: *from_time,
-                    reach: reach_time.expect("`reach_time_opt` can't be `None`"),
-                });
-            }
+        if let Some((from_time, _)) = gaps.first()
+            && reach_time.is_some_and(|reach_time| *from_time < reach_time)
+        {
+            // There is a price gap before `reach_time`. Since candles before `reach_time`
+            // can't be fetched, said gap can't be closed.
+            // Therefore the DB can't be synced.
+            return Err(SyncPriceHistoryError::UnreachableDbGap {
+                gap: *from_time,
+                reach: reach_time.expect("`reach_time_opt` can't be `None`"),
+            });
         }
 
         Ok(Self {
@@ -129,7 +129,7 @@ impl PriceHistoryState {
             None => return Ok((None, None)),
         };
 
-        if self.reach_time.map_or(false, |reach_time| {
+        if self.reach_time.is_some_and(|reach_time| {
             history_bounds.0 == history_bounds.1 && history_bounds.0 < reach_time
         }) {
             // DB has a single unreachable entry. Edge case
@@ -149,7 +149,7 @@ impl PriceHistoryState {
         if let Some((gap_from, gap_to)) = prioritized_gap {
             if self
                 .reach_time
-                .map_or(false, |reach_time| *gap_from < reach_time)
+                .is_some_and(|reach_time| *gap_from < reach_time)
             {
                 // Gap before `reach`. Since entries before `reach` can't be fetched, said gap
                 // can't be closed. Therefore, the DB can't be synced.
@@ -162,9 +162,10 @@ impl PriceHistoryState {
             return Ok((Some(*gap_from), Some(*gap_to)));
         }
 
-        if self.reach_time.map_or(false, |reach_time| {
-            backfilling && history_bounds.0 > reach_time
-        }) {
+        if self
+            .reach_time
+            .is_some_and(|reach_time| backfilling && history_bounds.0 > reach_time)
+        {
             // Price history should be extended further into the past
 
             return Ok((None, Some(history_bounds.0)));
@@ -188,9 +189,9 @@ impl PriceHistoryState {
             return Err(SyncPriceHistoryError::PriceHistoryStateReachNotSet);
         };
 
-        Ok(self.bounds.map_or(true, |bounds| {
-            !self.gaps.is_empty() || reach_time < bounds.0
-        }))
+        Ok(self
+            .bounds
+            .is_none_or(|bounds| !self.gaps.is_empty() || reach_time < bounds.0))
     }
 
     fn eval_missing_hours(current: &DateTime<Utc>, target: &DateTime<Utc>) -> String {

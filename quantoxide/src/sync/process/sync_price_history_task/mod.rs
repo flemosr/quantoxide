@@ -124,11 +124,11 @@ impl SyncPriceHistoryTask {
             return Err(SyncPriceHistoryError::ApiCandlesTimesNotRoundedToMinute);
         }
 
-        if let Some(time) = from_observed_time {
-            if let Some(candle_i) = candles.iter().position(|candle| candle.time() == time) {
-                // Remove candles with time at `from_observed_time` or before
-                let _ = candles.split_off(candle_i);
-            }
+        if let Some(time) = from_observed_time
+            && let Some(candle_i) = candles.iter().position(|candle| candle.time() == time)
+        {
+            // Remove candles with time at `from_observed_time` or before
+            let _ = candles.split_off(candle_i);
         }
 
         Ok(candles)
@@ -174,12 +174,10 @@ impl SyncPriceHistoryTask {
             let (download_from, download_to) = history_state.next_download_range(true)?;
 
             let new_entries_received = self.partial_download(download_from, download_to).await?;
-            if !new_entries_received {
-                if let Some(download_to) = download_to {
-                    // No new entries before `download_to` are currently available. Missing candles
-                    // will be flagged by `flag_missing_candles` next time it runs.
-                    self.db.ohlc_candles.remove_gap_flag(download_to).await?;
-                }
+            if !new_entries_received && let Some(download_to) = download_to {
+                // No new entries before `download_to` are currently available. Missing candles
+                // will be flagged by `flag_missing_candles` next time it runs.
+                self.db.ohlc_candles.remove_gap_flag(download_to).await?;
             }
 
             history_state =
@@ -232,10 +230,10 @@ impl SyncPriceHistoryTask {
             let history_state = PriceHistoryState::evaluate(&self.db).await?;
             self.handle_history_update(&history_state).await?;
 
-            if let Some(lastest_history_range) = history_state.tail_continuous_duration() {
-                if lastest_history_range >= lookback {
-                    return Ok(());
-                }
+            if let Some(lastest_history_range) = history_state.tail_continuous_duration()
+                && lastest_history_range >= lookback
+            {
+                return Ok(());
             }
 
             let (download_from, download_to) = history_state.next_download_range(false)?;
