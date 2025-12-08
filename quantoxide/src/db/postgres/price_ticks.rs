@@ -48,10 +48,15 @@ impl PriceTicksRepository for PgPriceTicksRepo {
     }
 
     async fn get_latest_entry(&self) -> Result<Option<(DateTime<Utc>, f64)>> {
+        struct PriceEntry {
+            pub time: DateTime<Utc>,
+            pub price: f64,
+        }
+
         let last_tick_opt = sqlx::query_as!(
-            PriceTickRow,
+            PriceEntry,
             r#"
-                SELECT time, last_price, created_at
+                SELECT time, last_price as price
                 FROM price_ticks
                 ORDER BY time DESC
                 LIMIT 1
@@ -61,7 +66,27 @@ impl PriceTicksRepository for PgPriceTicksRepo {
         .await
         .map_err(DbError::Query)?;
 
-        Ok(last_tick_opt.map(|last_tick| (last_tick.time, last_tick.last_price)))
+        let last_candle_opt = sqlx::query_as!(
+            PriceEntry,
+            r#"
+                SELECT time, close as price
+                FROM ohlc_candles
+                ORDER BY time DESC
+                LIMIT 1
+            "#
+        )
+        .fetch_optional(self.pool())
+        .await
+        .map_err(DbError::Query)?;
+
+        // Prefer candle over tick when times are equal, since candles are minute-floored.
+        let latest_entry = [last_tick_opt, last_candle_opt]
+            .into_iter()
+            .flatten()
+            .max_by_key(|entry| entry.time)
+            .map(|entry| (entry.time, entry.price));
+
+        Ok(latest_entry)
     }
 
     async fn get_price_range_from(
