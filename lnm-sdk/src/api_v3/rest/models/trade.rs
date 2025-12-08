@@ -50,20 +50,16 @@ impl FuturesIsolatedTradeRequestBody {
                 let _ = Quantity::try_calculate(*margin, price, leverage)?;
             }
 
-            if let Some(stoploss) = stoploss {
-                if stoploss >= price {
-                    return Err(
-                        FuturesIsolatedTradeRequestValidationError::StopLossHigherThanPrice,
-                    );
-                }
+            if let Some(stoploss) = stoploss
+                && stoploss >= price
+            {
+                return Err(FuturesIsolatedTradeRequestValidationError::StopLossHigherThanPrice);
             }
 
-            if let Some(takeprofit) = takeprofit {
-                if takeprofit <= price {
-                    return Err(
-                        FuturesIsolatedTradeRequestValidationError::TakeProfitLowerThanPrice,
-                    );
-                }
+            if let Some(takeprofit) = takeprofit
+                && takeprofit <= price
+            {
+                return Err(FuturesIsolatedTradeRequestValidationError::TakeProfitLowerThanPrice);
             }
         }
 
@@ -74,7 +70,7 @@ impl FuturesIsolatedTradeRequestBody {
 
         if client_id
             .as_ref()
-            .map_or(false, |client_id| client_id.len() > 64)
+            .is_some_and(|client_id| client_id.len() > 64)
         {
             return Err(FuturesIsolatedTradeRequestValidationError::ClientIdTooLong);
         }
@@ -583,7 +579,7 @@ impl FuturesCrossOrderBody {
 
         if client_id
             .as_ref()
-            .map_or(false, |client_id| client_id.len() > 64)
+            .is_some_and(|client_id| client_id.len() > 64)
         {
             return Err(FuturesCrossTradeOrderValidationError::ClientIdTooLong);
         }

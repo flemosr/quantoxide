@@ -54,7 +54,7 @@ async fn test_create_long_order_limit(
     let client_id = None;
 
     let placed_order: CrossOrder = repo
-        .place_order(side, quantity.into(), execution, client_id.clone())
+        .place_order(side, quantity, execution, client_id.clone())
         .await
         .expect("must place order");
 
@@ -88,7 +88,7 @@ async fn test_create_short_order_limit(
     let client_id = None;
 
     let placed_order: CrossOrder = repo
-        .place_order(side, quantity.into(), execution, client_id)
+        .place_order(side, quantity, execution, client_id)
         .await
         .expect("must place order");
 
@@ -114,7 +114,7 @@ async fn test_create_long_order_market(repo: &LnmFuturesCrossRepository) -> Cros
     let client_id = None;
 
     let placed_order: CrossOrder = repo
-        .place_order(side, quantity.into(), execution, client_id)
+        .place_order(side, quantity, execution, client_id)
         .await
         .expect("must place order");
 
@@ -139,7 +139,7 @@ async fn test_create_short_order_market(repo: &LnmFuturesCrossRepository) -> Cro
     let client_id = None;
 
     let placed_order: CrossOrder = repo
-        .place_order(side, quantity.into(), execution, client_id)
+        .place_order(side, quantity, execution, client_id)
         .await
         .expect("must place order");
 
@@ -293,7 +293,7 @@ async fn test_get_transfers(
     let withdrawal = transfers.data().first().expect("must have withdrawal");
     let deposit = transfers.data().last().expect("must have deposit");
 
-    assert_eq!(withdrawal.amount(), withdrawal_amount as i64 * -1);
+    assert_eq!(withdrawal.amount(), -(withdrawal_amount as i64));
     assert_eq!(deposit.amount(), deposit_amount as i64);
 }
 

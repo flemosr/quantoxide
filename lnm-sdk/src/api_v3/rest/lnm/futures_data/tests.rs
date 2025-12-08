@@ -39,7 +39,7 @@ async fn test_get_funding_settlements(repo: &LnmFuturesDataRepository) {
 async fn test_ticker(repo: &LnmFuturesDataRepository) {
     let ticker = repo.get_ticker().await.expect("must get ticker");
 
-    assert!(ticker.prices().len() > 0);
+    assert!(!ticker.prices().is_empty());
 }
 
 async fn test_get_max_candles(repo: &LnmFuturesDataRepository) {

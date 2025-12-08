@@ -120,6 +120,7 @@ pub trait FuturesIsolatedRepository: crate::sealed::Sealed + Send + Sync {
     /// Place a new isolated trade.
     ///
     /// **Required permissions**: `futures:isolated:write`
+    #[allow(clippy::too_many_arguments)]
     async fn new_trade(
         &self,
         side: TradeSide,
@@ -280,6 +281,7 @@ pub trait FuturesDataRepository: crate::sealed::Sealed + Send + Sync {
 /// This trait is sealed and not meant to be implemented outside of `lnm-sdk`.
 ///
 /// [LNM's v3 API]: https://api.lnmarkets.com/v3
+#[allow(dead_code)] // TODO
 #[async_trait]
 pub trait SyntheticUsdRepository: crate::sealed::Sealed + Send + Sync {
     /// Fetch the user's swaps.
@@ -350,6 +352,7 @@ pub trait AccountRepository: crate::sealed::Sealed + Send + Sync {
 /// This trait is sealed and not meant to be implemented outside of `lnm-sdk`.
 ///
 /// [LNM's v3 API]: https://api.lnmarkets.com/v3
+#[allow(dead_code)] // TODO
 #[async_trait]
 pub trait DepositsRepository: crate::sealed::Sealed + Send + Sync {
     /// Get internal deposits.
@@ -386,6 +389,7 @@ pub trait DepositsRepository: crate::sealed::Sealed + Send + Sync {
 /// This trait is sealed and not meant to be implemented outside of `lnm-sdk`.
 ///
 /// [LNM's v3 API]: https://docs.lnmarkets.com/api/#overview
+#[allow(dead_code)] // TODO
 #[async_trait]
 pub trait WithdrawalsRepository: crate::sealed::Sealed + Send + Sync {
     /// Get internal withdrawals.
