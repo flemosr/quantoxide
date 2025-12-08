@@ -76,10 +76,10 @@ impl WebSocketClient {
     pub async fn connect(&self) -> Result<WebSocketConnection> {
         let mut conn_guard = self.conn.lock().await;
 
-        if let Some(conn) = conn_guard.as_ref() {
-            if conn.is_connected().await {
-                return Ok(conn.clone());
-            }
+        if let Some(conn) = conn_guard.as_ref()
+            && conn.is_connected().await
+        {
+            return Ok(conn.clone());
         }
 
         let new_conn =

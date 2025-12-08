@@ -53,16 +53,16 @@ impl FuturesTradeRequestBody {
                 let _ = Quantity::try_calculate(*margin, price, leverage)?;
             }
 
-            if let Some(stoploss) = stoploss {
-                if stoploss >= price {
-                    return Err(FuturesTradeRequestValidationError::StopLossHigherThanPrice);
-                }
+            if let Some(stoploss) = stoploss
+                && stoploss >= price
+            {
+                return Err(FuturesTradeRequestValidationError::StopLossHigherThanPrice);
             }
 
-            if let Some(takeprofit) = takeprofit {
-                if takeprofit <= price {
-                    return Err(FuturesTradeRequestValidationError::TakeProfitLowerThanPrice);
-                }
+            if let Some(takeprofit) = takeprofit
+                && takeprofit <= price
+            {
+                return Err(FuturesTradeRequestValidationError::TakeProfitLowerThanPrice);
             }
         }
 

@@ -245,7 +245,7 @@ impl TryFrom<JsonRpcResponse> for LnmJsonRpcResponse {
             }
 
             return Err(WebSocketConnectionError::UnexpectedJsonRpcResponse(
-                response,
+                Box::new(response),
             ));
         }
 
@@ -282,12 +282,12 @@ impl TryFrom<JsonRpcResponse> for LnmJsonRpcResponse {
             }
 
             return Err(WebSocketConnectionError::UnexpectedJsonRpcResponse(
-                response,
+                Box::new(response),
             ));
         }
 
         Err(WebSocketConnectionError::UnexpectedJsonRpcResponse(
-            response,
+            Box::new(response),
         ))
     }
 }

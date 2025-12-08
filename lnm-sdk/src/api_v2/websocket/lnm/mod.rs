@@ -277,7 +277,7 @@ impl WebSocketRepository for LnmWebSocketRepo {
 
     async fn disconnect(&self) -> Result<()> {
         let mut handle = match self.try_consume_handle() {
-            Some(handle) if handle.is_finished() == false => handle,
+            Some(handle) if !handle.is_finished() => handle,
             _ => {
                 // The event loop can only finish prematurely due to errors in
                 // `WebSocketEventLoop::run`, which would be reflected in
@@ -313,10 +313,10 @@ impl WebSocketRepository for LnmWebSocketRepo {
 
 impl Drop for LnmWebSocketRepo {
     fn drop(&mut self) {
-        if let Ok(mut handle) = self.event_loop_handle.lock() {
-            if let Some(join_handle) = handle.take() {
-                join_handle.abort();
-            }
+        if let Ok(mut handle) = self.event_loop_handle.lock()
+            && let Some(join_handle) = handle.take()
+        {
+            join_handle.abort();
         }
     }
 }

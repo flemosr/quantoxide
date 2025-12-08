@@ -60,7 +60,7 @@ pub enum WebSocketConnectionError {
     NoServerPong,
 
     #[error("UnexpectedJsonRpcResponse error, {0:?}")]
-    UnexpectedJsonRpcResponse(JsonRpcResponse),
+    UnexpectedJsonRpcResponse(Box<JsonRpcResponse>),
 }
 
 pub(in crate::api_v2) type ConnectionResult<T> = result::Result<T, WebSocketConnectionError>;

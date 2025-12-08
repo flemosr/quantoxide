@@ -260,7 +260,7 @@ impl User {
     /// # #[allow(deprecated)]
     /// # async fn example(rest_api: lnm_sdk::api_v2::RestClient) -> Result<(), Box<dyn std::error::Error>> {
     /// let user = rest_api.user.get_user().await?;
-
+    ///
     /// if user.auto_withdraw_enabled() {
     ///     println!("Auto-withdrawal is enabled");
     /// }
