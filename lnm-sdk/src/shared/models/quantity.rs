@@ -46,9 +46,9 @@ impl Quantity {
     /// The maximum allowed quantity value (500,000 USD).
     pub const MAX: Self = Self(500_000);
 
-    /// Creates a `Quantity` by rounding and clamping the given value to the valid range.
+    /// Creates a `Quantity` by rounding and bounding the given value to the valid range.
     ///
-    /// This method rounds the input to the nearest integer and clamps it to the range
+    /// This method rounds the input to the nearest integer and bounds it to the range
     /// ([Quantity::MIN], [Quantity::MAX]).
     /// It should be used to ensure a valid `Quantity` without error handling.
     ///
@@ -61,18 +61,18 @@ impl Quantity {
     /// use lnm_sdk::api_v3::models::Quantity;
     ///
     /// // Values within range are rounded
-    /// let q = Quantity::clamped(1_234.7);
+    /// let q = Quantity::bounded(1_234.7);
     /// assert_eq!(q.as_u64(), 1_235);
     ///
-    /// // Values below minimum are clamped to MIN
-    /// let q = Quantity::clamped(-1);
+    /// // Values below minimum are bounded to MIN
+    /// let q = Quantity::bounded(-1);
     /// assert_eq!(q, Quantity::MIN);
     ///
-    /// // Values above maximum are clamped to MAX
-    /// let q = Quantity::clamped(600_000);
+    /// // Values above maximum are bounded to MAX
+    /// let q = Quantity::bounded(600_000);
     /// assert_eq!(q, Quantity::MAX);
     /// ```
-    pub fn clamped<T>(value: T) -> Self
+    pub fn bounded<T>(value: T) -> Self
     where
         T: Into<f64>,
     {
