@@ -50,6 +50,7 @@ pub mod models {
         futures_data::{OhlcCandle, OhlcRange},
         oracle::{Index, LastPrice},
         page::Page,
+        ticker::{Ticker, TickerPrice},
         trade::{CrossOrder, CrossPosition, Trade},
         transfer::CrossTransfer,
     };
