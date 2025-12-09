@@ -35,6 +35,29 @@ impl TickerPrice {
 }
 
 /// Real-time ticker data for Bitcoin futures from LN Markets.
+///
+/// # Examples
+///
+/// ```no_run
+/// # async fn example(rest_api: lnm_sdk::api_v3::RestClient) -> Result<(), Box<dyn std::error::Error>> {
+/// use lnm_sdk::api_v3::models::Ticker;
+///
+/// let ticker: Ticker = rest_api
+///     .futures_data
+///     .get_ticker()
+///     .await?;
+///
+/// println!("Index: {}", ticker.index());
+/// println!("Last price: {}", ticker.last_price());
+/// println!("Funding rate: {}", ticker.funding_rate());
+/// println!("Funding time: {}", ticker.funding_time());
+///
+/// for price in ticker.prices() {
+///     println!("Ask: {}, Bid: {}", price.ask_price(), price.bid_price());
+/// }
+/// # Ok(())
+/// # }
+/// ```
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Ticker {
