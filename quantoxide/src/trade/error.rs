@@ -5,7 +5,7 @@ use uuid::Uuid;
 
 use lnm_sdk::api_v3::{
     error::PriceValidationError,
-    models::{BoundedPercentage, LowerBoundedPercentage, Price},
+    models::{BoundedPercentage, Percentage, Price},
 };
 
 use crate::util::PanicPayload;
@@ -47,7 +47,7 @@ pub enum TradeCoreError {
     #[error("Invalid price resulting from applying gain {gain} to price {price}: {e}")]
     InvalidPriceApplyGain {
         price: Price,
-        gain: LowerBoundedPercentage,
+        gain: Percentage,
         e: PriceValidationError,
     },
 

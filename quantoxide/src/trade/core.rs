@@ -14,7 +14,7 @@ use uuid::Uuid;
 use lnm_sdk::api_v3::{
     error::TradeValidationError,
     models::{
-        BoundedPercentage, Leverage, LowerBoundedPercentage, Margin, Price, Quantity, Trade,
+        BoundedPercentage, Leverage, Percentage, Margin, Price, Quantity, Trade,
         TradeSide, TradeSize, trade_util,
     },
 };
@@ -941,7 +941,7 @@ impl From<TradeTrailingStoploss> for BoundedPercentage {
     }
 }
 
-impl From<TradeTrailingStoploss> for LowerBoundedPercentage {
+impl From<TradeTrailingStoploss> for Percentage {
     fn from(value: TradeTrailingStoploss) -> Self {
         value.0.into()
     }
