@@ -24,14 +24,14 @@ pub enum QuantityValidationError {
 
 #[derive(Debug, Error)]
 pub enum MarginValidationError {
-    #[error("Margin must be at least 1")]
-    TooLow,
+    #[error("Margin must be at least {}. Value: {value}", Margin::MIN)]
+    TooLow { value: u64 },
 
     #[error("Margin must be a finite number")]
     NotFinite,
 
-    #[error("Margin must be an integer")]
-    NotAnInteger,
+    #[error("Margin must be an integer. Value: {value}")]
+    NotAnInteger { value: f64 },
 }
 
 #[derive(Debug, Error)]

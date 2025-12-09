@@ -251,7 +251,7 @@ impl TryFrom<u64> for Margin {
 
     fn try_from(value: u64) -> Result<Self, Self::Error> {
         if value < Self::MIN.0 {
-            return Err(MarginValidationError::TooLow);
+            return Err(MarginValidationError::TooLow { value });
         }
 
         Ok(Self(value))
@@ -271,7 +271,11 @@ impl TryFrom<f64> for Margin {
 
     fn try_from(value: f64) -> Result<Self, Self::Error> {
         if value.fract() != 0.0 {
-            return Err(MarginValidationError::NotAnInteger);
+            return Err(MarginValidationError::NotAnInteger { value });
+        }
+
+        if !value.is_finite() {
+            return Err(MarginValidationError::NotFinite);
         }
 
         Self::try_from(value.max(0.) as u64)
