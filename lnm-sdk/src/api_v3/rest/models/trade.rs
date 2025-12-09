@@ -889,6 +889,35 @@ impl CrossOrder {
     }
 }
 
+/// A cross-margin futures position returned from the LN Markets API.
+///
+/// Represents a user's aggregated cross-margin position where margin is shared across the entire
+/// account rather than allocated per trade.
+///
+/// Cross positions are modified through [`CrossOrder`]s.
+///
+/// # Examples
+///
+/// ```no_run
+/// # async fn example(rest_api: lnm_sdk::api_v3::RestClient) -> Result<(), Box<dyn std::error::Error>> {
+/// use lnm_sdk::api_v3::models::CrossPosition;
+///
+/// let position: CrossPosition = rest_api
+///     .futures_cross
+///     .get_position()
+///     .await?;
+///
+/// println!("Position ID: {}", position.id());
+/// println!("Quantity: {}", position.quantity());
+/// println!("Margin: {}", position.margin());
+/// println!("Leverage: {}", position.leverage());
+/// if let Some(entry_price) = position.entry_price() {
+///     println!("Entry price: {}", entry_price);
+/// }
+/// println!("Total P/L: {} sats", position.total_pl());
+/// # Ok(())
+/// # }
+/// ```
 #[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct CrossPosition {
