@@ -40,6 +40,43 @@ impl Margin {
     /// The minimum allowed margin value (1 satoshi).
     pub const MIN: Self = Self(1);
 
+    /// Creates a `Margin` by rounding and bounding the given value to the valid range.
+    ///
+    /// This method rounds the input to the nearest integer and ensures it is at least
+    /// [`Margin::MIN`].
+    /// It should be used to ensure a valid `Margin` without error handling.
+    ///
+    /// **Note:** In order to validate whether a value is a valid margin and receive an error for
+    /// invalid values, use [`Margin::try_from`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use lnm_sdk::api_v3::models::Margin;
+    ///
+    /// // Values above minimum are rounded
+    /// let m = Margin::bounded(5_000.7);
+    /// assert_eq!(m.as_u64(), 5_001);
+    ///
+    /// // Values below minimum are bounded to MIN
+    /// let m = Margin::bounded(-1);
+    /// assert_eq!(m, Margin::MIN);
+    ///
+    /// // Zero becomes MIN
+    /// let m = Margin::bounded(0);
+    /// assert_eq!(m, Margin::MIN);
+    /// ```
+    pub fn bounded<T>(value: T) -> Self
+    where
+        T: Into<f64>,
+    {
+        let as_f64: f64 = value.into();
+        let rounded = as_f64.round().max(0.0) as u64;
+        let margin = rounded.max(Self::MIN.0);
+
+        Self(margin)
+    }
+
     /// Returns the margin value as its underlying `u64` representation.
     ///
     /// # Examples
@@ -54,7 +91,7 @@ impl Margin {
         self.0
     }
 
-    /// Returns the margin value as a `i64`.
+    /// Returns the margin value as an `i64`.
     ///
     /// # Examples
     ///
@@ -187,19 +224,19 @@ impl Add for Margin {
 
 impl From<Margin> for u64 {
     fn from(value: Margin) -> Self {
-        value.as_u64()
+        value.0 as u64
     }
 }
 
 impl From<Margin> for i64 {
     fn from(value: Margin) -> Self {
-        value.as_i64()
+        value.0 as i64
     }
 }
 
 impl From<Margin> for f64 {
     fn from(value: Margin) -> Self {
-        value.as_f64()
+        value.0 as f64
     }
 }
 
@@ -226,6 +263,18 @@ impl TryFrom<i32> for Margin {
 
     fn try_from(value: i32) -> Result<Self, Self::Error> {
         Self::try_from(value.max(0) as u64)
+    }
+}
+
+impl TryFrom<f64> for Margin {
+    type Error = MarginValidationError;
+
+    fn try_from(value: f64) -> Result<Self, Self::Error> {
+        if value.fract() != 0.0 {
+            return Err(MarginValidationError::NotAnInteger);
+        }
+
+        Self::try_from(value.max(0.) as u64)
     }
 }
 

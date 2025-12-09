@@ -21,6 +21,9 @@ pub enum MarginValidationError {
 
     #[error("Margin must be a finite number")]
     NotFinite,
+
+    #[error("Margin must be an integer")]
+    NotAnInteger,
 }
 
 #[derive(Debug, Error)]
