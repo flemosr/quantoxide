@@ -2,7 +2,7 @@ use serde::Deserialize;
 use serde_json::Value;
 use uuid::Uuid;
 
-/// User role within the LNMarkets platform.
+/// User role within the LN Markets platform.
 #[derive(Debug, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum UserRole {
@@ -12,7 +12,7 @@ pub enum UserRole {
     Admin,
 }
 
-/// User account information from LNMarkets.
+/// User account information from LN Markets.
 ///
 /// Contains comprehensive details about a user's account including balance, settings, security
 /// configurations, and platform preferences.

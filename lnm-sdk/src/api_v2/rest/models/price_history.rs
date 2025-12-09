@@ -3,7 +3,7 @@ use serde::Deserialize;
 
 use crate::shared::models::price::Price;
 
-/// A historical price entry from the LNMarkets futures API.
+/// A historical price entry from the LN Markets futures API.
 ///
 /// This type represents a single price observation at a specific point in time,
 /// as returned by the price history endpoint. Each entry contains a timestamp

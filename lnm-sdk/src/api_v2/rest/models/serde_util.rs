@@ -13,7 +13,7 @@ pub(in crate::api_v2) mod trade_side {
         })
     }
 
-    // FIXME: As of Nov 11 2025, the LNMarkets API returns "buy" / "sell" when fetching recently
+    // FIXME: As of Nov 11 2025, the LN Markets API returns "buy" / "sell" when fetching recently
     // opened trades via API v2 . It returned only "b" / "s" until recently. Not clear if this
     // behavior is temporary.
     // Handling all cases for now.

@@ -5,7 +5,7 @@ use serde::Deserialize;
 
 use crate::shared::models::price::Price;
 
-/// Real-time ticker data for Bitcoin futures from LNMarkets.
+/// Real-time ticker data for Bitcoin futures from LN Markets.
 ///
 /// Contains current market data including index price, last traded price, bid/ask prices,
 /// carry fees, and the weights of different exchanges contributing to the index calculation.

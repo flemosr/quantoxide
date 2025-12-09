@@ -83,7 +83,7 @@ impl FuturesTradeRequestBody {
     }
 }
 
-/// A trade returned from the LNMarkets API.
+/// A trade returned from the LN Markets API.
 ///
 /// Represents a complete trade object with all associated data including execution details, risk
 /// parameters, lifecycle status, and profit/loss information.
