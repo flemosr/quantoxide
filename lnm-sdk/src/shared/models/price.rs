@@ -143,29 +143,29 @@ impl fmt::Display for PercentageCapped {
     }
 }
 
-/// A validated decimal percentage value constrained only by a lower bound.
+/// A validated decimal percentage value with a strict lower bound and a loose upper bound.
 ///
 /// Percentage values must be:
 /// + Greater than or equal to [`Percentage::MIN`] (0.0%)
-/// + Finite (not infinity)
+/// + Less than or equal to [`Percentage::MAX`] (10,000.0%)
 ///
-/// This type is suitable for percentage calculations where only a minimum threshold is needed, with
-/// no practical upper limit other than it must be a finite value, such as gain calculations.
+/// This type enforces a strict lower bound of 0% for logical consistency, while the upper bound of
+/// 10,000% is deliberately loose and primarily serves as a safety check to catch logical errors in
+/// calculations. This makes it suitable for percentage calculations like gains, or changes
+/// where values can legitimately exceed 100% but are not expected to exceed very large multiples.
 ///
 /// # Examples
 ///
 /// ```
 /// use lnm_sdk::api_v3::models::Percentage;
 ///
-/// // Create a lower-bounded percentage value
+/// // Create a bounded percentage value
 /// let percentage = Percentage::try_from(150.0).unwrap();
 /// assert_eq!(percentage.as_f64(), 150.0);
 ///
-/// // Values below the minimum will fail
+/// // Values outside the valid range will fail
 /// assert!(Percentage::try_from(-0.01).is_err());
-///
-/// // Non-finite values will fail
-/// assert!(Percentage::try_from(f64::INFINITY).is_err());
+/// assert!(Percentage::try_from(10_000.1).is_err());
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Percentage(f64);
@@ -173,6 +173,44 @@ pub struct Percentage(f64);
 impl Percentage {
     /// The minimum allowed percentage value (0.0%).
     pub const MIN: Self = Self(0.);
+
+    /// The maximum allowed percentage value (10,000.0%).
+    pub const MAX: Self = Self(10_000.);
+
+    /// Creates a `Percentage` by bounding the given value to the valid range.
+    ///
+    /// This method bounds the input to the range ([Percentage::MIN], [Percentage::MAX]).
+    /// It should be used to ensure a valid `Percentage` without error handling.
+    ///
+    /// **Note:** In order to validate whether a value is a valid percentage and receive an error
+    /// for invalid values, use [`Percentage::try_from`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use lnm_sdk::api_v3::models::Percentage;
+    ///
+    /// // Value within range
+    /// let percentage = Percentage::bounded(50.0);
+    /// assert_eq!(percentage.as_f64(), 50.0);
+    ///
+    /// // Value above maximum is bounded to MAX
+    /// let percentage = Percentage::bounded(15_000.0);
+    /// assert_eq!(percentage.as_f64(), 10_000.0);
+    ///
+    /// // Value below minimum is bounded to MIN
+    /// let percentage = Percentage::bounded(-10.0);
+    /// assert_eq!(percentage.as_f64(), 0.0);
+    /// ```
+    pub fn bounded<T>(value: T) -> Self
+    where
+        T: Into<f64>,
+    {
+        let as_f64: f64 = value.into();
+        let bounded = as_f64.clamp(Self::MIN.0, Self::MAX.0);
+
+        Self(bounded)
+    }
 
     /// Returns the percentage value as its underlying `f64` representation.
     ///
@@ -197,8 +235,8 @@ impl TryFrom<f64> for Percentage {
             return Err(PercentageValidationError::BelowMinimum { value });
         }
 
-        if !value.is_finite() {
-            return Err(PercentageValidationError::NotFinite);
+        if value > Self::MAX.0 {
+            return Err(PercentageValidationError::AboveMaximum { value });
         }
 
         Ok(Self(value))

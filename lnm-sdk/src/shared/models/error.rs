@@ -63,6 +63,9 @@ pub enum PercentageValidationError {
     #[error("Percentage must be at least {}. Value: {value}", Percentage::MIN)]
     BelowMinimum { value: f64 },
 
+    #[error("Percentage must be at most {}. Value: {value}", Percentage::MAX)]
+    AboveMaximum { value: f64 },
+
     #[error("Percentage must be a finite number")]
     NotFinite,
 }
