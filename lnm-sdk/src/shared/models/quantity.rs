@@ -46,6 +46,40 @@ impl Quantity {
     /// The maximum allowed quantity value (500,000 USD).
     pub const MAX: Self = Self(500_000);
 
+    /// Creates a `Quantity` by rounding and clamping the given value to the valid range.
+    ///
+    /// This method rounds the input to the nearest integer and clamps it to the range
+    /// ([Quantity::MIN], [Quantity::MAX]).
+    /// It should be used to ensure a valid `Quantity` without error handling.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use lnm_sdk::api_v3::models::Quantity;
+    ///
+    /// // Values within range are rounded
+    /// let q = Quantity::clamped(1_234.7);
+    /// assert_eq!(q.into_u64(), 1_235);
+    ///
+    /// // Values below minimum are clamped to MIN
+    /// let q = Quantity::clamped(-1);
+    /// assert_eq!(q, Quantity::MIN);
+    ///
+    /// // Values above maximum are clamped to MAX
+    /// let q = Quantity::clamped(600_000);
+    /// assert_eq!(q, Quantity::MAX);
+    /// ```
+    pub fn clamped<T>(value: T) -> Self
+    where
+        T: Into<f64>,
+    {
+        let as_f64: f64 = value.into();
+        let rounded = as_f64.round().max(0.0) as u64;
+        let clamped = rounded.clamp(Self::MIN.0, Self::MAX.0);
+
+        Self(clamped)
+    }
+
     /// Converts the quantity value to its underlying `u64` representation.
     ///
     /// # Examples
@@ -177,6 +211,10 @@ impl TryFrom<f64> for Quantity {
     type Error = QuantityValidationError;
 
     fn try_from(quantity: f64) -> Result<Self, Self::Error> {
+        if quantity.fract() != 0.0 {
+            return Err(QuantityValidationError::NotAnInteger);
+        }
+
         Self::try_from(quantity.max(0.) as u64)
     }
 }

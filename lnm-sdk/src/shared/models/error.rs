@@ -9,6 +9,9 @@ pub enum QuantityValidationError {
 
     #[error("Quantity must be less than or equal to 500,000")]
     TooHigh,
+
+    #[error("Quantity must be an integer")]
+    NotAnInteger,
 }
 
 #[derive(Debug, Error)]
