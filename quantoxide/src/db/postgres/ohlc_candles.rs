@@ -101,10 +101,10 @@ impl OhlcCandlesRepository for PgOhlcCandlesRepo {
 
         for candle in new_candles {
             times.push(candle.time());
-            opens.push(candle.open().into_f64());
-            highs.push(candle.high().into_f64());
-            lows.push(candle.low().into_f64());
-            closes.push(candle.close().into_f64());
+            opens.push(candle.open().as_f64());
+            highs.push(candle.high().as_f64());
+            lows.push(candle.low().as_f64());
+            closes.push(candle.close().as_f64());
             volumes.push(candle.volume() as i64);
         }
 

@@ -41,7 +41,7 @@ impl RunningTradesRepository for PgRunningTradesRepo {
                 VALUES ($1, $2)
             "#,
             trade_id,
-            trailing_stoploss.map(|tsl| tsl.into_f64()),
+            trailing_stoploss.map(|tsl| tsl.as_f64()),
         )
         .execute(self.pool())
         .await
