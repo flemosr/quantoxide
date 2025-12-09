@@ -13,7 +13,7 @@ pub use rest::{
 pub mod error {
     pub use crate::shared::{
         models::error::{
-            BoundedPercentageValidationError, LeverageValidationError, MarginValidationError,
+            LeverageValidationError, MarginValidationError, PercentageCappedValidationError,
             PercentageValidationError, PriceValidationError, QuantityValidationError,
             TradeValidationError,
         },
@@ -35,7 +35,7 @@ pub mod models {
         SATS_PER_BTC,
         leverage::Leverage,
         margin::Margin,
-        price::{BoundedPercentage, Percentage, Price},
+        price::{Percentage, PercentageCapped, Price},
         quantity::Quantity,
         trade::{
             TradeExecution, TradeExecutionType, TradeSide, TradeSize, TradeStatus,

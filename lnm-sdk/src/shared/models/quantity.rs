@@ -7,7 +7,7 @@ use super::{
     error::QuantityValidationError,
     leverage::Leverage,
     margin::Margin,
-    price::{BoundedPercentage, Price},
+    price::{PercentageCapped, Price},
 };
 
 /// A validated quantity value denominated in USD.
@@ -148,11 +148,11 @@ impl Quantity {
     /// # Examples
     ///
     /// ```
-    /// use lnm_sdk::api_v3::models::{Quantity, Price, BoundedPercentage};
+    /// use lnm_sdk::api_v3::models::{Quantity, Price, PercentageCapped};
     ///
     /// let balance = 10_000_000; // In sats
     /// let market_price = Price::try_from(100_000.0).unwrap(); // Price in USD/BTC
-    /// let balance_perc = BoundedPercentage::try_from(10.0).unwrap(); // 10%
+    /// let balance_perc = PercentageCapped::try_from(10.0).unwrap(); // 10%
     ///
     /// let quantity = Quantity::try_from_balance_perc(
     ///     balance,
@@ -165,7 +165,7 @@ impl Quantity {
     pub fn try_from_balance_perc(
         balance: u64,
         market_price: Price,
-        balance_perc: BoundedPercentage,
+        balance_perc: PercentageCapped,
     ) -> Result<Self, QuantityValidationError> {
         let balance_usd = balance as f64 * market_price.as_f64() / SATS_PER_BTC;
         let quantity_target = balance_usd * balance_perc.as_f64() / 100.;

@@ -5,7 +5,7 @@ use dotenv::dotenv;
 use crate::{
     api_v3::{
         FuturesDataRepository,
-        models::{BoundedPercentage, CrossLeverage, CrossOrder, TradeExecutionType},
+        models::{PercentageCapped, CrossLeverage, CrossOrder, TradeExecutionType},
         rest::{lnm::futures_data::LnmFuturesDataRepository, models::ticker::Ticker},
     },
     shared::{config::RestClientConfig, models::quantity::Quantity},
@@ -45,7 +45,7 @@ async fn test_create_long_order_limit(
 ) -> CrossOrder {
     let side = TradeSide::Buy;
     let quantity = Quantity::try_from(1).unwrap();
-    let discount_percentage = BoundedPercentage::try_from(30).unwrap();
+    let discount_percentage = PercentageCapped::try_from(30).unwrap();
     let out_of_mkt_price = ticker
         .last_price()
         .apply_discount(discount_percentage)
@@ -79,7 +79,7 @@ async fn test_create_short_order_limit(
 ) -> CrossOrder {
     let side = TradeSide::Sell;
     let quantity = Quantity::try_from(1).unwrap();
-    let discount_percentage = BoundedPercentage::try_from(30).unwrap();
+    let discount_percentage = PercentageCapped::try_from(30).unwrap();
     let out_of_mkt_price = ticker
         .last_price()
         .apply_discount(discount_percentage)

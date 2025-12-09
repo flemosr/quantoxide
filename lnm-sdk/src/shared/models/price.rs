@@ -3,53 +3,50 @@ use std::{cmp::Ordering, convert::TryFrom, fmt};
 use serde::{Deserialize, Serialize, de};
 
 use super::{
-    error::{
-        BoundedPercentageValidationError, LowerBoundedPercentageValidationError,
-        PriceValidationError,
-    },
+    error::{PercentageCappedValidationError, PercentageValidationError, PriceValidationError},
     serde_util,
 };
 
-/// A validated percentage value constrained within a specific range.
+/// A validated decimal percentage value constrained within a specific range.
 ///
 /// Percentage values must be:
-/// + Greater than or equal to [`BoundedPercentage::MIN`] (0.1%)
-/// + Less than or equal to [`BoundedPercentage::MAX`] (99.9%)
+/// + Greater than or equal to [`PercentageCapped::MIN`] (0.0%)
+/// + Less than or equal to [`PercentageCapped::MAX`] (100.0%)
 ///
-/// This bounded range makes it suitable for percentage calculations where both
-/// minimum and maximum limits are required, such as discount calculations.
+/// This bounded range makes it suitable for percentage calculations where both minimum and maximum
+/// limits are required, such as position distributions and discount calculations.
 ///
 /// # Examples
 ///
 /// ```
-/// use lnm_sdk::api_v3::models::BoundedPercentage;
+/// use lnm_sdk::api_v3::models::PercentageCapped;
 ///
-/// // Create a bounded percentage value
-/// let percentage = BoundedPercentage::try_from(50.0).unwrap();
+/// // Create a bounded decimal percentage value
+/// let percentage = PercentageCapped::try_from(50.0).unwrap(); // 50%
 /// assert_eq!(percentage.as_f64(), 50.0);
 ///
 /// // Values outside the valid range will fail
-/// assert!(BoundedPercentage::try_from(0.05).is_err());
-/// assert!(BoundedPercentage::try_from(100.0).is_err());
+/// assert!(PercentageCapped::try_from(-0.01).is_err());
+/// assert!(PercentageCapped::try_from(100.1).is_err());
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct BoundedPercentage(f64);
+pub struct PercentageCapped(f64);
 
-impl BoundedPercentage {
-    /// The minimum allowed percentage value (0.1%).
-    pub const MIN: Self = Self(0.1);
+impl PercentageCapped {
+    /// The minimum allowed percentage value (0.0%).
+    pub const MIN: Self = Self(0.);
 
-    /// The maximum allowed percentage value (99.9%).
-    pub const MAX: Self = Self(99.9);
+    /// The maximum allowed percentage value (100.0%).
+    pub const MAX: Self = Self(100.);
 
     /// Returns the percentage value as its underlying `f64` representation.
     ///
     /// # Examples
     ///
     /// ```
-    /// use lnm_sdk::api_v3::models::BoundedPercentage;
+    /// use lnm_sdk::api_v3::models::PercentageCapped;
     ///
-    /// let percentage = BoundedPercentage::try_from(25.5).unwrap();
+    /// let percentage = PercentageCapped::try_from(25.5).unwrap();
     /// assert_eq!(percentage.as_f64(), 25.5);
     /// ```
     pub fn as_f64(&self) -> f64 {
@@ -57,53 +54,53 @@ impl BoundedPercentage {
     }
 }
 
-impl TryFrom<f64> for BoundedPercentage {
-    type Error = BoundedPercentageValidationError;
+impl TryFrom<f64> for PercentageCapped {
+    type Error = PercentageCappedValidationError;
 
     fn try_from(value: f64) -> Result<Self, Self::Error> {
         if value < Self::MIN.0 {
-            return Err(BoundedPercentageValidationError::BelowMinimum { value });
+            return Err(PercentageCappedValidationError::BelowMinimum { value });
         }
 
         if value > Self::MAX.0 {
-            return Err(BoundedPercentageValidationError::AboveMaximum { value });
+            return Err(PercentageCappedValidationError::AboveMaximum { value });
         }
 
         Ok(Self(value))
     }
 }
 
-impl TryFrom<i32> for BoundedPercentage {
-    type Error = BoundedPercentageValidationError;
+impl TryFrom<i32> for PercentageCapped {
+    type Error = PercentageCappedValidationError;
 
     fn try_from(value: i32) -> Result<Self, Self::Error> {
         Self::try_from(value as f64)
     }
 }
 
-impl From<BoundedPercentage> for f64 {
-    fn from(value: BoundedPercentage) -> f64 {
+impl From<PercentageCapped> for f64 {
+    fn from(value: PercentageCapped) -> f64 {
         value.0
     }
 }
 
-impl Eq for BoundedPercentage {}
+impl Eq for PercentageCapped {}
 
-impl Ord for BoundedPercentage {
+impl Ord for PercentageCapped {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.0
             .partial_cmp(&other.0)
-            .expect("`BoundedPercentage` must be finite")
+            .expect("`PercentageCapped` must be finite")
     }
 }
 
-impl PartialOrd for BoundedPercentage {
+impl PartialOrd for PercentageCapped {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl fmt::Display for BoundedPercentage {
+impl fmt::Display for PercentageCapped {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.0.fmt(f)
     }
@@ -201,8 +198,8 @@ impl PartialOrd for Percentage {
     }
 }
 
-impl From<BoundedPercentage> for Percentage {
-    fn from(value: BoundedPercentage) -> Self {
+impl From<PercentageCapped> for Percentage {
+    fn from(value: PercentageCapped) -> Self {
         Self(value.0)
     }
 }
@@ -383,17 +380,17 @@ impl Price {
     /// # Examples
     ///
     /// ```
-    /// use lnm_sdk::api_v3::models::{Price, BoundedPercentage};
+    /// use lnm_sdk::api_v3::models::{Price, PercentageCapped};
     ///
     /// let price = Price::try_from(100_000.0).unwrap();
-    /// let discount = BoundedPercentage::try_from(10.0).unwrap(); // 10% discount
+    /// let discount = PercentageCapped::try_from(10.0).unwrap(); // 10% discount
     ///
     /// let discounted_price = price.apply_discount(discount).unwrap();
     /// assert_eq!(discounted_price.as_f64(), 90_000.0);
     /// ```
     pub fn apply_discount(
         &self,
-        percentage: BoundedPercentage,
+        percentage: PercentageCapped,
     ) -> Result<Self, PriceValidationError> {
         let target_price = self.0 - self.0 * percentage.as_f64() / 100.0;
 

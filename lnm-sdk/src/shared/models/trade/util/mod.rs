@@ -5,7 +5,7 @@ use super::super::{
     error::TradeValidationError,
     leverage::Leverage,
     margin::Margin,
-    price::{BoundedPercentage, Price},
+    price::{PercentageCapped, Price},
     quantity::Quantity,
     trade::{TradeSide, TradeSize},
 };
@@ -59,7 +59,7 @@ pub fn evaluate_open_trade_params(
     entry_price: Price,
     stoploss: Option<Price>,
     takeprofit: Option<Price>,
-    fee_perc: BoundedPercentage,
+    fee_perc: PercentageCapped,
 ) -> Result<(Quantity, Margin, Price, u64, u64), TradeValidationError> {
     let (quantity, margin) = size
         .to_quantity_and_margin(entry_price, leverage)
@@ -355,7 +355,7 @@ pub fn evaluate_collateral_delta_for_liquidation(
 /// Computes the trading fee in satoshis that would be charged for closing a position at the
 /// specified price.
 pub fn evaluate_closing_fee(
-    fee_perc: BoundedPercentage,
+    fee_perc: PercentageCapped,
     quantity: Quantity,
     close_price: Price,
 ) -> u64 {

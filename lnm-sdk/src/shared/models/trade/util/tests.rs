@@ -51,8 +51,8 @@ fn test_estimate_liquidation_price() {
     assert_eq!(liquidation_price, expected_liquidation_price);
 }
 
-fn get_lnm_fee() -> BoundedPercentage {
-    BoundedPercentage::try_from(0.1).unwrap()
+fn get_lnm_fee() -> PercentageCapped {
+    PercentageCapped::try_from(0.1).unwrap()
 }
 
 #[test]

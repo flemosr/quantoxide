@@ -6,7 +6,7 @@ use crate::shared::{
     config::RestClientConfig,
     models::{
         margin::Margin,
-        price::{BoundedPercentage, Percentage},
+        price::{Percentage, PercentageCapped},
         quantity::Quantity,
     },
 };
@@ -51,7 +51,7 @@ async fn test_create_short_trade_quantity_limit(
     let side = TradeSide::Sell;
     let quantity = Quantity::try_from(1).unwrap();
     let leverage = Leverage::try_from(1).unwrap();
-    let discount_percentage = BoundedPercentage::try_from(30).unwrap();
+    let discount_percentage = PercentageCapped::try_from(30).unwrap();
     let out_of_mkt_price = ticker
         .ask_price()
         .apply_discount(discount_percentage)
@@ -103,7 +103,7 @@ async fn test_create_long_trade_quantity_market(
     let quantity = Quantity::try_from(1).unwrap();
     let leverage = Leverage::try_from(2).unwrap();
     let est_price = ticker.ask_price();
-    let range_percentage = BoundedPercentage::try_from(10).unwrap();
+    let range_percentage = PercentageCapped::try_from(10).unwrap();
     let stoploss = Some(est_price.apply_discount(range_percentage).unwrap());
     let takeprofit = Some(est_price.apply_gain(range_percentage.into()).unwrap());
     let execution = TradeExecution::Market;
@@ -148,11 +148,11 @@ async fn test_create_long_trade_margin_limit(
 ) -> Trade {
     let side = TradeSide::Buy;
     let leverage = Leverage::try_from(1).unwrap();
-    let discount = BoundedPercentage::try_from(30).unwrap();
+    let discount = PercentageCapped::try_from(30).unwrap();
     let out_of_mkt_price = ticker.ask_price().apply_discount(discount).unwrap();
     let implied_qtd = Quantity::try_from(1).unwrap();
     let margin = Margin::calculate(implied_qtd, out_of_mkt_price, leverage);
-    let discount = BoundedPercentage::try_from(5).unwrap();
+    let discount = PercentageCapped::try_from(5).unwrap();
     let stoploss = Some(out_of_mkt_price.apply_discount(discount).unwrap());
     let takeprofit = None;
     let execution = out_of_mkt_price.into();
@@ -196,7 +196,7 @@ async fn test_create_short_trade_margin_market(
     repo: &LnmFuturesRepository,
     ticker: &Ticker,
 ) -> Trade {
-    let discount = BoundedPercentage::try_from(5).unwrap();
+    let discount = PercentageCapped::try_from(5).unwrap();
     let est_min_price = ticker.ask_price().apply_discount(discount).unwrap();
 
     let side = TradeSide::Sell;
@@ -204,7 +204,7 @@ async fn test_create_short_trade_margin_market(
     let implied_qtd = Quantity::try_from(1).unwrap();
     let margin = Margin::calculate(implied_qtd, est_min_price, leverage);
     let est_price = ticker.ask_price();
-    let range = BoundedPercentage::try_from(10).unwrap();
+    let range = PercentageCapped::try_from(10).unwrap();
     let stoploss = Some(est_price.apply_gain(range.into()).unwrap());
     let takeprofit = Some(est_price.apply_discount(range).unwrap());
     let execution = TradeExecution::Market;
