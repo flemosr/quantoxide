@@ -43,6 +43,26 @@ impl Index {
     }
 }
 
+/// Last traded price data point.
+///
+/// # Examples
+///
+/// ```no_run
+/// # async fn example(rest_api: lnm_sdk::api_v3::RestClient) -> Result<(), Box<dyn std::error::Error>> {
+/// use lnm_sdk::api_v3::models::LastPrice;
+///
+/// let price_history: Vec<LastPrice> = rest_api
+///     .oracle
+///     .get_last_price(None, None, None, None)
+///     .await?;
+///
+/// for price in price_history {
+///     println!("Time: {}", price.time());
+///     println!("Last price: {}", price.last_price());
+/// }
+/// # Ok(())
+/// # }
+/// ```
 #[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct LastPrice {
