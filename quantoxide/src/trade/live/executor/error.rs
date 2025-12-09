@@ -10,7 +10,10 @@ use crate::{db::error::DbError, sync::process::error::SyncProcessFatalError};
 
 use super::{
     super::super::error::TradeCoreError,
-    state::{LiveTradeExecutorStatus, live_trading_session::TradingSessionRefreshOffset},
+    state::{
+        LiveTradeExecutorStatus, LiveTradeExecutorStatusNotReady,
+        live_trading_session::TradingSessionRefreshOffset,
+    },
 };
 
 #[derive(Error, Debug)]
@@ -48,8 +51,11 @@ pub enum ExecutorActionError {
     #[error("Trade {trade_id} is not registered")]
     TradeNotRegistered { trade_id: Uuid },
 
-    #[error("Live trade executor is not ready")]
-    ExecutorNotReady,
+    #[error("Live trade executor is not ready. No session.")]
+    ExecutorNotReadyNoSession,
+
+    #[error("Live trade executor is not ready: {0}")]
+    ExecutorNotReady(LiveTradeExecutorStatusNotReady),
 
     #[error("[InvalidMarketPrice] {0}")]
     InvalidMarketPrice(PriceValidationError),
