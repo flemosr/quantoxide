@@ -23,7 +23,7 @@ async fn test_simulated_trade_executor_long_profit() -> TradeExecutorResult<()> 
     let state = executor.trading_state().await?;
     assert_eq!(state.last_tick_time(), candle.time + Duration::seconds(59));
     assert_eq!(state.balance(), start_balance);
-    assert_eq!(state.market_price().into_f64(), candle.close);
+    assert_eq!(state.market_price().as_f64(), candle.close);
     assert_eq!(state.last_trade_time(), None);
     assert_eq!(state.running_long_len(), 0);
     assert_eq!(state.running_long_margin(), 0);
@@ -43,7 +43,7 @@ async fn test_simulated_trade_executor_long_profit() -> TradeExecutorResult<()> 
     let state = executor.trading_state().await?;
     assert_eq!(state.last_tick_time(), candle.time + Duration::seconds(59));
     assert_eq!(state.balance(), start_balance);
-    assert_eq!(state.market_price().into_f64(), candle.close);
+    assert_eq!(state.market_price().as_f64(), candle.close);
     assert_eq!(state.last_trade_time(), None);
     assert_eq!(state.running_long_len(), 0);
     assert_eq!(state.running_long_margin(), 0);
@@ -73,7 +73,7 @@ async fn test_simulated_trade_executor_long_profit() -> TradeExecutorResult<()> 
 
     assert_eq!(state.last_tick_time(), candle.time + Duration::seconds(59));
     assert_eq!(state.balance(), expected_balance);
-    assert_eq!(state.market_price().into_f64(), candle.close);
+    assert_eq!(state.market_price().as_f64(), candle.close);
     assert_eq!(state.last_trade_time(), Some(exp_trade_time));
     assert_eq!(state.running_long_len(), 1);
     assert!(
@@ -96,7 +96,7 @@ async fn test_simulated_trade_executor_long_profit() -> TradeExecutorResult<()> 
     let state = executor.trading_state().await?;
     assert_eq!(state.last_tick_time(), candle.time + Duration::seconds(59));
     assert_eq!(state.balance(), expected_balance);
-    assert_eq!(state.market_price().into_f64(), candle.close);
+    assert_eq!(state.market_price().as_f64(), candle.close);
     assert_eq!(state.last_trade_time(), Some(exp_trade_time));
     assert_eq!(state.running_long_len(), 1);
     assert!(
@@ -124,7 +124,7 @@ async fn test_simulated_trade_executor_long_profit() -> TradeExecutorResult<()> 
 
     assert_eq!(state.last_tick_time(), candle.time + Duration::seconds(59));
     assert_eq!(state.balance(), expected_balance);
-    assert_eq!(state.market_price().into_f64(), candle.close);
+    assert_eq!(state.market_price().as_f64(), candle.close);
     assert_eq!(state.last_trade_time(), Some(exp_trade_time));
     assert_eq!(state.running_long_len(), 0);
     assert_eq!(state.running_long_margin(), 0);
@@ -155,7 +155,7 @@ async fn test_simulated_trade_executor_long_loss() -> TradeExecutorResult<()> {
     let state = executor.trading_state().await?;
     assert_eq!(state.last_tick_time(), candle.time + Duration::seconds(59));
     assert_eq!(state.balance(), start_balance);
-    assert_eq!(state.market_price().into_f64(), candle.close);
+    assert_eq!(state.market_price().as_f64(), candle.close);
     assert_eq!(state.last_trade_time(), None);
     assert_eq!(state.running_long_len(), 0);
     assert_eq!(state.running_long_margin(), 0);
@@ -203,7 +203,7 @@ async fn test_simulated_trade_executor_long_loss() -> TradeExecutorResult<()> {
     let state = executor.trading_state().await?;
     assert_eq!(state.last_tick_time(), candle.time + Duration::seconds(59));
     assert_eq!(state.balance(), expected_balance);
-    assert_eq!(state.market_price().into_f64(), candle.close);
+    assert_eq!(state.market_price().as_f64(), candle.close);
     assert_eq!(state.last_trade_time(), Some(exp_trade_time));
     assert_eq!(state.running_long_len(), 1);
     assert!(
@@ -228,7 +228,7 @@ async fn test_simulated_trade_executor_long_loss() -> TradeExecutorResult<()> {
 
     assert_eq!(state.last_tick_time(), candle.time + Duration::seconds(59));
     assert_eq!(state.balance(), expected_balance);
-    assert_eq!(state.market_price().into_f64(), candle.close);
+    assert_eq!(state.market_price().as_f64(), candle.close);
     assert_eq!(state.last_trade_time(), Some(exp_trade_time));
     assert_eq!(state.running_long_len(), 0); // Trade should be closed by stoploss
     assert_eq!(state.running_long_margin(), 0);
@@ -257,7 +257,7 @@ async fn test_simulated_trade_executor_short_profit() -> TradeExecutorResult<()>
     let state = executor.trading_state().await?;
     assert_eq!(state.last_tick_time(), candle.time + Duration::seconds(59));
     assert_eq!(state.balance(), start_balance);
-    assert_eq!(state.market_price().into_f64(), candle.close);
+    assert_eq!(state.market_price().as_f64(), candle.close);
     assert_eq!(state.last_trade_time(), None);
     assert_eq!(state.running_long_len(), 0);
     assert_eq!(state.running_long_margin(), 0);
@@ -288,7 +288,7 @@ async fn test_simulated_trade_executor_short_profit() -> TradeExecutorResult<()>
     assert_eq!(state.last_tick_time(), candle.time + Duration::seconds(59));
     assert_eq!(state.balance(), expected_balance);
     assert_eq!(state.last_trade_time(), Some(exp_trade_time));
-    assert_eq!(state.market_price().into_f64(), candle.close);
+    assert_eq!(state.market_price().as_f64(), candle.close);
     assert_eq!(state.running_long_len(), 0);
     assert_eq!(state.running_long_margin(), 0);
     assert_eq!(state.running_short_len(), 1);
@@ -310,7 +310,7 @@ async fn test_simulated_trade_executor_short_profit() -> TradeExecutorResult<()>
     let state = executor.trading_state().await?;
     assert_eq!(state.last_tick_time(), candle.time + Duration::seconds(59));
     assert_eq!(state.balance(), expected_balance);
-    assert_eq!(state.market_price().into_f64(), candle.close);
+    assert_eq!(state.market_price().as_f64(), candle.close);
     assert_eq!(state.last_trade_time(), Some(exp_trade_time));
     assert_eq!(state.running_short_len(), 1);
     assert!(
@@ -338,7 +338,7 @@ async fn test_simulated_trade_executor_short_profit() -> TradeExecutorResult<()>
 
     assert_eq!(state.last_tick_time(), candle.time + Duration::seconds(59));
     assert_eq!(state.balance(), expected_balance);
-    assert_eq!(state.market_price().into_f64(), candle.close);
+    assert_eq!(state.market_price().as_f64(), candle.close);
     assert_eq!(state.last_trade_time(), Some(exp_trade_time));
     assert_eq!(state.running_short_len(), 0); // Trade should be closed by takeprofit
     assert_eq!(state.running_short_margin(), 0);
@@ -367,7 +367,7 @@ async fn test_simulated_trade_executor_short_loss() -> TradeExecutorResult<()> {
     let state = executor.trading_state().await?;
     assert_eq!(state.last_tick_time(), candle.time + Duration::seconds(59));
     assert_eq!(state.balance(), start_balance);
-    assert_eq!(state.market_price().into_f64(), candle.close);
+    assert_eq!(state.market_price().as_f64(), candle.close);
     assert_eq!(state.last_trade_time(), None);
     assert_eq!(state.running_long_len(), 0);
     assert_eq!(state.running_long_margin(), 0);
@@ -415,7 +415,7 @@ async fn test_simulated_trade_executor_short_loss() -> TradeExecutorResult<()> {
     let state = executor.trading_state().await?;
     assert_eq!(state.last_tick_time(), candle.time + Duration::seconds(59));
     assert_eq!(state.balance(), expected_balance);
-    assert_eq!(state.market_price().into_f64(), candle.close);
+    assert_eq!(state.market_price().as_f64(), candle.close);
     assert_eq!(state.last_trade_time(), Some(exp_trade_time));
     assert_eq!(state.running_short_len(), 1);
     assert!(
@@ -440,7 +440,7 @@ async fn test_simulated_trade_executor_short_loss() -> TradeExecutorResult<()> {
 
     assert_eq!(state.last_tick_time(), candle.time + Duration::seconds(59));
     assert_eq!(state.balance(), expected_balance);
-    assert_eq!(state.market_price().into_f64(), candle.close);
+    assert_eq!(state.market_price().as_f64(), candle.close);
     assert_eq!(state.last_trade_time(), Some(exp_trade_time));
     assert_eq!(state.running_short_len(), 0); // Trade should be closed by stoploss
     assert_eq!(state.running_short_margin(), 0);
@@ -485,13 +485,13 @@ async fn test_simulated_trade_executor_trailing_stoploss_long() {
     assert_eq!(state.last_tick_time(), candle.time + Duration::seconds(59));
     let expected_balance = start_balance - state.running_long_margin() - state.running_fees();
     assert_eq!(state.balance(), expected_balance);
-    assert_eq!(state.market_price().into_f64(), candle.close);
+    assert_eq!(state.market_price().as_f64(), candle.close);
     assert_eq!(state.running_long_len(), 1);
     assert_eq!(state.running_short_len(), 0);
     assert_eq!(state.closed_len(), 0);
-    assert_eq!(trade.stoploss().unwrap().into_f64(), 98_000.0);
-    assert_eq!(tsl.unwrap().into_f64(), stoploss_perc.into_f64());
-    assert_eq!(trade.takeprofit().unwrap().into_f64(), 104_000.0);
+    assert_eq!(trade.stoploss().unwrap().as_f64(), 98_000.0);
+    assert_eq!(tsl.unwrap().as_f64(), stoploss_perc.as_f64());
+    assert_eq!(trade.takeprofit().unwrap().as_f64(), 104_000.0);
 
     // Price increases to 102_000 (2% increase)
     // Trailing stoploss should move from 98_000 to 99_960 (2% below 102_000)
@@ -505,9 +505,9 @@ async fn test_simulated_trade_executor_trailing_stoploss_long() {
     };
 
     assert_eq!(state.running_long_len(), 1); // Position still open
-    assert_eq!(trade.stoploss().unwrap().into_f64(), 99_960.0);
-    assert_eq!(tsl.unwrap().into_f64(), stoploss_perc.into_f64());
-    assert_eq!(trade.takeprofit().unwrap().into_f64(), 104_000.0);
+    assert_eq!(trade.stoploss().unwrap().as_f64(), 99_960.0);
+    assert_eq!(tsl.unwrap().as_f64(), stoploss_perc.as_f64());
+    assert_eq!(trade.takeprofit().unwrap().as_f64(), 104_000.0);
 
     // Price drops to 99_960.5
     // Should still be above new stop-loss (99_960)
@@ -521,9 +521,9 @@ async fn test_simulated_trade_executor_trailing_stoploss_long() {
     };
 
     assert_eq!(state.running_long_len(), 1); // Position still open
-    assert_eq!(trade.stoploss().unwrap().into_f64(), 99_960.0);
-    assert_eq!(tsl.unwrap().into_f64(), stoploss_perc.into_f64());
-    assert_eq!(trade.takeprofit().unwrap().into_f64(), 104_000.0);
+    assert_eq!(trade.stoploss().unwrap().as_f64(), 99_960.0);
+    assert_eq!(tsl.unwrap().as_f64(), stoploss_perc.as_f64());
+    assert_eq!(trade.takeprofit().unwrap().as_f64(), 104_000.0);
 
     // Price drops to 99_960
     // Should trigger the trailing stop-loss (99_960)
@@ -564,13 +564,13 @@ async fn test_simulated_trade_executor_trailing_stoploss_short() {
     assert_eq!(state.last_tick_time(), candle.time + Duration::seconds(59));
     let expected_balance = start_balance - state.running_short_margin() - state.running_fees();
     assert_eq!(state.balance(), expected_balance);
-    assert_eq!(state.market_price().into_f64(), candle.close);
+    assert_eq!(state.market_price().as_f64(), candle.close);
     assert_eq!(state.running_long_len(), 0);
     assert_eq!(state.running_short_len(), 1);
     assert_eq!(state.closed_len(), 0);
-    assert_eq!(trade.stoploss().unwrap().into_f64(), 102_000.0);
-    assert_eq!(tsl.unwrap().into_f64(), stoploss_perc.into_f64());
-    assert_eq!(trade.takeprofit().unwrap().into_f64(), 96_000.0);
+    assert_eq!(trade.stoploss().unwrap().as_f64(), 102_000.0);
+    assert_eq!(tsl.unwrap().as_f64(), stoploss_perc.as_f64());
+    assert_eq!(trade.takeprofit().unwrap().as_f64(), 96_000.0);
 
     // Price decreases to 98_000 (2% decrease)
     // Trailing stoploss should move from 102_000 to 99_960 (2% above 98_000)
@@ -584,9 +584,9 @@ async fn test_simulated_trade_executor_trailing_stoploss_short() {
     };
 
     assert_eq!(state.running_short_len(), 1); // Position still open
-    assert_eq!(trade.stoploss().unwrap().into_f64(), 99_960.0);
-    assert_eq!(tsl.unwrap().into_f64(), stoploss_perc.into_f64());
-    assert_eq!(trade.takeprofit().unwrap().into_f64(), 96_000.0);
+    assert_eq!(trade.stoploss().unwrap().as_f64(), 99_960.0);
+    assert_eq!(tsl.unwrap().as_f64(), stoploss_perc.as_f64());
+    assert_eq!(trade.takeprofit().unwrap().as_f64(), 96_000.0);
 
     // Price increases to 99_959.5
     // Should still be below new stop-loss (99_960)
@@ -600,9 +600,9 @@ async fn test_simulated_trade_executor_trailing_stoploss_short() {
     };
 
     assert_eq!(state.running_short_len(), 1); // Position still open
-    assert_eq!(trade.stoploss().unwrap().into_f64(), 99_960.0);
-    assert_eq!(tsl.unwrap().into_f64(), stoploss_perc.into_f64());
-    assert_eq!(trade.takeprofit().unwrap().into_f64(), 96_000.0);
+    assert_eq!(trade.stoploss().unwrap().as_f64(), 99_960.0);
+    assert_eq!(tsl.unwrap().as_f64(), stoploss_perc.as_f64());
+    assert_eq!(trade.takeprofit().unwrap().as_f64(), 96_000.0);
 
     // Price increases to 99_960
     // Should trigger the trailing stop-loss (99_960)
@@ -628,7 +628,7 @@ async fn test_simulated_trade_executor_partial_cash_in_short_profit() -> TradeEx
     let state = executor.trading_state().await?;
     assert_eq!(state.last_tick_time(), candle.time + Duration::seconds(59));
     assert_eq!(state.balance(), start_balance);
-    assert_eq!(state.market_price().into_f64(), candle.close);
+    assert_eq!(state.market_price().as_f64(), candle.close);
     assert_eq!(state.last_trade_time(), None);
     assert_eq!(state.running_long_len(), 0);
     assert_eq!(state.running_long_margin(), 0);
@@ -658,7 +658,7 @@ async fn test_simulated_trade_executor_partial_cash_in_short_profit() -> TradeEx
     assert_eq!(state.last_tick_time(), candle.time + Duration::seconds(59));
     assert_eq!(state.balance(), expected_balance);
     assert_eq!(state.last_trade_time(), Some(exp_trade_time));
-    assert_eq!(state.market_price().into_f64(), candle.close);
+    assert_eq!(state.market_price().as_f64(), candle.close);
     assert_eq!(state.running_long_len(), 0);
     assert_eq!(state.running_long_margin(), 0);
     assert_eq!(state.running_short_len(), 1);
@@ -680,7 +680,7 @@ async fn test_simulated_trade_executor_partial_cash_in_short_profit() -> TradeEx
     let state = executor.trading_state().await?;
     assert_eq!(state.last_tick_time(), candle.time + Duration::seconds(59));
     assert_eq!(state.balance(), expected_balance);
-    assert_eq!(state.market_price().into_f64(), candle.close);
+    assert_eq!(state.market_price().as_f64(), candle.close);
     assert_eq!(state.last_trade_time(), Some(exp_trade_time));
     assert_eq!(state.running_short_len(), 1);
     assert_eq!(state.running_short_margin(), 500_500);
@@ -712,7 +712,7 @@ async fn test_simulated_trade_executor_partial_cash_in_short_profit() -> TradeEx
 
     assert_eq!(state.last_tick_time(), candle.time + Duration::seconds(59));
     assert_eq!(state.balance(), expected_balance);
-    assert_eq!(state.market_price().into_f64(), candle.close);
+    assert_eq!(state.market_price().as_f64(), candle.close);
     assert_eq!(state.last_trade_time(), Some(exp_trade_time));
     assert_eq!(state.running_short_len(), 1);
     assert_eq!(state.running_short_margin(), 500_500);
@@ -734,7 +734,7 @@ async fn test_simulated_trade_executor_partial_cash_in_short_profit() -> TradeEx
 
     assert_eq!(state.last_tick_time(), candle.time + Duration::seconds(59));
     assert!((state.balance() as i64 - expected_balance as i64).abs() < 2);
-    assert_eq!(state.market_price().into_f64(), candle.close);
+    assert_eq!(state.market_price().as_f64(), candle.close);
     assert_eq!(state.last_trade_time(), Some(exp_trade_time));
     assert_eq!(state.running_short_len(), 0);
     assert_eq!(state.running_short_margin(), 0);
@@ -760,7 +760,7 @@ async fn test_simulated_trade_executor_full_cash_in_short_profit() -> TradeExecu
     let state = executor.trading_state().await?;
     assert_eq!(state.last_tick_time(), candle.time + Duration::seconds(59));
     assert_eq!(state.balance(), start_balance);
-    assert_eq!(state.market_price().into_f64(), candle.close);
+    assert_eq!(state.market_price().as_f64(), candle.close);
     assert_eq!(state.last_trade_time(), None);
     assert_eq!(state.running_long_len(), 0);
     assert_eq!(state.running_long_margin(), 0);
@@ -790,7 +790,7 @@ async fn test_simulated_trade_executor_full_cash_in_short_profit() -> TradeExecu
     assert_eq!(state.last_tick_time(), candle.time + Duration::seconds(59));
     assert_eq!(state.balance(), expected_balance);
     assert_eq!(state.last_trade_time(), Some(exp_trade_time));
-    assert_eq!(state.market_price().into_f64(), candle.close);
+    assert_eq!(state.market_price().as_f64(), candle.close);
     assert_eq!(state.running_long_len(), 0);
     assert_eq!(state.running_long_margin(), 0);
     assert_eq!(state.running_short_len(), 1);
@@ -812,7 +812,7 @@ async fn test_simulated_trade_executor_full_cash_in_short_profit() -> TradeExecu
     let state = executor.trading_state().await?;
     assert_eq!(state.last_tick_time(), candle.time + Duration::seconds(59));
     assert_eq!(state.balance(), expected_balance);
-    assert_eq!(state.market_price().into_f64(), candle.close);
+    assert_eq!(state.market_price().as_f64(), candle.close);
     assert_eq!(state.last_trade_time(), Some(exp_trade_time));
     assert_eq!(state.running_short_len(), 1);
     assert_eq!(state.running_short_margin(), 50_950);
@@ -844,7 +844,7 @@ async fn test_simulated_trade_executor_full_cash_in_short_profit() -> TradeExecu
 
     assert_eq!(state.last_tick_time(), candle.time + Duration::seconds(59));
     assert_eq!(state.balance(), expected_balance);
-    assert_eq!(state.market_price().into_f64(), candle.close);
+    assert_eq!(state.market_price().as_f64(), candle.close);
     assert_eq!(state.last_trade_time(), Some(exp_trade_time));
     assert_eq!(state.running_short_len(), 1);
     assert_eq!(state.running_short_margin(), 50_950 - cash_in + 10_204);
@@ -865,7 +865,7 @@ async fn test_simulated_trade_executor_full_cash_in_short_profit() -> TradeExecu
 
     assert_eq!(state.last_tick_time(), candle.time + Duration::seconds(59));
     assert!((state.balance() as i64 - expected_balance).abs() < 2);
-    assert_eq!(state.market_price().into_f64(), candle.close);
+    assert_eq!(state.market_price().as_f64(), candle.close);
     assert_eq!(state.last_trade_time(), Some(exp_trade_time));
     assert_eq!(state.running_short_len(), 0);
     assert_eq!(state.running_short_margin(), 0);
@@ -891,7 +891,7 @@ async fn test_simulated_trade_executor_add_margin_short_loss() -> TradeExecutorR
     let state = executor.trading_state().await?;
     assert_eq!(state.last_tick_time(), candle.time + Duration::seconds(59));
     assert_eq!(state.balance(), start_balance);
-    assert_eq!(state.market_price().into_f64(), candle.close);
+    assert_eq!(state.market_price().as_f64(), candle.close);
     assert_eq!(state.last_trade_time(), None);
     assert_eq!(state.running_long_len(), 0);
     assert_eq!(state.running_long_margin(), 0);
@@ -942,7 +942,7 @@ async fn test_simulated_trade_executor_add_margin_short_loss() -> TradeExecutorR
 
     assert_eq!(state.last_tick_time(), candle.time + Duration::seconds(59));
     assert_eq!(state.balance(), expected_balance);
-    assert_eq!(state.market_price().into_f64(), candle.close);
+    assert_eq!(state.market_price().as_f64(), candle.close);
     assert_eq!(state.last_trade_time(), Some(exp_trade_time));
     assert_eq!(state.running_short_len(), 1);
     assert_eq!(state.running_short_margin(), 50_950);
@@ -961,7 +961,7 @@ async fn test_simulated_trade_executor_add_margin_short_loss() -> TradeExecutorR
 
     assert_eq!(state.last_tick_time(), candle.time + Duration::seconds(59));
     assert_eq!(state.balance(), expected_balance);
-    assert_eq!(state.market_price().into_f64(), candle.close);
+    assert_eq!(state.market_price().as_f64(), candle.close);
     assert_eq!(state.last_trade_time(), Some(exp_trade_time));
     assert_eq!(state.running_short_len(), 1);
     assert_eq!(state.running_short_margin(), 50_950 + add_margin);
@@ -980,7 +980,7 @@ async fn test_simulated_trade_executor_add_margin_short_loss() -> TradeExecutorR
 
     assert_eq!(state.last_tick_time(), candle.time + Duration::seconds(59));
     assert!((state.balance() as i64 - expected_balance as i64).abs() < 2);
-    assert_eq!(state.market_price().into_f64(), candle.close);
+    assert_eq!(state.market_price().as_f64(), candle.close);
     assert_eq!(state.last_trade_time(), Some(exp_trade_time));
     assert_eq!(state.running_short_len(), 0);
     assert_eq!(state.running_short_margin(), 0);

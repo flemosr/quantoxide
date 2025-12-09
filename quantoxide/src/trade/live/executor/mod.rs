@@ -138,7 +138,7 @@ impl LiveTradeExecutor {
 
         let trading_session = locked_ready_state.trading_session();
 
-        let balance_diff = margin.into_u64() + opening_fee + closing_fee_reserved;
+        let balance_diff = margin.as_u64() + opening_fee + closing_fee_reserved;
         if balance_diff > trading_session.balance() {
             return Err(ExecutorActionError::BalanceTooLow);
         }

@@ -116,7 +116,7 @@ impl SimulatedTradeExecutor {
         let mut close_trade = |trade: &SimulatedTradeRunning, close_price: Price| {
             let closed_trade = trade.to_closed(self.config.fee_perc(), candle.time, close_price);
 
-            new_balance += closed_trade.margin().into_i64() + closed_trade.maintenance_margin()
+            new_balance += closed_trade.margin().as_i64() + closed_trade.maintenance_margin()
                 - closed_trade.closing_fee() as i64
                 + closed_trade.pl();
 
@@ -138,14 +138,14 @@ impl SimulatedTradeExecutor {
             };
 
             if let Some(trade_min) = trade_min_opt
-                && candle.low <= trade_min.into_f64()
+                && candle.low <= trade_min.as_f64()
             {
                 close_trade(trade.as_ref(), trade_min);
                 continue;
             }
 
             if let Some(trade_max) = trade_max_opt
-                && candle.high >= trade_max.into_f64()
+                && candle.high >= trade_max.as_f64()
             {
                 close_trade(trade.as_ref(), trade_max);
                 continue;
@@ -221,7 +221,7 @@ impl SimulatedTradeExecutor {
         let mut close_trade = |trade: Arc<SimulatedTradeRunning>| {
             let closed_trade = trade.to_closed(self.config.fee_perc(), time, market_price);
 
-            new_balance += closed_trade.margin().into_i64() + closed_trade.maintenance_margin()
+            new_balance += closed_trade.margin().as_i64() + closed_trade.maintenance_margin()
                 - closed_trade.closing_fee() as i64
                 + closed_trade.pl();
 
@@ -306,7 +306,7 @@ impl SimulatedTradeExecutor {
             self.config.fee_perc(),
         )?;
 
-        let balance_delta = trade.margin().into_i64() + trade.maintenance_margin();
+        let balance_delta = trade.margin().as_i64() + trade.maintenance_margin();
         if balance_delta > state_guard.balance {
             return Err(SimulatedTradeExecutorError::BalanceTooLow);
         }
@@ -317,7 +317,7 @@ impl SimulatedTradeExecutor {
             })?;
         }
 
-        state_guard.balance -= trade.margin().into_i64()
+        state_guard.balance -= trade.margin().as_i64()
             + trade.maintenance_margin() as i64
             + trade.opening_fee() as i64;
 

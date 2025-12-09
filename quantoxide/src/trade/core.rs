@@ -251,9 +251,7 @@ pub trait TradeRunning: crate::sealed::Sealed + TradeCore {
 
         let max_margin = Margin::calculate(self.quantity(), self.price(), Leverage::MIN);
 
-        max_margin
-            .into_u64()
-            .saturating_sub(self.margin().into_u64())
+        max_margin.as_u64().saturating_sub(self.margin().as_u64())
     }
 
     /// Estimates the maximum margin that can be withdrawn from the trade.
@@ -282,10 +280,7 @@ pub trait TradeRunning: crate::sealed::Sealed + TradeCore {
 
         let min_margin = Margin::calculate(self.quantity(), self.price(), Leverage::MAX);
 
-        let excess_margin = self
-            .margin()
-            .into_u64()
-            .saturating_sub(min_margin.into_u64());
+        let excess_margin = self.margin().as_u64().saturating_sub(min_margin.as_u64());
 
         excess_margin + extractable_pl
     }
@@ -534,14 +529,14 @@ impl TradingState {
                     TradeSide::Buy => {
                         long_len += 1;
                         long_margin +=
-                            trade.margin().into_u64() + trade.maintenance_margin().max(0) as u64;
-                        long_quantity += trade.quantity().into_u64();
+                            trade.margin().as_u64() + trade.maintenance_margin().max(0) as u64;
+                        long_quantity += trade.quantity().as_u64();
                     }
                     TradeSide::Sell => {
                         short_len += 1;
                         short_margin +=
-                            trade.margin().into_u64() + trade.maintenance_margin().max(0) as u64;
-                        short_quantity += trade.quantity().into_u64();
+                            trade.margin().as_u64() + trade.maintenance_margin().max(0) as u64;
+                        short_quantity += trade.quantity().as_u64();
                     }
                 }
                 pl += trade.est_pl(self.market_price).floor() as i64;
@@ -730,11 +725,11 @@ impl TradingState {
             let stoploss_str = trade
                 .stoploss()
                 .map_or("N/A".to_string(), |sl| format!("{:.1}", sl));
-            let tsl_str = tsl.map_or("N/A".to_string(), |tsl| format!("{:.1}%", tsl.into_f64()));
+            let tsl_str = tsl.map_or("N/A".to_string(), |tsl| format!("{:.1}%", tsl.as_f64()));
             let takeprofit_str = trade
                 .takeprofit()
                 .map_or("N/A".to_string(), |sl| format!("{:.1}", sl));
-            let total_margin = trade.margin().into_i64() + trade.maintenance_margin().max(0);
+            let total_margin = trade.margin().as_i64() + trade.maintenance_margin().max(0);
             let pl = trade.est_pl(self.market_price).floor() as i64;
             let total_fees = trade.opening_fee() + trade.closing_fee();
 
@@ -929,14 +924,14 @@ impl TradeTrailingStoploss {
         Self(tsl)
     }
 
-    pub fn into_f64(self) -> f64 {
+    pub fn as_f64(self) -> f64 {
         self.into()
     }
 }
 
 impl From<TradeTrailingStoploss> for f64 {
     fn from(value: TradeTrailingStoploss) -> Self {
-        value.0.into_f64()
+        value.0.as_f64()
     }
 }
 
@@ -1178,20 +1173,20 @@ pub(super) trait TradeRunningExt: TradeRunning {
             TradeSide::Buy => {
                 let stoploss_reached = self
                     .stoploss()
-                    .is_some_and(|stoploss| range_min <= stoploss.into_f64());
+                    .is_some_and(|stoploss| range_min <= stoploss.as_f64());
                 let takeprofit_reached = self
                     .takeprofit()
-                    .is_some_and(|takeprofit| range_max >= takeprofit.into_f64());
+                    .is_some_and(|takeprofit| range_max >= takeprofit.as_f64());
 
                 stoploss_reached || takeprofit_reached
             }
             TradeSide::Sell => {
                 let stoploss_reached = self
                     .stoploss()
-                    .is_some_and(|stoploss| range_max >= stoploss.into_f64());
+                    .is_some_and(|stoploss| range_max >= stoploss.as_f64());
                 let takeprofit_reached = self
                     .takeprofit()
-                    .is_some_and(|takeprofit| range_min <= takeprofit.into_f64());
+                    .is_some_and(|takeprofit| range_min <= takeprofit.as_f64());
 
                 stoploss_reached || takeprofit_reached
             }
@@ -1207,7 +1202,7 @@ pub(super) trait TradeRunningExt: TradeRunning {
     ) -> TradeCoreResult<Option<Price>> {
         let next_stoploss_update_trigger = self
             .next_stoploss_update_trigger(tsl_step_size, trade_tsl)?
-            .into_f64();
+            .as_f64();
 
         let new_stoploss = match self.side() {
             TradeSide::Buy => {
@@ -1298,7 +1293,7 @@ impl PriceTrigger {
         match self {
             PriceTrigger::NotSet => false,
             PriceTrigger::Set { min, max } => {
-                market_price <= min.into_f64() || market_price >= max.into_f64()
+                market_price <= min.as_f64() || market_price >= max.as_f64()
             }
         }
     }

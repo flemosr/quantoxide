@@ -287,7 +287,7 @@ impl LiveTradingSession {
         if update_balance {
             self.balance = self
                 .balance
-                .saturating_sub(new_trade.margin().into_u64())
+                .saturating_sub(new_trade.margin().as_u64())
                 .saturating_sub(new_trade.maintenance_margin() as u64)
                 .saturating_sub(new_trade.opening_fee());
         }
@@ -322,8 +322,8 @@ impl LiveTradingSession {
                 let cashed_in_pl = curr_trade.est_pl(updated_trade.price()).round() as i64;
 
                 let collateral_delta =
-                    curr_trade.margin().into_i64() + curr_trade.maintenance_margin() + cashed_in_pl
-                        - updated_trade.margin().into_i64()
+                    curr_trade.margin().as_i64() + curr_trade.maintenance_margin() + cashed_in_pl
+                        - updated_trade.margin().as_i64()
                         - updated_trade.maintenance_margin();
 
                 new_balance += collateral_delta;
@@ -399,7 +399,7 @@ impl LiveTradingSession {
 
         for (trade, trade_tsl) in self.running_map.trades_desc() {
             if let Some(closed_trade) = closed_map.remove(&trade.id()) {
-                new_balance += trade.margin().into_i64() + trade.maintenance_margin()
+                new_balance += trade.margin().as_i64() + trade.maintenance_margin()
                     - closed_trade.closing_fee() as i64
                     + closed_trade.pl();
 
