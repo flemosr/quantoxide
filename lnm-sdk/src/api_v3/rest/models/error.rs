@@ -1,6 +1,24 @@
 use thiserror::Error;
 
-use crate::shared::models::error::QuantityValidationError;
+use crate::{api_v3::models::CrossLeverage, shared::models::error::QuantityValidationError};
+
+#[derive(Debug, Error)]
+pub enum CrossLeverageValidationError {
+    #[error(
+        "CrossLeverage must be at least {}. Value: {value}",
+        CrossLeverage::MIN
+    )]
+    TooLow { value: u64 },
+
+    #[error(
+        "CrossLeverage must be less than or equal to {}. Value: {value}",
+        CrossLeverage::MAX
+    )]
+    TooHigh { value: u64 },
+
+    #[error("CrossLeverage must be an integer. Value: {value}")]
+    NotAnInteger { value: f64 },
+}
 
 #[derive(Debug, Error)]
 pub enum FuturesIsolatedTradeRequestValidationError {

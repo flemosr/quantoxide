@@ -2,13 +2,11 @@ use std::{convert::TryFrom, fmt};
 
 use serde::{Deserialize, Serialize, de};
 
-use crate::{
-    api_v3::models::Leverage,
-    shared::models::{
-        SATS_PER_BTC, error::LeverageValidationError, margin::Margin, price::Price,
-        quantity::Quantity,
-    },
+use crate::shared::models::{
+    SATS_PER_BTC, leverage::Leverage, margin::Margin, price::Price, quantity::Quantity,
 };
+
+use super::error::CrossLeverageValidationError;
 
 /// A validated leverage value for futures cross positions.
 ///
@@ -30,12 +28,9 @@ use crate::{
 /// let leverage = CrossLeverage::try_from(10).unwrap();
 /// assert_eq!(leverage.as_u64(), 10);
 ///
-/// // Create a leverage value from a float
-/// let leverage = CrossLeverage::try_from(10.9).unwrap();
-/// assert_eq!(leverage.as_u64(), 10);
-///
-/// // Values outside the valid range will fail
+/// // Values that are not integers, or that are outside the valid range will fail
 /// assert!(CrossLeverage::try_from(0.9).is_err());
+/// assert!(CrossLeverage::try_from(10.5).is_err());
 /// assert!(CrossLeverage::try_from(101).is_err());
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -83,7 +78,7 @@ impl CrossLeverage {
         quantity: Quantity,
         margin: Margin,
         price: Price,
-    ) -> Result<Self, LeverageValidationError> {
+    ) -> Result<Self, CrossLeverageValidationError> {
         let leverage_value = quantity.as_f64() * SATS_PER_BTC / (margin.as_f64() * price.as_f64());
 
         Self::try_from(leverage_value.round())
@@ -103,34 +98,38 @@ impl From<CrossLeverage> for Leverage {
 }
 
 impl TryFrom<u64> for CrossLeverage {
-    type Error = LeverageValidationError;
+    type Error = CrossLeverageValidationError;
 
-    fn try_from(leverage: u64) -> Result<Self, Self::Error> {
-        if leverage < Self::MIN.0 {
-            return Err(LeverageValidationError::TooLow);
+    fn try_from(value: u64) -> Result<Self, Self::Error> {
+        if value < Self::MIN.0 {
+            return Err(CrossLeverageValidationError::TooLow { value });
         }
 
-        if leverage > Self::MAX.0 {
-            return Err(LeverageValidationError::TooHigh);
+        if value > Self::MAX.0 {
+            return Err(CrossLeverageValidationError::TooHigh { value });
         }
 
-        Ok(CrossLeverage(leverage))
+        Ok(CrossLeverage(value))
     }
 }
 
 impl TryFrom<i32> for CrossLeverage {
-    type Error = LeverageValidationError;
+    type Error = CrossLeverageValidationError;
 
-    fn try_from(leverage: i32) -> Result<Self, Self::Error> {
-        Self::try_from(leverage.max(0) as u64)
+    fn try_from(value: i32) -> Result<Self, Self::Error> {
+        Self::try_from(value.max(0) as u64)
     }
 }
 
 impl TryFrom<f64> for CrossLeverage {
-    type Error = LeverageValidationError;
+    type Error = CrossLeverageValidationError;
 
-    fn try_from(leverage: f64) -> Result<Self, Self::Error> {
-        Self::try_from(leverage.max(0.) as u64)
+    fn try_from(value: f64) -> Result<Self, Self::Error> {
+        if value.fract() != 0.0 {
+            return Err(CrossLeverageValidationError::NotAnInteger { value });
+        }
+
+        Self::try_from(value.max(0.) as u64)
     }
 }
 
