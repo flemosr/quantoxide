@@ -43,6 +43,43 @@ impl CrossLeverage {
     /// The maximum allowed leverage value (100x).
     pub const MAX: Self = Self(100);
 
+    /// Creates a `CrossLeverage` by rounding and bounding the given value to the valid range.
+    ///
+    /// This method rounds the input to the nearest integer and bounds it to the range
+    /// ([CrossLeverage::MIN], [CrossLeverage::MAX]).
+    /// It should be used to ensure a valid `CrossLeverage` without error handling.
+    ///
+    /// **Note:** In order to validate whether a value is a valid leverage and receive an error for
+    /// invalid values, use [`CrossLeverage::try_from`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use lnm_sdk::api_v3::models::CrossLeverage;
+    ///
+    /// // Values within range are rounded
+    /// let lev = CrossLeverage::bounded(25.7);
+    /// assert_eq!(lev.as_u64(), 26);
+    ///
+    /// // Values below minimum are bounded to MIN
+    /// let lev = CrossLeverage::bounded(-1);
+    /// assert_eq!(lev, CrossLeverage::MIN);
+    ///
+    /// // Values above maximum are bounded to MAX
+    /// let lev = CrossLeverage::bounded(150);
+    /// assert_eq!(lev, CrossLeverage::MAX);
+    /// ```
+    pub fn bounded<T>(value: T) -> Self
+    where
+        T: Into<f64>,
+    {
+        let as_f64: f64 = value.into();
+        let rounded = as_f64.round().max(0.0) as u64;
+        let clamped = rounded.clamp(Self::MIN.0, Self::MAX.0);
+
+        Self(clamped)
+    }
+
     /// Returns the leverage value as its underlying `u64` representation.
     ///
     /// # Examples
