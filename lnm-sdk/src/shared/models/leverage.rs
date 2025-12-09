@@ -42,6 +42,41 @@ impl Leverage {
     /// The maximum allowed leverage value (100x).
     pub const MAX: Self = Self(100.);
 
+    /// Creates a `Leverage` by bounding the given value to the valid range.
+    ///
+    /// This method bounds the input to the range ([Leverage::MIN], [Leverage::MAX]).
+    /// It should be used to ensure a valid `Leverage` without error handling.
+    ///
+    /// **Note:** In order to validate whether a value is a valid leverage and receive an error for
+    /// invalid values, use [`Leverage::try_from`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use lnm_sdk::api_v3::models::Leverage;
+    ///
+    /// // Values within range are preserved
+    /// let l = Leverage::bounded(25.0);
+    /// assert_eq!(l.as_f64(), 25.0);
+    ///
+    /// // Values below minimum are bounded to MIN
+    /// let l = Leverage::bounded(0.5);
+    /// assert_eq!(l, Leverage::MIN);
+    ///
+    /// // Values above maximum are bounded to MAX
+    /// let l = Leverage::bounded(150.0);
+    /// assert_eq!(l, Leverage::MAX);
+    /// ```
+    pub fn bounded<T>(value: T) -> Self
+    where
+        T: Into<f64>,
+    {
+        let as_f64: f64 = value.into();
+        let clamped = as_f64.clamp(Self::MIN.0, Self::MAX.0);
+
+        Self(clamped)
+    }
+
     /// Returns the leverage value as its underlying `f64` representation.
     ///
     /// # Examples
