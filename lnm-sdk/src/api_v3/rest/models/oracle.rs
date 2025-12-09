@@ -3,6 +3,28 @@ use serde::Deserialize;
 
 use crate::shared::models::price::Price;
 
+/// Index price data point.
+///
+/// Represents the index price at a specific point in time.
+///
+/// # Examples
+///
+/// ```no_run
+/// # async fn example(rest_api: lnm_sdk::api_v3::RestClient) -> Result<(), Box<dyn std::error::Error>> {
+/// use lnm_sdk::api_v3::models::Index;
+///
+/// let index_history: Vec<Index> = rest_api
+///     .oracle
+///     .get_index(None, None, None, None)
+///     .await?;
+///
+/// for index in index_history {
+///     println!("Time: {}", index.time());
+///     println!("Index: {}", index.index());
+/// }
+/// # Ok(())
+/// # }
+/// ```
 #[derive(Deserialize, Debug, Clone)]
 pub struct Index {
     time: DateTime<Utc>,
