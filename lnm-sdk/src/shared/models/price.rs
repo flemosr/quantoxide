@@ -26,7 +26,7 @@ use super::{
 ///
 /// // Create a bounded percentage value
 /// let percentage = BoundedPercentage::try_from(50.0).unwrap();
-/// assert_eq!(percentage.into_f64(), 50.0);
+/// assert_eq!(percentage.as_f64(), 50.0);
 ///
 /// // Values outside the valid range will fail
 /// assert!(BoundedPercentage::try_from(0.05).is_err());
@@ -42,7 +42,7 @@ impl BoundedPercentage {
     /// The maximum allowed percentage value (99.9%).
     pub const MAX: Self = Self(99.9);
 
-    /// Converts the percentage value to its underlying `f64` representation.
+    /// Returns the percentage value as its underlying `f64` representation.
     ///
     /// # Examples
     ///
@@ -50,10 +50,10 @@ impl BoundedPercentage {
     /// use lnm_sdk::api_v3::models::BoundedPercentage;
     ///
     /// let percentage = BoundedPercentage::try_from(25.5).unwrap();
-    /// assert_eq!(percentage.into_f64(), 25.5);
+    /// assert_eq!(percentage.as_f64(), 25.5);
     /// ```
-    pub fn into_f64(self) -> f64 {
-        f64::from(self)
+    pub fn as_f64(&self) -> f64 {
+        self.0
     }
 }
 
@@ -125,7 +125,7 @@ impl fmt::Display for BoundedPercentage {
 ///
 /// // Create a lower-bounded percentage value
 /// let percentage = LowerBoundedPercentage::try_from(150.0).unwrap();
-/// assert_eq!(percentage.into_f64(), 150.0);
+/// assert_eq!(percentage.as_f64(), 150.0);
 ///
 /// // Values below the minimum will fail
 /// assert!(LowerBoundedPercentage::try_from(0.05).is_err());
@@ -140,7 +140,7 @@ impl LowerBoundedPercentage {
     /// The minimum allowed percentage value (0.1%).
     pub const MIN: Self = Self(0.1);
 
-    /// Converts the percentage value to its underlying `f64` representation.
+    /// Returns the percentage value as its underlying `f64` representation.
     ///
     /// # Examples
     ///
@@ -148,10 +148,10 @@ impl LowerBoundedPercentage {
     /// use lnm_sdk::api_v3::models::LowerBoundedPercentage;
     ///
     /// let percentage = LowerBoundedPercentage::try_from(200.0).unwrap();
-    /// assert_eq!(percentage.into_f64(), 200.0);
+    /// assert_eq!(percentage.as_f64(), 200.0);
     /// ```
-    pub fn into_f64(self) -> f64 {
-        f64::from(self)
+    pub fn as_f64(&self) -> f64 {
+        self.0
     }
 }
 
@@ -230,7 +230,7 @@ impl fmt::Display for LowerBoundedPercentage {
 ///
 /// // Create a price value from USD amount
 /// let price = Price::try_from(100_000.0).unwrap();
-/// assert_eq!(price.into_f64(), 100_000.0);
+/// assert_eq!(price.as_f64(), 100_000.0);
 ///
 /// // Values outside the valid range will fail
 /// assert!(Price::try_from(0.5).is_err());
@@ -254,7 +254,7 @@ impl Price {
     /// All valid prices must be a multiple of this tick size.
     pub const TICK: f64 = 0.5;
 
-    /// Converts the price value to its underlying `f64` representation.
+    /// Returns the price value as its underlying `f64` representation.
     ///
     /// # Examples
     ///
@@ -262,10 +262,10 @@ impl Price {
     /// use lnm_sdk::api_v3::models::Price;
     ///
     /// let price = Price::try_from(50_000.0).unwrap();
-    /// assert_eq!(price.into_f64(), 50_000.0);
+    /// assert_eq!(price.as_f64(), 50_000.0);
     /// ```
-    pub fn into_f64(self) -> f64 {
-        f64::from(self)
+    pub fn as_f64(&self) -> f64 {
+        self.0
     }
 
     /// Rounds a value down to the nearest valid price.
@@ -278,7 +278,7 @@ impl Price {
     /// use lnm_sdk::api_v3::models::Price;
     ///
     /// let price = Price::round_down(100_000.8).unwrap();
-    /// assert_eq!(price.into_f64(), 100_000.5);
+    /// assert_eq!(price.as_f64(), 100_000.5);
     /// ```
     pub fn round_down(value: f64) -> Result<Self, PriceValidationError> {
         let round_down = (value / Self::TICK).floor() * Self::TICK;
@@ -296,7 +296,7 @@ impl Price {
     /// use lnm_sdk::api_v3::models::Price;
     ///
     /// let price = Price::round_up(100_000.2).unwrap();
-    /// assert_eq!(price.into_f64(), 100_000.5);
+    /// assert_eq!(price.as_f64(), 100_000.5);
     /// ```
     pub fn round_up(value: f64) -> Result<Self, PriceValidationError> {
         let round_up = (value / Self::TICK).ceil() * Self::TICK;
@@ -314,10 +314,10 @@ impl Price {
     /// use lnm_sdk::api_v3::models::Price;
     ///
     /// let price = Price::round(100_000.6).unwrap();
-    /// assert_eq!(price.into_f64(), 100_000.5);
+    /// assert_eq!(price.as_f64(), 100_000.5);
     ///
     /// let price = Price::round(100_000.8).unwrap();
-    /// assert_eq!(price.into_f64(), 100_001.0);
+    /// assert_eq!(price.as_f64(), 100_001.0);
     /// ```
     pub fn round(value: f64) -> Result<Self, PriceValidationError> {
         let round = (value / Self::TICK).round() * Self::TICK;
@@ -337,15 +337,15 @@ impl Price {
     ///
     /// // Value within range
     /// let price = Price::clamp_from(100_000.0);
-    /// assert_eq!(price.into_f64(), 100_000.0);
+    /// assert_eq!(price.as_f64(), 100_000.0);
     ///
     /// // Value above maximum is clamped
     /// let price = Price::clamp_from(200_000_000.0);
-    /// assert_eq!(price.into_f64(), 100_000_000.0);
+    /// assert_eq!(price.as_f64(), 100_000_000.0);
     ///
     /// // Value below minimum is clamped
     /// let price = Price::clamp_from(0.1);
-    /// assert_eq!(price.into_f64(), 1.0);
+    /// assert_eq!(price.as_f64(), 1.0);
     /// ```
     pub fn clamp_from(value: f64) -> Self {
         let value = value.clamp(Self::MIN.0, Self::MAX.0);
@@ -367,13 +367,13 @@ impl Price {
     /// let discount = BoundedPercentage::try_from(10.0).unwrap(); // 10% discount
     ///
     /// let discounted_price = price.apply_discount(discount).unwrap();
-    /// assert_eq!(discounted_price.into_f64(), 90_000.0);
+    /// assert_eq!(discounted_price.as_f64(), 90_000.0);
     /// ```
     pub fn apply_discount(
         &self,
         percentage: BoundedPercentage,
     ) -> Result<Self, PriceValidationError> {
-        let target_price = self.0 - self.0 * percentage.into_f64() / 100.0;
+        let target_price = self.0 - self.0 * percentage.as_f64() / 100.0;
 
         Self::round(target_price)
     }
@@ -392,13 +392,13 @@ impl Price {
     /// let gain = LowerBoundedPercentage::try_from(20.0).unwrap(); // 20% gain
     ///
     /// let increased_price = price.apply_gain(gain).unwrap();
-    /// assert_eq!(increased_price.into_f64(), 120_000.0);
+    /// assert_eq!(increased_price.as_f64(), 120_000.0);
     /// ```
     pub fn apply_gain(
         &self,
         percentage: LowerBoundedPercentage,
     ) -> Result<Self, PriceValidationError> {
-        let target_price = self.0 + self.0 * percentage.into_f64() / 100.0;
+        let target_price = self.0 + self.0 * percentage.as_f64() / 100.0;
 
         Self::round(target_price)
     }

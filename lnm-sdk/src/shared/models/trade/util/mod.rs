@@ -29,9 +29,9 @@ pub fn estimate_liquidation_price(
     // a more conservative liquidation price. As of May 4 2025, this approach
     // matches liquidation values obtained via the LNM platform.
 
-    let quantity = quantity.into_f64();
-    let price = entry_price.into_f64();
-    let leverage = leverage.into_f64();
+    let quantity = quantity.as_f64();
+    let price = entry_price.as_f64();
+    let leverage = leverage.as_f64();
 
     let a = 1.0 / price;
 
@@ -118,10 +118,9 @@ pub fn evaluate_open_trade_params(
         }
     };
 
-    let fee_calc = SATS_PER_BTC * fee_perc.into_f64() / 100.;
-    let opening_fee = (fee_calc * quantity.into_f64() / entry_price.into_f64()).floor() as u64;
-    let closing_fee_reserved =
-        (fee_calc * quantity.into_f64() / liquidation.into_f64()).floor() as u64;
+    let fee_calc = SATS_PER_BTC * fee_perc.as_f64() / 100.;
+    let opening_fee = (fee_calc * quantity.as_f64() / entry_price.as_f64()).floor() as u64;
+    let closing_fee_reserved = (fee_calc * quantity.as_f64() / liquidation.as_f64()).floor() as u64;
 
     Ok((
         quantity,
@@ -142,15 +141,15 @@ pub fn estimate_pl(
     start_price: Price,
     end_price: Price,
 ) -> f64 {
-    let start_price = start_price.into_f64();
-    let end_price = end_price.into_f64();
+    let start_price = start_price.as_f64();
+    let end_price = end_price.as_f64();
 
     let inverse_price_delta = match side {
         TradeSide::Buy => SATS_PER_BTC / start_price - SATS_PER_BTC / end_price,
         TradeSide::Sell => SATS_PER_BTC / end_price - SATS_PER_BTC / start_price,
     };
 
-    quantity.into_f64() * inverse_price_delta
+    quantity.as_f64() * inverse_price_delta
 }
 
 /// Estimates the price corresponding to a specific profit/loss amount.
@@ -163,8 +162,8 @@ pub fn estimate_price_from_pl(
     start_price: Price,
     pl: f64,
 ) -> Price {
-    let start_price = start_price.into_f64();
-    let quantity = quantity.into_f64();
+    let start_price = start_price.as_f64();
+    let quantity = quantity.as_f64();
 
     let inverse_price_delta = pl / quantity;
 
@@ -296,7 +295,7 @@ pub fn evaluate_cash_in(
         // Only PL will be cashed-in. Margin shouldn't change
         margin
     } else {
-        Margin::try_from(margin.into_u64().saturating_sub(remaining_amount))
+        Margin::try_from(margin.as_u64().saturating_sub(remaining_amount))
             .map_err(TradeValidationError::CashInInvalidMargin)?
     };
 
@@ -346,7 +345,7 @@ pub fn evaluate_collateral_delta_for_liquidation(
     let pl = estimate_pl(side, quantity, price, market_price);
 
     // target collateral - current collateral
-    let colateral_diff = target_collateral.into_i64() - margin.into_i64() - pl.round() as i64;
+    let colateral_diff = target_collateral.as_i64() - margin.as_i64() - pl.round() as i64;
 
     Ok(colateral_diff)
 }
@@ -360,8 +359,8 @@ pub fn evaluate_closing_fee(
     quantity: Quantity,
     close_price: Price,
 ) -> u64 {
-    let fee_calc = SATS_PER_BTC * fee_perc.into_f64() / 100.;
-    (fee_calc * quantity.into_f64() / close_price.into_f64()).floor() as u64
+    let fee_calc = SATS_PER_BTC * fee_perc.as_f64() / 100.;
+    (fee_calc * quantity.as_f64() / close_price.as_f64()).floor() as u64
 }
 
 #[cfg(test)]

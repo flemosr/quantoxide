@@ -28,7 +28,7 @@ use super::{
 ///
 /// // Create a quantity value from USD amount
 /// let quantity = Quantity::try_from(1_000).unwrap();
-/// assert_eq!(quantity.into_u64(), 1_000);
+/// assert_eq!(quantity.as_u64(), 1_000);
 ///
 /// // Values outside the valid range will fail
 /// assert!(Quantity::try_from(0).is_err());
@@ -52,6 +52,9 @@ impl Quantity {
     /// ([Quantity::MIN], [Quantity::MAX]).
     /// It should be used to ensure a valid `Quantity` without error handling.
     ///
+    /// **Note:** In order to validate whether a value is a valid quantity and receive an error for
+    /// invalid values, use [`Quantity::try_from`].
+    ///
     /// # Examples
     ///
     /// ```
@@ -59,7 +62,7 @@ impl Quantity {
     ///
     /// // Values within range are rounded
     /// let q = Quantity::clamped(1_234.7);
-    /// assert_eq!(q.into_u64(), 1_235);
+    /// assert_eq!(q.as_u64(), 1_235);
     ///
     /// // Values below minimum are clamped to MIN
     /// let q = Quantity::clamped(-1);
@@ -80,7 +83,7 @@ impl Quantity {
         Self(clamped)
     }
 
-    /// Converts the quantity value to its underlying `u64` representation.
+    /// Returns the quantity value as its underlying `u64` representation.
     ///
     /// # Examples
     ///
@@ -88,13 +91,13 @@ impl Quantity {
     /// use lnm_sdk::api_v3::models::Quantity;
     ///
     /// let quantity = Quantity::try_from(1_000).unwrap();
-    /// assert_eq!(quantity.into_u64(), 1_000);
+    /// assert_eq!(quantity.as_u64(), 1_000);
     /// ```
-    pub fn into_u64(self) -> u64 {
-        self.into()
+    pub fn as_u64(&self) -> u64 {
+        self.0
     }
 
-    /// Converts the quantity value to `f64`.
+    /// Returns the quantity value as a `f64`.
     ///
     /// # Examples
     ///
@@ -102,10 +105,10 @@ impl Quantity {
     /// use lnm_sdk::api_v3::models::Quantity;
     ///
     /// let quantity = Quantity::try_from(1_000).unwrap();
-    /// assert_eq!(quantity.into_f64(), 1_000.0);
+    /// assert_eq!(quantity.as_f64(), 1_000.0);
     /// ```
-    pub fn into_f64(self) -> f64 {
-        self.into()
+    pub fn as_f64(&self) -> f64 {
+        self.0 as f64
     }
 
     /// Calculates quantity (USD) from margin (sats), price (BTC/USD), and leverage.
@@ -125,14 +128,14 @@ impl Quantity {
     ///
     /// let quantity = Quantity::try_calculate(margin, price, leverage).unwrap();
     ///
-    /// assert_eq!(quantity.into_u64(), 100); // 100 [USD]
+    /// assert_eq!(quantity.as_u64(), 100); // 100 [USD]
     /// ```
     pub fn try_calculate(
         margin: Margin,
         price: Price,
         leverage: Leverage,
     ) -> Result<Self, QuantityValidationError> {
-        let qtd = margin.into_f64() * leverage.into_f64() * price.into_f64() / SATS_PER_BTC;
+        let qtd = margin.as_f64() * leverage.as_f64() * price.as_f64() / SATS_PER_BTC;
 
         Self::try_from(qtd.floor() as u64)
     }
@@ -157,15 +160,15 @@ impl Quantity {
     ///     balance_perc
     /// ).unwrap();
     ///
-    /// assert_eq!(quantity.into_u64(), 1_000); // 1_000 [USD]
+    /// assert_eq!(quantity.as_u64(), 1_000); // 1_000 [USD]
     /// ```
     pub fn try_from_balance_perc(
         balance: u64,
         market_price: Price,
         balance_perc: BoundedPercentage,
     ) -> Result<Self, QuantityValidationError> {
-        let balance_usd = balance as f64 * market_price.into_f64() / SATS_PER_BTC;
-        let quantity_target = balance_usd * balance_perc.into_f64() / 100.;
+        let balance_usd = balance as f64 * market_price.as_f64() / SATS_PER_BTC;
+        let quantity_target = balance_usd * balance_perc.as_f64() / 100.;
 
         Quantity::try_from(quantity_target.floor())
     }

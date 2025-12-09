@@ -24,7 +24,7 @@ use super::{
 ///
 /// // Create a leverage value from a float
 /// let leverage = Leverage::try_from(10.0).unwrap();
-/// assert_eq!(leverage.into_f64(), 10.0);
+/// assert_eq!(leverage.as_f64(), 10.0);
 ///
 /// // Values outside the valid range will fail
 /// assert!(Leverage::try_from(0.5).is_err());
@@ -42,7 +42,7 @@ impl Leverage {
     /// The maximum allowed leverage value (100x).
     pub const MAX: Self = Self(100.);
 
-    /// Converts the leverage value to its underlying `f64` representation.
+    /// Returns the leverage value as its underlying `f64` representation.
     ///
     /// # Examples
     ///
@@ -50,10 +50,10 @@ impl Leverage {
     /// use lnm_sdk::api_v3::models::Leverage;
     ///
     /// let leverage = Leverage::try_from(25.0).unwrap();
-    /// assert_eq!(leverage.into_f64(), 25.0);
+    /// assert_eq!(leverage.as_f64(), 25.0);
     /// ```
-    pub fn into_f64(self) -> f64 {
-        self.into()
+    pub fn as_f64(&self) -> f64 {
+        self.0
     }
 
     /// Calculates leverage from quantity (USD), margin (sats), and price (BTC/USD).
@@ -78,8 +78,7 @@ impl Leverage {
         margin: Margin,
         price: Price,
     ) -> Result<Self, LeverageValidationError> {
-        let leverage_value =
-            quantity.into_f64() * SATS_PER_BTC / (margin.into_f64() * price.into_f64());
+        let leverage_value = quantity.as_f64() * SATS_PER_BTC / (margin.as_f64() * price.as_f64());
 
         Self::try_from(leverage_value)
     }

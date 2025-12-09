@@ -302,8 +302,8 @@ fn test_pl_long_profit() {
     let calculated_end_price = estimate_price_from_pl(side, quantity, start_price, pl);
 
     assert_eq!(pl, 1818.);
-    let price_diff = (calculated_end_price.into_f64() - end_price.into_f64()).abs();
-    let tolerance = end_price.into_f64() * 0.00005; // 0.005%
+    let price_diff = (calculated_end_price.as_f64() - end_price.as_f64()).abs();
+    let tolerance = end_price.as_f64() * 0.00005; // 0.005%
     assert!(
         price_diff < tolerance,
         "Price difference {price_diff} exceeds tolerance",
@@ -321,8 +321,8 @@ fn test_pl_long_loss() {
     let calculated_end_price = estimate_price_from_pl(side, quantity, start_price, pl);
 
     assert_eq!(pl, -1740.);
-    let price_diff = (calculated_end_price.into_f64() - end_price.into_f64()).abs();
-    let tolerance = end_price.into_f64() * 0.00005; // 0.005%
+    let price_diff = (calculated_end_price.as_f64() - end_price.as_f64()).abs();
+    let tolerance = end_price.as_f64() * 0.00005; // 0.005%
     assert!(
         price_diff < tolerance,
         "Price difference {price_diff} exceeds tolerance",
@@ -340,8 +340,8 @@ fn test_pl_short_profit() {
     let calculated_end_price = estimate_price_from_pl(side, quantity, start_price, pl);
 
     assert_eq!(pl, 2222.);
-    let price_diff = (calculated_end_price.into_f64() - end_price.into_f64()).abs();
-    let tolerance = end_price.into_f64() * 0.00005; // 0.005%
+    let price_diff = (calculated_end_price.as_f64() - end_price.as_f64()).abs();
+    let tolerance = end_price.as_f64() * 0.00005; // 0.005%
     assert!(
         price_diff < tolerance,
         "Price difference {price_diff} exceeds tolerance",
@@ -359,8 +359,8 @@ fn test_pl_short_loss() {
     let calculated_end_price = estimate_price_from_pl(side, quantity, start_price, pl);
 
     assert_eq!(pl, -1819.);
-    let price_diff = (calculated_end_price.into_f64() - end_price.into_f64()).abs();
-    let tolerance = end_price.into_f64() * 0.00005; // 0.005%
+    let price_diff = (calculated_end_price.as_f64() - end_price.as_f64()).abs();
+    let tolerance = end_price.as_f64() * 0.00005; // 0.005%
     assert!(
         price_diff < tolerance,
         "Price difference {price_diff} exceeds tolerance",
@@ -378,8 +378,8 @@ fn test_pl_no_price_movement() {
     let calculated_end_price = estimate_price_from_pl(side, quantity, start_price, pl);
 
     assert_eq!(pl, 0.);
-    let price_diff = (calculated_end_price.into_f64() - end_price.into_f64()).abs();
-    let tolerance = end_price.into_f64() * 0.00005; // 0.005%
+    let price_diff = (calculated_end_price.as_f64() - end_price.as_f64()).abs();
+    let tolerance = end_price.as_f64() * 0.00005; // 0.005%
     assert!(
         price_diff < tolerance,
         "Price difference {price_diff} exceeds tolerance",
@@ -397,8 +397,8 @@ fn test_pl_edge_case_small_prices() {
     let calculated_end_price = estimate_price_from_pl(side, quantity, start_price, pl);
 
     assert_eq!(pl, 33_333_333.);
-    let price_diff = (calculated_end_price.into_f64() - end_price.into_f64()).abs();
-    let tolerance = end_price.into_f64() * 0.00005; // 0.005%
+    let price_diff = (calculated_end_price.as_f64() - end_price.as_f64()).abs();
+    let tolerance = end_price.as_f64() * 0.00005; // 0.005%
     assert!(
         price_diff < tolerance,
         "Price difference {price_diff} exceeds tolerance",
@@ -416,8 +416,8 @@ fn test_pl_edge_case_big_prices() {
     let calculated_end_price = estimate_price_from_pl(side, quantity, start_price, pl);
 
     assert_eq!(pl, 26_315.);
-    let price_diff = (calculated_end_price.into_f64() - end_price.into_f64()).abs();
-    let tolerance = end_price.into_f64() * 0.00005; // 0.005%
+    let price_diff = (calculated_end_price.as_f64() - end_price.as_f64()).abs();
+    let tolerance = end_price.as_f64() * 0.00005; // 0.005%
     assert!(
         price_diff < tolerance,
         "Price difference {price_diff} exceeds tolerance",
@@ -435,8 +435,8 @@ fn test_pl_edge_case_min_quantity() {
     let calculated_end_price = estimate_price_from_pl(side, quantity, start_price, pl);
 
     assert_eq!(pl, 181.);
-    let price_diff = (calculated_end_price.into_f64() - end_price.into_f64()).abs();
-    let tolerance = end_price.into_f64() * 0.0005; // 0.05%, higher tolerance needed
+    let price_diff = (calculated_end_price.as_f64() - end_price.as_f64()).abs();
+    let tolerance = end_price.as_f64() * 0.0005; // 0.05%, higher tolerance needed
     assert!(
         price_diff < tolerance,
         "Price difference {price_diff} exceeds tolerance",
@@ -454,8 +454,8 @@ fn test_pl_edge_case_max_quantity() {
     let calculated_end_price = estimate_price_from_pl(side, quantity, start_price, pl);
 
     assert_eq!(pl, 9900990.);
-    let price_diff = (calculated_end_price.into_f64() - end_price.into_f64()).abs();
-    let tolerance = end_price.into_f64() * 0.00005; // 0.005%
+    let price_diff = (calculated_end_price.as_f64() - end_price.as_f64()).abs();
+    let tolerance = end_price.as_f64() * 0.00005; // 0.005%
     assert!(
         price_diff < tolerance,
         "Price difference {price_diff} exceeds tolerance",
@@ -510,7 +510,7 @@ fn test_cash_in_from_long_profit() {
 
     let original_liquidation =
         estimate_liquidation_price(side, quantity, original_price, original_leverage);
-    assert_eq!(original_liquidation.into_f64(), 90_909.0);
+    assert_eq!(original_liquidation.as_f64(), 90_909.0);
 
     let original_stoploss = Price::try_from(95_000.0).unwrap();
     assert!(original_stoploss > original_liquidation);
@@ -540,7 +540,7 @@ fn test_cash_in_from_long_profit() {
 
     assert!(new_price > original_price);
     assert!(new_price < market_price);
-    assert_eq!(new_price.into_f64(), 104_166.5);
+    assert_eq!(new_price.as_f64(), 104_166.5);
 
     // New price should be adjusted so that remaining PL is aprox `cash_in_amount` at `market_price`
 
@@ -550,10 +550,10 @@ fn test_cash_in_from_long_profit() {
 
     assert_eq!(new_margin, original_margin);
 
-    assert_eq!(new_leverage.into_f64(), 9.600015360024576);
+    assert_eq!(new_leverage.as_f64(), 9.600015360024576);
 
     assert!(new_liquidation > original_liquidation);
-    assert_eq!(new_liquidation.into_f64(), 94339.5);
+    assert_eq!(new_liquidation.as_f64(), 94339.5);
 
     // Stoploss still above liquidation, should remain unchanged
     assert_eq!(new_stoploss, original_stoploss);
@@ -583,10 +583,10 @@ fn test_cash_in_from_long_profit() {
 
     assert_eq!(new_margin, original_margin);
 
-    assert_eq!(new_leverage.into_f64(), 9.090909090909092);
+    assert_eq!(new_leverage.as_f64(), 9.090909090909092);
 
     assert!(new_liquidation > original_liquidation);
-    assert_eq!(new_liquidation.into_f64(), 99099.0);
+    assert_eq!(new_liquidation.as_f64(), 99099.0);
 
     // Stoploss was below new liquidation
     assert!(new_stoploss.is_none());
@@ -614,15 +614,14 @@ fn test_cash_in_from_long_profit() {
     let updated_pl = estimate_pl(side, quantity, new_price, market_price);
     assert!((updated_pl - expected_updated_pl).abs() < 5.);
 
-    let expected_new_margin =
-        original_margin.into_u64() + original_pl as u64 - cash_in_amount.get();
-    assert_eq!(new_margin.into_u64(), expected_new_margin);
+    let expected_new_margin = original_margin.as_u64() + original_pl as u64 - cash_in_amount.get();
+    assert_eq!(new_margin.as_u64(), expected_new_margin);
 
     assert!(new_leverage > original_leverage);
-    assert_eq!(new_leverage.into_f64(), 22.22227160504801);
+    assert_eq!(new_leverage.as_f64(), 22.22227160504801);
 
     assert!(new_liquidation > original_liquidation);
-    assert_eq!(new_liquidation.into_f64(), 105_263.0);
+    assert_eq!(new_liquidation.as_f64(), 105_263.0);
 
     // Stoploss was below new liquidation
     assert!(new_stoploss.is_none());
@@ -638,7 +637,7 @@ fn test_cash_in_from_long_loss() {
 
     let original_liquidation =
         estimate_liquidation_price(side, quantity, original_price, original_leverage);
-    assert_eq!(original_liquidation.into_f64(), 90_909.0);
+    assert_eq!(original_liquidation.as_f64(), 90_909.0);
 
     let original_stoploss = Price::try_from(95_000.0).unwrap();
     assert!(original_stoploss > original_liquidation);
@@ -668,14 +667,14 @@ fn test_cash_in_from_long_loss() {
     let updated_pl = estimate_pl(side, quantity, new_price, market_price).floor();
     assert_eq!(updated_pl, original_pl);
 
-    let expected_margin = original_margin.into_u64() - cash_in_amount.get();
-    assert_eq!(new_margin.into_u64(), expected_margin);
+    let expected_margin = original_margin.as_u64() - cash_in_amount.get();
+    assert_eq!(new_margin.as_u64(), expected_margin);
 
     assert!(new_leverage > original_leverage);
-    assert_eq!(new_leverage.into_f64(), 16.666666666666668);
+    assert_eq!(new_leverage.as_f64(), 16.666666666666668);
 
     assert!(new_liquidation > original_liquidation);
-    assert_eq!(new_liquidation.into_f64(), 94339.5);
+    assert_eq!(new_liquidation.as_f64(), 94339.5);
 
     // Stoploss still above liquidation, should remain unchanged
     assert_eq!(new_stoploss, original_stoploss);
@@ -691,7 +690,7 @@ fn test_cash_in_from_short_profit() {
 
     let original_liquidation =
         estimate_liquidation_price(side, quantity, original_price, original_leverage);
-    assert_eq!(original_liquidation.into_f64(), 111_111.0);
+    assert_eq!(original_liquidation.as_f64(), 111_111.0);
 
     let original_stoploss = Price::try_from(105_000.0).unwrap();
     assert!(original_stoploss < original_liquidation);
@@ -721,7 +720,7 @@ fn test_cash_in_from_short_profit() {
 
     assert!(new_price < original_price);
     assert!(new_price > market_price);
-    assert_eq!(new_price.into_f64(), 97_087.5);
+    assert_eq!(new_price.as_f64(), 97_087.5);
 
     // New price should be adjusted so that remaining PL is aprox `cash_in_amount` at `market_price`
 
@@ -731,10 +730,10 @@ fn test_cash_in_from_short_profit() {
 
     assert_eq!(new_margin, original_margin);
 
-    assert_eq!(new_leverage.into_f64(), 10.299987125016093);
+    assert_eq!(new_leverage.as_f64(), 10.299987125016093);
 
     assert!(new_liquidation < original_liquidation);
-    assert_eq!(new_liquidation.into_f64(), 107_527.0);
+    assert_eq!(new_liquidation.as_f64(), 107_527.0);
 
     // Stoploss still below liquidation, should remain unchanged
     assert_eq!(new_stoploss, original_stoploss);
@@ -764,10 +763,10 @@ fn test_cash_in_from_short_profit() {
 
     assert_eq!(new_margin, original_margin);
 
-    assert_eq!(new_leverage.into_f64(), 10.869565217391305);
+    assert_eq!(new_leverage.as_f64(), 10.869565217391305);
 
     assert!(new_liquidation < original_liquidation);
-    assert_eq!(new_liquidation.into_f64(), 101_321.5);
+    assert_eq!(new_liquidation.as_f64(), 101_321.5);
 
     // Stoploss was above new liquidation
     assert!(new_stoploss.is_none());
@@ -795,15 +794,14 @@ fn test_cash_in_from_short_profit() {
     let updated_pl = estimate_pl(side, quantity, new_price, market_price).floor();
     assert!((updated_pl - expected_updated_pl).abs() < 5.);
 
-    let expected_new_margin =
-        original_margin.into_u64() + original_pl as u64 - cash_in_amount.get();
-    assert_eq!(new_margin.into_u64(), expected_new_margin);
+    let expected_new_margin = original_margin.as_u64() + original_pl as u64 - cash_in_amount.get();
+    assert_eq!(new_margin.as_u64(), expected_new_margin);
 
     assert!(new_leverage > original_leverage);
-    assert_eq!(new_leverage.into_f64(), 29.412179936657928);
+    assert_eq!(new_leverage.as_f64(), 29.412179936657928);
 
     assert!(new_liquidation < original_liquidation);
-    assert_eq!(new_liquidation.into_f64(), 95_238.0);
+    assert_eq!(new_liquidation.as_f64(), 95_238.0);
 
     // Stoploss was above new liquidation
     assert!(new_stoploss.is_none());
@@ -819,7 +817,7 @@ fn test_cash_in_from_short_loss() {
 
     let original_liquidation =
         estimate_liquidation_price(side, quantity, original_price, original_leverage);
-    assert_eq!(original_liquidation.into_f64(), 111_111.0);
+    assert_eq!(original_liquidation.as_f64(), 111_111.0);
 
     let original_stoploss = Price::try_from(105_000.0).unwrap();
     assert!(original_stoploss < original_liquidation);
@@ -849,14 +847,14 @@ fn test_cash_in_from_short_loss() {
     let updated_pl = estimate_pl(side, quantity, new_price, market_price).floor();
     assert_eq!(updated_pl, original_pl);
 
-    let expected_margin = original_margin.into_u64() - cash_in_amount.get();
-    assert_eq!(new_margin.into_u64(), expected_margin);
+    let expected_margin = original_margin.as_u64() - cash_in_amount.get();
+    assert_eq!(new_margin.as_u64(), expected_margin);
 
     assert!(new_leverage > original_leverage);
-    assert_eq!(new_leverage.into_f64(), 16.666666666666668);
+    assert_eq!(new_leverage.as_f64(), 16.666666666666668);
 
     assert!(new_liquidation < original_liquidation);
-    assert_eq!(new_liquidation.into_f64(), 106_383.0);
+    assert_eq!(new_liquidation.as_f64(), 106_383.0);
 
     // Stoploss still below liquidation, should remain unchanged
     assert_eq!(new_stoploss, original_stoploss);
@@ -877,7 +875,7 @@ fn test_collateral_delta_estimation_long_profit_leverage_up() {
 
     let original_liquidation =
         estimate_liquidation_price(side, quantity, original_price, original_leverage);
-    assert_eq!(original_liquidation.into_f64(), 90909.0);
+    assert_eq!(original_liquidation.as_f64(), 90909.0);
 
     // Case 1: Cash-in less than PL
 
@@ -945,7 +943,7 @@ fn test_collateral_delta_estimation_long_profit_leverage_up() {
     )
     .unwrap();
 
-    let liquidation_diff = (new_liquidation.into_f64() - target_liquidation.into_f64()).abs();
+    let liquidation_diff = (new_liquidation.as_f64() - target_liquidation.as_f64()).abs();
     assert!(
         liquidation_diff < 1.0,
         "Estimated liquidation distant from target by {liquidation_diff}",
@@ -968,7 +966,7 @@ fn test_collateral_delta_estimation_long_profit_leverage_down() {
 
     let original_liquidation =
         estimate_liquidation_price(side, quantity, original_price, original_leverage);
-    assert_eq!(original_liquidation.into_f64(), 90909.0);
+    assert_eq!(original_liquidation.as_f64(), 90909.0);
 
     let target_liquidation = Price::try_from(85_000.0).unwrap();
     assert!(target_liquidation < original_liquidation);
@@ -997,7 +995,7 @@ fn test_collateral_delta_estimation_long_profit_leverage_down() {
     )
     .unwrap();
 
-    let liquidation_diff = (new_liquidation.into_f64() - target_liquidation.into_f64()).abs();
+    let liquidation_diff = (new_liquidation.as_f64() - target_liquidation.as_f64()).abs();
     assert!(
         liquidation_diff < 1.0,
         "Estimated liquidation distant from target by {liquidation_diff}",
@@ -1019,7 +1017,7 @@ fn test_collateral_delta_estimation_short_profit_leverage_up() {
 
     let original_liquidation =
         estimate_liquidation_price(side, quantity, original_price, original_leverage);
-    assert_eq!(original_liquidation.into_f64(), 111_111.0);
+    assert_eq!(original_liquidation.as_f64(), 111_111.0);
 
     // Case 1: Cash-in less than PL
 
@@ -1087,7 +1085,7 @@ fn test_collateral_delta_estimation_short_profit_leverage_up() {
     )
     .unwrap();
 
-    let liquidation_diff = (new_liquidation.into_f64() - target_liquidation.into_f64()).abs();
+    let liquidation_diff = (new_liquidation.as_f64() - target_liquidation.as_f64()).abs();
     assert!(
         liquidation_diff < 1.0,
         "Estimated liquidation distant from target by {liquidation_diff}",
@@ -1110,7 +1108,7 @@ fn test_collateral_delta_estimation_short_profit_leverage_down() {
 
     let original_liquidation =
         estimate_liquidation_price(side, quantity, original_price, original_leverage);
-    assert_eq!(original_liquidation.into_f64(), 111_111.0);
+    assert_eq!(original_liquidation.as_f64(), 111_111.0);
 
     let target_liquidation = Price::try_from(121_000.0).unwrap();
     assert!(target_liquidation > original_liquidation);
@@ -1139,7 +1137,7 @@ fn test_collateral_delta_estimation_short_profit_leverage_down() {
     )
     .unwrap();
 
-    let liquidation_diff = (new_liquidation.into_f64() - target_liquidation.into_f64()).abs();
+    let liquidation_diff = (new_liquidation.as_f64() - target_liquidation.as_f64()).abs();
     assert!(
         liquidation_diff < 1.0,
         "Estimated liquidation distant from target by {liquidation_diff}",

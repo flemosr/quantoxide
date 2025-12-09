@@ -405,11 +405,11 @@ async fn test_update_trade_takeprofit(repo: &LnmFuturesRepository, id: Uuid, pri
 }
 
 async fn test_add_margin(repo: &LnmFuturesRepository, trade: Trade) -> Trade {
-    assert!(trade.leverage().into_f64() > 1.6);
+    assert!(trade.leverage().as_f64() > 1.6);
 
     let target_leverage = Leverage::try_from(1.5).unwrap();
     let target_margin = Margin::calculate(trade.quantity(), trade.price(), target_leverage);
-    let amount = target_margin.into_u64() - trade.margin().into_u64();
+    let amount = target_margin.as_u64() - trade.margin().as_u64();
     let amount = amount.try_into().unwrap();
 
     let updated_trade = repo
@@ -425,11 +425,11 @@ async fn test_add_margin(repo: &LnmFuturesRepository, trade: Trade) -> Trade {
 }
 
 async fn test_cash_in(repo: &LnmFuturesRepository, trade: Trade) -> Trade {
-    assert!(trade.leverage().into_f64() < 1.9);
+    assert!(trade.leverage().as_f64() < 1.9);
 
     let target_leverage = Leverage::try_from(2).unwrap();
     let target_margin = Margin::calculate(trade.quantity(), trade.price(), target_leverage);
-    let amount = trade.margin().into_u64() - target_margin.into_u64() + trade.pl().max(0) as u64;
+    let amount = trade.margin().as_u64() - target_margin.as_u64() + trade.pl().max(0) as u64;
     let amount = amount.try_into().unwrap();
 
     let updated_trade = repo

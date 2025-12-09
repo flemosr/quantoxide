@@ -75,7 +75,7 @@ impl PriceEntry {
     ///
     /// if let Some(entry) = price_history.first() {
     ///     let price = entry.value();
-    ///     println!("Bitcoin price: ${}", price.into_f64());
+    ///     println!("Bitcoin price: ${}", price.as_f64());
     /// }
     /// # Ok(())
     /// # }

@@ -28,11 +28,11 @@ use crate::{
 ///
 /// // Create a leverage value from an integer
 /// let leverage = CrossLeverage::try_from(10).unwrap();
-/// assert_eq!(leverage.into_u64(), 10);
+/// assert_eq!(leverage.as_u64(), 10);
 ///
 /// // Create a leverage value from a float
 /// let leverage = CrossLeverage::try_from(10.9).unwrap();
-/// assert_eq!(leverage.into_u64(), 10);
+/// assert_eq!(leverage.as_u64(), 10);
 ///
 /// // Values outside the valid range will fail
 /// assert!(CrossLeverage::try_from(0.9).is_err());
@@ -48,7 +48,7 @@ impl CrossLeverage {
     /// The maximum allowed leverage value (100x).
     pub const MAX: Self = Self(100);
 
-    /// Converts the leverage value to its underlying `u64` representation.
+    /// Returns the leverage value as its underlying `u64` representation.
     ///
     /// # Examples
     ///
@@ -56,10 +56,10 @@ impl CrossLeverage {
     /// use lnm_sdk::api_v3::models::CrossLeverage;
     ///
     /// let leverage = CrossLeverage::try_from(25.0).unwrap();
-    /// assert_eq!(leverage.into_u64(), 25);
+    /// assert_eq!(leverage.as_u64(), 25);
     /// ```
-    pub fn into_u64(self) -> u64 {
-        self.into()
+    pub fn as_u64(&self) -> u64 {
+        self.0
     }
 
     /// Calculates the rounded leverage from quantity (USD), margin (sats), and price (BTC/USD).
@@ -84,8 +84,7 @@ impl CrossLeverage {
         margin: Margin,
         price: Price,
     ) -> Result<Self, LeverageValidationError> {
-        let leverage_value =
-            quantity.into_f64() * SATS_PER_BTC / (margin.into_f64() * price.into_f64());
+        let leverage_value = quantity.as_f64() * SATS_PER_BTC / (margin.as_f64() * price.as_f64());
 
         Self::try_from(leverage_value.round())
     }

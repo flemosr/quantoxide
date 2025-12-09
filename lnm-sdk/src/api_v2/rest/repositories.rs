@@ -472,7 +472,7 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     ///     .add_margin(created_trade.id(), amount).await?;
     ///
     /// assert_eq!(updated_trade.id(), created_trade.id());
-    /// assert_eq!(updated_trade.margin().into_u64(), 11_000);
+    /// assert_eq!(updated_trade.margin().as_u64(), 11_000);
     /// assert!(updated_trade.leverage() < created_trade.leverage());
     /// # Ok(())
     /// # }
@@ -523,7 +523,7 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     ///     .cash_in(created_trade.id(), amount).await?;
     ///
     /// assert_eq!(updated_trade.id(), created_trade.id());
-    /// assert_eq!(updated_trade.margin().into_u64(), 9_000);
+    /// assert_eq!(updated_trade.margin().as_u64(), 9_000);
     /// assert!(updated_trade.leverage() > created_trade.leverage());
     /// # Ok(())
     /// # }

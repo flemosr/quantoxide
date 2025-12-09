@@ -26,7 +26,7 @@ use super::{
 ///
 /// // Create a margin value from satoshis
 /// let margin = Margin::try_from(10_000).unwrap();
-/// assert_eq!(margin.into_u64(), 10_000);
+/// assert_eq!(margin.as_u64(), 10_000);
 ///
 /// // Values below the minimum will fail
 /// assert!(Margin::try_from(0).is_err());
@@ -40,7 +40,7 @@ impl Margin {
     /// The minimum allowed margin value (1 satoshi).
     pub const MIN: Self = Self(1);
 
-    /// Converts the margin value to its underlying `u64` representation.
+    /// Returns the margin value as its underlying `u64` representation.
     ///
     /// # Examples
     ///
@@ -48,13 +48,13 @@ impl Margin {
     /// use lnm_sdk::api_v3::models::Margin;
     ///
     /// let margin = Margin::try_from(10_000).unwrap();
-    /// assert_eq!(margin.into_u64(), 10_000);
+    /// assert_eq!(margin.as_u64(), 10_000);
     /// ```
-    pub fn into_u64(self) -> u64 {
-        self.into()
+    pub fn as_u64(&self) -> u64 {
+        self.0
     }
 
-    /// Converts the margin value to `i64`.
+    /// Returns the margin value as a `i64`.
     ///
     /// # Examples
     ///
@@ -62,13 +62,13 @@ impl Margin {
     /// use lnm_sdk::api_v3::models::Margin;
     ///
     /// let margin = Margin::try_from(10_000).unwrap();
-    /// assert_eq!(margin.into_i64(), 10_000);
+    /// assert_eq!(margin.as_i64(), 10_000);
     /// ```
-    pub fn into_i64(self) -> i64 {
-        self.into()
+    pub fn as_i64(&self) -> i64 {
+        self.0 as i64
     }
 
-    /// Converts the margin value to `f64`.
+    /// Returns the margin value as a `f64`.
     ///
     /// # Examples
     ///
@@ -76,10 +76,10 @@ impl Margin {
     /// use lnm_sdk::api_v3::models::Margin;
     ///
     /// let margin = Margin::try_from(10_000).unwrap();
-    /// assert_eq!(margin.into_f64(), 10_000.0);
+    /// assert_eq!(margin.as_f64(), 10_000.0);
     /// ```
-    pub fn into_f64(self) -> f64 {
-        self.into()
+    pub fn as_f64(&self) -> f64 {
+        self.0 as f64
     }
 
     /// Calculates margin from quantity (USD), price (BTC/USD), and leverage.
@@ -100,8 +100,7 @@ impl Margin {
     /// let margin = Margin::calculate(quantity, price, leverage);
     /// ```
     pub fn calculate(quantity: Quantity, price: Price, leverage: Leverage) -> Self {
-        let margin =
-            quantity.into_f64() * (SATS_PER_BTC / (price.into_f64() * leverage.into_f64()));
+        let margin = quantity.as_f64() * (SATS_PER_BTC / (price.as_f64() * leverage.as_f64()));
 
         Self::try_from(margin.ceil() as u64).expect("must result in valid `Margin`")
     }
@@ -154,22 +153,22 @@ impl Margin {
 
         // Calculate 'a' and 'b' from `trade_utils::estimate_liquidation_price`
 
-        let a = 1.0 / price.into_f64();
+        let a = 1.0 / price.as_f64();
 
         let b = match side {
             TradeSide::Buy => {
                 // liquidation_price = 1.0 / (a + b)
-                1.0 / liquidation.into_f64() - a
+                1.0 / liquidation.as_f64() - a
             }
             TradeSide::Sell => {
                 // liquidation_price = 1.0 / (a - b)
-                a - 1.0 / liquidation.into_f64()
+                a - 1.0 / liquidation.as_f64()
             }
         };
 
         assert!(b > 0.0, "'b' must be positive from validations above");
 
-        let floored_margin = b * SATS_PER_BTC * quantity.into_f64();
+        let floored_margin = b * SATS_PER_BTC * quantity.as_f64();
 
         let margin =
             Margin::try_from(floored_margin.ceil() as u64).expect("must be valid `Margin`");
@@ -188,19 +187,19 @@ impl Add for Margin {
 
 impl From<Margin> for u64 {
     fn from(value: Margin) -> Self {
-        value.0
+        value.as_u64()
     }
 }
 
 impl From<Margin> for i64 {
     fn from(value: Margin) -> Self {
-        value.0 as i64
+        value.as_i64()
     }
 }
 
 impl From<Margin> for f64 {
     fn from(value: Margin) -> Self {
-        value.0 as f64
+        value.as_f64()
     }
 }
 
@@ -268,19 +267,19 @@ mod tests {
         let leverage = Leverage::try_from(1.0).unwrap();
 
         let margin = Margin::calculate(quantity, price, leverage);
-        assert_eq!(margin.into_u64(), 5264);
+        assert_eq!(margin.as_u64(), 5264);
 
         let leverage = Leverage::try_from(2.0).unwrap();
         let margin = Margin::calculate(quantity, price, leverage);
-        assert_eq!(margin.into_u64(), 2632);
+        assert_eq!(margin.as_u64(), 2632);
 
         let leverage = Leverage::try_from(50.0).unwrap();
         let margin = Margin::calculate(quantity, price, leverage);
-        assert_eq!(margin.into_u64(), 106);
+        assert_eq!(margin.as_u64(), 106);
 
         let leverage = Leverage::try_from(100.0).unwrap();
         let margin = Margin::calculate(quantity, price, leverage);
-        assert_eq!(margin.into_u64(), 53);
+        assert_eq!(margin.as_u64(), 53);
 
         // Edge case: Min margin
         let margin = Margin::calculate(Quantity::MIN, Price::MAX, Leverage::MAX);
@@ -288,7 +287,7 @@ mod tests {
 
         // Edge case: Max reachable margin
         let margin = Margin::calculate(Quantity::MAX, Price::MIN, Leverage::MIN);
-        assert_eq!(margin.into_u64(), 50_000_000_000_000);
+        assert_eq!(margin.as_u64(), 50_000_000_000_000);
     }
 
     #[test]
@@ -308,10 +307,10 @@ mod tests {
         let expected_margin = Margin::calculate(quantity, entry_price, leverage);
 
         assert!(
-            (margin.into_i64() - expected_margin.into_i64()).abs() <= 999,
+            (margin.as_i64() - expected_margin.as_i64()).abs() <= 999,
             "Margin difference too large: calculated {} vs expected {}",
-            margin.into_u64(),
-            expected_margin.into_u64()
+            margin.as_u64(),
+            expected_margin.as_u64()
         );
 
         // Test case 2: Buy side with high leverage
@@ -325,10 +324,10 @@ mod tests {
         let expected_margin = Margin::calculate(quantity, entry_price, leverage);
 
         assert!(
-            (margin.into_i64() - expected_margin.into_i64()).abs() <= 999,
+            (margin.as_i64() - expected_margin.as_i64()).abs() <= 999,
             "Margin difference too large: calculated {} vs expected {}",
-            margin.into_u64(),
-            expected_margin.into_u64()
+            margin.as_u64(),
+            expected_margin.as_u64()
         );
 
         // Test case 3: Sell side with low leverage
@@ -343,10 +342,10 @@ mod tests {
         let expected_margin = Margin::calculate(quantity, entry_price, leverage);
 
         assert!(
-            (margin.into_i64() - expected_margin.into_i64()).abs() <= 999,
+            (margin.as_i64() - expected_margin.as_i64()).abs() <= 999,
             "Margin difference too large: calculated {} vs expected {}",
-            margin.into_u64(),
-            expected_margin.into_u64()
+            margin.as_u64(),
+            expected_margin.as_u64()
         );
     }
 }
