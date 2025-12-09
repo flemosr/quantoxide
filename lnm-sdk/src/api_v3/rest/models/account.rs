@@ -1,6 +1,7 @@
 use serde::Deserialize;
 use uuid::Uuid;
 
+/// LN Markets account information.
 #[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Account {

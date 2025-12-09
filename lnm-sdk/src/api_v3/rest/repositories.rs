@@ -30,7 +30,7 @@ use super::models::{
 ///
 /// This trait is sealed and not meant to be implemented outside of `lnm-sdk`.
 ///
-/// [LNM's v3 API]: https://api.lnmarkets.com/v3
+/// [LNM's v3 API]: https://api.lnmarkets.com/v3/
 #[async_trait]
 pub trait UtilitiesRepository: crate::sealed::Sealed + Send + Sync {
     async fn ping(&self) -> Result<()>;
@@ -42,7 +42,7 @@ pub trait UtilitiesRepository: crate::sealed::Sealed + Send + Sync {
 ///
 /// This trait is sealed and not meant to be implemented outside of `lnm-sdk`.
 ///
-/// [LNM's v3 API]: https://api.lnmarkets.com/v3
+/// [LNM's v3 API]: https://api.lnmarkets.com/v3/
 #[async_trait]
 pub trait FuturesIsolatedRepository: crate::sealed::Sealed + Send + Sync {
     /// Add margin to a running trade. This will lower the trade liquidation price and thus decrease
@@ -148,7 +148,7 @@ pub trait FuturesIsolatedRepository: crate::sealed::Sealed + Send + Sync {
 ///
 /// This trait is sealed and not meant to be implemented outside of `lnm-sdk`.
 ///
-/// [LNM's v3 API]: https://api.lnmarkets.com/v3
+/// [LNM's v3 API]: https://api.lnmarkets.com/v3/
 #[async_trait]
 pub trait FuturesCrossRepository: crate::sealed::Sealed + Send + Sync {
     /// Cancel all open cross orders.
@@ -244,7 +244,7 @@ pub trait FuturesCrossRepository: crate::sealed::Sealed + Send + Sync {
 ///
 /// This trait is sealed and not meant to be implemented outside of `lnm-sdk`.
 ///
-/// [LNM's v3 API]: https://api.lnmarkets.com/v3
+/// [LNM's v3 API]: https://api.lnmarkets.com/v3/
 #[async_trait]
 pub trait FuturesDataRepository: crate::sealed::Sealed + Send + Sync {
     /// Get the funding settlement history. A settlement happens every 8 hours (00:00, 08:00,
@@ -280,7 +280,7 @@ pub trait FuturesDataRepository: crate::sealed::Sealed + Send + Sync {
 ///
 /// This trait is sealed and not meant to be implemented outside of `lnm-sdk`.
 ///
-/// [LNM's v3 API]: https://api.lnmarkets.com/v3
+/// [LNM's v3 API]: https://api.lnmarkets.com/v3/
 #[allow(dead_code)] // TODO
 #[async_trait]
 pub trait SyntheticUsdRepository: crate::sealed::Sealed + Send + Sync {
@@ -308,7 +308,7 @@ pub trait SyntheticUsdRepository: crate::sealed::Sealed + Send + Sync {
 ///
 /// This trait is sealed and not meant to be implemented outside of `lnm-sdk`.
 ///
-/// [LNM's v3 API]: https://api.lnmarkets.com/v3
+/// [LNM's v3 API]: https://api.lnmarkets.com/v3/
 #[async_trait]
 pub trait AccountRepository: crate::sealed::Sealed + Send + Sync {
     /// Get account information.
@@ -351,7 +351,7 @@ pub trait AccountRepository: crate::sealed::Sealed + Send + Sync {
 ///
 /// This trait is sealed and not meant to be implemented outside of `lnm-sdk`.
 ///
-/// [LNM's v3 API]: https://api.lnmarkets.com/v3
+/// [LNM's v3 API]: https://api.lnmarkets.com/v3/
 #[allow(dead_code)] // TODO
 #[async_trait]
 pub trait DepositsRepository: crate::sealed::Sealed + Send + Sync {
@@ -442,7 +442,7 @@ pub trait WithdrawalsRepository: crate::sealed::Sealed + Send + Sync {
 ///
 /// This trait is sealed and not meant to be implemented outside of `lnm-sdk`.
 ///
-/// [LNM's v3 API]: https://api.lnmarkets.com/v3
+/// [LNM's v3 API]: https://api.lnmarkets.com/v3/
 #[async_trait]
 pub trait OracleRepository: crate::sealed::Sealed + Send + Sync {
     /// Samples index history (default 100, max 1000 entries).

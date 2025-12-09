@@ -26,7 +26,7 @@ use repositories::{
 /// Some endpoints require credentials with specific permissions. Such requirements will be
 /// mentioned in the corresponding method's documentation".
 ///
-/// [LNM's v3 API]: https://api.lnmarkets.com/v3
+/// [LNM's v3 API]: https://api.lnmarkets.com/v3/
 pub struct RestClient {
     /// Indicates whether LNM credentials were provided during client initialization.
     ///
@@ -36,32 +36,32 @@ pub struct RestClient {
 
     /// Methods for interacting with [LNM's v3 API]'s REST Utilities endpoints.
     ///
-    /// [LNM's v3 API]: https://api.lnmarkets.com/v3
+    /// [LNM's v3 API]: https://api.lnmarkets.com/v3/
     pub utilities: Box<dyn UtilitiesRepository>,
 
     /// Methods for interacting with [LNM's v3 API]'s REST Futures Isolated endpoints.
     ///
-    /// [LNM's v3 API]: https://api.lnmarkets.com/v3
+    /// [LNM's v3 API]: https://api.lnmarkets.com/v3/
     pub futures_isolated: Box<dyn FuturesIsolatedRepository>,
 
     /// Methods for interacting with [LNM's v3 API]'s REST Futures Cross endpoints.
     ///
-    /// [LNM's v3 API]: https://api.lnmarkets.com/v3
+    /// [LNM's v3 API]: https://api.lnmarkets.com/v3/
     pub futures_cross: Box<dyn FuturesCrossRepository>,
 
     /// Methods for interacting with [LNM's v3 API]'s REST Futures Data endpoints.
     ///
-    /// [LNM's v3 API]: https://api.lnmarkets.com/v3
+    /// [LNM's v3 API]: https://api.lnmarkets.com/v3/
     pub futures_data: Box<dyn FuturesDataRepository>,
 
     /// Methods for interacting with [LNM's v3 API]'s REST Account endpoints.
     ///
-    /// [LNM's v3 API]: https://api.lnmarkets.com/v3
+    /// [LNM's v3 API]: https://api.lnmarkets.com/v3/
     pub account: Box<dyn AccountRepository>,
 
     /// Methods for interacting with [LNM's v3 API]'s REST Oracle endpoints.
     ///
-    /// [LNM's v3 API]: https://api.lnmarkets.com/v3
+    /// [LNM's v3 API]: https://api.lnmarkets.com/v3/
     pub oracle: Box<dyn OracleRepository>,
 }
 

@@ -34,7 +34,7 @@ impl TickerPrice {
     }
 }
 
-/// Real-time ticker data for Bitcoin futures from LNMarkets.
+/// Real-time ticker data for Bitcoin futures from LN Markets.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Ticker {

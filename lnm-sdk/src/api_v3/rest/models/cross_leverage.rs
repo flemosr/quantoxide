@@ -14,10 +14,10 @@ use crate::{
 ///
 /// Leverage represents the multiplier applied to the position margin to determine the position size
 /// (quantity).
-/// This type ensures that leverage values are integers within acceptable bounds (1x to 100x) and
-/// can be safely used with futures cross orders and positions.
+/// This type ensures that leverage can be safely used with futures cross orders and positions.
 ///
 /// Leverage values must be:
+/// + Integers
 /// + Greater than or equal to [`CrossLeverage::MIN`] (1x)
 /// + Less than or equal to [`CrossLeverage::MAX`] (100x)
 ///
