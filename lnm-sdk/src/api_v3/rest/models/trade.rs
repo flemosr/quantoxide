@@ -88,6 +88,41 @@ impl FuturesIsolatedTradeRequestBody {
     }
 }
 
+/// An isolated futures trade returned from the LN Markets API.
+///
+/// Represents a complete isolated trade object with all associated data including execution
+/// details, risk parameters, lifecycle status, and profit/loss information. Unlike cross-margin
+/// positions, each isolated trade has its own dedicated margin and risk parameters.
+///
+/// # Examples
+///
+/// ```no_run
+/// # async fn example(rest_api: lnm_sdk::api_v3::RestClient) -> Result<(), Box<dyn std::error::Error>> {
+/// use lnm_sdk::api_v3::models::{
+///     Trade, Leverage, Margin, TradeExecution, TradeSide, TradeSize,
+/// };
+///
+/// let trade: Trade = rest_api
+///     .futures_isolated
+///     .new_trade(
+///         TradeSide::Buy,
+///         TradeSize::from(Margin::try_from(10_000)?),
+///         Leverage::try_from(10.0)?,
+///         TradeExecution::Market,
+///         None,
+///         None,
+///         None,
+///     )
+///     .await?;
+///
+/// println!("Trade ID: {}", trade.id());
+/// println!("Side: {:?}", trade.side());
+/// println!("Quantity: {}", trade.quantity());
+/// println!("Margin: {}", trade.margin());
+/// println!("Leverage: {}", trade.leverage());
+/// # Ok(())
+/// # }
+/// ```
 #[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Trade {
