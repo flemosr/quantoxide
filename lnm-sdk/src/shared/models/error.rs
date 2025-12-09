@@ -1,17 +1,25 @@
 use thiserror::Error;
 
-use super::price::{BoundedPercentage, LowerBoundedPercentage, Price};
+use super::{
+    leverage::Leverage,
+    margin::Margin,
+    price::{BoundedPercentage, LowerBoundedPercentage, Price},
+    quantity::Quantity,
+};
 
 #[derive(Debug, Error)]
 pub enum QuantityValidationError {
-    #[error("Quantity must be at least 1")]
-    TooLow,
+    #[error("Quantity must be at least {}. Value: {value}", Quantity::MIN)]
+    TooLow { value: u64 },
 
-    #[error("Quantity must be less than or equal to 500,000")]
-    TooHigh,
+    #[error(
+        "Quantity must be less than or equal to {}. Value: {value}",
+        Quantity::MAX
+    )]
+    TooHigh { value: u64 },
 
-    #[error("Quantity must be an integer")]
-    NotAnInteger,
+    #[error("Quantity must be an integer. Value: {value}")]
+    NotAnInteger { value: f64 },
 }
 
 #[derive(Debug, Error)]

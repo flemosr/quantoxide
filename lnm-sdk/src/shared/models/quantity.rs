@@ -189,16 +189,16 @@ impl From<Quantity> for f64 {
 impl TryFrom<u64> for Quantity {
     type Error = QuantityValidationError;
 
-    fn try_from(quantity: u64) -> Result<Self, Self::Error> {
-        if quantity < Self::MIN.0 {
-            return Err(QuantityValidationError::TooLow);
+    fn try_from(value: u64) -> Result<Self, Self::Error> {
+        if value < Self::MIN.0 {
+            return Err(QuantityValidationError::TooLow { value });
         }
 
-        if quantity > Self::MAX.0 {
-            return Err(QuantityValidationError::TooHigh);
+        if value > Self::MAX.0 {
+            return Err(QuantityValidationError::TooHigh { value });
         }
 
-        Ok(Quantity(quantity))
+        Ok(Quantity(value))
     }
 }
 
@@ -213,12 +213,12 @@ impl TryFrom<i32> for Quantity {
 impl TryFrom<f64> for Quantity {
     type Error = QuantityValidationError;
 
-    fn try_from(quantity: f64) -> Result<Self, Self::Error> {
-        if quantity.fract() != 0.0 {
-            return Err(QuantityValidationError::NotAnInteger);
+    fn try_from(value: f64) -> Result<Self, Self::Error> {
+        if value.fract() != 0.0 {
+            return Err(QuantityValidationError::NotAnInteger { value });
         }
 
-        Self::try_from(quantity.max(0.) as u64)
+        Self::try_from(value.max(0.) as u64)
     }
 }
 
@@ -290,7 +290,7 @@ mod tests {
             .unwrap();
         assert!(matches!(
             quantity_validation_error,
-            QuantityValidationError::TooLow
+            QuantityValidationError::TooLow { value: _ }
         ));
 
         let margin = Margin::try_from(5_001_000).unwrap();
@@ -302,7 +302,7 @@ mod tests {
             .unwrap();
         assert!(matches!(
             quantity_validation_error,
-            QuantityValidationError::TooHigh
+            QuantityValidationError::TooHigh { value: _ }
         ));
     }
 }
