@@ -51,16 +51,44 @@ impl CrossFunding {
     }
 }
 
+/// Information about a given funding fee that was paid or received, corresponding to an isolated
+/// margin position.
+///
+/// # Examples
+///
+/// ```no_run
+/// # async fn example(rest_api: lnm_sdk::api_v3::RestClient) -> Result<(), Box<dyn std::error::Error>> {
+/// use lnm_sdk::api_v3::models::{IsolatedFunding, Page};
+///
+/// let funding_fees: Page<IsolatedFunding> = rest_api
+///     .futures_isolated
+///     .get_funding_fees(None, None, None, None)
+///     .await?;
+///
+/// for fee in funding_fees.data() {
+///     println!("Time: {}", fee.time());
+///     println!("Settlement ID: {}", fee.settlement_id());
+///     println!("Trade ID: {}", fee.trade_id());
+///     println!("Fee: {} sats", fee.fee());
+/// }
+/// # Ok(())
+/// # }
+/// ```
 #[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct IsolatedFunding {
+    time: DateTime<Utc>,
     settlement_id: Uuid,
     trade_id: Uuid,
     fee: i64,
-    time: DateTime<Utc>,
 }
 
 impl IsolatedFunding {
+    /// Timestamp when the funding fee was received.
+    pub fn time(&self) -> DateTime<Utc> {
+        self.time
+    }
+
     /// Unique identifier for the funding settlement.
     pub fn settlement_id(&self) -> Uuid {
         self.settlement_id
@@ -71,14 +99,9 @@ impl IsolatedFunding {
         self.trade_id
     }
 
-    /// Funding fee amount.
+    /// Funding fee amount in satoshis.
     pub fn fee(&self) -> i64 {
         self.fee
-    }
-
-    /// Timestamp when the funding fee was received.
-    pub fn time(&self) -> DateTime<Utc> {
-        self.time
     }
 }
 
