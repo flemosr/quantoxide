@@ -10,7 +10,7 @@ use super::{
     super::{
         models::{
             funding::FundingSettlement,
-            futures_data::{OhlcCandle, OhlcRange},
+            ohlc_candle::{OhlcCandle, OhlcRange},
             page::Page,
             ticker::Ticker,
         },
