@@ -629,6 +629,37 @@ impl FuturesCrossOrderBody {
     }
 }
 
+/// An order to modify a cross-margin futures position returned from the LN Markets API.
+///
+/// Represents an order that, when filled, will update the user's [`CrossPosition`]. Cross orders
+/// allow traders to increase or decrease their position size within a unified cross-margin account,
+/// where margin is shared across all positions.
+///
+/// # Examples
+///
+/// ```no_run
+/// # async fn example(rest_api: lnm_sdk::api_v3::RestClient) -> Result<(), Box<dyn std::error::Error>> {
+/// use lnm_sdk::api_v3::models::{
+///     CrossOrder, Quantity, TradeExecution, TradeSide,
+/// };
+///
+/// let order: CrossOrder = rest_api
+///     .futures_cross
+///     .place_order(
+///         TradeSide::Buy,
+///         Quantity::try_from(1000)?,
+///         TradeExecution::Market,
+///         None,
+///     )
+///     .await?;
+///
+/// println!("Order ID: {}", order.id());
+/// println!("Side: {:?}", order.side());
+/// println!("Quantity: {}", order.quantity());
+/// println!("Status - Open: {}, Filled: {}", order.open(), order.filled());
+/// # Ok(())
+/// # }
+/// ```
 #[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct CrossOrder {
