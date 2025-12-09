@@ -4,7 +4,7 @@ use super::*;
 
 use chrono::Duration;
 
-use lnm_sdk::api_v3::models::{BoundedPercentage, Leverage, Quantity};
+use lnm_sdk::api_v3::models::{PercentageCapped, Leverage, Quantity};
 
 fn next_candle(prev: &OhlcCandleRow, price: f64) -> OhlcCandleRow {
     OhlcCandleRow::new_simple(prev.time + Duration::minutes(1), price, prev.volume)
@@ -466,7 +466,7 @@ async fn test_simulated_trade_executor_trailing_stoploss_long() {
 
     let size = Quantity::try_from(500).unwrap().into(); // $500 quantity
     let leverage = Leverage::try_from(1).unwrap();
-    let stoploss_perc = BoundedPercentage::try_from(2.0).unwrap();
+    let stoploss_perc = PercentageCapped::try_from(2.0).unwrap();
     let stoploss = Some(Stoploss::trailing(stoploss_perc)); // 2% trailing stop-loss
     let takeprofit = Some(Price::bounded(104_000.));
 
@@ -545,7 +545,7 @@ async fn test_simulated_trade_executor_trailing_stoploss_short() {
 
     let size = Quantity::try_from(500).unwrap().into();
     let leverage = Leverage::try_from(1).unwrap();
-    let stoploss_perc = BoundedPercentage::try_from(2.0).unwrap();
+    let stoploss_perc = PercentageCapped::try_from(2.0).unwrap();
     let stoploss = Some(Stoploss::trailing(stoploss_perc));
     let takeprofit = Some(Price::bounded(96_000.));
 

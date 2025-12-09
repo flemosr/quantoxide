@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use sqlx::{Pool, Postgres};
 use uuid::Uuid;
 
-use lnm_sdk::api_v3::models::BoundedPercentage;
+use lnm_sdk::api_v3::models::PercentageCapped;
 
 use crate::trade::TradeTrailingStoploss;
 
@@ -69,10 +69,10 @@ impl RunningTradesRepository for PgRunningTradesRepo {
             let trailind_stoploss = trade
                 .trailing_stoploss
                 .map(|tsl| {
-                    BoundedPercentage::try_from(tsl)
+                    PercentageCapped::try_from(tsl)
                         .map_err(|e| {
                             DbError::UnexpectedQueryResult(format!(
-                                "`trailing_stoploss` ({tsl}) cannot be casted as `BoundedPercentage`: {e}"
+                                "`trailing_stoploss` ({tsl}) cannot be casted as `PercentageCapped`: {e}"
                             ))
                         })
                         .map(TradeTrailingStoploss::prev_validated)

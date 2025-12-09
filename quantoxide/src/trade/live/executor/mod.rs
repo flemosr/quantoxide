@@ -11,7 +11,7 @@ use uuid::Uuid;
 
 use lnm_sdk::api_v3::{
     RestClient,
-    models::{BoundedPercentage, Leverage, Price, TradeSide, TradeSize, trade_util},
+    models::{PercentageCapped, Leverage, Price, TradeSide, TradeSize, trade_util},
 };
 
 use crate::{
@@ -496,7 +496,7 @@ impl LiveTradeExecutorLauncher {
     #[allow(clippy::too_many_arguments)]
     fn spawn_sync_processor(
         recover_trades_on_startup: bool,
-        tsl_step_size: BoundedPercentage,
+        tsl_step_size: PercentageCapped,
         session_refresh_offset: TradingSessionRefreshOffset,
         db: Arc<Database>,
         api: WrappedRestClient,

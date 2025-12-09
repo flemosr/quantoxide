@@ -5,7 +5,7 @@ use uuid::Uuid;
 
 use lnm_sdk::api_v3::{
     error::PriceValidationError,
-    models::{BoundedPercentage, Percentage, Price},
+    models::{Percentage, PercentageCapped, Price},
 };
 
 use crate::util::PanicPayload;
@@ -33,14 +33,14 @@ pub enum TradeCoreError {
 
     #[error("Trailing stoploss {tsl} cannot be smaller than step size {tsl_step_size}")]
     InvalidStoplossSmallerThanTrailingStepSize {
-        tsl: BoundedPercentage,
-        tsl_step_size: BoundedPercentage,
+        tsl: PercentageCapped,
+        tsl_step_size: PercentageCapped,
     },
 
     #[error("Invalid price resulting from applying discount {discount} to price {price}: {e}")]
     InvalidPriceApplyDiscount {
         price: Price,
-        discount: BoundedPercentage,
+        discount: PercentageCapped,
         e: PriceValidationError,
     },
 

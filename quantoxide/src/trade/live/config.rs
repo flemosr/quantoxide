@@ -5,7 +5,7 @@ use tokio::time;
 
 use lnm_sdk::{
     api_v2::WebSocketClientConfig,
-    api_v3::{RestClientConfig, models::BoundedPercentage},
+    api_v3::{RestClientConfig, models::PercentageCapped},
 };
 
 use super::executor::state::live_trading_session::TradingSessionRefreshOffset;
@@ -22,12 +22,12 @@ pub struct LiveConfig {
     sync_history_reach: Duration,
     re_sync_history_interval: time::Duration,
     sync_update_timeout: time::Duration,
-    tsl_step_size: BoundedPercentage,
+    tsl_step_size: PercentageCapped,
     clean_up_trades_on_startup: bool,
     recover_trades_on_startup: bool,
     session_refresh_offset: TradingSessionRefreshOffset,
     clean_up_trades_on_shutdown: bool,
-    estimated_fee_perc: BoundedPercentage,
+    estimated_fee_perc: PercentageCapped,
     max_running_qtd: usize,
     restart_interval: time::Duration,
     shutdown_timeout: time::Duration,
@@ -50,13 +50,13 @@ impl Default for LiveConfig {
             sync_history_reach: Duration::days(90),
             re_sync_history_interval: time::Duration::from_secs(10),
             sync_update_timeout: time::Duration::from_secs(5),
-            tsl_step_size: BoundedPercentage::MIN,
+            tsl_step_size: PercentageCapped::MIN,
             clean_up_trades_on_startup: true,
             recover_trades_on_startup: false,
             session_refresh_offset,
             clean_up_trades_on_shutdown: true,
-            estimated_fee_perc: BoundedPercentage::try_from(0.1)
-                .expect("must be valid `BoundedPercentage`"),
+            estimated_fee_perc: PercentageCapped::try_from(0.1)
+                .expect("must be valid `PercentageCapped`"),
             max_running_qtd: 50,
             restart_interval: time::Duration::from_secs(10),
             shutdown_timeout: time::Duration::from_secs(6),
@@ -105,7 +105,7 @@ impl LiveConfig {
         self.sync_update_timeout
     }
 
-    pub fn trailing_stoploss_step_size(&self) -> BoundedPercentage {
+    pub fn trailing_stoploss_step_size(&self) -> PercentageCapped {
         self.tsl_step_size
     }
 
@@ -125,7 +125,7 @@ impl LiveConfig {
         self.clean_up_trades_on_shutdown
     }
 
-    pub fn estimated_fee_perc(&self) -> BoundedPercentage {
+    pub fn estimated_fee_perc(&self) -> PercentageCapped {
         self.estimated_fee_perc
     }
 
@@ -191,7 +191,7 @@ impl LiveConfig {
         self
     }
 
-    pub fn with_trailing_stoploss_step_size(mut self, tsl_step_size: BoundedPercentage) -> Self {
+    pub fn with_trailing_stoploss_step_size(mut self, tsl_step_size: PercentageCapped) -> Self {
         self.tsl_step_size = tsl_step_size;
         self
     }
@@ -219,7 +219,7 @@ impl LiveConfig {
         self
     }
 
-    pub fn with_estimated_fee_perc(mut self, estimated_fee_perc: BoundedPercentage) -> Self {
+    pub fn with_estimated_fee_perc(mut self, estimated_fee_perc: PercentageCapped) -> Self {
         self.estimated_fee_perc = estimated_fee_perc;
         self
     }
@@ -297,17 +297,17 @@ impl From<&LiveConfig> for LiveProcessConfig {
 }
 
 pub struct LiveTradeExecutorConfig {
-    tsl_step_size: BoundedPercentage,
+    tsl_step_size: PercentageCapped,
     clean_up_trades_on_startup: bool,
     recover_trades_on_startup: bool,
     session_refresh_offset: TradingSessionRefreshOffset,
     clean_up_trades_on_shutdown: bool,
-    estimated_fee_perc: BoundedPercentage,
+    estimated_fee_perc: PercentageCapped,
     max_running_qtd: usize,
 }
 
 impl LiveTradeExecutorConfig {
-    pub fn trailing_stoploss_step_size(&self) -> BoundedPercentage {
+    pub fn trailing_stoploss_step_size(&self) -> PercentageCapped {
         self.tsl_step_size
     }
 
@@ -327,7 +327,7 @@ impl LiveTradeExecutorConfig {
         self.clean_up_trades_on_shutdown
     }
 
-    pub fn estimated_fee_perc(&self) -> BoundedPercentage {
+    pub fn estimated_fee_perc(&self) -> PercentageCapped {
         self.estimated_fee_perc
     }
 
@@ -335,7 +335,7 @@ impl LiveTradeExecutorConfig {
         self.max_running_qtd
     }
 
-    pub fn with_trailing_stoploss_step_size(mut self, tsl_step_size: BoundedPercentage) -> Self {
+    pub fn with_trailing_stoploss_step_size(mut self, tsl_step_size: PercentageCapped) -> Self {
         self.tsl_step_size = tsl_step_size;
         self
     }
@@ -363,7 +363,7 @@ impl LiveTradeExecutorConfig {
         self
     }
 
-    pub fn with_estimated_fee_perc(mut self, estimated_fee_perc: BoundedPercentage) -> Self {
+    pub fn with_estimated_fee_perc(mut self, estimated_fee_perc: PercentageCapped) -> Self {
         self.estimated_fee_perc = estimated_fee_perc;
         self
     }
@@ -381,13 +381,13 @@ impl Default for LiveTradeExecutorConfig {
             .expect("must be valid `LiveTradingSessionRefreshOffset`");
 
         Self {
-            tsl_step_size: BoundedPercentage::MIN,
+            tsl_step_size: PercentageCapped::MIN,
             clean_up_trades_on_startup: true,
             recover_trades_on_startup: false,
             session_refresh_offset,
             clean_up_trades_on_shutdown: true,
-            estimated_fee_perc: BoundedPercentage::try_from(0.1)
-                .expect("must be valid `BoundedPercentage`"),
+            estimated_fee_perc: PercentageCapped::try_from(0.1)
+                .expect("must be valid `PercentageCapped`"),
             max_running_qtd: 50,
         }
     }

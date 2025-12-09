@@ -1,14 +1,14 @@
 use chrono::Duration;
 
-use lnm_sdk::api_v3::models::BoundedPercentage;
+use lnm_sdk::api_v3::models::PercentageCapped;
 
 use super::error::{BacktestError, Result};
 
 pub struct BacktestConfig {
     buffer_size: usize,
     max_running_qtd: usize,
-    fee_perc: BoundedPercentage,
-    tsl_step_size: BoundedPercentage,
+    fee_perc: PercentageCapped,
+    tsl_step_size: PercentageCapped,
     update_interval: Duration,
 }
 
@@ -17,8 +17,8 @@ impl Default for BacktestConfig {
         Self {
             buffer_size: 1800,
             max_running_qtd: 50,
-            fee_perc: 0.1.try_into().expect("must be a valid `BoundedPercentage`"),
-            tsl_step_size: BoundedPercentage::MIN,
+            fee_perc: 0.1.try_into().expect("must be a valid `PercentageCapped`"),
+            tsl_step_size: PercentageCapped::MIN,
             update_interval: Duration::days(1),
         }
     }
@@ -33,11 +33,11 @@ impl BacktestConfig {
         self.max_running_qtd
     }
 
-    pub fn fee_perc(&self) -> BoundedPercentage {
+    pub fn fee_perc(&self) -> PercentageCapped {
         self.fee_perc
     }
 
-    pub fn trailing_stoploss_step_size(&self) -> BoundedPercentage {
+    pub fn trailing_stoploss_step_size(&self) -> PercentageCapped {
         self.tsl_step_size
     }
 
@@ -61,12 +61,12 @@ impl BacktestConfig {
         Ok(self)
     }
 
-    pub fn with_fee_perc(mut self, fee_perc: BoundedPercentage) -> Self {
+    pub fn with_fee_perc(mut self, fee_perc: PercentageCapped) -> Self {
         self.fee_perc = fee_perc;
         self
     }
 
-    pub fn with_trailing_stoploss_step_size(mut self, tsl_step_size: BoundedPercentage) -> Self {
+    pub fn with_trailing_stoploss_step_size(mut self, tsl_step_size: PercentageCapped) -> Self {
         self.tsl_step_size = tsl_step_size;
         self
     }
@@ -79,16 +79,16 @@ impl BacktestConfig {
 
 pub(super) struct SimulatedTradeExecutorConfig {
     max_running_qtd: usize,
-    fee_perc: BoundedPercentage,
-    tsl_step_size: BoundedPercentage,
+    fee_perc: PercentageCapped,
+    tsl_step_size: PercentageCapped,
 }
 
 impl Default for SimulatedTradeExecutorConfig {
     fn default() -> Self {
         Self {
             max_running_qtd: 50,
-            fee_perc: 0.1.try_into().expect("must be a valid `BoundedPercentage`"),
-            tsl_step_size: BoundedPercentage::MIN,
+            fee_perc: 0.1.try_into().expect("must be a valid `PercentageCapped`"),
+            tsl_step_size: PercentageCapped::MIN,
         }
     }
 }
@@ -98,11 +98,11 @@ impl SimulatedTradeExecutorConfig {
         self.max_running_qtd
     }
 
-    pub fn fee_perc(&self) -> BoundedPercentage {
+    pub fn fee_perc(&self) -> PercentageCapped {
         self.fee_perc
     }
 
-    pub fn trailing_stoploss_step_size(&self) -> BoundedPercentage {
+    pub fn trailing_stoploss_step_size(&self) -> PercentageCapped {
         self.tsl_step_size
     }
 }

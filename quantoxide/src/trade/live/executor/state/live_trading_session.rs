@@ -8,7 +8,7 @@ use chrono::{DateTime, Duration, Timelike, Utc};
 use futures::future;
 use uuid::Uuid;
 
-use lnm_sdk::api_v3::models::{BoundedPercentage, Price, Trade};
+use lnm_sdk::api_v3::models::{PercentageCapped, Price, Trade};
 
 use crate::db::Database;
 
@@ -50,7 +50,7 @@ impl From<TradingSessionRefreshOffset> for Duration {
 #[derive(Debug, Clone)]
 pub(in crate::trade) struct LiveTradingSession {
     expires_at: DateTime<Utc>,
-    tsl_step_size: BoundedPercentage,
+    tsl_step_size: PercentageCapped,
     last_trade_time: Option<DateTime<Utc>>,
     balance: u64,
     last_evaluation_time: DateTime<Utc>,
@@ -65,7 +65,7 @@ pub(in crate::trade) struct LiveTradingSession {
 impl LiveTradingSession {
     pub async fn new(
         recover_trades_on_startup: bool,
-        tsl_step_size: BoundedPercentage,
+        tsl_step_size: PercentageCapped,
         refresh_offset: TradingSessionRefreshOffset,
         db: &Database,
         api: &WrappedRestClient,

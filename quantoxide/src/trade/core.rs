@@ -14,8 +14,8 @@ use uuid::Uuid;
 use lnm_sdk::api_v3::{
     error::TradeValidationError,
     models::{
-        BoundedPercentage, Leverage, Percentage, Margin, Price, Quantity, Trade,
-        TradeSide, TradeSize, trade_util,
+        Leverage, Margin, Percentage, PercentageCapped, Price, Quantity, Trade, TradeSide,
+        TradeSize, trade_util,
     },
 };
 
@@ -853,13 +853,13 @@ impl<T: TradeClosed> Default for ClosedTradeHistory<T> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Stoploss {
     Fixed(Price),
-    Trailing(BoundedPercentage),
+    Trailing(PercentageCapped),
 }
 
 impl Stoploss {
     pub(super) fn evaluate(
         &self,
-        tsl_step_size: BoundedPercentage,
+        tsl_step_size: PercentageCapped,
         side: TradeSide,
         market_price: Price,
     ) -> TradeCoreResult<(Price, Option<TradeTrailingStoploss>)> {
@@ -899,7 +899,7 @@ impl Stoploss {
         Self::Fixed(stoploss_price)
     }
 
-    pub fn trailing(stoploss_perc: BoundedPercentage) -> Self {
+    pub fn trailing(stoploss_perc: PercentageCapped) -> Self {
         Self::Trailing(stoploss_perc)
     }
 }
@@ -910,17 +910,17 @@ impl From<Price> for Stoploss {
     }
 }
 
-impl From<BoundedPercentage> for Stoploss {
-    fn from(value: BoundedPercentage) -> Self {
+impl From<PercentageCapped> for Stoploss {
+    fn from(value: PercentageCapped) -> Self {
         Self::Trailing(value)
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
-pub struct TradeTrailingStoploss(BoundedPercentage);
+pub struct TradeTrailingStoploss(PercentageCapped);
 
 impl TradeTrailingStoploss {
-    pub fn prev_validated(tsl: BoundedPercentage) -> Self {
+    pub fn prev_validated(tsl: PercentageCapped) -> Self {
         Self(tsl)
     }
 
@@ -935,7 +935,7 @@ impl From<TradeTrailingStoploss> for f64 {
     }
 }
 
-impl From<TradeTrailingStoploss> for BoundedPercentage {
+impl From<TradeTrailingStoploss> for PercentageCapped {
     fn from(value: TradeTrailingStoploss) -> Self {
         value.0
     }
@@ -1081,7 +1081,7 @@ impl From<Box<dyn RawOperator>> for WrappedRawOperator {
 pub(super) trait TradeRunningExt: TradeRunning {
     fn next_stoploss_update_trigger(
         &self,
-        tsl_step_size: BoundedPercentage,
+        tsl_step_size: PercentageCapped,
         trade_tsl: TradeTrailingStoploss,
     ) -> TradeCoreResult<Price> {
         let tsl = trade_tsl.into();
@@ -1139,7 +1139,7 @@ pub(super) trait TradeRunningExt: TradeRunning {
 
     fn eval_trigger_bounds(
         &self,
-        tsl_step_size: BoundedPercentage,
+        tsl_step_size: PercentageCapped,
         trade_tsl: Option<TradeTrailingStoploss>,
     ) -> TradeCoreResult<(Price, Price)> {
         let next_stoploss_update_trigger = trade_tsl
@@ -1195,7 +1195,7 @@ pub(super) trait TradeRunningExt: TradeRunning {
 
     fn eval_new_stoploss_on_range(
         &self,
-        tsl_step_size: BoundedPercentage,
+        tsl_step_size: PercentageCapped,
         trade_tsl: TradeTrailingStoploss,
         range_min: f64,
         range_max: f64,
@@ -1270,7 +1270,7 @@ impl PriceTrigger {
 
     pub fn update<T: TradeRunningExt + ?Sized>(
         &mut self,
-        tsl_step_size: BoundedPercentage,
+        tsl_step_size: PercentageCapped,
         trade: &T,
         trade_tsl: Option<TradeTrailingStoploss>,
     ) -> TradeCoreResult<()> {

@@ -4,7 +4,7 @@ use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
 use lnm_sdk::api_v3::models::{
-    BoundedPercentage, Leverage, Margin, Price, Quantity, TradeSide, TradeSize, trade_util,
+    PercentageCapped, Leverage, Margin, Price, Quantity, TradeSide, TradeSize, trade_util,
 };
 
 use super::{
@@ -39,7 +39,7 @@ impl SimulatedTradeRunning {
         entry_price: Price,
         stoploss: Option<Price>,
         takeprofit: Option<Price>,
-        fee_perc: BoundedPercentage,
+        fee_perc: PercentageCapped,
     ) -> SimulatedTradeExecutorResult<Arc<Self>> {
         let (quantity, margin, liquidation, opening_fee, closing_fee_reserved) =
             trade_util::evaluate_open_trade_params(
@@ -164,7 +164,7 @@ impl SimulatedTradeRunning {
 
     pub fn to_closed(
         &self,
-        fee_perc: BoundedPercentage,
+        fee_perc: PercentageCapped,
         close_time: DateTime<Utc>,
         close_price: Price,
     ) -> Arc<SimulatedTradeClosed> {
