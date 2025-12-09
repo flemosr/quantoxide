@@ -44,7 +44,7 @@ pub fn estimate_liquidation_price(
         TradeSide::Sell => 1.0 / (a - b).max(0.),
     };
 
-    Price::clamp_from(liquidation_calc)
+    Price::bounded(liquidation_calc)
 }
 
 /// Evaluates and validates parameters for opening a new trade.
@@ -172,7 +172,7 @@ pub fn estimate_price_from_pl(
         TradeSide::Sell => (SATS_PER_BTC / start_price) + inverse_price_delta,
     };
 
-    Price::clamp_from(SATS_PER_BTC / inverse_end_price)
+    Price::bounded(SATS_PER_BTC / inverse_end_price)
 }
 
 /// Validates a new stop-loss price for an existing trade.

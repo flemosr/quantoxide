@@ -64,6 +64,7 @@ impl TryFrom<f64> for BoundedPercentage {
         if value < Self::MIN.0 {
             return Err(BoundedPercentageValidationError::BelowMinimum { value });
         }
+
         if value > Self::MAX.0 {
             return Err(BoundedPercentageValidationError::AboveMaximum { value });
         }
@@ -162,6 +163,7 @@ impl TryFrom<f64> for LowerBoundedPercentage {
         if value < Self::MIN.0 {
             return Err(LowerBoundedPercentageValidationError::BelowMinimum { value });
         }
+
         if !value.is_finite() {
             return Err(LowerBoundedPercentageValidationError::NotFinite);
         }
@@ -254,20 +256,6 @@ impl Price {
     /// All valid prices must be a multiple of this tick size.
     pub const TICK: f64 = 0.5;
 
-    /// Returns the price value as its underlying `f64` representation.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use lnm_sdk::api_v3::models::Price;
-    ///
-    /// let price = Price::try_from(50_000.0).unwrap();
-    /// assert_eq!(price.as_f64(), 50_000.0);
-    /// ```
-    pub fn as_f64(&self) -> f64 {
-        self.0
-    }
-
     /// Rounds a value down to the nearest valid price.
     ///
     /// The value is rounded down to the nearest multiple of [`Price::TICK`].
@@ -280,10 +268,14 @@ impl Price {
     /// let price = Price::round_down(100_000.8).unwrap();
     /// assert_eq!(price.as_f64(), 100_000.5);
     /// ```
-    pub fn round_down(value: f64) -> Result<Self, PriceValidationError> {
-        let round_down = (value / Self::TICK).floor() * Self::TICK;
+    pub fn round_down<T>(value: T) -> Result<Self, PriceValidationError>
+    where
+        T: Into<f64>,
+    {
+        let as_f64: f64 = value.into();
+        let rounded_down = (as_f64 / Self::TICK).floor() * Self::TICK;
 
-        Self::try_from(round_down)
+        Self::try_from(rounded_down)
     }
 
     /// Rounds a value up to the nearest valid price.
@@ -298,10 +290,14 @@ impl Price {
     /// let price = Price::round_up(100_000.2).unwrap();
     /// assert_eq!(price.as_f64(), 100_000.5);
     /// ```
-    pub fn round_up(value: f64) -> Result<Self, PriceValidationError> {
-        let round_up = (value / Self::TICK).ceil() * Self::TICK;
+    pub fn round_up<T>(value: T) -> Result<Self, PriceValidationError>
+    where
+        T: Into<f64>,
+    {
+        let as_f64: f64 = value.into();
+        let rounded_up = (as_f64 / Self::TICK).ceil() * Self::TICK;
 
-        Self::try_from(round_up)
+        Self::try_from(rounded_up)
     }
 
     /// Rounds a value to the nearest valid price.
@@ -319,16 +315,24 @@ impl Price {
     /// let price = Price::round(100_000.8).unwrap();
     /// assert_eq!(price.as_f64(), 100_001.0);
     /// ```
-    pub fn round(value: f64) -> Result<Self, PriceValidationError> {
-        let round = (value / Self::TICK).round() * Self::TICK;
+    pub fn round<T>(value: T) -> Result<Self, PriceValidationError>
+    where
+        T: Into<f64>,
+    {
+        let as_f64: f64 = value.into();
+        let rounded = (as_f64 / Self::TICK).round() * Self::TICK;
 
-        Self::try_from(round)
+        Self::try_from(rounded)
     }
 
-    /// Clamps a value to the valid price range and rounds to the nearest tick.
+    /// Creates a `Price` by rounding and bounding the given value to the valid range.
     ///
-    /// This method guarantees a valid [`Price`] by clamping the input to the valid range before
-    /// rounding.
+    /// This method rounds the input to the nearest valid tick size and bounds it to the range
+    /// ([Price::MIN], [Price::MAX]).
+    /// It should be used to ensure a valid `Price` without error handling.
+    ///
+    /// **Note:** In order to validate whether a value is a valid price and receive an error for
+    /// invalid values, use [`Price::try_from`].
     ///
     /// # Examples
     ///
@@ -336,21 +340,40 @@ impl Price {
     /// use lnm_sdk::api_v3::models::Price;
     ///
     /// // Value within range
-    /// let price = Price::clamp_from(100_000.0);
+    /// let price = Price::bounded(100_000.0);
     /// assert_eq!(price.as_f64(), 100_000.0);
     ///
-    /// // Value above maximum is clamped
-    /// let price = Price::clamp_from(200_000_000.0);
+    /// // Value above maximum is bounded to MAX
+    /// let price = Price::bounded(200_000_000.0);
     /// assert_eq!(price.as_f64(), 100_000_000.0);
     ///
-    /// // Value below minimum is clamped
-    /// let price = Price::clamp_from(0.1);
+    /// // Value below minimum is bounded to MIN
+    /// let price = Price::bounded(0.1);
     /// assert_eq!(price.as_f64(), 1.0);
     /// ```
-    pub fn clamp_from(value: f64) -> Self {
-        let value = value.clamp(Self::MIN.0, Self::MAX.0);
+    pub fn bounded<T>(value: T) -> Self
+    where
+        T: Into<f64>,
+    {
+        let as_f64: f64 = value.into();
+        let value = as_f64.clamp(Self::MIN.0, Self::MAX.0);
+        let rounded = (value / Self::TICK).round() * Self::TICK;
 
-        Self::round(value).expect("clamped `value` must be within valid range")
+        Self(rounded)
+    }
+
+    /// Returns the price value as its underlying `f64` representation.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use lnm_sdk::api_v3::models::Price;
+    ///
+    /// let price = Price::try_from(50_000.0).unwrap();
+    /// assert_eq!(price.as_f64(), 50_000.0);
+    /// ```
+    pub fn as_f64(&self) -> f64 {
+        self.0
     }
 
     /// Applies a discount percentage to the current price.
@@ -431,11 +454,19 @@ impl TryFrom<f64> for Price {
     }
 }
 
+impl TryFrom<u64> for Price {
+    type Error = PriceValidationError;
+
+    fn try_from(value: u64) -> Result<Self, Self::Error> {
+        Self::try_from(value as f64)
+    }
+}
+
 impl TryFrom<i32> for Price {
     type Error = PriceValidationError;
 
-    fn try_from(price: i32) -> Result<Self, Self::Error> {
-        Self::try_from(price as f64)
+    fn try_from(value: i32) -> Result<Self, Self::Error> {
+        Self::try_from(value as f64)
     }
 }
 
