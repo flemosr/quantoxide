@@ -3,7 +3,7 @@ use thiserror::Error;
 use super::{
     leverage::Leverage,
     margin::Margin,
-    price::{BoundedPercentage, LowerBoundedPercentage, Price},
+    price::{BoundedPercentage, Percentage, Price},
     quantity::Quantity,
 };
 
@@ -59,14 +59,11 @@ pub enum BoundedPercentageValidationError {
 }
 
 #[derive(Debug, Error)]
-pub enum LowerBoundedPercentageValidationError {
-    #[error(
-        "LowerBoundedPercentage must be at least {}. Value: {value}",
-        LowerBoundedPercentage::MIN
-    )]
+pub enum PercentageValidationError {
+    #[error("Percentage must be at least {}. Value: {value}", Percentage::MIN)]
     BelowMinimum { value: f64 },
 
-    #[error("LowerBoundedPercentage must be a finite number")]
+    #[error("Percentage must be a finite number")]
     NotFinite,
 }
 

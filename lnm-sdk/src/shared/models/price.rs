@@ -109,46 +109,45 @@ impl fmt::Display for BoundedPercentage {
     }
 }
 
-/// A validated percentage value constrained only by a lower bound.
+/// A validated decimal percentage value constrained only by a lower bound.
 ///
 /// Percentage values must be:
-/// + Greater than or equal to [`LowerBoundedPercentage::MIN`] (0.1%)
+/// + Greater than or equal to [`Percentage::MIN`] (0.0%)
 /// + Finite (not infinity)
 ///
-/// This type is suitable for percentage calculations where only a minimum
-/// threshold is needed, with no practical upper limit other than it must be a
-/// finite value, such as gain calculations.
+/// This type is suitable for percentage calculations where only a minimum threshold is needed, with
+/// no practical upper limit other than it must be a finite value, such as gain calculations.
 ///
 /// # Examples
 ///
 /// ```
-/// use lnm_sdk::api_v3::models::LowerBoundedPercentage;
+/// use lnm_sdk::api_v3::models::Percentage;
 ///
 /// // Create a lower-bounded percentage value
-/// let percentage = LowerBoundedPercentage::try_from(150.0).unwrap();
+/// let percentage = Percentage::try_from(150.0).unwrap();
 /// assert_eq!(percentage.as_f64(), 150.0);
 ///
 /// // Values below the minimum will fail
-/// assert!(LowerBoundedPercentage::try_from(0.05).is_err());
+/// assert!(Percentage::try_from(-0.01).is_err());
 ///
 /// // Non-finite values will fail
-/// assert!(LowerBoundedPercentage::try_from(f64::INFINITY).is_err());
+/// assert!(Percentage::try_from(f64::INFINITY).is_err());
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct LowerBoundedPercentage(f64);
+pub struct Percentage(f64);
 
-impl LowerBoundedPercentage {
-    /// The minimum allowed percentage value (0.1%).
-    pub const MIN: Self = Self(0.1);
+impl Percentage {
+    /// The minimum allowed percentage value (0.0%).
+    pub const MIN: Self = Self(0.);
 
     /// Returns the percentage value as its underlying `f64` representation.
     ///
     /// # Examples
     ///
     /// ```
-    /// use lnm_sdk::api_v3::models::LowerBoundedPercentage;
+    /// use lnm_sdk::api_v3::models::Percentage;
     ///
-    /// let percentage = LowerBoundedPercentage::try_from(200.0).unwrap();
+    /// let percentage = Percentage::try_from(200.0).unwrap();
     /// assert_eq!(percentage.as_f64(), 200.0);
     /// ```
     pub fn as_f64(&self) -> f64 {
@@ -156,59 +155,59 @@ impl LowerBoundedPercentage {
     }
 }
 
-impl TryFrom<f64> for LowerBoundedPercentage {
-    type Error = LowerBoundedPercentageValidationError;
+impl TryFrom<f64> for Percentage {
+    type Error = PercentageValidationError;
 
     fn try_from(value: f64) -> Result<Self, Self::Error> {
         if value < Self::MIN.0 {
-            return Err(LowerBoundedPercentageValidationError::BelowMinimum { value });
+            return Err(PercentageValidationError::BelowMinimum { value });
         }
 
         if !value.is_finite() {
-            return Err(LowerBoundedPercentageValidationError::NotFinite);
+            return Err(PercentageValidationError::NotFinite);
         }
 
         Ok(Self(value))
     }
 }
 
-impl TryFrom<i32> for LowerBoundedPercentage {
-    type Error = LowerBoundedPercentageValidationError;
+impl TryFrom<i32> for Percentage {
+    type Error = PercentageValidationError;
 
     fn try_from(value: i32) -> Result<Self, Self::Error> {
         Self::try_from(value as f64)
     }
 }
 
-impl From<LowerBoundedPercentage> for f64 {
-    fn from(value: LowerBoundedPercentage) -> f64 {
+impl From<Percentage> for f64 {
+    fn from(value: Percentage) -> f64 {
         value.0
     }
 }
 
-impl Eq for LowerBoundedPercentage {}
+impl Eq for Percentage {}
 
-impl Ord for LowerBoundedPercentage {
+impl Ord for Percentage {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.0
             .partial_cmp(&other.0)
-            .expect("`LowerBoundedPercentage` must be finite")
+            .expect("`Percentage` must be finite")
     }
 }
 
-impl PartialOrd for LowerBoundedPercentage {
+impl PartialOrd for Percentage {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl From<BoundedPercentage> for LowerBoundedPercentage {
+impl From<BoundedPercentage> for Percentage {
     fn from(value: BoundedPercentage) -> Self {
         Self(value.0)
     }
 }
 
-impl fmt::Display for LowerBoundedPercentage {
+impl fmt::Display for Percentage {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.0.fmt(f)
     }
@@ -409,18 +408,15 @@ impl Price {
     /// # Examples
     ///
     /// ```
-    /// use lnm_sdk::api_v3::models::{Price, LowerBoundedPercentage};
+    /// use lnm_sdk::api_v3::models::{Price, Percentage};
     ///
     /// let price = Price::try_from(100_000.0).unwrap();
-    /// let gain = LowerBoundedPercentage::try_from(20.0).unwrap(); // 20% gain
+    /// let gain = Percentage::try_from(20.0).unwrap(); // 20% gain
     ///
     /// let increased_price = price.apply_gain(gain).unwrap();
     /// assert_eq!(increased_price.as_f64(), 120_000.0);
     /// ```
-    pub fn apply_gain(
-        &self,
-        percentage: LowerBoundedPercentage,
-    ) -> Result<Self, PriceValidationError> {
+    pub fn apply_gain(&self, percentage: Percentage) -> Result<Self, PriceValidationError> {
         let target_price = self.0 + self.0 * percentage.as_f64() / 100.0;
 
         Self::round(target_price)

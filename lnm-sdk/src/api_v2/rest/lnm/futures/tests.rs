@@ -6,7 +6,7 @@ use crate::shared::{
     config::RestClientConfig,
     models::{
         margin::Margin,
-        price::{BoundedPercentage, LowerBoundedPercentage},
+        price::{BoundedPercentage, Percentage},
         quantity::Quantity,
     },
 };
@@ -381,7 +381,7 @@ async fn test_close_all_trades(repo: &LnmFuturesRepository, exp_running_trades: 
 }
 
 async fn test_update_trade_stoploss(repo: &LnmFuturesRepository, id: Uuid, price: Price) {
-    let gain = LowerBoundedPercentage::try_from(5).unwrap();
+    let gain = Percentage::try_from(5).unwrap();
     let stoploss = price.apply_gain(gain).unwrap();
     let updated_trade = repo
         .update_trade_stoploss(id, stoploss)
@@ -393,7 +393,7 @@ async fn test_update_trade_stoploss(repo: &LnmFuturesRepository, id: Uuid, price
 }
 
 async fn test_update_trade_takeprofit(repo: &LnmFuturesRepository, id: Uuid, price: Price) {
-    let gain = LowerBoundedPercentage::try_from(5).unwrap();
+    let gain = Percentage::try_from(5).unwrap();
     let takeprofit = price.apply_gain(gain).unwrap();
     let updated_trade = repo
         .update_trade_takeprofit(id, takeprofit)

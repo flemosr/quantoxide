@@ -5,7 +5,7 @@ use dotenv::dotenv;
 use crate::{
     api_v3::{
         FuturesDataRepository,
-        models::{BoundedPercentage, LowerBoundedPercentage, Margin},
+        models::{BoundedPercentage, Margin, Percentage},
         rest::{lnm::futures_data::LnmFuturesDataRepository, models::ticker::Ticker},
     },
     shared::{config::RestClientConfig, models::quantity::Quantity},
@@ -162,7 +162,7 @@ async fn test_get_trades_open(repo: &LnmFuturesIsolatedRepository, exp_open_trad
 }
 
 async fn test_update_trade_stoploss(repo: &LnmFuturesIsolatedRepository, id: Uuid, price: Price) {
-    let gain = LowerBoundedPercentage::try_from(5).unwrap();
+    let gain = Percentage::try_from(5).unwrap();
     let stoploss = Some(price.apply_gain(gain).unwrap());
     let updated_trade = repo
         .update_stoploss(id, stoploss)
@@ -174,7 +174,7 @@ async fn test_update_trade_stoploss(repo: &LnmFuturesIsolatedRepository, id: Uui
 }
 
 async fn test_update_trade_takeprofit(repo: &LnmFuturesIsolatedRepository, id: Uuid, price: Price) {
-    let gain = LowerBoundedPercentage::try_from(5).unwrap();
+    let gain = Percentage::try_from(5).unwrap();
     let takeprofit = Some(price.apply_gain(gain).unwrap());
     let updated_trade = repo
         .update_takeprofit(id, takeprofit)
