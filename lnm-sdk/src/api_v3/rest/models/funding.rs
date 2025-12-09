@@ -105,6 +105,28 @@ impl IsolatedFunding {
     }
 }
 
+/// Information about a given funding settlement.
+///
+/// # Examples
+///
+/// ```no_run
+/// # async fn example(rest_api: lnm_sdk::api_v3::RestClient) -> Result<(), Box<dyn std::error::Error>> {
+/// use lnm_sdk::api_v3::models::{FundingSettlement, Page};
+///
+/// let settlements: Page<FundingSettlement> = rest_api
+///     .futures_data
+///     .get_funding_settlements(None, None, None, None)
+///     .await?;
+///
+/// for settlement in settlements.data() {
+///     println!("ID: {}", settlement.id());
+///     println!("Time: {}", settlement.time());
+///     println!("Fixing price: {}", settlement.fixing_price());
+///     println!("Funding rate: {}", settlement.funding_rate());
+/// }
+/// # Ok(())
+/// # }
+/// ```
 #[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct FundingSettlement {
