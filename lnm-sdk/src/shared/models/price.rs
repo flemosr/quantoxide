@@ -1,4 +1,4 @@
-use std::{cmp::Ordering, convert::TryFrom, fmt};
+use std::{cmp::Ordering, fmt};
 
 use serde::{Deserialize, Serialize, de};
 
@@ -7,14 +7,16 @@ use super::{
     serde_util,
 };
 
-/// A validated decimal percentage value constrained within a specific range.
+/// A validated decimal percentage value strictly constrained to valid distribution or discount
+/// values.
 ///
 /// Percentage values must be:
 /// + Greater than or equal to [`PercentageCapped::MIN`] (0.0%)
 /// + Less than or equal to [`PercentageCapped::MAX`] (100.0%)
 ///
-/// This bounded range makes it suitable for percentage calculations where both minimum and maximum
-/// limits are required, such as position distributions and discount calculations.
+/// This strict bounded range makes it suitable for percentage calculations that represent portions
+/// or fractions of a whole, such as position distributions, discount rates, and allocation
+/// percentages.
 ///
 /// # Examples
 ///
@@ -38,6 +40,41 @@ impl PercentageCapped {
 
     /// The maximum allowed percentage value (100.0%).
     pub const MAX: Self = Self(100.);
+
+    /// Creates a `PercentageCapped` by bounding the given value to the valid range.
+    ///
+    /// This method bounds the input to the range ([PercentageCapped::MIN], [PercentageCapped::MAX]).
+    /// It should be used to ensure a valid `PercentageCapped` without error handling.
+    ///
+    /// **Note:** In order to validate whether a value is a valid percentage and receive an error
+    /// for invalid values, use [`PercentageCapped::try_from`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use lnm_sdk::api_v3::models::PercentageCapped;
+    ///
+    /// // Value within range
+    /// let percentage = PercentageCapped::bounded(50.0);
+    /// assert_eq!(percentage.as_f64(), 50.0);
+    ///
+    /// // Value above maximum is bounded to MAX
+    /// let percentage = PercentageCapped::bounded(150.0);
+    /// assert_eq!(percentage.as_f64(), 100.0);
+    ///
+    /// // Value below minimum is bounded to MIN
+    /// let percentage = PercentageCapped::bounded(-10.0);
+    /// assert_eq!(percentage.as_f64(), 0.0);
+    /// ```
+    pub fn bounded<T>(value: T) -> Self
+    where
+        T: Into<f64>,
+    {
+        let as_f64: f64 = value.into();
+        let bounded = as_f64.clamp(Self::MIN.0, Self::MAX.0);
+
+        Self(bounded)
+    }
 
     /// Returns the percentage value as its underlying `f64` representation.
     ///
