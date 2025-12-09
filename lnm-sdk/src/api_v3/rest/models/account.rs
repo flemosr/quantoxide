@@ -2,6 +2,31 @@ use serde::Deserialize;
 use uuid::Uuid;
 
 /// LN Markets account information.
+///
+/// # Examples
+///
+/// ```no_run
+/// # async fn example(rest_api: lnm_sdk::api_v3::RestClient) -> Result<(), Box<dyn std::error::Error>> {
+/// use lnm_sdk::api_v3::models::Account;
+///
+/// let account: Account = rest_api
+///     .account
+///     .get_account()
+///     .await?;
+///
+/// println!("Account ID: {}", account.id());
+/// println!("Username: {}", account.username());
+/// println!("Email: {}", account.email());
+/// println!("Balance: {} sats", account.balance());
+/// println!("Synthetic USD balance: {} cents", account.synthetic_usd_balance());
+/// println!("Fee tier: {}", account.fee_tier());
+///
+/// if let Some(public_key) = account.linking_public_key() {
+///     println!("Linking public key: {}", public_key);
+/// }
+/// # Ok(())
+/// # }
+/// ```
 #[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Account {
