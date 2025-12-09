@@ -385,7 +385,7 @@ impl TradeExecutor for SimulatedTradeExecutor {
     async fn cash_in(&self, trade_id: Uuid, amount: NonZeroU64) -> TradeExecutorResult<()> {
         let mut state_guard = self.state.lock().await;
 
-        let market_price = Price::clamp_from(state_guard.market_price);
+        let market_price = Price::bounded(state_guard.market_price);
 
         let Some((trade, _)) = state_guard.running_map.get_trade_by_id_mut(trade_id) else {
             return Err(SimulatedTradeExecutorError::TradeNotRunning { trade_id })?;
@@ -429,7 +429,7 @@ impl TradeExecutor for SimulatedTradeExecutor {
         let trades_state = TradingState::new(
             state_guard.last_tick_time,
             state_guard.balance.max(0) as u64,
-            Price::clamp_from(state_guard.market_price),
+            Price::bounded(state_guard.market_price),
             state_guard.last_trade_time,
             state_guard.running_map.clone().into_dyn(),
             state_guard.closed_len,

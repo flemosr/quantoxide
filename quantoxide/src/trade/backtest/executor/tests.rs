@@ -59,9 +59,9 @@ async fn test_simulated_trade_executor_long_profit() -> TradeExecutorResult<()> 
 
     let size = Quantity::try_from(500).unwrap().into();
     let leverage = Leverage::try_from(1).unwrap();
-    let stoploss_price = Price::clamp_from(98_000.);
+    let stoploss_price = Price::bounded(98_000.);
     let stoploss = Some(Stoploss::fixed(stoploss_price));
-    let takeprofit = Some(Price::clamp_from(105_000.));
+    let takeprofit = Some(Price::bounded(105_000.));
 
     executor
         .open_long(size, leverage, stoploss, takeprofit)
@@ -273,9 +273,9 @@ async fn test_simulated_trade_executor_short_profit() -> TradeExecutorResult<()>
 
     let size = Quantity::try_from(500).unwrap().into();
     let leverage = Leverage::try_from(1).unwrap();
-    let stoploss_price = Price::clamp_from(103_000.);
+    let stoploss_price = Price::bounded(103_000);
     let stoploss = Some(Stoploss::fixed(stoploss_price));
-    let takeprofit = Some(Price::clamp_from(96_000.));
+    let takeprofit = Some(Price::bounded(96_000.));
 
     executor
         .open_short(size, leverage, stoploss, takeprofit)
@@ -383,9 +383,9 @@ async fn test_simulated_trade_executor_short_loss() -> TradeExecutorResult<()> {
 
     let size = Quantity::try_from(500).unwrap().into();
     let leverage = Leverage::try_from(1).unwrap();
-    let stoploss_price = Price::clamp_from(102_000.);
+    let stoploss_price = Price::bounded(102_000.);
     let stoploss = Some(Stoploss::fixed(stoploss_price));
-    let takeprofit = Some(Price::clamp_from(98_000.));
+    let takeprofit = Some(Price::bounded(98_000.));
 
     executor
         .open_short(size, leverage, stoploss, takeprofit)
@@ -468,7 +468,7 @@ async fn test_simulated_trade_executor_trailing_stoploss_long() {
     let leverage = Leverage::try_from(1).unwrap();
     let stoploss_perc = BoundedPercentage::try_from(2.0).unwrap();
     let stoploss = Some(Stoploss::trailing(stoploss_perc)); // 2% trailing stop-loss
-    let takeprofit = Some(Price::clamp_from(104_000.));
+    let takeprofit = Some(Price::bounded(104_000.));
 
     // Open long position with trailing stop-loss
 
@@ -547,7 +547,7 @@ async fn test_simulated_trade_executor_trailing_stoploss_short() {
     let leverage = Leverage::try_from(1).unwrap();
     let stoploss_perc = BoundedPercentage::try_from(2.0).unwrap();
     let stoploss = Some(Stoploss::trailing(stoploss_perc));
-    let takeprofit = Some(Price::clamp_from(96_000.));
+    let takeprofit = Some(Price::bounded(96_000.));
 
     // Open short position with trailing stop-loss
 
@@ -907,9 +907,9 @@ async fn test_simulated_trade_executor_add_margin_short_loss() -> TradeExecutorR
 
     let size = Quantity::try_from(500).unwrap().into();
     let leverage = Leverage::try_from(10).unwrap();
-    let stoploss_price = Price::clamp_from(102_000.);
+    let stoploss_price = Price::bounded(102_000.);
     let stoploss = Some(Stoploss::fixed(stoploss_price));
-    let takeprofit = Some(Price::clamp_from(98_000.));
+    let takeprofit = Some(Price::bounded(98_000.));
 
     executor
         .open_short(size, leverage, stoploss, takeprofit)

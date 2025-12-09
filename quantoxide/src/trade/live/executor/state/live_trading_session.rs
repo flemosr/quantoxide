@@ -438,7 +438,7 @@ impl From<LiveTradingSession> for TradingState {
         TradingState::new(
             Utc::now(),
             value.balance,
-            Price::clamp_from(value.last_price),
+            Price::bounded(value.last_price),
             value.last_trade_time,
             value.running_map,
             value.closed_len,
