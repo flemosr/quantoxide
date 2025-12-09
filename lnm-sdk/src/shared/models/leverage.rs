@@ -128,16 +128,16 @@ impl From<Leverage> for f64 {
 impl TryFrom<f64> for Leverage {
     type Error = LeverageValidationError;
 
-    fn try_from(leverage: f64) -> Result<Self, Self::Error> {
-        if leverage < Self::MIN.0 {
-            return Err(LeverageValidationError::TooLow);
+    fn try_from(value: f64) -> Result<Self, Self::Error> {
+        if value < Self::MIN.0 {
+            return Err(LeverageValidationError::TooLow { value });
         }
 
-        if leverage > Self::MAX.0 {
-            return Err(LeverageValidationError::TooHigh);
+        if value > Self::MAX.0 {
+            return Err(LeverageValidationError::TooHigh { value });
         }
 
-        Ok(Leverage(leverage))
+        Ok(Leverage(value))
     }
 }
 

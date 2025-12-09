@@ -36,11 +36,11 @@ pub enum MarginValidationError {
 
 #[derive(Debug, Error)]
 pub enum LeverageValidationError {
-    #[error("Leverage must be at least 1")]
-    TooLow,
+    #[error("Leverage must be at least {}. Value: {value}", Leverage::MIN)]
+    TooLow { value: f64 },
 
-    #[error("Leverage must be at most 100")]
-    TooHigh,
+    #[error("Leverage must be at most {}. Value: {value}", Leverage::MAX)]
+    TooHigh { value: f64 },
 }
 
 #[derive(Debug, Error)]
