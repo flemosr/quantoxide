@@ -11,7 +11,7 @@ use super::{
 ///
 /// Leverage represents the multiplier applied to a trader's margin to determine the position size.
 /// This type ensures that leverage values are within acceptable bounds (1x to 100x) and can be
-/// safely used with [`Trade`] implementations.
+/// safely used when trading futures.
 ///
 /// Leverage values must be:
 /// + Greater than or equal to [`Leverage::MIN`] (1x)
@@ -30,8 +30,6 @@ use super::{
 /// assert!(Leverage::try_from(0.5).is_err());
 /// assert!(Leverage::try_from(150.0).is_err());
 /// ```
-///
-/// [`Trade`]: crate::models::Trade
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Leverage(f64);
 
@@ -47,7 +45,7 @@ impl Leverage {
     /// This method bounds the input to the range ([Leverage::MIN], [Leverage::MAX]).
     /// It should be used to ensure a valid `Leverage` without error handling.
     ///
-    /// **Note:** In order to validate whether a value is a valid leverage and receive an error for
+    /// **Note:** In order to check whether a value is a valid leverage and receive an error for
     /// invalid values, use [`Leverage::try_from`].
     ///
     /// # Examples
