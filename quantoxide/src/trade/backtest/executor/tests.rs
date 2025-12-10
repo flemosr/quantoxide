@@ -4,7 +4,7 @@ use super::*;
 
 use chrono::Duration;
 
-use lnm_sdk::api_v3::models::{PercentageCapped, Leverage, Quantity};
+use lnm_sdk::api_v3::models::{Leverage, PercentageCapped, Quantity};
 
 fn next_candle(prev: &OhlcCandleRow, price: f64) -> OhlcCandleRow {
     OhlcCandleRow::new_simple(prev.time + Duration::minutes(1), price, prev.volume)
@@ -31,8 +31,8 @@ async fn test_simulated_trade_executor_long_profit() -> TradeExecutorResult<()> 
     assert_eq!(state.running_short_margin(), 0);
     assert_eq!(state.running_pl(), 0);
     assert_eq!(state.running_fees(), 0);
+    assert_eq!(state.realized_pl(), 0);
     assert_eq!(state.closed_len(), 0);
-    assert_eq!(state.closed_pl(), 0);
     assert_eq!(state.closed_fees(), 0);
 
     // Step 2: Update market price to 100_000
@@ -51,8 +51,8 @@ async fn test_simulated_trade_executor_long_profit() -> TradeExecutorResult<()> 
     assert_eq!(state.running_short_margin(), 0);
     assert_eq!(state.running_pl(), 0);
     assert_eq!(state.running_fees(), 0);
+    assert_eq!(state.realized_pl(), 0);
     assert_eq!(state.closed_len(), 0);
-    assert_eq!(state.closed_pl(), 0);
     assert_eq!(state.closed_fees(), 0);
 
     // Step 3: Open a long trade
@@ -84,8 +84,8 @@ async fn test_simulated_trade_executor_long_profit() -> TradeExecutorResult<()> 
     assert_eq!(state.running_short_margin(), 0);
     assert_eq!(state.running_pl(), 0); // No PL yet since price hasn't changed
     assert!(state.running_fees() > 0, "Trading fees should be estimated");
+    assert_eq!(state.realized_pl(), 0);
     assert_eq!(state.closed_len(), 0);
-    assert_eq!(state.closed_pl(), 0);
     assert_eq!(state.closed_fees(), 0);
 
     // Step 4: Update price to 101_000
@@ -110,8 +110,8 @@ async fn test_simulated_trade_executor_long_profit() -> TradeExecutorResult<()> 
         "Long position should be profitable after price increase"
     );
     assert!(state.running_fees() > 0, "Trading fees should be estimated");
+    assert_eq!(state.realized_pl(), 0);
     assert_eq!(state.closed_len(), 0);
-    assert_eq!(state.closed_pl(), 0);
     assert_eq!(state.closed_fees(), 0);
 
     // Step 5: Close all running long trades
@@ -120,7 +120,7 @@ async fn test_simulated_trade_executor_long_profit() -> TradeExecutorResult<()> 
     let state = executor.trading_state().await?;
     let exp_trade_time = candle.time + Duration::seconds(59);
     let expected_balance =
-        (start_balance as i64 + state.closed_pl() - state.closed_fees() as i64) as u64;
+        (start_balance as i64 + state.realized_pl() - state.closed_fees() as i64) as u64;
 
     assert_eq!(state.last_tick_time(), candle.time + Duration::seconds(59));
     assert_eq!(state.balance(), expected_balance);
@@ -132,11 +132,11 @@ async fn test_simulated_trade_executor_long_profit() -> TradeExecutorResult<()> 
     assert_eq!(state.running_short_margin(), 0);
     assert_eq!(state.running_pl(), 0);
     assert_eq!(state.running_fees(), 0);
-    assert_eq!(state.closed_len(), 1);
     assert!(
-        state.closed_pl() > 0,
+        state.realized_pl() > 0,
         "Should have positive PL after closing profitable long"
     );
+    assert_eq!(state.closed_len(), 1);
     assert!(state.closed_fees() > 0, "Should have paid trading fees");
 
     Ok(())
@@ -163,8 +163,8 @@ async fn test_simulated_trade_executor_long_loss() -> TradeExecutorResult<()> {
     assert_eq!(state.running_short_margin(), 0);
     assert_eq!(state.running_pl(), 0);
     assert_eq!(state.running_fees(), 0);
+    assert_eq!(state.realized_pl(), 0);
     assert_eq!(state.closed_len(), 0);
-    assert_eq!(state.closed_pl(), 0);
     assert_eq!(state.closed_fees(), 0);
 
     // Step 2: Open a long trade
@@ -224,7 +224,7 @@ async fn test_simulated_trade_executor_long_loss() -> TradeExecutorResult<()> {
     let state = executor.trading_state().await?;
     let exp_trade_time = candle.time + Duration::seconds(59);
     let expected_balance =
-        (start_balance as i64 + state.closed_pl() - state.closed_fees() as i64) as u64;
+        (start_balance as i64 + state.realized_pl() - state.closed_fees() as i64) as u64;
 
     assert_eq!(state.last_tick_time(), candle.time + Duration::seconds(59));
     assert_eq!(state.balance(), expected_balance);
@@ -234,11 +234,11 @@ async fn test_simulated_trade_executor_long_loss() -> TradeExecutorResult<()> {
     assert_eq!(state.running_long_margin(), 0);
     assert_eq!(state.running_pl(), 0);
     assert_eq!(state.running_fees(), 0);
-    assert_eq!(state.closed_len(), 1);
     assert!(
-        state.closed_pl() < 0,
+        state.realized_pl() < 0,
         "Should have negative PL after hitting stoploss"
     );
+    assert_eq!(state.closed_len(), 1);
     assert!(state.closed_fees() > 0, "Should have paid trading fees");
 
     Ok(())
@@ -265,8 +265,8 @@ async fn test_simulated_trade_executor_short_profit() -> TradeExecutorResult<()>
     assert_eq!(state.running_short_margin(), 0);
     assert_eq!(state.running_pl(), 0);
     assert_eq!(state.running_fees(), 0);
+    assert_eq!(state.realized_pl(), 0);
     assert_eq!(state.closed_len(), 0);
-    assert_eq!(state.closed_pl(), 0);
     assert_eq!(state.closed_fees(), 0);
 
     // Step 2: Open a short trade
@@ -298,8 +298,8 @@ async fn test_simulated_trade_executor_short_profit() -> TradeExecutorResult<()>
     );
     assert_eq!(state.running_pl(), 0); // No PL yet since price hasn't changed
     assert!(state.running_fees() > 0, "Trading fees should be estimated");
+    assert_eq!(state.realized_pl(), 0);
     assert_eq!(state.closed_len(), 0);
-    assert_eq!(state.closed_pl(), 0);
     assert_eq!(state.closed_fees(), 0);
 
     // Step 3: Update price to 98_000 (2% drop)
@@ -322,8 +322,8 @@ async fn test_simulated_trade_executor_short_profit() -> TradeExecutorResult<()>
         "Short position should be profitable after price decrease"
     );
     assert!(state.running_fees() > 0, "Trading fees should be estimated");
+    assert_eq!(state.realized_pl(), 0);
     assert_eq!(state.closed_len(), 0);
-    assert_eq!(state.closed_pl(), 0);
     assert_eq!(state.closed_fees(), 0);
 
     // Step 4: Update price to trigger takeprofit (96_000, 4% drop from entry)
@@ -334,7 +334,7 @@ async fn test_simulated_trade_executor_short_profit() -> TradeExecutorResult<()>
     let state = executor.trading_state().await?;
     let exp_trade_time = candle.time + Duration::seconds(59);
     let expected_balance =
-        (start_balance as i64 + state.closed_pl() - state.closed_fees() as i64) as u64;
+        (start_balance as i64 + state.realized_pl() - state.closed_fees() as i64) as u64;
 
     assert_eq!(state.last_tick_time(), candle.time + Duration::seconds(59));
     assert_eq!(state.balance(), expected_balance);
@@ -344,11 +344,11 @@ async fn test_simulated_trade_executor_short_profit() -> TradeExecutorResult<()>
     assert_eq!(state.running_short_margin(), 0);
     assert_eq!(state.running_pl(), 0);
     assert_eq!(state.running_fees(), 0);
-    assert_eq!(state.closed_len(), 1);
     assert!(
-        state.closed_pl() > 0,
+        state.realized_pl() > 0,
         "Should have positive PL after hitting takeprofit"
     );
+    assert_eq!(state.closed_len(), 1);
     assert!(state.closed_fees() > 0, "Should have paid trading fees");
 
     Ok(())
@@ -375,8 +375,8 @@ async fn test_simulated_trade_executor_short_loss() -> TradeExecutorResult<()> {
     assert_eq!(state.running_short_margin(), 0);
     assert_eq!(state.running_pl(), 0);
     assert_eq!(state.running_fees(), 0);
+    assert_eq!(state.realized_pl(), 0);
     assert_eq!(state.closed_len(), 0);
-    assert_eq!(state.closed_pl(), 0);
     assert_eq!(state.closed_fees(), 0);
 
     // Step 2: Open a short trade
@@ -436,7 +436,7 @@ async fn test_simulated_trade_executor_short_loss() -> TradeExecutorResult<()> {
     let state = executor.trading_state().await?;
     let exp_trade_time = candle.time + Duration::seconds(59);
     let expected_balance =
-        (start_balance as i64 + state.closed_pl() - state.closed_fees() as i64) as u64;
+        (start_balance as i64 + state.realized_pl() - state.closed_fees() as i64) as u64;
 
     assert_eq!(state.last_tick_time(), candle.time + Duration::seconds(59));
     assert_eq!(state.balance(), expected_balance);
@@ -446,11 +446,11 @@ async fn test_simulated_trade_executor_short_loss() -> TradeExecutorResult<()> {
     assert_eq!(state.running_short_margin(), 0);
     assert_eq!(state.running_pl(), 0);
     assert_eq!(state.running_fees(), 0);
-    assert_eq!(state.closed_len(), 1);
     assert!(
-        state.closed_pl() < 0,
+        state.realized_pl() < 0,
         "Should have negative PL after hitting stoploss"
     );
+    assert_eq!(state.closed_len(), 1);
     assert!(state.closed_fees() > 0, "Should have paid trading fees");
 
     Ok(())
@@ -636,8 +636,8 @@ async fn test_simulated_trade_executor_partial_cash_in_short_profit() -> TradeEx
     assert_eq!(state.running_short_margin(), 0);
     assert_eq!(state.running_pl(), 0);
     assert_eq!(state.running_fees(), 0);
+    assert_eq!(state.realized_pl(), 0);
     assert_eq!(state.closed_len(), 0);
-    assert_eq!(state.closed_pl(), 0);
     assert_eq!(state.closed_fees(), 0);
 
     // Step 2: Open a short trade
@@ -668,8 +668,8 @@ async fn test_simulated_trade_executor_partial_cash_in_short_profit() -> TradeEx
     );
     assert_eq!(state.running_pl(), 0); // No PL yet since price hasn't changed
     assert!(state.running_fees() > 0, "Trading fees should be estimated");
+    assert_eq!(state.realized_pl(), 0);
     assert_eq!(state.closed_len(), 0);
-    assert_eq!(state.closed_pl(), 0);
     assert_eq!(state.closed_fees(), 0);
 
     // Step 3: Update price to 98_000 (2% drop)
@@ -686,8 +686,8 @@ async fn test_simulated_trade_executor_partial_cash_in_short_profit() -> TradeEx
     assert_eq!(state.running_short_margin(), 500_500);
     assert_eq!(state.running_pl(), 10_204);
     assert_eq!(state.running_fees(), 500);
+    assert_eq!(state.realized_pl(), 0);
     assert_eq!(state.closed_len(), 0);
-    assert_eq!(state.closed_pl(), 0);
     assert_eq!(state.closed_fees(), 0);
 
     // Step 4: Cash_in
@@ -718,8 +718,8 @@ async fn test_simulated_trade_executor_partial_cash_in_short_profit() -> TradeEx
     assert_eq!(state.running_short_margin(), 500_500);
     assert_eq!(state.running_pl(), 10_204 - cash_in as i64);
     assert_eq!(state.running_fees(), 500);
+    assert_eq!(state.realized_pl(), 4_999);
     assert_eq!(state.closed_len(), 0);
-    assert_eq!(state.closed_pl(), 4_999);
     assert_eq!(state.closed_fees(), 0);
 
     // Step 5: Close trade
@@ -730,7 +730,7 @@ async fn test_simulated_trade_executor_partial_cash_in_short_profit() -> TradeEx
     let exp_trade_time = candle.time + Duration::seconds(59);
 
     let expected_balance =
-        (start_balance as i64 + state.closed_pl() - state.closed_fees() as i64) as u64;
+        (start_balance as i64 + state.realized_pl() - state.closed_fees() as i64) as u64;
 
     assert_eq!(state.last_tick_time(), candle.time + Duration::seconds(59));
     assert!((state.balance() as i64 - expected_balance as i64).abs() < 2);
@@ -740,8 +740,8 @@ async fn test_simulated_trade_executor_partial_cash_in_short_profit() -> TradeEx
     assert_eq!(state.running_short_margin(), 0);
     assert_eq!(state.running_pl(), 0);
     assert_eq!(state.running_fees(), 0);
+    assert_eq!(state.realized_pl(), 10_203);
     assert_eq!(state.closed_len(), 1);
-    assert_eq!(state.closed_pl(), 10_203);
     assert_eq!(state.closed_fees(), 1_010);
 
     Ok(())
@@ -768,8 +768,8 @@ async fn test_simulated_trade_executor_full_cash_in_short_profit() -> TradeExecu
     assert_eq!(state.running_short_margin(), 0);
     assert_eq!(state.running_pl(), 0);
     assert_eq!(state.running_fees(), 0);
+    assert_eq!(state.realized_pl(), 0);
     assert_eq!(state.closed_len(), 0);
-    assert_eq!(state.closed_pl(), 0);
     assert_eq!(state.closed_fees(), 0);
 
     // Step 2: Open a short trade
@@ -800,8 +800,8 @@ async fn test_simulated_trade_executor_full_cash_in_short_profit() -> TradeExecu
     );
     assert_eq!(state.running_pl(), 0); // No PL yet since price hasn't changed
     assert!(state.running_fees() > 0, "Trading fees should be estimated");
+    assert_eq!(state.realized_pl(), 0);
     assert_eq!(state.closed_len(), 0);
-    assert_eq!(state.closed_pl(), 0);
     assert_eq!(state.closed_fees(), 0);
 
     // Step 3: Update price to 98_000 (2% drop)
@@ -818,8 +818,8 @@ async fn test_simulated_trade_executor_full_cash_in_short_profit() -> TradeExecu
     assert_eq!(state.running_short_margin(), 50_950);
     assert_eq!(state.running_pl(), 10_204);
     assert_eq!(state.running_fees(), 500);
+    assert_eq!(state.realized_pl(), 0);
     assert_eq!(state.closed_len(), 0);
-    assert_eq!(state.closed_pl(), 0);
     assert_eq!(state.closed_fees(), 0);
 
     // Step 4: Cash_in
@@ -850,8 +850,8 @@ async fn test_simulated_trade_executor_full_cash_in_short_profit() -> TradeExecu
     assert_eq!(state.running_short_margin(), 50_950 - cash_in + 10_204);
     assert_eq!(state.running_pl(), 0);
     assert_eq!(state.running_fees(), 500);
+    assert_eq!(state.realized_pl(), 10_204);
     assert_eq!(state.closed_len(), 0);
-    assert_eq!(state.closed_pl(), 10_204);
     assert_eq!(state.closed_fees(), 0);
 
     // Step 5: Close trade
@@ -861,7 +861,7 @@ async fn test_simulated_trade_executor_full_cash_in_short_profit() -> TradeExecu
     let state = executor.trading_state().await?;
     let exp_trade_time = candle.time + Duration::seconds(59);
 
-    let expected_balance = start_balance as i64 + state.closed_pl() - state.closed_fees() as i64;
+    let expected_balance = start_balance as i64 + state.realized_pl() - state.closed_fees() as i64;
 
     assert_eq!(state.last_tick_time(), candle.time + Duration::seconds(59));
     assert!((state.balance() as i64 - expected_balance).abs() < 2);
@@ -871,8 +871,8 @@ async fn test_simulated_trade_executor_full_cash_in_short_profit() -> TradeExecu
     assert_eq!(state.running_short_margin(), 0);
     assert_eq!(state.running_pl(), 0);
     assert_eq!(state.running_fees(), 0);
+    assert_eq!(state.realized_pl(), 10_204);
     assert_eq!(state.closed_len(), 1);
-    assert_eq!(state.closed_pl(), 10_204);
     assert_eq!(state.closed_fees(), 1_010);
 
     Ok(())
@@ -899,8 +899,8 @@ async fn test_simulated_trade_executor_add_margin_short_loss() -> TradeExecutorR
     assert_eq!(state.running_short_margin(), 0);
     assert_eq!(state.running_pl(), 0);
     assert_eq!(state.running_fees(), 0);
+    assert_eq!(state.realized_pl(), 0);
     assert_eq!(state.closed_len(), 0);
-    assert_eq!(state.closed_pl(), 0);
     assert_eq!(state.closed_fees(), 0);
 
     // Step 2: Open a short trade
@@ -976,7 +976,7 @@ async fn test_simulated_trade_executor_add_margin_short_loss() -> TradeExecutorR
     let exp_trade_time = candle.time + Duration::seconds(59);
 
     let expected_balance =
-        (start_balance as i64 + state.closed_pl() - state.closed_fees() as i64) as u64;
+        (start_balance as i64 + state.realized_pl() - state.closed_fees() as i64) as u64;
 
     assert_eq!(state.last_tick_time(), candle.time + Duration::seconds(59));
     assert!((state.balance() as i64 - expected_balance as i64).abs() < 2);
@@ -986,8 +986,8 @@ async fn test_simulated_trade_executor_add_margin_short_loss() -> TradeExecutorR
     assert_eq!(state.running_short_margin(), 0);
     assert_eq!(state.running_pl(), 0);
     assert_eq!(state.running_fees(), 0);
+    assert_eq!(state.realized_pl(), -4_951);
     assert_eq!(state.closed_len(), 1);
-    assert_eq!(state.closed_pl(), -4_951);
     assert_eq!(state.closed_fees(), 995);
 
     Ok(())
