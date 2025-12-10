@@ -436,7 +436,7 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// and therefore reducing the leverage.
     ///
     /// The resulting [`Leverage`] must be valid (≥ 1) after the update. To target a specific
-    /// liquidation price, see [`TradeRunning::est_collateral_delta_for_liquidation`].
+    /// liquidation price, see [`trade_util::evaluate_collateral_delta_for_liquidation`].
     ///
     /// leverage = (quantity * SATS_PER_BTC) / (margin * price)
     ///
@@ -478,7 +478,7 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// # }
     /// ```
     ///
-    /// [`TradeRunning::est_collateral_delta_for_liquidation`]: crate::models::TradeRunning::est_collateral_delta_for_liquidation
+    /// [`trade_util::evaluate_collateral_delta_for_liquidation`]: crate::api_v2::models::trade_util::evaluate_collateral_delta_for_liquidation
     async fn add_margin(&self, id: Uuid, amount: NonZeroU64) -> Result<Trade>;
 
     /// **Requires credentials**. Removes funds from a trade, decreasing the collateral and
@@ -487,7 +487,7 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// Funds are first removed from the trade's PL, if positive, by adjusting the trade's entry
     /// price. Then, they are removed from the trade's margin.
     /// The resulting [`Leverage`] must be valid (≥ 1 and ≤ 100) after the update. To target a
-    /// specific liquidation price, see [`TradeRunning::est_collateral_delta_for_liquidation`].
+    /// specific liquidation price, see [`trade_util::evaluate_collateral_delta_for_liquidation`].
     ///
     /// leverage = (quantity * SATS_PER_BTC) / (margin * price)
     ///
@@ -529,7 +529,7 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// # }
     /// ```
     ///
-    /// [`TradeRunning::est_collateral_delta_for_liquidation`]: crate::models::TradeRunning::est_collateral_delta_for_liquidation
+    /// [`trade_util::evaluate_collateral_delta_for_liquidation`]: crate::api_v2::models::trade_util::evaluate_collateral_delta_for_liquidation
     async fn cash_in(&self, id: Uuid, amount: NonZeroU64) -> Result<Trade>;
 }
 
