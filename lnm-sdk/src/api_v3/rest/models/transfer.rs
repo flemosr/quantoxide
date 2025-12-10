@@ -1,3 +1,5 @@
+use std::fmt;
+
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
 use uuid::Uuid;
@@ -82,5 +84,24 @@ impl CrossTransfer {
     /// ```
     pub fn time(&self) -> DateTime<Utc> {
         self.time
+    }
+
+    pub fn as_data_str(&self) -> String {
+        format!(
+            "id: {}\namount: {}\ntime: {}",
+            self.id,
+            self.amount,
+            self.time.to_rfc3339()
+        )
+    }
+}
+
+impl fmt::Display for CrossTransfer {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Cross Transfer:")?;
+        for line in self.as_data_str().lines() {
+            write!(f, "\n  {line}")?;
+        }
+        Ok(())
     }
 }
