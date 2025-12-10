@@ -162,6 +162,18 @@ pub enum LastTickDirection {
     ZeroPlusTick,
 }
 
+impl fmt::Display for LastTickDirection {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let direction_str = match self {
+            LastTickDirection::MinusTick => "MinusTick",
+            LastTickDirection::ZeroMinusTick => "ZeroMinusTick",
+            LastTickDirection::PlusTick => "PlusTick",
+            LastTickDirection::ZeroPlusTick => "ZeroPlusTick",
+        };
+        write!(f, "{}", direction_str)
+    }
+}
+
 #[derive(Debug, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct PriceTick {
@@ -185,6 +197,30 @@ impl PriceTick {
     pub fn last_tick_direction(&self) -> Option<LastTickDirection> {
         self.last_tick_direction
     }
+
+    pub fn as_data_str(&self) -> String {
+        let mut data_str = format!(
+            "time: {}\nlast_price: {:.1}",
+            self.time.to_rfc3339(),
+            self.last_price
+        );
+
+        if let Some(direction) = self.last_tick_direction {
+            data_str.push_str(&format!("\nlast_tick_direction: {direction}"));
+        }
+
+        data_str
+    }
+}
+
+impl fmt::Display for PriceTick {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Price Tick:")?;
+        for line in self.as_data_str().lines() {
+            write!(f, "\n  {line}")?;
+        }
+        Ok(())
+    }
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -200,6 +236,20 @@ impl PriceIndex {
 
     pub fn index(&self) -> f64 {
         self.index
+    }
+
+    pub fn as_data_str(&self) -> String {
+        format!("time: {}\nindex: {:.1}", self.time.to_rfc3339(), self.index)
+    }
+}
+
+impl fmt::Display for PriceIndex {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Price Index:")?;
+        for line in self.as_data_str().lines() {
+            write!(f, "\n  {line}")?;
+        }
+        Ok(())
     }
 }
 
@@ -322,6 +372,18 @@ impl From<SubscriptionData> for WebSocketUpdate {
         match data {
             SubscriptionData::PriceTick(price_tick) => WebSocketUpdate::PriceTick(price_tick),
             SubscriptionData::PriceIndex(price_index) => WebSocketUpdate::PriceIndex(price_index),
+        }
+    }
+}
+
+impl fmt::Display for WebSocketUpdate {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            WebSocketUpdate::PriceTick(price_tick) => write!(f, "{}", price_tick),
+            WebSocketUpdate::PriceIndex(price_index) => write!(f, "{}", price_index),
+            WebSocketUpdate::ConnectionStatus(status) => {
+                write!(f, "Connection Status: {:?}", status)
+            }
         }
     }
 }
