@@ -45,7 +45,7 @@ use error::{
 };
 use state::{
     LiveTradeExecutorState, LiveTradeExecutorStateManager, LiveTradeExecutorStatusNotReady,
-    live_trading_session::{LiveTradingSession, TradingSessionRefreshOffset},
+    live_trading_session::{LiveTradingSession, TradingSessionTTL},
 };
 use update::{
     LiveTradeExecutorReceiver, LiveTradeExecutorTransmiter, LiveTradeExecutorUpdate,
@@ -503,7 +503,7 @@ impl LiveTradeExecutorLauncher {
     fn spawn_sync_processor(
         recover_trades_on_startup: bool,
         tsl_step_size: PercentageCapped,
-        session_refresh_offset: TradingSessionRefreshOffset,
+        session_refresh_offset: TradingSessionTTL,
         session_refresh_interval: time::Duration,
         db: Arc<Database>,
         api: WrappedRestClient,

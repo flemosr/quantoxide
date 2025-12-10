@@ -8,7 +8,7 @@ use lnm_sdk::{
     api_v3::{RestClientConfig, models::PercentageCapped},
 };
 
-use super::executor::state::live_trading_session::TradingSessionRefreshOffset;
+use super::executor::state::live_trading_session::TradingSessionTTL;
 
 #[derive(Clone, Debug)]
 pub struct LiveConfig {
@@ -26,7 +26,7 @@ pub struct LiveConfig {
     tsl_step_size: PercentageCapped,
     clean_up_trades_on_startup: bool,
     recover_trades_on_startup: bool,
-    session_refresh_offset: TradingSessionRefreshOffset,
+    session_refresh_offset: TradingSessionTTL,
     session_refresh_interval: time::Duration,
     clean_up_trades_on_shutdown: bool,
     estimated_fee_perc: PercentageCapped,
@@ -125,7 +125,7 @@ impl LiveConfig {
         self.recover_trades_on_startup
     }
 
-    pub fn session_refresh_offset(&self) -> TradingSessionRefreshOffset {
+    pub fn session_refresh_offset(&self) -> TradingSessionTTL {
         self.session_refresh_offset
     }
 
@@ -225,7 +225,7 @@ impl LiveConfig {
 
     pub fn with_session_refresh_offset(
         mut self,
-        session_refresh_offset: TradingSessionRefreshOffset,
+        session_refresh_offset: TradingSessionTTL,
     ) -> Self {
         self.session_refresh_offset = session_refresh_offset;
         self
@@ -322,7 +322,7 @@ pub struct LiveTradeExecutorConfig {
     tsl_step_size: PercentageCapped,
     clean_up_trades_on_startup: bool,
     recover_trades_on_startup: bool,
-    session_refresh_offset: TradingSessionRefreshOffset,
+    session_refresh_offset: TradingSessionTTL,
     session_refresh_interval: time::Duration,
     clean_up_trades_on_shutdown: bool,
     estimated_fee_perc: PercentageCapped,
@@ -342,7 +342,7 @@ impl LiveTradeExecutorConfig {
         self.recover_trades_on_startup
     }
 
-    pub fn session_refresh_offset(&self) -> TradingSessionRefreshOffset {
+    pub fn session_refresh_offset(&self) -> TradingSessionTTL {
         self.session_refresh_offset
     }
 
@@ -379,7 +379,7 @@ impl LiveTradeExecutorConfig {
 
     pub fn with_session_refresh_offset(
         mut self,
-        session_refresh_offset: TradingSessionRefreshOffset,
+        session_refresh_offset: TradingSessionTTL,
     ) -> Self {
         self.session_refresh_offset = session_refresh_offset;
         self

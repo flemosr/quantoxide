@@ -12,7 +12,7 @@ use super::{
     super::super::error::TradeCoreError,
     state::{
         LiveTradeExecutorStatus, LiveTradeExecutorStatusNotReady,
-        live_trading_session::TradingSessionRefreshOffset,
+        live_trading_session::TradingSessionTTL,
     },
 };
 
@@ -76,10 +76,10 @@ pub enum ExecutorActionError {
     },
 
     #[error(
-        "`TradingSessionRefreshOffset` must be at least {}. Value: {value}",
-        TradingSessionRefreshOffset::MIN
+        "`TradingSessionTTL` must be at least {}. Value: {value}",
+        TradingSessionTTL::MIN
     )]
-    InvalidTradingSessionRefreshOffset { value: Duration },
+    InvalidTradingSessionTTL { value: Duration },
 
     #[error("Unexpected closed trade returned by the server. Id: {trade_id}")]
     UnexpectedClosedTrade { trade_id: Uuid },

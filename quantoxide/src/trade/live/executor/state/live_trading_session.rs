@@ -24,25 +24,25 @@ use super::super::super::{
 };
 
 #[derive(Debug, Clone, Copy)]
-pub struct TradingSessionRefreshOffset(Duration);
+pub struct TradingSessionTTL(Duration);
 
-impl TradingSessionRefreshOffset {
+impl TradingSessionTTL {
     pub const MIN: Duration = Duration::hours(1);
 }
 
-impl TryFrom<Duration> for TradingSessionRefreshOffset {
+impl TryFrom<Duration> for TradingSessionTTL {
     type Error = ExecutorActionError;
     fn try_from(value: Duration) -> Result<Self, Self::Error> {
         if value < Self::MIN {
-            return Err(ExecutorActionError::InvalidTradingSessionRefreshOffset { value });
+            return Err(ExecutorActionError::InvalidTradingSessionTTL { value });
         }
 
         Ok(Self(value))
     }
 }
 
-impl From<TradingSessionRefreshOffset> for Duration {
-    fn from(value: TradingSessionRefreshOffset) -> Self {
+impl From<TradingSessionTTL> for Duration {
+    fn from(value: TradingSessionTTL) -> Self {
         value.0
     }
 }
@@ -66,7 +66,7 @@ impl LiveTradingSession {
     pub async fn new(
         recover_trades_on_startup: bool,
         tsl_step_size: PercentageCapped,
-        refresh_offset: TradingSessionRefreshOffset,
+        refresh_offset: TradingSessionTTL,
         db: &Database,
         api: &WrappedRestClient,
         prev_trading_session: Option<Self>,

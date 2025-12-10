@@ -19,7 +19,7 @@ pub use live::{
         LiveTradeExecutor, LiveTradeExecutorLauncher,
         state::{
             LiveTradeExecutorStatus, LiveTradeExecutorStatusNotReady,
-            live_trading_session::TradingSessionRefreshOffset,
+            live_trading_session::TradingSessionTTL,
         },
         update::{
             LiveTradeExecutorReceiver, LiveTradeExecutorUpdate, LiveTradeExecutorUpdateOrder,
