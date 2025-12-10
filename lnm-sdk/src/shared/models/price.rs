@@ -46,8 +46,8 @@ impl PercentageCapped {
     /// This method bounds the input to the range ([PercentageCapped::MIN], [PercentageCapped::MAX]).
     /// It should be used to ensure a valid `PercentageCapped` without error handling.
     ///
-    /// **Note:** In order to validate whether a value is a valid percentage and receive an error
-    /// for invalid values, use [`PercentageCapped::try_from`].
+    /// **Note:** In order to check whether a value is a valid capped percentage and receive an
+    /// error for invalid values, use [`PercentageCapped::try_from`].
     ///
     /// # Examples
     ///
@@ -182,8 +182,8 @@ impl Percentage {
     /// This method bounds the input to the range ([Percentage::MIN], [Percentage::MAX]).
     /// It should be used to ensure a valid `Percentage` without error handling.
     ///
-    /// **Note:** In order to validate whether a value is a valid percentage and receive an error
-    /// for invalid values, use [`Percentage::try_from`].
+    /// **Note:** In order to check whether a value is a valid percentage and receive an error for
+    /// invalid values, use [`Percentage::try_from`].
     ///
     /// # Examples
     ///
@@ -402,7 +402,7 @@ impl Price {
     /// ([Price::MIN], [Price::MAX]).
     /// It should be used to ensure a valid `Price` without error handling.
     ///
-    /// **Note:** In order to validate whether a value is a valid price and receive an error for
+    /// **Note:** In order to check whether a value is a valid price and receive an error for
     /// invalid values, use [`Price::try_from`].
     ///
     /// # Examples
