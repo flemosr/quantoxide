@@ -141,11 +141,11 @@ impl LiveProcess {
     // Other `LiveProcessFatalError`s will result in `Ok` and should be accessed
     // via `LiveStatus`.
     async fn recovery_loop(self) -> LiveProcessFatalResult<()> {
+        self.status_manager.update(LiveStatus::Starting);
+
+        let mut shutdown_rx = self.shutdown_tx.subscribe();
+
         loop {
-            self.status_manager.update(LiveStatus::Starting);
-
-            let mut shutdown_rx = self.shutdown_tx.subscribe();
-
             let live_process_error = tokio::select! {
                 Err(e) = self.run_operator() => e,
                 shutdown_res = shutdown_rx.recv() => {
@@ -169,8 +169,6 @@ impl LiveProcess {
                 }
             }
 
-            self.status_manager.update(LiveStatus::Restarting);
-
             // Handle shutdown signals while waiting for `restart_interval`
 
             tokio::select! {
@@ -188,6 +186,8 @@ impl LiveProcess {
                     return Ok(());
                 }
             }
+
+            self.status_manager.update(LiveStatus::Restarting);
         }
     }
 
