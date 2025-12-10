@@ -109,44 +109,41 @@ impl SyncTui {
         mode: SyncMode,
     ) -> AbortOnDropHandle<()> {
         tokio::spawn(async move {
+            let send_ui_msg = async |ui_msg: SyncUiMessage| -> Result<()> {
+                ui_tx
+                    .send(ui_msg)
+                    .await
+                    .map_err(|e| TuiError::SyncTuiSendFailed(Box::new(e)))
+            };
+
             let handle_sync_update = async |sync_update: SyncUpdate| -> Result<()> {
                 match sync_update {
                     SyncUpdate::Status(sync_status) => {
-                        ui_tx
-                            .send(SyncUiMessage::LogEntry(format!(
-                                "Sync status: {sync_status}"
-                            )))
-                            .await
-                            .map_err(|e| TuiError::SyncTuiSendFailed(Box::new(e)))?;
+                        send_ui_msg(SyncUiMessage::LogEntry(format!(
+                            "Sync status: {sync_status}"
+                        )))
+                        .await?;
                     }
                     SyncUpdate::PriceTick(tick) => {
-                        ui_tx
-                            .send(SyncUiMessage::LogEntry(tick.to_string()))
-                            .await
-                            .map_err(|e| TuiError::SyncTuiSendFailed(Box::new(e)))?;
+                        send_ui_msg(SyncUiMessage::LogEntry(tick.to_string())).await?;
                     }
                     SyncUpdate::PriceHistoryState(price_history_state) => {
-                        ui_tx
-                            .send(SyncUiMessage::StateUpdate(format!(
-                                "\n{}",
-                                price_history_state.summary()
-                            )))
-                            .await
-                            .map_err(|e| TuiError::SyncTuiSendFailed(Box::new(e)))?;
+                        send_ui_msg(SyncUiMessage::StateUpdate(format!(
+                            "\n{}",
+                            price_history_state.summary()
+                        )))
+                        .await?;
                     }
                 }
                 Ok(())
             };
 
-            if matches!(mode, SyncMode::Live(None)) {
-                if let Err(e) = ui_tx
-                    .send(SyncUiMessage::StateUpdate("Not evaluated.".to_string()))
-                    .await
-                    .map_err(|e| TuiError::SyncTuiSendFailed(Box::new(e)))
-                {
-                    status_manager.set_crashed(e);
-                    return;
-                }
+            if matches!(mode, SyncMode::Live(None))
+                && let Err(e) =
+                    send_ui_msg(SyncUiMessage::StateUpdate("Not evaluated.".to_string())).await
+            {
+                status_manager.set_crashed(e);
+                return;
             }
 
             loop {
@@ -159,11 +156,8 @@ impl SyncTui {
                     }
                     Err(RecvError::Lagged(skipped)) => {
                         let log_msg = format!("Sync updates lagged by {skipped} messages");
-                        if let Err(e) = ui_tx
-                            .send(SyncUiMessage::LogEntry(log_msg))
-                            .await
-                            .map_err(|e| TuiError::SyncTuiSendFailed(Box::new(e)))
-                        {
+
+                        if let Err(e) = send_ui_msg(SyncUiMessage::LogEntry(log_msg)).await {
                             status_manager.set_crashed(e);
                             return;
                         }
