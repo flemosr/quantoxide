@@ -178,10 +178,9 @@ impl SyncProcess {
             return Err(SyncProcessRecoverableError::UnexpectedRealTimeCollectionShutdown.into());
         }
 
-        self.status_manager.update(SyncStatus::Synced);
-
         // Handle updates and re-syncs
 
+        let mut is_synced = false;
         let mut price_tick_rx = price_tick_tx.subscribe();
 
         let new_re_sync_timer = || Box::pin(time::sleep(self.config.re_sync_history_interval()));
@@ -191,6 +190,7 @@ impl SyncProcess {
             } else {
                 Box::pin(future::pending::<()>())
             };
+
         let new_tick_interval_timer = || Box::pin(time::sleep(self.config.max_tick_interval()));
         let mut tick_interval_timer = new_tick_interval_timer();
 
@@ -203,7 +203,13 @@ impl SyncProcess {
                 }
                 tick_res = price_tick_rx.recv() => {
                     tick_interval_timer = new_tick_interval_timer();
+
                     let tick = tick_res.map_err(SyncProcessRecoverableError::PriceTickRecv)?;
+                    if !is_synced {
+                        self.status_manager.update(SyncStatus::Synced);
+                        is_synced = true;
+                    }
+
                     let _ = self.update_tx.send(tick.into());
                 }
                 _ = &mut re_sync_timer => {
@@ -251,10 +257,9 @@ impl SyncProcess {
             return Err(SyncProcessRecoverableError::UnexpectedRealTimeCollectionShutdown.into());
         }
 
-        self.status_manager.update(SyncStatus::Synced);
-
         // Handle updates and re-syncs
 
+        let mut is_synced = false;
         let mut price_tick_rx = price_tick_tx.subscribe();
 
         let new_re_sync_timer = || Box::pin(time::sleep(self.config.re_sync_history_interval()));
@@ -270,13 +275,15 @@ impl SyncProcess {
                     return Err(SyncProcessRecoverableError::UnexpectedRealTimeCollectionShutdown.into());
                 }
                 tick_res = price_tick_rx.recv() => {
-                    match tick_res {
-                        Ok(tick) => {
-                            tick_interval_timer = new_tick_interval_timer();
-                            let _ = self.update_tx.send(tick.into());
-                        },
-                        Err(e) => return Err(SyncProcessRecoverableError::PriceTickRecv(e).into())
+                    tick_interval_timer = new_tick_interval_timer();
+
+                    let tick = tick_res.map_err(SyncProcessRecoverableError::PriceTickRecv)?;
+                    if !is_synced {
+                        self.status_manager.update(SyncStatus::Synced);
+                        is_synced = true;
                     }
+
+                    let _ = self.update_tx.send(tick.into());
                 }
                 _ = &mut re_sync_timer => {
                     // Ensure the OHLC candles DB remains up-to-date
