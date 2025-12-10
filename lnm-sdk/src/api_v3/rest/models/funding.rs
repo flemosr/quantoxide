@@ -1,3 +1,5 @@
+use std::fmt;
+
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
 use uuid::Uuid;
@@ -48,6 +50,25 @@ impl CrossFunding {
     /// Funding fee amount in satoshis.
     pub fn fee(&self) -> i64 {
         self.fee
+    }
+
+    pub fn as_data_str(&self) -> String {
+        format!(
+            "time: {}\nsettlement_id: {}\nfee: {}",
+            self.time.to_rfc3339(),
+            self.settlement_id,
+            self.fee
+        )
+    }
+}
+
+impl fmt::Display for CrossFunding {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Cross Funding:")?;
+        for line in self.as_data_str().lines() {
+            write!(f, "\n  {line}")?;
+        }
+        Ok(())
     }
 }
 
@@ -103,6 +124,26 @@ impl IsolatedFunding {
     pub fn fee(&self) -> i64 {
         self.fee
     }
+
+    pub fn as_data_str(&self) -> String {
+        format!(
+            "time: {}\nsettlement_id: {}\ntrade_id: {}\nfee: {}",
+            self.time.to_rfc3339(),
+            self.settlement_id,
+            self.trade_id,
+            self.fee
+        )
+    }
+}
+
+impl fmt::Display for IsolatedFunding {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Isolated Funding:")?;
+        for line in self.as_data_str().lines() {
+            write!(f, "\n  {line}")?;
+        }
+        Ok(())
+    }
 }
 
 /// Information about a given funding settlement.
@@ -155,5 +196,25 @@ impl FundingSettlement {
     /// The funding rate applied.
     pub fn funding_rate(&self) -> f64 {
         self.funding_rate
+    }
+
+    pub fn as_data_str(&self) -> String {
+        format!(
+            "id: {}\ntime: {}\nfixing_price: {}\nfunding_rate: {:.6}",
+            self.id,
+            self.time.to_rfc3339(),
+            self.fixing_price,
+            self.funding_rate
+        )
+    }
+}
+
+impl fmt::Display for FundingSettlement {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Funding Settlement:")?;
+        for line in self.as_data_str().lines() {
+            write!(f, "\n  {line}")?;
+        }
+        Ok(())
     }
 }
