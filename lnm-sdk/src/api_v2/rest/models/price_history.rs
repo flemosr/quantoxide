@@ -1,3 +1,5 @@
+use std::fmt;
+
 use chrono::{DateTime, Utc, serde::ts_milliseconds};
 use serde::Deserialize;
 
@@ -80,5 +82,19 @@ impl PriceEntry {
     /// ```
     pub fn value(&self) -> Price {
         self.value
+    }
+
+    pub fn as_data_str(&self) -> String {
+        format!("time: {}\nvalue: {}", self.time.to_rfc3339(), self.value)
+    }
+}
+
+impl fmt::Display for PriceEntry {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Price Entry:")?;
+        for line in self.as_data_str().lines() {
+            write!(f, "\n  {line}")?;
+        }
+        Ok(())
     }
 }
