@@ -432,8 +432,8 @@ impl TradeExecutor for SimulatedTradeExecutor {
             Price::bounded(state_guard.market_price),
             state_guard.last_trade_time,
             state_guard.running_map.clone().into_dyn(),
+            state_guard.realized_pl,
             state_guard.closed_len,
-            state_guard.closed_pl,
             state_guard.closed_fees,
         );
 

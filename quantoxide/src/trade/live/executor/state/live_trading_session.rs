@@ -57,8 +57,8 @@ pub(in crate::trade) struct LiveTradingSession {
     last_price: f64,
     trigger: PriceTrigger,
     running_map: DynRunningTradesMap,
+    realized_pl: i64,
     closed_len: usize,
-    closed_pl: i64,
     closed_fees: u64,
 }
 
@@ -98,8 +98,8 @@ impl LiveTradingSession {
             last_price: lastest_entry_price,
             trigger: PriceTrigger::NotSet,
             running_map: RunningTradesMap::new(),
+            realized_pl: prev_trading_session.as_ref().map_or(0, |ps| ps.realized_pl),
             closed_len: prev_trading_session.as_ref().map_or(0, |ps| ps.closed_len),
-            closed_pl: prev_trading_session.as_ref().map_or(0, |ps| ps.closed_pl),
             closed_fees: prev_trading_session.as_ref().map_or(0, |ps| ps.closed_fees),
         };
 
@@ -312,13 +312,12 @@ impl LiveTradingSession {
         let mut new_running_map = RunningTradesMap::new();
         let mut new_trigger = PriceTrigger::NotSet;
         let mut new_balance = self.balance as i64;
-        let mut new_closed_pl = self.closed_pl;
+        let mut new_realized_pl = self.realized_pl;
 
         for (curr_trade, trade_tsl) in self.running_map.trades_desc() {
             let running_trade = if let Some(updated_trade) = updated_trades.remove(&curr_trade.id())
             {
-                // As of Jul 28 2025, using `.round` here seems to match
-                // LNM's behavior.
+                // As of Dec 10 2025, using `.round` here seems to match LNM's behavior.
                 let cashed_in_pl = curr_trade.est_pl(updated_trade.price()).round() as i64;
 
                 let collateral_delta =
@@ -327,7 +326,7 @@ impl LiveTradingSession {
                         - updated_trade.maintenance_margin();
 
                 new_balance += collateral_delta;
-                new_closed_pl += cashed_in_pl;
+                new_realized_pl += cashed_in_pl;
 
                 Arc::new(updated_trade)
             } else {
@@ -350,7 +349,7 @@ impl LiveTradingSession {
         self.trigger = new_trigger;
         self.running_map = new_running_map;
         self.balance = new_balance.max(0) as u64;
-        self.closed_pl = new_closed_pl;
+        self.realized_pl = new_realized_pl;
 
         Ok(())
     }
@@ -393,8 +392,8 @@ impl LiveTradingSession {
         let mut new_running_map = RunningTradesMap::new();
         let mut new_trigger = PriceTrigger::NotSet;
         let mut new_balance = self.balance as i64;
+        let mut new_realized_pl = self.realized_pl;
         let mut new_closed_len = self.closed_len;
-        let mut new_closed_pl = self.closed_pl;
         let mut new_closed_fees = self.closed_fees;
 
         for (trade, trade_tsl) in self.running_map.trades_desc() {
@@ -403,8 +402,8 @@ impl LiveTradingSession {
                     - closed_trade.closing_fee() as i64
                     + closed_trade.pl();
 
+                new_realized_pl += closed_trade.pl();
                 new_closed_len += 1;
-                new_closed_pl += closed_trade.pl();
                 new_closed_fees += closed_trade.opening_fee() + closed_trade.closing_fee();
 
                 continue;
@@ -421,8 +420,8 @@ impl LiveTradingSession {
         self.trigger = new_trigger;
         self.running_map = new_running_map;
         self.balance = new_balance.max(0) as u64;
+        self.realized_pl = new_realized_pl;
         self.closed_len = new_closed_len;
-        self.closed_pl = new_closed_pl;
         self.closed_fees = new_closed_fees;
 
         Ok(())
@@ -441,8 +440,8 @@ impl From<LiveTradingSession> for TradingState {
             Price::bounded(value.last_price),
             value.last_trade_time,
             value.running_map,
+            value.realized_pl,
             value.closed_len,
-            value.closed_pl,
             value.closed_fees,
         )
     }

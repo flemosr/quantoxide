@@ -483,8 +483,8 @@ pub struct TradingState {
     last_trade_time: Option<DateTime<Utc>>,
     running_map: DynRunningTradesMap,
     running_stats: OnceLock<RunningStats>,
+    realized_pl: i64,
     closed_len: usize,
-    closed_pl: i64,
     closed_fees: u64,
 }
 
@@ -496,8 +496,8 @@ impl TradingState {
         market_price: Price,
         last_trade_time: Option<DateTime<Utc>>,
         running_map: DynRunningTradesMap,
+        realized_pl: i64,
         closed_len: usize,
-        closed_pl: i64,
         closed_fees: u64,
     ) -> Self {
         Self {
@@ -507,8 +507,8 @@ impl TradingState {
             last_trade_time,
             running_map,
             running_stats: OnceLock::new(),
+            realized_pl,
             closed_len,
-            closed_pl,
             closed_fees,
         }
     }
@@ -624,13 +624,15 @@ impl TradingState {
         self.get_running_stats().fees
     }
 
+    /// Returns the total realized PL of the trading session. Includes both the PL of closed trades
+    /// and the positive PL of running trades that was cashed-in.
+    pub fn realized_pl(&self) -> i64 {
+        self.realized_pl
+    }
+
     /// Returns the number of closed trades
     pub fn closed_len(&self) -> usize {
         self.closed_len
-    }
-
-    pub fn closed_pl(&self) -> i64 {
-        self.closed_pl
     }
 
     pub fn closed_fees(&self) -> u64 {
@@ -638,11 +640,11 @@ impl TradingState {
     }
 
     pub fn closed_net_pl(&self) -> i64 {
-        self.closed_pl - self.closed_fees as i64
+        self.realized_pl - self.closed_fees as i64
     }
 
     pub fn pl(&self) -> i64 {
-        self.running_pl() + self.closed_pl
+        self.running_pl() + self.realized_pl
     }
 
     pub fn fees(&self) -> u64 {
@@ -686,7 +688,7 @@ impl TradingState {
 
         result.push_str("closed_positions:\n");
         result.push_str(&format!("  trades: {}\n", self.closed_len));
-        result.push_str(&format!("  pl: {}\n", self.closed_pl));
+        result.push_str(&format!("  pl: {}\n", self.realized_pl));
         result.push_str(&format!("  fees: {}", self.closed_fees));
 
         result
