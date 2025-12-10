@@ -1,3 +1,5 @@
+use std::fmt;
+
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -585,6 +587,53 @@ impl Trade {
     /// ```
     pub fn client_id(&self) -> Option<&String> {
         self.client_id.as_ref()
+    }
+
+    pub fn as_data_str(&self) -> String {
+        let mut data_str = format!(
+            "id: {}\nside: {}\nopen: {}\nrunning: {}\ncanceled: {}\nclosed: {}\nquantity: {}\nmargin: {}\nleverage: {}\nprice: {}\nliquidation: {}\npl: {}\ncreated_at: {}",
+            self.id,
+            self.side,
+            self.open,
+            self.running,
+            self.canceled,
+            self.closed,
+            self.quantity,
+            self.margin,
+            self.leverage,
+            self.price,
+            self.liquidation,
+            self.pl,
+            self.created_at.to_rfc3339()
+        );
+
+        if let Some(entry_price) = self.entry_price {
+            data_str.push_str(&format!("\nentry_price: {entry_price}"));
+        }
+        if let Some(exit_price) = self.exit_price {
+            data_str.push_str(&format!("\nexit_price: {exit_price}"));
+        }
+        if let Some(stoploss) = self.stoploss {
+            data_str.push_str(&format!("\nstoploss: {stoploss}"));
+        }
+        if let Some(takeprofit) = self.takeprofit {
+            data_str.push_str(&format!("\ntakeprofit: {takeprofit}"));
+        }
+        if let Some(client_id) = &self.client_id {
+            data_str.push_str(&format!("\nclient_id: {client_id}"));
+        }
+
+        data_str
+    }
+}
+
+impl fmt::Display for Trade {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Trade:")?;
+        for line in self.as_data_str().lines() {
+            write!(f, "\n  {line}")?;
+        }
+        Ok(())
     }
 }
 
