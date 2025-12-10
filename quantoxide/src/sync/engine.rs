@@ -22,6 +22,7 @@ use super::{
 #[derive(Debug)]
 pub struct SyncController {
     config: SyncControllerConfig,
+    mode: SyncMode,
     handle: Mutex<Option<AbortOnDropHandle<()>>>,
     shutdown_tx: broadcast::Sender<()>,
     status_manager: Arc<SyncStatusManager>,
@@ -30,16 +31,22 @@ pub struct SyncController {
 impl SyncController {
     fn new(
         config: &SyncConfig,
+        mode: SyncMode,
         handle: AbortOnDropHandle<()>,
         shutdown_tx: broadcast::Sender<()>,
         status_manager: Arc<SyncStatusManager>,
     ) -> Arc<Self> {
         Arc::new(Self {
             config: config.into(),
+            mode,
             handle: Mutex::new(Some(handle)),
             shutdown_tx,
             status_manager,
         })
+    }
+
+    pub fn mode(&self) -> SyncMode {
+        self.mode
     }
 
     pub fn reader(&self) -> Arc<dyn SyncReader> {
@@ -196,6 +203,10 @@ impl SyncEngine {
         Ok(SyncEngine::with_api(config, db, api_rest, api_ws, mode))
     }
 
+    pub fn mode(&self) -> SyncMode {
+        self.mode
+    }
+
     pub fn reader(&self) -> Arc<dyn SyncReader> {
         self.status_manager.clone()
     }
@@ -223,6 +234,12 @@ impl SyncEngine {
             self.update_tx,
         );
 
-        SyncController::new(&self.config, handle, shutdown_tx, self.status_manager)
+        SyncController::new(
+            &self.config,
+            self.mode,
+            handle,
+            shutdown_tx,
+            self.status_manager,
+        )
     }
 }
