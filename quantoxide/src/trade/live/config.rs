@@ -27,6 +27,7 @@ pub struct LiveConfig {
     clean_up_trades_on_startup: bool,
     recover_trades_on_startup: bool,
     session_refresh_offset: TradingSessionRefreshOffset,
+    session_refresh_interval: time::Duration,
     clean_up_trades_on_shutdown: bool,
     estimated_fee_perc: PercentageCapped,
     max_running_qtd: usize,
@@ -56,6 +57,7 @@ impl Default for LiveConfig {
             clean_up_trades_on_startup: true,
             recover_trades_on_startup: false,
             session_refresh_offset,
+            session_refresh_interval: time::Duration::from_millis(1_000),
             clean_up_trades_on_shutdown: true,
             estimated_fee_perc: PercentageCapped::try_from(0.1)
                 .expect("must be valid `PercentageCapped`"),
@@ -125,6 +127,10 @@ impl LiveConfig {
 
     pub fn session_refresh_offset(&self) -> TradingSessionRefreshOffset {
         self.session_refresh_offset
+    }
+
+    pub fn session_refresh_interval(&self) -> time::Duration {
+        self.session_refresh_interval
     }
 
     pub fn clean_up_trades_on_shutdown(&self) -> bool {
@@ -225,6 +231,11 @@ impl LiveConfig {
         self
     }
 
+    pub fn with_session_refresh_interval(mut self, millis: u64) -> Self {
+        self.session_refresh_interval = time::Duration::from_millis(millis);
+        self
+    }
+
     pub fn with_clean_up_trades_on_shutdown(mut self, clean_up_trades_on_shutdown: bool) -> Self {
         self.clean_up_trades_on_shutdown = clean_up_trades_on_shutdown;
         self
@@ -312,6 +323,7 @@ pub struct LiveTradeExecutorConfig {
     clean_up_trades_on_startup: bool,
     recover_trades_on_startup: bool,
     session_refresh_offset: TradingSessionRefreshOffset,
+    session_refresh_interval: time::Duration,
     clean_up_trades_on_shutdown: bool,
     estimated_fee_perc: PercentageCapped,
     max_running_qtd: usize,
@@ -332,6 +344,10 @@ impl LiveTradeExecutorConfig {
 
     pub fn session_refresh_offset(&self) -> TradingSessionRefreshOffset {
         self.session_refresh_offset
+    }
+
+    pub fn session_refresh_interval(&self) -> time::Duration {
+        self.session_refresh_interval
     }
 
     pub fn clean_up_trades_on_shutdown(&self) -> bool {
@@ -369,6 +385,11 @@ impl LiveTradeExecutorConfig {
         self
     }
 
+    pub fn with_session_refresh_interval(mut self, millis: u64) -> Self {
+        self.session_refresh_interval = time::Duration::from_millis(millis);
+        self
+    }
+
     pub fn with_clean_up_trades_on_shutdown(mut self, clean_up_trades_on_shutdown: bool) -> Self {
         self.clean_up_trades_on_shutdown = clean_up_trades_on_shutdown;
         self
@@ -396,6 +417,7 @@ impl Default for LiveTradeExecutorConfig {
             clean_up_trades_on_startup: true,
             recover_trades_on_startup: false,
             session_refresh_offset,
+            session_refresh_interval: time::Duration::from_millis(1_000),
             clean_up_trades_on_shutdown: true,
             estimated_fee_perc: PercentageCapped::try_from(0.1)
                 .expect("must be valid `PercentageCapped`"),
@@ -411,6 +433,7 @@ impl From<&LiveConfig> for LiveTradeExecutorConfig {
             clean_up_trades_on_startup: value.clean_up_trades_on_startup(),
             recover_trades_on_startup: value.recover_trades_on_startup(),
             session_refresh_offset: value.session_refresh_offset(),
+            session_refresh_interval: value.session_refresh_interval(),
             clean_up_trades_on_shutdown: value.clean_up_trades_on_shutdown(),
             estimated_fee_perc: value.estimated_fee_perc(),
             max_running_qtd: value.max_running_qtd(),
