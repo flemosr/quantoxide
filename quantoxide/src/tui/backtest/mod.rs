@@ -113,6 +113,13 @@ impl BacktestTui {
         tokio::spawn(async move {
             let backtest_start = Utc::now();
 
+            let send_ui_msg = async |ui_msg: BacktestUiMessage| -> Result<()> {
+                ui_tx
+                    .send(ui_msg)
+                    .await
+                    .map_err(|e| TuiError::BacktestTuiSendFailed(Box::new(e)))
+            };
+
             let handle_backtest_update = async |backtest_update: BacktestUpdate| -> Result<()> {
                 match backtest_update {
                     BacktestUpdate::Status(backtest_status) => {
@@ -127,18 +134,13 @@ impl BacktestTui {
                             String::new()
                         };
 
-                        ui_tx
-                            .send(BacktestUiMessage::LogEntry(format!(
-                                "Backtest status: {backtest_status}{complement}"
-                            )))
-                            .await
-                            .map_err(|e| TuiError::BacktestTuiSendFailed(Box::new(e)))?;
+                        send_ui_msg(BacktestUiMessage::LogEntry(format!(
+                            "Backtest status: {backtest_status}{complement}"
+                        )))
+                        .await?;
                     }
                     BacktestUpdate::TradingState(trading_state) => {
-                        ui_tx
-                            .send(BacktestUiMessage::StateUpdate(trading_state))
-                            .await
-                            .map_err(|e| TuiError::BacktestTuiSendFailed(Box::new(e)))?;
+                        send_ui_msg(BacktestUiMessage::StateUpdate(trading_state)).await?;
                     }
                 };
 
@@ -155,11 +157,8 @@ impl BacktestTui {
                     }
                     Err(RecvError::Lagged(skipped)) => {
                         let log_msg = format!("Backtest updates lagged by {skipped} messages");
-                        if let Err(e) = ui_tx
-                            .send(BacktestUiMessage::LogEntry(log_msg))
-                            .await
-                            .map_err(|e| TuiError::BacktestTuiSendFailed(Box::new(e)))
-                        {
+
+                        if let Err(e) = send_ui_msg(BacktestUiMessage::LogEntry(log_msg)).await {
                             status_manager.set_crashed(e);
                             return;
                         }
