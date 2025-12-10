@@ -62,8 +62,12 @@ impl RealTimeCollectionTask {
                                 }
                             },
                         },
-                        Err(RecvError::Lagged(skipped)) => return Err(RealTimeCollectionError::WebSocketRecvLagged{skipped}),
-                        Err(RecvError::Closed) => return Err(RealTimeCollectionError::WebSocketRecvClosed)
+                        Err(RecvError::Lagged(skipped)) => {
+                            return Err(RealTimeCollectionError::WebSocketRecvLagged { skipped });
+                        },
+                        Err(RecvError::Closed) => {
+                            return Err(RealTimeCollectionError::WebSocketRecvClosed);
+                        }
                     }
                 }
                 shutdown_res = shutdown_rx.recv() => {
