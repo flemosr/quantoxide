@@ -21,6 +21,7 @@ pub struct LiveConfig {
     sync_mode_full: bool,
     sync_history_reach: Duration,
     re_sync_history_interval: time::Duration,
+    max_tick_interval: time::Duration,
     sync_update_timeout: time::Duration,
     tsl_step_size: PercentageCapped,
     clean_up_trades_on_startup: bool,
@@ -49,6 +50,7 @@ impl Default for LiveConfig {
             sync_mode_full: false,
             sync_history_reach: Duration::days(90),
             re_sync_history_interval: time::Duration::from_secs(10),
+            max_tick_interval: time::Duration::from_mins(3),
             sync_update_timeout: time::Duration::from_secs(5),
             tsl_step_size: PercentageCapped::MIN,
             clean_up_trades_on_startup: true,
@@ -99,6 +101,10 @@ impl LiveConfig {
 
     pub fn re_sync_history_interval(&self) -> time::Duration {
         self.re_sync_history_interval
+    }
+
+    pub fn max_tick_interval(&self) -> time::Duration {
+        self.max_tick_interval
     }
 
     pub fn sync_update_timeout(&self) -> time::Duration {
@@ -183,6 +189,11 @@ impl LiveConfig {
 
     pub fn with_re_sync_history_interval(mut self, secs: u64) -> Self {
         self.re_sync_history_interval = time::Duration::from_secs(secs);
+        self
+    }
+
+    pub fn with_max_tick_interval(mut self, secs: u64) -> Self {
+        self.max_tick_interval = time::Duration::from_secs(secs);
         self
     }
 
