@@ -936,6 +936,43 @@ impl CrossOrder {
     pub fn client_id(&self) -> Option<&String> {
         self.client_id.as_ref()
     }
+
+    pub fn as_data_str(&self) -> String {
+        let mut result = format!(
+            "id: {}\nside: {}\nopen: {}\nfilled: {}\ncanceled: {}\nquantity: {}\nprice: {}\ntrading_fee: {}\ncreated_at: {}",
+            self.id,
+            self.side,
+            self.open,
+            self.filled,
+            self.canceled,
+            self.quantity,
+            self.price,
+            self.trading_fee,
+            self.created_at.to_rfc3339()
+        );
+
+        if let Some(filled_at) = self.filled_at {
+            result.push_str(&format!("\nfilled_at: {}", filled_at.to_rfc3339()));
+        }
+        if let Some(canceled_at) = self.canceled_at {
+            result.push_str(&format!("\ncanceled_at: {}", canceled_at.to_rfc3339()));
+        }
+        if let Some(client_id) = &self.client_id {
+            result.push_str(&format!("\nclient_id: {}", client_id));
+        }
+
+        result
+    }
+}
+
+impl fmt::Display for CrossOrder {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Cross Order:")?;
+        for line in self.as_data_str().lines() {
+            write!(f, "\n  {line}")?;
+        }
+        Ok(())
+    }
 }
 
 /// A cross-margin futures position returned from the LN Markets API.
@@ -1205,5 +1242,41 @@ impl CrossPosition {
     /// ```
     pub fn delta_pl(&self) -> i64 {
         self.delta_pl
+    }
+
+    pub fn as_data_str(&self) -> String {
+        let mut data_str = format!(
+            "id: {}\nmargin: {}\nquantity: {}\nleverage: {}\nrunning_margin: {}\ninitial_margin: {}\nmaintenance_margin: {}\ntrading_fees: {}\nfunding_fees: {}\ntotal_pl: {}\ndelta_pl: {}",
+            self.id,
+            self.margin,
+            self.quantity,
+            self.leverage,
+            self.running_margin,
+            self.initial_margin,
+            self.maintenance_margin,
+            self.trading_fees,
+            self.funding_fees,
+            self.total_pl,
+            self.delta_pl
+        );
+
+        if let Some(entry_price) = self.entry_price {
+            data_str.push_str(&format!("\nentry_price: {entry_price}"));
+        }
+        if let Some(liquidation) = self.liquidation {
+            data_str.push_str(&format!("\nliquidation: {liquidation}"));
+        }
+
+        data_str
+    }
+}
+
+impl fmt::Display for CrossPosition {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Cross Position:")?;
+        for line in self.as_data_str().lines() {
+            write!(f, "\n  {line}")?;
+        }
+        Ok(())
     }
 }
