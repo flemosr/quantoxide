@@ -1,4 +1,4 @@
-use std::result;
+use std::{result, time::Duration};
 
 use thiserror::Error;
 use tokio::{
@@ -27,6 +27,9 @@ pub enum SyncProcessRecoverableError {
 
     #[error("PriceTickRecv error: {0}")]
     PriceTickRecv(RecvError),
+
+    #[error("Maximum interval between price ticks ({0:?}) was exceeded.")]
+    MaxPriceTickIntevalExceeded(Duration),
 }
 
 #[derive(Error, Debug)]

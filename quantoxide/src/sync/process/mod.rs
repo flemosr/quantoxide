@@ -77,6 +77,8 @@ impl SyncProcess {
             self.status_manager
                 .update(SyncStatusNotSynced::Starting.into());
 
+            self.api_ws.reset().await;
+
             let mut shutdown_rx = self.shutdown_tx.subscribe();
 
             let sync_process_error = tokio::select! {
@@ -189,6 +191,8 @@ impl SyncProcess {
             } else {
                 Box::pin(future::pending::<()>())
             };
+        let new_tick_interval_timer = || Box::pin(time::sleep(self.config.max_tick_interval()));
+        let mut tick_interval_timer = new_tick_interval_timer();
 
         loop {
             tokio::select! {
@@ -198,6 +202,7 @@ impl SyncProcess {
                     return Err(SyncProcessRecoverableError::UnexpectedRealTimeCollectionShutdown.into());
                 }
                 tick_res = price_tick_rx.recv() => {
+                    tick_interval_timer = new_tick_interval_timer();
                     let tick = tick_res.map_err(SyncProcessRecoverableError::PriceTickRecv)?;
                     let _ = self.update_tx.send(tick.into());
                 }
@@ -206,6 +211,13 @@ impl SyncProcess {
                     let range = lookback.expect("must be `Some` from `re_sync_timer` definition");
                     self.run_price_history_task_live(None, range).await?;
                     re_sync_timer = new_re_sync_timer();
+                }
+                _ = &mut tick_interval_timer => {
+                    // Maximum interval between Price Ticks was exceeded
+                    return Err(SyncProcessRecoverableError::MaxPriceTickIntevalExceeded(
+                        self.config.max_tick_interval(),
+                    )
+                    .into());
                 }
             }
         }
@@ -247,6 +259,8 @@ impl SyncProcess {
 
         let new_re_sync_timer = || Box::pin(time::sleep(self.config.re_sync_history_interval()));
         let mut re_sync_timer = new_re_sync_timer();
+        let new_tick_interval_timer = || Box::pin(time::sleep(self.config.max_tick_interval()));
+        let mut tick_interval_timer = new_tick_interval_timer();
 
         loop {
             tokio::select! {
@@ -258,6 +272,7 @@ impl SyncProcess {
                 tick_res = price_tick_rx.recv() => {
                     match tick_res {
                         Ok(tick) => {
+                            tick_interval_timer = new_tick_interval_timer();
                             let _ = self.update_tx.send(tick.into());
                         },
                         Err(e) => return Err(SyncProcessRecoverableError::PriceTickRecv(e).into())
@@ -267,6 +282,13 @@ impl SyncProcess {
                     // Ensure the OHLC candles DB remains up-to-date
                     self.run_price_history_task_backfill(None).await?;
                     re_sync_timer = new_re_sync_timer();
+                }
+                _ = &mut tick_interval_timer => {
+                    // Maximum interval between Price Ticks was exceeded
+                    return Err(SyncProcessRecoverableError::MaxPriceTickIntevalExceeded(
+                        self.config.max_tick_interval(),
+                    )
+                    .into());
                 }
             }
         }
