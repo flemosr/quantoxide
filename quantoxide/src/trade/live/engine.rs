@@ -187,7 +187,7 @@ impl LiveEngine {
             LiveTradeExecutorLauncher::new(&config, db, api_rest, sync_engine.update_receiver())
                 .map_err(LiveError::SetupExecutor)?;
 
-        let (update_tx, _) = broadcast::channel::<LiveUpdate>(100);
+        let (update_tx, _) = broadcast::channel::<LiveUpdate>(1_000);
 
         let status_manager = LiveStatusManager::new(update_tx.clone());
 
@@ -239,7 +239,7 @@ impl LiveEngine {
             LiveTradeExecutorLauncher::new(&config, db, api_rest, sync_engine.update_receiver())
                 .map_err(LiveError::SetupExecutor)?;
 
-        let (update_tx, _) = broadcast::channel::<LiveUpdate>(100);
+        let (update_tx, _) = broadcast::channel::<LiveUpdate>(1_000);
 
         let status_manager = LiveStatusManager::new(update_tx.clone());
 
