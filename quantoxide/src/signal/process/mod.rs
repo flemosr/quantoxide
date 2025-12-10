@@ -118,8 +118,12 @@ impl LiveSignalProcess {
                                         SyncUpdate::PriceHistoryState(_) => {}
                                     }
                                 },
-                                Err(RecvError::Lagged(skipped)) => return Err(SignalProcessRecoverableError::SyncRecvLagged{skipped}.into()),
-                                Err(RecvError::Closed) => return Err(SignalProcessFatalError::SyncRecvClosed.into())
+                                Err(RecvError::Lagged(skipped)) => {
+                                    return Err(SignalProcessRecoverableError::SyncRecvLagged { skipped }.into());
+                                },
+                                Err(RecvError::Closed) => {
+                                    return Err(SignalProcessFatalError::SyncRecvClosed.into());
+                                }
                             }
                         }
                         _ = time::sleep(self.config.sync_update_timeout()) => {
