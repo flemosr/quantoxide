@@ -13,8 +13,8 @@ use super::{
 /// A validated quantity value denominated in USD.
 ///
 /// Quantity represents the notional value of a trading position in USD.
-/// This type ensures that quantity values are within acceptable bounds and can be safely used
-/// with [`Trade`] implementations.
+/// This type ensures that quantity values are within acceptable bounds and can be safely used when
+/// trading futures.
 ///
 /// Quantity values must be:
 /// + Integer values (whole USD amounts)
@@ -34,8 +34,6 @@ use super::{
 /// assert!(Quantity::try_from(0).is_err());
 /// assert!(Quantity::try_from(600_000).is_err());
 /// ```
-///
-/// [`Trade`]: crate::models::Trade
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Quantity(u64);
 
@@ -52,7 +50,7 @@ impl Quantity {
     /// ([Quantity::MIN], [Quantity::MAX]).
     /// It should be used to ensure a valid `Quantity` without error handling.
     ///
-    /// **Note:** In order to validate whether a value is a valid quantity and receive an error for
+    /// **Note:** In order to check whether a value is a valid quantity and receive an error for
     /// invalid values, use [`Quantity::try_from`].
     ///
     /// # Examples
