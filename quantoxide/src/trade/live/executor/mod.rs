@@ -504,6 +504,7 @@ impl LiveTradeExecutorLauncher {
         recover_trades_on_startup: bool,
         tsl_step_size: PercentageCapped,
         session_refresh_offset: TradingSessionRefreshOffset,
+        session_refresh_interval: time::Duration,
         db: Arc<Database>,
         api: WrappedRestClient,
         update_tx: LiveTradeExecutorTransmiter,
@@ -569,7 +570,7 @@ impl LiveTradeExecutorLauncher {
             let handler = async || -> ExecutorProcessFatalResult<Never> {
                 let mut sync_rx = sync_rx;
                 let mut should_refresh = false;
-                let new_refresh_timer = || Box::pin(time::sleep(time::Duration::from_millis(500)));
+                let new_refresh_timer = || Box::pin(time::sleep(session_refresh_interval));
                 let mut refresh_timer = new_refresh_timer();
 
                 loop {
@@ -659,6 +660,7 @@ impl LiveTradeExecutorLauncher {
             self.config.recover_trades_on_startup(),
             self.config.trailing_stoploss_step_size(),
             self.config.session_refresh_offset(),
+            self.config.session_refresh_interval(),
             self.db.clone(),
             self.api_rest.clone(),
             self.update_tx.clone(),
