@@ -89,4 +89,10 @@ impl WebSocketClient {
 
         Ok(new_conn)
     }
+
+    pub async fn reset(&self) {
+        let mut conn_guard = self.conn.lock().await;
+
+        *conn_guard = None;
+    }
 }
