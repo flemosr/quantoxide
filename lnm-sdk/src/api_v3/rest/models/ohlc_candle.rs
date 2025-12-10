@@ -116,4 +116,26 @@ impl OhlcCandle {
     pub fn volume(&self) -> u64 {
         self.volume
     }
+
+    pub fn as_data_str(&self) -> String {
+        format!(
+            "time: {}\nopen: {}\nhigh: {}\nlow: {}\nclose: {}\nvolume: {}",
+            self.time.to_rfc3339(),
+            self.open,
+            self.high,
+            self.low,
+            self.close,
+            self.volume
+        )
+    }
+}
+
+impl fmt::Display for OhlcCandle {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "OHLC Candle:")?;
+        for line in self.as_data_str().lines() {
+            write!(f, "\n  {line}")?;
+        }
+        Ok(())
+    }
 }
