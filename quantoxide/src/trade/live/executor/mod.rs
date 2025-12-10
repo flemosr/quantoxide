@@ -473,7 +473,7 @@ impl LiveTradeExecutorLauncher {
             return Err(LiveTradeExecutorError::ApiCredentialsNotSet);
         }
 
-        let (update_tx, _) = broadcast::channel::<LiveTradeExecutorUpdate>(100);
+        let (update_tx, _) = broadcast::channel::<LiveTradeExecutorUpdate>(1_000);
 
         let api_rest = WrappedRestClient::new(api_rest, update_tx.clone());
 

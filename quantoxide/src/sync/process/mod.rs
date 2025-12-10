@@ -165,7 +165,7 @@ impl SyncProcess {
 
         // Start to collect real-time data
 
-        let (price_tick_tx, _) = broadcast::channel::<PriceTickRow>(1000);
+        let (price_tick_tx, _) = broadcast::channel::<PriceTickRow>(1_000);
 
         let mut real_time_collection_handle =
             self.spawn_real_time_collection_task(price_tick_tx.clone());
@@ -244,7 +244,7 @@ impl SyncProcess {
 
         // Start to collect real-time data
 
-        let (price_tick_tx, _) = broadcast::channel::<PriceTickRow>(1000);
+        let (price_tick_tx, _) = broadcast::channel::<PriceTickRow>(1_000);
 
         let mut real_time_collection_handle =
             self.spawn_real_time_collection_task(price_tick_tx.clone());

@@ -173,7 +173,7 @@ impl SyncEngine {
         api_ws: Arc<WebSocketClient>,
         mode: SyncMode,
     ) -> Self {
-        let (update_tx, _) = broadcast::channel::<SyncUpdate>(1000);
+        let (update_tx, _) = broadcast::channel::<SyncUpdate>(1_000);
 
         let status_manager = SyncStatusManager::new(update_tx.clone());
 
