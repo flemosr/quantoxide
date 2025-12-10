@@ -257,8 +257,12 @@ impl LiveProcess {
                                         // Sync may take a long time when `sync_mode_full: true`
                                     }
                                 },
-                                Err(RecvError::Lagged(skipped)) => return Err(LiveProcessRecoverableError::SyncRecvLagged{skipped}.into()),
-                                Err(RecvError::Closed) => return Err(LiveProcessFatalError::SyncRecvClosed.into())
+                                Err(RecvError::Lagged(skipped)) => {
+                                    return Err(LiveProcessRecoverableError::SyncRecvLagged { skipped }.into());
+                                },
+                                Err(RecvError::Closed) => {
+                                    return Err(LiveProcessFatalError::SyncRecvClosed.into());
+                                }
                             }
                         }
                         _ = time::sleep(self.config.sync_update_timeout()) => {
