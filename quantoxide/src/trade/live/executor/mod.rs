@@ -6,9 +6,12 @@ use std::{
 
 use async_trait::async_trait;
 use futures::future;
-use tokio::sync::broadcast::{
-    self,
-    error::{RecvError, TryRecvError},
+use tokio::{
+    sync::broadcast::{
+        self,
+        error::{RecvError, TryRecvError},
+    },
+    time,
 };
 use uuid::Uuid;
 
@@ -563,61 +566,71 @@ impl LiveTradeExecutorLauncher {
                 locked_state.update_status_ready(current_trading_session);
             };
 
-            // TODO: Trigger refresh trading session? tokio::select with timer
-            // that checks if the trigger flag was setup every 0.5s?
-
             let handler = async || -> ExecutorProcessFatalResult<Never> {
                 let mut sync_rx = sync_rx;
-                loop {
-                    match sync_rx.recv().await {
-                        Ok(sync_update) => match sync_update {
-                            SyncUpdate::Status(sync_status) => match sync_status {
-                                SyncStatus::NotSynced(sync_status_not_synced) => {
-                                    let new_status_not_ready =
-                                        LiveTradeExecutorStatusNotReady::WaitingForSync(
-                                            sync_status_not_synced,
-                                        );
-                                    state_manager
-                                        .update_status_not_ready(new_status_not_ready)
-                                        .await;
-                                }
-                                SyncStatus::Terminated(err) => {
-                                    // Non-recoverable error
-                                    return Err(ExecutorProcessFatalError::SyncProcessTerminated(
-                                        err,
-                                    ));
-                                }
-                                SyncStatus::ShutdownInitiated | SyncStatus::Shutdown => {
-                                    // Non-recoverable error
-                                    return Err(ExecutorProcessFatalError::SyncProcessShutdown);
-                                }
-                                SyncStatus::Synced => refresh_trading_session().await,
-                            },
-                            SyncUpdate::PriceTick(_) => refresh_trading_session().await,
-                            SyncUpdate::PriceHistoryState(_) => {}
-                        },
-                        Err(RecvError::Lagged(skipped)) => {
-                            state_manager
-                                .update_status_not_ready(LiveTradeExecutorStatusNotReady::Failed(
-                                    Arc::new(ExecutorProcessRecoverableError::SyncRecvLagged {
-                                        skipped,
-                                    }),
-                                ))
-                                .await;
+                let mut should_refresh = false;
+                let new_refresh_timer = || Box::pin(time::sleep(time::Duration::from_millis(500)));
+                let mut refresh_timer = new_refresh_timer();
 
-                            // Drain all remaining messages to catch up to current state
-                            loop {
-                                match sync_rx.try_recv() {
-                                    Ok(_) | Err(TryRecvError::Lagged(_)) => continue,
-                                    Err(TryRecvError::Empty) => break,
-                                    Err(TryRecvError::Closed) => {
-                                        return Err(ExecutorProcessFatalError::SyncRecvClosed);
+                loop {
+                    tokio::select! {
+                        recv_result = sync_rx.recv() => {
+                            match recv_result {
+                                Ok(sync_update) => match sync_update {
+                                    SyncUpdate::Status(sync_status) => match sync_status {
+                                        SyncStatus::NotSynced(sync_status_not_synced) => {
+                                            let new_status_not_ready =
+                                                LiveTradeExecutorStatusNotReady::WaitingForSync(
+                                                    sync_status_not_synced,
+                                                );
+                                            state_manager
+                                                .update_status_not_ready(new_status_not_ready)
+                                                .await;
+                                        }
+                                        SyncStatus::Terminated(err) => {
+                                            return Err(ExecutorProcessFatalError::SyncProcessTerminated(
+                                                err,
+                                            ));
+                                        }
+                                        SyncStatus::ShutdownInitiated | SyncStatus::Shutdown => {
+                                            return Err(ExecutorProcessFatalError::SyncProcessShutdown);
+                                        }
+                                        SyncStatus::Synced => should_refresh = true,
+                                    },
+                                    SyncUpdate::PriceTick(_) => should_refresh = true,
+                                    SyncUpdate::PriceHistoryState(_) => {}
+                                },
+                                Err(RecvError::Lagged(skipped)) => {
+                                    state_manager
+                                        .update_status_not_ready(LiveTradeExecutorStatusNotReady::Failed(
+                                            Arc::new(ExecutorProcessRecoverableError::SyncRecvLagged {
+                                                skipped,
+                                            }),
+                                        ))
+                                        .await;
+
+                                    // Drain all remaining messages to catch up to current state
+                                    loop {
+                                        match sync_rx.try_recv() {
+                                            Ok(_) | Err(TryRecvError::Lagged(_)) => continue,
+                                            Err(TryRecvError::Empty) => break,
+                                            Err(TryRecvError::Closed) => {
+                                                return Err(ExecutorProcessFatalError::SyncRecvClosed);
+                                            }
+                                        }
                                     }
+                                }
+                                Err(RecvError::Closed) => {
+                                    return Err(ExecutorProcessFatalError::SyncRecvClosed);
                                 }
                             }
                         }
-                        Err(RecvError::Closed) => {
-                            return Err(ExecutorProcessFatalError::SyncRecvClosed);
+                        _ = &mut refresh_timer => {
+                            if should_refresh {
+                                should_refresh = false;
+                                refresh_trading_session().await;
+                            }
+                            refresh_timer = new_refresh_timer();
                         }
                     }
                 }
