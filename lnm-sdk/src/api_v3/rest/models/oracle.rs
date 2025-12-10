@@ -1,3 +1,5 @@
+use std::fmt;
+
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
 
@@ -41,6 +43,20 @@ impl Index {
     pub fn index(&self) -> Price {
         self.index
     }
+
+    pub fn as_data_str(&self) -> String {
+        format!("time: {}\nindex: {}", self.time.to_rfc3339(), self.index)
+    }
+}
+
+impl fmt::Display for Index {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Index:")?;
+        for line in self.as_data_str().lines() {
+            write!(f, "\n  {line}")?;
+        }
+        Ok(())
+    }
 }
 
 /// Last traded price data point.
@@ -79,5 +95,23 @@ impl LastPrice {
     /// Last price value.
     pub fn last_price(&self) -> Price {
         self.last_price
+    }
+
+    pub fn as_data_str(&self) -> String {
+        format!(
+            "time: {}\nlast_price: {}",
+            self.time.to_rfc3339(),
+            self.last_price
+        )
+    }
+}
+
+impl fmt::Display for LastPrice {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Last Price:")?;
+        for line in self.as_data_str().lines() {
+            write!(f, "\n  {line}")?;
+        }
+        Ok(())
     }
 }
