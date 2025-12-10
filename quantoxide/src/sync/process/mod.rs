@@ -73,13 +73,13 @@ impl SyncProcess {
     }
 
     async fn recovery_loop(self) {
+        self.status_manager
+            .update(SyncStatusNotSynced::Starting.into());
+
+        let mut shutdown_rx = self.shutdown_tx.subscribe();
+
         loop {
-            self.status_manager
-                .update(SyncStatusNotSynced::Starting.into());
-
             self.api_ws.reset().await;
-
-            let mut shutdown_rx = self.shutdown_tx.subscribe();
 
             let sync_process_error = tokio::select! {
                 Err(sync_error) = self.run_mode() => sync_error,
@@ -103,9 +103,6 @@ impl SyncProcess {
                 }
             }
 
-            self.status_manager
-                .update(SyncStatusNotSynced::Restarting.into());
-
             // Handle shutdown signals while waiting for `restart_interval`
 
             tokio::select! {
@@ -118,6 +115,9 @@ impl SyncProcess {
                     return;
                 }
             }
+
+            self.status_manager
+                .update(SyncStatusNotSynced::Restarting.into());
         }
     }
 
