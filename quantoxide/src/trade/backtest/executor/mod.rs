@@ -40,8 +40,6 @@ impl From<TradeSide> for Close {
 
 struct SimulatedTradeExecutorState {
     time: DateTime<Utc>,
-    // TODO: Remove `last_tick_time`
-    last_tick_time: DateTime<Utc>,
     market_price: f64,
     balance: i64,
     last_trade_time: Option<DateTime<Utc>>,
@@ -65,7 +63,6 @@ impl SimulatedTradeExecutor {
     ) -> Self {
         let initial_state = SimulatedTradeExecutorState {
             time: start_candle.time + Duration::seconds(59),
-            last_tick_time: start_candle.time + Duration::seconds(59),
             market_price: start_candle.close,
             balance: start_balance as i64,
             last_trade_time: None,
@@ -87,7 +84,7 @@ impl SimulatedTradeExecutor {
 
         let time = candle.time + Duration::seconds(59);
 
-        if time <= state_guard.last_tick_time || time < state_guard.time {
+        if time < state_guard.time {
             return Err(SimulatedTradeExecutorError::TimeSequenceViolation {
                 new_time: time,
                 current_time: state_guard.time,
@@ -95,7 +92,6 @@ impl SimulatedTradeExecutor {
         }
 
         state_guard.time = time;
-        state_guard.last_tick_time = time;
         state_guard.market_price = candle.close;
 
         if !state_guard.trigger.was_reached(candle.low)
@@ -427,7 +423,7 @@ impl TradeExecutor for SimulatedTradeExecutor {
         let state_guard = self.state.lock().await;
 
         let trades_state = TradingState::new(
-            state_guard.last_tick_time,
+            state_guard.time,
             state_guard.balance.max(0) as u64,
             Price::bounded(state_guard.market_price),
             state_guard.last_trade_time,
