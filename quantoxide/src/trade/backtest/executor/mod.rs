@@ -47,8 +47,8 @@ struct SimulatedTradeExecutorState {
     last_trade_time: Option<DateTime<Utc>>,
     trigger: PriceTrigger,
     running_map: RunningTradesMap<SimulatedTradeRunning>,
+    realized_pl: i64,
     closed_len: usize,
-    closed_pl: i64,
     closed_fees: u64,
 }
 
@@ -71,8 +71,8 @@ impl SimulatedTradeExecutor {
             last_trade_time: None,
             trigger: PriceTrigger::new(),
             running_map: RunningTradesMap::new(),
+            realized_pl: 0,
             closed_len: 0,
-            closed_pl: 0,
             closed_fees: 0,
         };
 
@@ -108,8 +108,8 @@ impl SimulatedTradeExecutor {
         // trades must be re-evaluated.
 
         let mut new_balance = state_guard.balance as i64;
+        let mut new_realized_pl = state_guard.realized_pl;
         let mut new_closed_len = state_guard.closed_len;
-        let mut new_closed_pl = state_guard.closed_pl;
         let mut new_closed_fees = state_guard.closed_fees;
         let mut new_last_trade_time = state_guard.last_trade_time;
 
@@ -120,8 +120,8 @@ impl SimulatedTradeExecutor {
                 - closed_trade.closing_fee() as i64
                 + closed_trade.pl();
 
+            new_realized_pl += closed_trade.pl();
             new_closed_len += 1;
-            new_closed_pl += closed_trade.pl();
             new_closed_fees += closed_trade.opening_fee() + closed_trade.closing_fee();
             new_last_trade_time = Some(time);
         };
@@ -198,8 +198,8 @@ impl SimulatedTradeExecutor {
         state_guard.trigger = new_trigger;
         state_guard.running_map = new_running_map;
 
+        state_guard.realized_pl = new_realized_pl;
         state_guard.closed_len = new_closed_len;
-        state_guard.closed_pl = new_closed_pl;
         state_guard.closed_fees = new_closed_fees;
         state_guard.last_trade_time = new_last_trade_time;
 
@@ -214,8 +214,8 @@ impl SimulatedTradeExecutor {
             .map_err(SimulatedTradeExecutorError::InvalidMarketPrice)?;
 
         let mut new_balance = state_guard.balance as i64;
+        let mut new_realized_pl = state_guard.realized_pl;
         let mut new_closed_len = state_guard.closed_len;
-        let mut new_closed_pl = state_guard.closed_pl;
         let mut new_closed_fees = state_guard.closed_fees;
 
         let mut close_trade = |trade: Arc<SimulatedTradeRunning>| {
@@ -225,8 +225,8 @@ impl SimulatedTradeExecutor {
                 - closed_trade.closing_fee() as i64
                 + closed_trade.pl();
 
+            new_realized_pl += closed_trade.pl();
             new_closed_len += 1;
-            new_closed_pl += closed_trade.pl();
             new_closed_fees += closed_trade.opening_fee() + closed_trade.closing_fee();
         };
 
@@ -261,8 +261,8 @@ impl SimulatedTradeExecutor {
         state_guard.trigger = new_trigger;
         state_guard.running_map = new_running_map;
 
+        state_guard.realized_pl = new_realized_pl;
         state_guard.closed_len = new_closed_len;
-        state_guard.closed_pl = new_closed_pl;
         state_guard.closed_fees = new_closed_fees;
 
         Ok(())
@@ -398,7 +398,7 @@ impl TradeExecutor for SimulatedTradeExecutor {
         *trade = updated_trade;
 
         state_guard.balance += amount.get() as i64;
-        state_guard.closed_pl += cashed_in_pl;
+        state_guard.realized_pl += cashed_in_pl;
 
         Ok(())
     }
