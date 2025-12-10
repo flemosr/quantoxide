@@ -171,12 +171,12 @@ impl LiveSignalProcess {
     }
 
     async fn recovery_loop(self) {
+        self.status_manager
+            .update(LiveSignalStatusNotRunning::Starting.into());
+
+        let mut shutdown_rx = self.shutdown_tx.subscribe();
+
         loop {
-            self.status_manager
-                .update(LiveSignalStatusNotRunning::Starting.into());
-
-            let mut shutdown_rx = self.shutdown_tx.subscribe();
-
             let signal_process_error = tokio::select! {
                 Err(signal_error) = self.run() => signal_error,
                 shutdown_res = shutdown_rx.recv() => {
@@ -199,9 +199,6 @@ impl LiveSignalProcess {
                 }
             }
 
-            self.status_manager
-                .update(LiveSignalStatusNotRunning::Restarting.into());
-
             // Handle shutdown signals while waiting for `restart_interval`
 
             tokio::select! {
@@ -214,6 +211,9 @@ impl LiveSignalProcess {
                     return;
                 }
             }
+
+            self.status_manager
+                .update(LiveSignalStatusNotRunning::Restarting.into());
         }
     }
 }
