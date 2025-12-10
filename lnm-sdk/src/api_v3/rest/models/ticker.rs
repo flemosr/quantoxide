@@ -1,3 +1,5 @@
+use std::fmt;
+
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
 
@@ -31,6 +33,23 @@ impl TickerPrice {
     /// Get the maximum size.
     pub fn max_size(&self) -> u64 {
         self.max_size
+    }
+
+    pub fn as_data_str(&self) -> String {
+        format!(
+            "ask_price: {}\nbid_price: {}\nmin_size: {}\nmax_size: {}",
+            self.ask_price, self.bid_price, self.min_size, self.max_size
+        )
+    }
+}
+
+impl fmt::Display for TickerPrice {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Ticker Price:")?;
+        for line in self.as_data_str().lines() {
+            write!(f, "\n  {line}")?;
+        }
+        Ok(())
     }
 }
 
@@ -92,5 +111,25 @@ impl Ticker {
     /// Get the funding time.
     pub fn funding_time(&self) -> DateTime<Utc> {
         self.funding_time
+    }
+
+    pub fn as_data_str(&self) -> String {
+        format!(
+            "index: {}\nlast_price: {}\nfunding_rate: {:.6}\nfunding_time: {}",
+            self.index,
+            self.last_price,
+            self.funding_rate,
+            self.funding_time.to_rfc3339()
+        )
+    }
+}
+
+impl fmt::Display for Ticker {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Ticker:")?;
+        for line in self.as_data_str().lines() {
+            write!(f, "\n  {line}")?;
+        }
+        Ok(())
     }
 }
