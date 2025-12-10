@@ -6,12 +6,15 @@ use std::{
 
 use async_trait::async_trait;
 use futures::future;
-use tokio::sync::broadcast::{self, error::RecvError};
+use tokio::sync::broadcast::{
+    self,
+    error::{RecvError, TryRecvError},
+};
 use uuid::Uuid;
 
 use lnm_sdk::api_v3::{
     RestClient,
-    models::{PercentageCapped, Leverage, Price, TradeSide, TradeSize, trade_util},
+    models::{Leverage, PercentageCapped, Price, TradeSide, TradeSize, trade_util},
 };
 
 use crate::{
@@ -560,6 +563,9 @@ impl LiveTradeExecutorLauncher {
                 locked_state.update_status_ready(current_trading_session);
             };
 
+            // TODO: Trigger refresh trading session? tokio::select with timer
+            // that checks if the trigger flag was setup every 0.5s?
+
             let handler = async || -> ExecutorProcessFatalResult<Never> {
                 let mut sync_rx = sync_rx;
                 loop {
@@ -598,6 +604,17 @@ impl LiveTradeExecutorLauncher {
                                     }),
                                 ))
                                 .await;
+
+                            // Drain all remaining messages to catch up to current state
+                            loop {
+                                match sync_rx.try_recv() {
+                                    Ok(_) | Err(TryRecvError::Lagged(_)) => continue,
+                                    Err(TryRecvError::Empty) => break,
+                                    Err(TryRecvError::Closed) => {
+                                        return Err(ExecutorProcessFatalError::SyncRecvClosed);
+                                    }
+                                }
+                            }
                         }
                         Err(RecvError::Closed) => {
                             return Err(ExecutorProcessFatalError::SyncRecvClosed);
