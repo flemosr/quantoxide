@@ -118,6 +118,16 @@ pub enum TradeExecutionType {
     Limit,
 }
 
+impl fmt::Display for TradeExecutionType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let type_str = match self {
+            TradeExecutionType::Market => "Market",
+            TradeExecutionType::Limit => "Limit",
+        };
+        write!(f, "{}", type_str)
+    }
+}
+
 /// The execution specification for a trade order.
 ///
 /// Trades can be executed:
