@@ -222,7 +222,7 @@ impl Add for Margin {
 
 impl From<Margin> for u64 {
     fn from(value: Margin) -> Self {
-        value.0 as u64
+        value.0
     }
 }
 
