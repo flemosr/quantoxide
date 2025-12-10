@@ -10,7 +10,7 @@ use tokio::{
 };
 
 use crate::{
-    sync::{SyncEngine, SyncReceiver, SyncUpdate},
+    sync::{SyncEngine, SyncMode, SyncReceiver, SyncUpdate},
     util::AbortOnDropHandle,
 };
 
@@ -106,6 +106,7 @@ impl SyncTui {
         status_manager: Arc<TuiStatusManager<SyncTuiView>>,
         mut sync_rx: SyncReceiver,
         ui_tx: mpsc::Sender<SyncUiMessage>,
+        mode: SyncMode,
     ) -> AbortOnDropHandle<()> {
         tokio::spawn(async move {
             let handle_sync_update = async |sync_update: SyncUpdate| -> Result<()> {
@@ -136,6 +137,17 @@ impl SyncTui {
                 }
                 Ok(())
             };
+
+            if matches!(mode, SyncMode::Live(None)) {
+                if let Err(e) = ui_tx
+                    .send(SyncUiMessage::StateUpdate("Not evaluated.".to_string()))
+                    .await
+                    .map_err(|e| TuiError::SyncTuiSendFailed(Box::new(e)))
+                {
+                    status_manager.set_crashed(e);
+                    return;
+                }
+            }
 
             loop {
                 match sync_rx.recv().await {
@@ -187,6 +199,7 @@ impl SyncTui {
             self.status_manager.clone(),
             sync_rx,
             self.ui_tx.clone(),
+            engine.mode(),
         );
 
         let sync_controller = engine.start();
