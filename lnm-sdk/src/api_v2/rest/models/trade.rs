@@ -1,4 +1,4 @@
-use std::result::Result;
+use std::{fmt, result::Result};
 
 use chrono::{
     DateTime, Utc,
@@ -583,6 +583,51 @@ impl Trade {
     /// ```
     pub fn sum_carry_fees(&self) -> i64 {
         self.sum_carry_fees
+    }
+
+    pub fn as_data_str(&self) -> String {
+        let mut data_str = format!(
+            "id: {}\nuid: {}\nside: {}\nopen: {}\nrunning: {}\ncanceled: {}\nclosed: {}\nquantity: {}\nmargin: {}\nleverage: {}\nprice: {}\nliquidation: {}\npl: {}\ncreation_ts: {}",
+            self.id,
+            self.uid,
+            self.side,
+            self.open,
+            self.running,
+            self.canceled,
+            self.closed,
+            self.quantity,
+            self.margin,
+            self.leverage,
+            self.price,
+            self.liquidation,
+            self.pl,
+            self.creation_ts.to_rfc3339()
+        );
+
+        if let Some(entry_price) = self.entry_price {
+            data_str.push_str(&format!("\nentry_price: {entry_price}"));
+        }
+        if let Some(exit_price) = self.exit_price {
+            data_str.push_str(&format!("\nexit_price: {exit_price}"));
+        }
+        if let Some(stoploss) = self.stoploss {
+            data_str.push_str(&format!("\nstoploss: {stoploss}"));
+        }
+        if let Some(takeprofit) = self.takeprofit {
+            data_str.push_str(&format!("\ntakeprofit: {takeprofit}"));
+        }
+
+        data_str
+    }
+}
+
+impl fmt::Display for Trade {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Trade:")?;
+        for line in self.as_data_str().lines() {
+            write!(f, "\n  {line}")?;
+        }
+        Ok(())
     }
 }
 
