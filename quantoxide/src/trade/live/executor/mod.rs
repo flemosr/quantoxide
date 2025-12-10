@@ -659,7 +659,7 @@ impl LiveTradeExecutorLauncher {
         let handle = Self::spawn_sync_processor(
             self.config.recover_trades_on_startup(),
             self.config.trailing_stoploss_step_size(),
-            self.config.session_refresh_offset(),
+            self.config.session_ttl(),
             self.config.session_refresh_interval(),
             self.db.clone(),
             self.api_rest.clone(),

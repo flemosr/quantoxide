@@ -26,7 +26,7 @@ pub struct LiveConfig {
     tsl_step_size: PercentageCapped,
     clean_up_trades_on_startup: bool,
     recover_trades_on_startup: bool,
-    session_refresh_offset: TradingSessionTTL,
+    session_ttl: TradingSessionTTL,
     session_refresh_interval: time::Duration,
     clean_up_trades_on_shutdown: bool,
     estimated_fee_perc: PercentageCapped,
@@ -37,9 +37,9 @@ pub struct LiveConfig {
 
 impl Default for LiveConfig {
     fn default() -> Self {
-        let session_refresh_offset = (Duration::hours(1) + Duration::minutes(5))
+        let session_ttl = (Duration::hours(1) + Duration::minutes(5))
             .try_into()
-            .expect("must be valid `LiveTradingSessionRefreshOffset`");
+            .expect("must be valid `TradingSessionTTL`");
 
         Self {
             api_rest_timeout: time::Duration::from_secs(20),
@@ -56,7 +56,7 @@ impl Default for LiveConfig {
             tsl_step_size: PercentageCapped::MIN,
             clean_up_trades_on_startup: true,
             recover_trades_on_startup: false,
-            session_refresh_offset,
+            session_ttl,
             session_refresh_interval: time::Duration::from_millis(1_000),
             clean_up_trades_on_shutdown: true,
             estimated_fee_perc: PercentageCapped::try_from(0.1)
@@ -125,8 +125,8 @@ impl LiveConfig {
         self.recover_trades_on_startup
     }
 
-    pub fn session_refresh_offset(&self) -> TradingSessionTTL {
-        self.session_refresh_offset
+    pub fn session_ttl(&self) -> TradingSessionTTL {
+        self.session_ttl
     }
 
     pub fn session_refresh_interval(&self) -> time::Duration {
@@ -223,11 +223,8 @@ impl LiveConfig {
         self
     }
 
-    pub fn with_session_refresh_offset(
-        mut self,
-        session_refresh_offset: TradingSessionTTL,
-    ) -> Self {
-        self.session_refresh_offset = session_refresh_offset;
+    pub fn with_session_ttl(mut self, session_ttl: TradingSessionTTL) -> Self {
+        self.session_ttl = session_ttl;
         self
     }
 
@@ -322,7 +319,7 @@ pub struct LiveTradeExecutorConfig {
     tsl_step_size: PercentageCapped,
     clean_up_trades_on_startup: bool,
     recover_trades_on_startup: bool,
-    session_refresh_offset: TradingSessionTTL,
+    session_ttl: TradingSessionTTL,
     session_refresh_interval: time::Duration,
     clean_up_trades_on_shutdown: bool,
     estimated_fee_perc: PercentageCapped,
@@ -342,8 +339,8 @@ impl LiveTradeExecutorConfig {
         self.recover_trades_on_startup
     }
 
-    pub fn session_refresh_offset(&self) -> TradingSessionTTL {
-        self.session_refresh_offset
+    pub fn session_ttl(&self) -> TradingSessionTTL {
+        self.session_ttl
     }
 
     pub fn session_refresh_interval(&self) -> time::Duration {
@@ -377,11 +374,8 @@ impl LiveTradeExecutorConfig {
         self
     }
 
-    pub fn with_session_refresh_offset(
-        mut self,
-        session_refresh_offset: TradingSessionTTL,
-    ) -> Self {
-        self.session_refresh_offset = session_refresh_offset;
+    pub fn with_session_ttl(mut self, session_ttl: TradingSessionTTL) -> Self {
+        self.session_ttl = session_ttl;
         self
     }
 
@@ -408,15 +402,15 @@ impl LiveTradeExecutorConfig {
 
 impl Default for LiveTradeExecutorConfig {
     fn default() -> Self {
-        let session_refresh_offset = (Duration::hours(1) + Duration::minutes(5))
+        let session_ttl = (Duration::hours(1) + Duration::minutes(5))
             .try_into()
-            .expect("must be valid `LiveTradingSessionRefreshOffset`");
+            .expect("must be valid `TradingSessionTTL`");
 
         Self {
             tsl_step_size: PercentageCapped::MIN,
             clean_up_trades_on_startup: true,
             recover_trades_on_startup: false,
-            session_refresh_offset,
+            session_ttl,
             session_refresh_interval: time::Duration::from_millis(1_000),
             clean_up_trades_on_shutdown: true,
             estimated_fee_perc: PercentageCapped::try_from(0.1)
@@ -432,7 +426,7 @@ impl From<&LiveConfig> for LiveTradeExecutorConfig {
             tsl_step_size: value.trailing_stoploss_step_size(),
             clean_up_trades_on_startup: value.clean_up_trades_on_startup(),
             recover_trades_on_startup: value.recover_trades_on_startup(),
-            session_refresh_offset: value.session_refresh_offset(),
+            session_ttl: value.session_ttl(),
             session_refresh_interval: value.session_refresh_interval(),
             clean_up_trades_on_shutdown: value.clean_up_trades_on_shutdown(),
             estimated_fee_perc: value.estimated_fee_perc(),
