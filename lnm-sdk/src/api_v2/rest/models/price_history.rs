@@ -26,8 +26,6 @@ use crate::shared::models::price::Price;
 /// # Ok(())
 /// # }
 /// ```
-///
-/// [`futures.price_history`]: crate::api::rest::repositories::FuturesRepository::price_history
 #[derive(Debug, Deserialize)]
 pub struct PriceEntry {
     #[serde(with = "ts_milliseconds")]
