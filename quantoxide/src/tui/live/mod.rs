@@ -109,14 +109,18 @@ impl LiveTui {
         ui_tx: mpsc::Sender<LiveUiMessage>,
     ) -> AbortOnDropHandle<()> {
         tokio::spawn(async move {
+            let send_ui_msg = async |ui_msg: LiveUiMessage| -> Result<()> {
+                ui_tx
+                    .send(ui_msg)
+                    .await
+                    .map_err(|e| TuiError::LiveTuiSendFailed(Box::new(e)))
+            };
+
             let send_trades_update =
                 async |running_trades_table: &str, closed_trades_table: &str| -> Result<()> {
                     let tables = format!("\nRunning Trades\n\n{running_trades_table}\n\n\nClosed Trades\n\n{closed_trades_table}");
 
-                    ui_tx
-                        .send(LiveUiMessage::TradesUpdate(tables))
-                        .await
-                        .map_err(|e| TuiError::LiveTuiSendFailed(Box::new(e)))
+                    send_ui_msg(LiveUiMessage::TradesUpdate(tables)).await
                 };
 
             let mut running_trades_table = "No running trades.".to_string();
@@ -126,31 +130,20 @@ impl LiveTui {
             let mut handle_live_update = async |live_update: LiveUpdate| -> Result<()> {
                 match live_update {
                     LiveUpdate::Status(live_status) => {
-                        ui_tx
-                            .send(LiveUiMessage::LogEntry(format!("Live status: {live_status}")))
-                            .await
-                            .map_err(|e| TuiError::LiveTuiSendFailed(Box::new(e)))?;
+                        send_ui_msg(LiveUiMessage::LogEntry(format!("Live status: {live_status}"))).await?;
+
                     }
                     LiveUpdate::Signal(signal) => {
-                        ui_tx
-                            .send(LiveUiMessage::LogEntry(signal.to_string()))
-                            .await
-                            .map_err(|e| TuiError::LiveTuiSendFailed(Box::new(e)))?;
+                        send_ui_msg(LiveUiMessage::LogEntry(signal.to_string())).await?;
                     }
                     LiveUpdate::Order(order) => {
-                        ui_tx
-                            .send(LiveUiMessage::LogEntry(format!("Order: {order}")))
-                            .await
-                            .map_err(|e| TuiError::LiveTuiSendFailed(Box::new(e)))?;
+                        send_ui_msg(LiveUiMessage::LogEntry(format!("Order: {order}"))).await?;
                     }
                     LiveUpdate::TradingState(trading_state) => {
-                        ui_tx
-                            .send(LiveUiMessage::SummaryUpdate(format!(
-                                "\n{}",
-                                trading_state.summary()
-                            )))
-                            .await
-                            .map_err(|e| TuiError::LiveTuiSendFailed(Box::new(e)))?;
+                        send_ui_msg(LiveUiMessage::SummaryUpdate(format!(
+                            "\n{}",
+                            trading_state.summary()
+                        ))).await?;
 
                         running_trades_table = trading_state.running_trades_table();
 
@@ -178,10 +171,8 @@ impl LiveTui {
                     }
                     Err(RecvError::Lagged(skipped)) => {
                         let log_msg = format!("Live updates lagged by {skipped} messages");
-                        let send_res = ui_tx
-                            .send(LiveUiMessage::LogEntry(log_msg)).await
-                            .map_err(|e| TuiError::LiveTuiSendFailed(Box::new(e)));
-                        if let Err(e) = send_res {
+
+                        if let Err(e) = send_ui_msg(LiveUiMessage::LogEntry(log_msg)).await {
                             status_manager.set_crashed(e);
                             return;
                         }
