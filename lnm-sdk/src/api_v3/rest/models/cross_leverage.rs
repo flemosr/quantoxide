@@ -49,7 +49,7 @@ impl CrossLeverage {
     /// ([CrossLeverage::MIN], [CrossLeverage::MAX]).
     /// It should be used to ensure a valid `CrossLeverage` without error handling.
     ///
-    /// **Note:** In order to validate whether a value is a valid leverage and receive an error for
+    /// **Note:** In order to check whether a value is a valid leverage and receive an error for
     /// invalid values, use [`CrossLeverage::try_from`].
     ///
     /// # Examples
