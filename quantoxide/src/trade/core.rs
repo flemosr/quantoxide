@@ -685,10 +685,9 @@ impl TradingState {
         result.push_str(&format!("  pl: {}\n", self.running_pl()));
         result.push_str(&format!("  fees: {}\n", self.running_fees()));
         result.push_str(&format!("  total_margin: {}\n", self.running_margin()));
-
+        result.push_str(&format!("realized_pl: {}\n", self.realized_pl));
         result.push_str("closed_positions:\n");
         result.push_str(&format!("  trades: {}\n", self.closed_len));
-        result.push_str(&format!("  pl: {}\n", self.realized_pl));
         result.push_str(&format!("  fees: {}", self.closed_fees));
 
         result
