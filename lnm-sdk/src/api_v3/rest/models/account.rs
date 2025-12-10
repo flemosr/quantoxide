@@ -1,3 +1,5 @@
+use std::fmt;
+
 use serde::Deserialize;
 use uuid::Uuid;
 
@@ -150,5 +152,33 @@ impl Account {
     /// ```
     pub fn linking_public_key(&self) -> Option<&String> {
         self.linking_public_key.as_ref()
+    }
+
+    pub fn as_data_str(&self) -> String {
+        let mut data_str = format!(
+            "id: {}\nusername: {}\nemail: {}\nbalance: {}\nsynthetic_usd_balance: {}\nfee_tier: {}",
+            self.id,
+            self.username,
+            self.email,
+            self.balance,
+            self.synthetic_usd_balance,
+            self.fee_tier
+        );
+
+        if let Some(linking_key) = &self.linking_public_key {
+            data_str.push_str(&format!("\nlinking_public_key: {linking_key}"));
+        }
+
+        data_str
+    }
+}
+
+impl fmt::Display for Account {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Account:")?;
+        for line in self.as_data_str().lines() {
+            write!(f, "\n  {line}")?;
+        }
+        Ok(())
     }
 }
