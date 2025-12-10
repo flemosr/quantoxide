@@ -17,6 +17,7 @@ pub struct SyncConfig {
     api_history_batch_size: NonZeroU64,
     sync_history_reach: Duration,
     re_sync_history_interval: time::Duration,
+    max_tick_interval: time::Duration,
     restart_interval: time::Duration,
     shutdown_timeout: time::Duration,
 }
@@ -32,6 +33,7 @@ impl Default for SyncConfig {
             api_history_batch_size: 1000.try_into().expect("not zero"),
             sync_history_reach: Duration::days(90),
             re_sync_history_interval: time::Duration::from_secs(10),
+            max_tick_interval: time::Duration::from_mins(3),
             restart_interval: time::Duration::from_secs(10),
             shutdown_timeout: time::Duration::from_secs(6),
         }
@@ -69,6 +71,10 @@ impl SyncConfig {
 
     pub fn re_sync_history_interval(&self) -> time::Duration {
         self.re_sync_history_interval
+    }
+
+    pub fn max_tick_interval(&self) -> time::Duration {
+        self.max_tick_interval
     }
 
     pub fn restart_interval(&self) -> time::Duration {
@@ -119,6 +125,11 @@ impl SyncConfig {
         self
     }
 
+    pub fn with_max_tick_interval(mut self, secs: u64) -> Self {
+        self.max_tick_interval = time::Duration::from_secs(secs);
+        self
+    }
+
     pub fn with_restart_interval(mut self, secs: u64) -> Self {
         self.restart_interval = time::Duration::from_secs(secs);
         self
@@ -153,6 +164,7 @@ impl From<&LiveConfig> for SyncConfig {
             api_history_batch_size: value.api_history_batch_size(),
             sync_history_reach: value.sync_history_reach(),
             re_sync_history_interval: value.re_sync_history_interval(),
+            max_tick_interval: value.max_tick_interval(),
             restart_interval: value.restart_interval(),
             shutdown_timeout: value.shutdown_timeout(),
         }
@@ -186,12 +198,17 @@ pub(crate) struct SyncProcessConfig {
     api_history_batch_size: NonZeroU64,
     sync_history_reach: Duration,
     re_sync_history_interval: time::Duration,
+    max_tick_interval: time::Duration,
     restart_interval: time::Duration,
 }
 
 impl SyncProcessConfig {
     pub fn re_sync_history_interval(&self) -> time::Duration {
         self.re_sync_history_interval
+    }
+
+    pub fn max_tick_interval(&self) -> time::Duration {
+        self.max_tick_interval
     }
 
     pub fn restart_interval(&self) -> time::Duration {
@@ -208,6 +225,7 @@ impl From<&SyncConfig> for SyncProcessConfig {
             api_history_batch_size: value.api_history_batch_size,
             sync_history_reach: value.sync_history_reach,
             re_sync_history_interval: value.re_sync_history_interval,
+            max_tick_interval: value.max_tick_interval,
             restart_interval: value.restart_interval,
         }
     }
