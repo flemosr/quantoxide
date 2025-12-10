@@ -14,8 +14,8 @@ use super::{
 /// A validated margin value denominated in satoshis.
 ///
 /// Margin represents the collateral required to open a leveraged trading position.
-/// This type ensures that margin values meet minimum requirements and can be safely used with
-/// [`Trade`] implementations.
+/// This type ensures that margin values meet minimum requirements and can be safely used when
+/// trading futures.
 ///
 /// Margin values must be integers greater than or equal to [`Margin::MIN`] (1 satoshi).
 ///
@@ -31,8 +31,6 @@ use super::{
 /// // Values below the minimum will fail
 /// assert!(Margin::try_from(0).is_err());
 /// ```
-///
-/// [`Trade`]: crate::models::Trade
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Margin(u64);
 
@@ -46,7 +44,7 @@ impl Margin {
     /// [`Margin::MIN`].
     /// It should be used to ensure a valid `Margin` without error handling.
     ///
-    /// **Note:** In order to validate whether a value is a valid margin and receive an error for
+    /// **Note:** In order to check whether a value is a valid margin and receive an error for
     /// invalid values, use [`Margin::try_from`].
     ///
     /// # Examples
