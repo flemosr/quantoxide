@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, fmt};
 
 use chrono::{DateTime, Utc, serde::ts_milliseconds};
 use serde::Deserialize;
@@ -165,5 +165,27 @@ impl Ticker {
     /// ```
     pub fn exchanges_weights(&self) -> &HashMap<String, f64> {
         &self.exchanges_weights
+    }
+
+    pub fn as_data_str(&self) -> String {
+        format!(
+            "index: {}\nlast_price: {}\nbid_price: {}\nask_price: {}\ncarry_fee_rate: {:.6}\ncarry_fee_timestamp: {}",
+            self.index,
+            self.last_price,
+            self.bid_price,
+            self.ask_price,
+            self.carry_fee_rate,
+            self.carry_fee_timestamp.to_rfc3339()
+        )
+    }
+}
+
+impl fmt::Display for Ticker {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Ticker:")?;
+        for line in self.as_data_str().lines() {
+            write!(f, "\n  {line}")?;
+        }
+        Ok(())
     }
 }
