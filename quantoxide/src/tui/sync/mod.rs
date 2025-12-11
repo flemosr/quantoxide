@@ -10,7 +10,7 @@ use tokio::{
 };
 
 use crate::{
-    sync::{SyncEngine, SyncMode, SyncReceiver, SyncUpdate},
+    sync::{SyncEngine, SyncMode, SyncReader, SyncUpdate},
     util::AbortOnDropHandle,
 };
 
@@ -104,9 +104,8 @@ impl SyncTui {
 
     fn spawn_sync_update_listener(
         status_manager: Arc<TuiStatusManager<SyncTuiView>>,
-        mut sync_rx: SyncReceiver,
+        sync_reader: Arc<dyn SyncReader>,
         ui_tx: mpsc::Sender<SyncUiMessage>,
-        mode: SyncMode,
     ) -> AbortOnDropHandle<()> {
         tokio::spawn(async move {
             let send_ui_msg = async |ui_msg: SyncUiMessage| -> Result<()> {
@@ -138,13 +137,15 @@ impl SyncTui {
                 Ok(())
             };
 
-            if matches!(mode, SyncMode::Live(None))
+            if matches!(sync_reader.mode(), SyncMode::Live(None))
                 && let Err(e) =
                     send_ui_msg(SyncUiMessage::StateUpdate("Not evaluated.".to_string())).await
             {
                 status_manager.set_crashed(e);
                 return;
             }
+
+            let mut sync_rx = sync_reader.update_receiver();
 
             loop {
                 match sync_rx.recv().await {
@@ -187,13 +188,10 @@ impl SyncTui {
             return Err(TuiError::SyncEngineAlreadyCoupled);
         }
 
-        let sync_rx = engine.update_receiver();
-
         let sync_update_listener_handle = Self::spawn_sync_update_listener(
             self.status_manager.clone(),
-            sync_rx,
+            engine.reader(),
             self.ui_tx.clone(),
-            engine.mode(),
         );
 
         let sync_controller = engine.start();
