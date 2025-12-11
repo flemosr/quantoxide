@@ -12,12 +12,21 @@ use super::{
     process::error::{SignalProcessFatalError, SignalProcessRecoverableError},
 };
 
+/// Detailed status when signal evaluation is not actively running.
+///
+/// Represents various states during the signal process lifecycle before achieving active signal
+/// evaluation.
 #[derive(Debug, Clone)]
 pub enum LiveSignalStatusNotRunning {
+    /// Signal process has not been started yet.
     NotInitiated,
+    /// Signal process is initializing.
     Starting,
+    /// Signal process is waiting for sync to complete before evaluating signals.
     WaitingForSync(SyncStatusNotSynced),
+    /// Signal process encountered a recoverable error.
     Failed(Arc<SignalProcessRecoverableError>),
+    /// Signal process is restarting after an error.
     Restarting,
 }
 
@@ -35,12 +44,21 @@ impl fmt::Display for LiveSignalStatusNotRunning {
     }
 }
 
+/// Overall status of the live signal evaluation process.
+///
+/// Represents the high-level state of the signal process, including active evaluation, completion,
+/// and shutdown states.
 #[derive(Debug, Clone)]
 pub enum LiveSignalStatus {
+    /// Signal evaluation is not actively running.
     NotRunning(LiveSignalStatusNotRunning),
+    /// Signal evaluation is actively running and generating signals.
     Running,
+    /// Shutdown has been requested and is in progress.
     ShutdownInitiated,
+    /// Signal process has been gracefully shut down.
     Shutdown,
+    /// Signal process terminated due to a fatal error.
     Terminated(Arc<SignalProcessFatalError>),
 }
 
@@ -80,9 +98,15 @@ impl From<SignalProcessFatalError> for LiveSignalStatus {
     }
 }
 
+/// Update events emitted by the live signal evaluation process.
+///
+/// These updates are broadcast to subscribers and include status changes and newly generated
+/// trading signals.
 #[derive(Debug, Clone)]
 pub enum LiveSignalUpdate {
+    /// Signal process status has changed.
     Status(LiveSignalStatus),
+    /// A new trading signal has been generated.
     Signal(Signal),
 }
 
@@ -99,10 +123,19 @@ impl From<Signal> for LiveSignalUpdate {
 }
 
 pub(super) type LiveSignalTransmiter = broadcast::Sender<LiveSignalUpdate>;
+
+/// Receiver for subscribing to [`LiveSignalUpdate`]s.
 pub type LiveSignalReceiver = broadcast::Receiver<LiveSignalUpdate>;
 
+/// Trait for reading signal evaluation status and subscribing to updates.
+///
+/// Provides a read-only interface to the signal process state without the ability to control or
+/// modify it.
 pub trait LiveSignalReader: Send + Sync + 'static {
+    /// Creates a new [`LiveSignalReceiver`] for subscribing to signal updates.
     fn update_receiver(&self) -> LiveSignalReceiver;
+
+    /// Returns the current [`LiveSignalStatus`] as a snapshot.
     fn status_snapshot(&self) -> LiveSignalStatus;
 }
 

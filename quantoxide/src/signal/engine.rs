@@ -22,6 +22,11 @@ use super::{
     },
 };
 
+/// Controller for managing and monitoring a running signal evaluation process.
+///
+/// `LiveSignalController` provides an interface to monitor the status of signal evaluation and
+/// perform graceful shutdown operations. It holds a handle to the running signal task and
+/// coordinates shutdown signals.
 #[derive(Debug)]
 pub struct LiveSignalController {
     config: LiveSignalControllerConfig,
@@ -45,14 +50,18 @@ impl LiveSignalController {
         })
     }
 
+    /// Returns a [`LiveSignalReader`] interface for accessing signal status and updates.
     pub fn reader(&self) -> Arc<dyn LiveSignalReader> {
         self.status_manager.clone()
     }
 
+    /// Creates a new [`LiveSignalReceiver`] for subscribing to signal status updates and new
+    /// signals.
     pub fn update_receiver(&self) -> LiveSignalReceiver {
         self.status_manager.update_receiver()
     }
 
+    /// Returns the current [`LiveSignalStatus`] as a snapshot.
     pub fn status_snapshot(&self) -> LiveSignalStatus {
         self.status_manager.status_snapshot()
     }
@@ -64,11 +73,12 @@ impl LiveSignalController {
             .take()
     }
 
-    /// Tries to perform a clean shutdown of the live signal process and consumes
-    /// the task handle. If a clean shutdown fails, the process is aborted.
-    /// This method can only be called once per controller instance.
-    /// Returns an error if the process had to be aborted, or if it the handle
-    /// was already consumed.
+    /// Tries to perform a clean shutdown of the live signal process and consumes the task handle.
+    ///
+    /// If a clean shutdown fails, the process is aborted. This method can only be called once per
+    /// controller instance.
+    ///
+    /// Returns an error if the process had to be aborted, or if the handle was already consumed.
     pub async fn shutdown(&self) -> Result<()> {
         let Some(mut handle) = self.try_consume_handle() else {
             return Err(SignalError::LiveSignalAlreadyShutdown);
@@ -114,6 +124,11 @@ impl LiveSignalController {
     }
 }
 
+/// Builder for configuring and starting a live signal evaluation engine.
+///
+/// `LiveSignalEngine` encapsulates the configuration, database connection, sync reader, and signal
+/// evaluators. The signal process is spawned when [`start`](Self::start) is called, and a
+/// [`LiveSignalController`] is returned for monitoring and management.
 pub struct LiveSignalEngine {
     config: LiveSignalConfig,
     db: Arc<Database>,
@@ -124,6 +139,7 @@ pub struct LiveSignalEngine {
 }
 
 impl LiveSignalEngine {
+    /// Creates a new live signal engine with the specified configuration and signal evaluators.
     pub fn new(
         config: impl Into<LiveSignalConfig>,
         db: Arc<Database>,
@@ -148,20 +164,25 @@ impl LiveSignalEngine {
         })
     }
 
+    /// Returns a reader interface for accessing signal status and updates.
     pub fn reader(&self) -> Arc<dyn LiveSignalReader> {
         self.status_manager.clone()
     }
 
+    /// Creates a new receiver for subscribing to signal status updates and new signals.
     pub fn update_receiver(&self) -> LiveSignalReceiver {
         self.status_manager.update_receiver()
     }
 
+    /// Returns the current signal evaluation status as a snapshot.
     pub fn status_snapshot(&self) -> LiveSignalStatus {
         self.status_manager.status_snapshot()
     }
 
+    /// Starts the signal evaluation process and returns a [`LiveSignalController`] for managing it.
+    ///
+    /// This consumes the engine and spawns the signal task in the background.
     pub fn start(self) -> Arc<LiveSignalController> {
-        // Internal channel for shutdown signal
         let (shutdown_tx, _) = broadcast::channel::<()>(1);
 
         let handle = LiveSignalProcess::spawn(

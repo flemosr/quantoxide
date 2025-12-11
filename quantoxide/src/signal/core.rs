@@ -15,10 +15,15 @@ use super::{
     process::error::{ProcessRecoverableResult, SignalProcessRecoverableError},
 };
 
+/// A validated identifier for a signal evaluator.
+///
+/// Signal names must be non-empty strings and are used to identify and distinguish different
+/// signal evaluators within the system.
 #[derive(Debug, Clone)]
 pub struct SignalName(String);
 
 impl SignalName {
+    /// Creates a new signal name from a string, validating that it is non-empty.
     pub fn new<S>(name: S) -> ValidationResult<Self>
     where
         S: Into<String>,
@@ -32,6 +37,7 @@ impl SignalName {
         Ok(Self(name))
     }
 
+    /// Returns the signal name as a string slice.
     pub fn as_str(&self) -> &str {
         self.0.as_str()
     }
@@ -51,11 +57,19 @@ impl PartialEq for SignalName {
 
 impl Eq for SignalName {}
 
+/// Represents a trading signal action with associated price and strength information.
+///
+/// Signal actions are the core output of signal evaluators, indicating what trading decision should
+/// be made based on market analysis.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum SignalAction {
+    /// Indicates a buy opportunity with the suggested entry price and signal strength (0-100).
     Buy { price: f64, strength: u8 },
+    /// Indicates a sell opportunity with the suggested exit price and signal strength (0-100).
     Sell { price: f64, strength: u8 },
+    /// Indicates the current position should be maintained without action.
     Hold,
+    /// Indicates that no action should be taken.
     Wait,
 }
 
@@ -74,8 +88,13 @@ impl fmt::Display for SignalAction {
     }
 }
 
+/// Trait for implementing custom signal evaluation logic. Signal evaluators analyze candlestick
+/// data to produce trading signals.
 #[async_trait]
 pub trait SignalActionEvaluator: Send + Sync {
+    /// Evaluates a series of OHLC candlesticks and returns a signal action.
+    ///
+    /// The candlestick slice is ordered chronologically, with the most recent candle last.
     async fn evaluate(
         &self,
         candles: &[OhlcCandleRow],
@@ -92,6 +111,10 @@ impl SignalActionEvaluator for Box<dyn SignalActionEvaluator> {
     }
 }
 
+/// Complete configuration for a signal evaluator including timing and lookback parameters.
+///
+/// Wraps a [`SignalActionEvaluator`] with metadata controlling when evaluations occur and how much
+/// historical data is provided to the evaluator.
 pub struct SignalEvaluator<T: SignalActionEvaluator> {
     name: SignalName,
     min_iteration_interval: MinIterationInterval,
@@ -100,6 +123,7 @@ pub struct SignalEvaluator<T: SignalActionEvaluator> {
 }
 
 impl<T: SignalActionEvaluator> SignalEvaluator<T> {
+    /// Creates a new signal evaluator with the specified configuration.
     pub fn new(
         name: SignalName,
         min_iteration_interval: MinIterationInterval,
@@ -114,18 +138,22 @@ impl<T: SignalActionEvaluator> SignalEvaluator<T> {
         }
     }
 
+    /// Returns the name identifier for this signal evaluator.
     pub fn name(&self) -> &SignalName {
         &self.name
     }
 
+    /// Returns the lookback period determining how much historical data to provide for evaluation.
     pub fn lookback(&self) -> Option<LookbackPeriod> {
         self.lookback
     }
 
+    /// Returns the minimum interval between successive evaluations.
     pub fn min_iteration_interval(&self) -> MinIterationInterval {
         self.min_iteration_interval
     }
 
+    /// Evaluates candlestick data using the configured action evaluator with panic protection.
     pub async fn evaluate(
         &self,
         candles: &[OhlcCandleRow],
@@ -137,9 +165,17 @@ impl<T: SignalActionEvaluator> SignalEvaluator<T> {
     }
 }
 
+/// Type alias for a signal evaluator using dynamic dispatch.
+///
+/// This allows signal evaluators with different concrete types to be stored together in
+/// collections.
 pub type ConfiguredSignalEvaluator = SignalEvaluator<Box<dyn SignalActionEvaluator>>;
 
 impl SignalEvaluator<Box<dyn SignalActionEvaluator>> {
+    /// Creates a new boxed signal evaluator from any implementation of [`SignalActionEvaluator`].
+    ///
+    /// This constructor enables type erasure, allowing evaluators of different concrete types to be
+    /// used interchangeably.
     pub fn new_boxed<E>(
         name: SignalName,
         min_iteration_interval: MinIterationInterval,
@@ -158,6 +194,10 @@ impl SignalEvaluator<Box<dyn SignalActionEvaluator>> {
     }
 }
 
+/// A timestamped trading signal produced by a named signal evaluator.
+///
+/// Signals combine the evaluation result with metadata about when it was generated and which
+/// evaluator produced it.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Signal {
     time: DateTime<Utc>,
@@ -180,18 +220,22 @@ impl Signal {
         })
     }
 
+    /// Returns the timestamp when this signal was generated.
     pub fn time(&self) -> DateTime<Utc> {
         self.time
     }
 
+    /// Returns the name of the signal evaluator that produced this signal.
     pub fn name(&self) -> &SignalName {
         &self.name
     }
 
+    /// Returns the [`SignalAction`] corresponding to the signal.
     pub fn action(&self) -> SignalAction {
         self.action
     }
 
+    /// Returns a formatted string representation of the signal data for display purposes.
     pub fn as_data_str(&self) -> String {
         format!(
             "time: {}\nname: {}\naction: {}",
