@@ -6,9 +6,9 @@ use super::error::{BacktestError, Result};
 
 pub struct BacktestConfig {
     buffer_size: usize,
-    max_running_qtd: usize,
+    trade_max_running_qtd: usize,
     fee_perc: PercentageCapped,
-    tsl_step_size: PercentageCapped,
+    trade_tsl_step_size: PercentageCapped,
     update_interval: Duration,
 }
 
@@ -16,9 +16,9 @@ impl Default for BacktestConfig {
     fn default() -> Self {
         Self {
             buffer_size: 1800,
-            max_running_qtd: 50,
+            trade_max_running_qtd: 50,
             fee_perc: 0.1.try_into().expect("must be a valid `PercentageCapped`"),
-            tsl_step_size: PercentageCapped::MIN,
+            trade_tsl_step_size: PercentageCapped::MIN,
             update_interval: Duration::days(1),
         }
     }
@@ -29,8 +29,8 @@ impl BacktestConfig {
         self.buffer_size
     }
 
-    pub fn max_running_qtd(&self) -> usize {
-        self.max_running_qtd
+    pub fn trade_max_running_qtd(&self) -> usize {
+        self.trade_max_running_qtd
     }
 
     pub fn fee_perc(&self) -> PercentageCapped {
@@ -38,7 +38,7 @@ impl BacktestConfig {
     }
 
     pub fn trailing_stoploss_step_size(&self) -> PercentageCapped {
-        self.tsl_step_size
+        self.trade_tsl_step_size
     }
 
     pub fn update_interval(&self) -> Duration {
@@ -53,11 +53,11 @@ impl BacktestConfig {
         Ok(self)
     }
 
-    pub fn with_max_running_qtd(mut self, max: usize) -> Result<Self> {
+    pub fn with_trade_max_running_qtd(mut self, max: usize) -> Result<Self> {
         if max == 0 {
             return Err(BacktestError::InvalidConfigurationMaxRunningQtd { max });
         }
-        self.max_running_qtd = max;
+        self.trade_max_running_qtd = max;
         Ok(self)
     }
 
@@ -66,8 +66,11 @@ impl BacktestConfig {
         self
     }
 
-    pub fn with_trailing_stoploss_step_size(mut self, tsl_step_size: PercentageCapped) -> Self {
-        self.tsl_step_size = tsl_step_size;
+    pub fn with_trailing_stoploss_step_size(
+        mut self,
+        trade_tsl_step_size: PercentageCapped,
+    ) -> Self {
+        self.trade_tsl_step_size = trade_tsl_step_size;
         self
     }
 
@@ -78,24 +81,24 @@ impl BacktestConfig {
 }
 
 pub(super) struct SimulatedTradeExecutorConfig {
-    max_running_qtd: usize,
+    trade_max_running_qtd: usize,
     fee_perc: PercentageCapped,
-    tsl_step_size: PercentageCapped,
+    trade_tsl_step_size: PercentageCapped,
 }
 
 impl Default for SimulatedTradeExecutorConfig {
     fn default() -> Self {
         Self {
-            max_running_qtd: 50,
+            trade_max_running_qtd: 50,
             fee_perc: 0.1.try_into().expect("must be a valid `PercentageCapped`"),
-            tsl_step_size: PercentageCapped::MIN,
+            trade_tsl_step_size: PercentageCapped::MIN,
         }
     }
 }
 
 impl SimulatedTradeExecutorConfig {
-    pub fn max_running_qtd(&self) -> usize {
-        self.max_running_qtd
+    pub fn trade_max_running_qtd(&self) -> usize {
+        self.trade_max_running_qtd
     }
 
     pub fn fee_perc(&self) -> PercentageCapped {
@@ -103,16 +106,16 @@ impl SimulatedTradeExecutorConfig {
     }
 
     pub fn trailing_stoploss_step_size(&self) -> PercentageCapped {
-        self.tsl_step_size
+        self.trade_tsl_step_size
     }
 }
 
 impl From<&BacktestConfig> for SimulatedTradeExecutorConfig {
     fn from(value: &BacktestConfig) -> Self {
         Self {
-            max_running_qtd: value.max_running_qtd,
+            trade_max_running_qtd: value.trade_max_running_qtd,
             fee_perc: value.fee_perc,
-            tsl_step_size: value.tsl_step_size,
+            trade_tsl_step_size: value.trade_tsl_step_size,
         }
     }
 }

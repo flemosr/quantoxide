@@ -307,9 +307,9 @@ impl SimulatedTradeExecutor {
             return Err(SimulatedTradeExecutorError::BalanceTooLow);
         }
 
-        if state_guard.running_map.len() >= self.config.max_running_qtd() {
+        if state_guard.running_map.len() >= self.config.trade_max_running_qtd() {
             return Err(SimulatedTradeExecutorError::MaxRunningTradesReached {
-                max_qtd: self.config.max_running_qtd(),
+                max_qtd: self.config.trade_max_running_qtd(),
             })?;
         }
 
