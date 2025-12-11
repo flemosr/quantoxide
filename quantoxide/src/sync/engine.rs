@@ -1,4 +1,7 @@
-use std::sync::{Arc, Mutex};
+use std::{
+    fmt,
+    sync::{Arc, Mutex},
+};
 
 use async_trait::async_trait;
 use tokio::{sync::broadcast, time};
@@ -22,7 +25,6 @@ use super::{
 #[derive(Debug)]
 pub struct SyncController {
     config: SyncControllerConfig,
-    mode: SyncMode,
     handle: Mutex<Option<AbortOnDropHandle<()>>>,
     shutdown_tx: broadcast::Sender<()>,
     status_manager: Arc<SyncStatusManager>,
@@ -31,26 +33,24 @@ pub struct SyncController {
 impl SyncController {
     fn new(
         config: &SyncConfig,
-        mode: SyncMode,
         handle: AbortOnDropHandle<()>,
         shutdown_tx: broadcast::Sender<()>,
         status_manager: Arc<SyncStatusManager>,
     ) -> Arc<Self> {
         Arc::new(Self {
             config: config.into(),
-            mode,
             handle: Mutex::new(Some(handle)),
             shutdown_tx,
             status_manager,
         })
     }
 
-    pub fn mode(&self) -> SyncMode {
-        self.mode
-    }
-
     pub fn reader(&self) -> Arc<dyn SyncReader> {
         self.status_manager.clone()
+    }
+
+    pub fn mode(&self) -> SyncMode {
+        self.status_manager.mode()
     }
 
     pub fn update_receiver(&self) -> SyncReceiver {
@@ -149,6 +149,27 @@ impl SyncMode {
 
         Ok(SyncMode::Live(Some(lookback)))
     }
+
+    pub fn live_feed_active(&self) -> bool {
+        match self {
+            SyncMode::Backfill => false,
+            SyncMode::Live(_) => true,
+            SyncMode::Full => true,
+        }
+    }
+}
+
+impl fmt::Display for SyncMode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            SyncMode::Backfill => write!(f, "Backfill"),
+            SyncMode::Live(lookback_opt) => match lookback_opt {
+                Some(lookback) => write!(f, "Live (lookback: {})", lookback.as_duration()),
+                None => write!(f, "Live"),
+            },
+            SyncMode::Full => write!(f, "Full"),
+        }
+    }
 }
 
 pub(super) enum SyncModeInt {
@@ -169,6 +190,21 @@ pub(super) enum SyncModeInt {
     },
 }
 
+impl From<&SyncModeInt> for SyncMode {
+    fn from(value: &SyncModeInt) -> Self {
+        match value {
+            SyncModeInt::Backfill { .. } => Self::Backfill,
+            SyncModeInt::LiveNoLookback { .. } => Self::Live(None),
+            SyncModeInt::LiveWithLookback {
+                api_rest: _,
+                api_ws: _,
+                lookback,
+            } => Self::Live(Some(*lookback)),
+            SyncModeInt::Full { .. } => Self::Full,
+        }
+    }
+}
+
 pub struct SyncEngine {
     config: SyncConfig,
     db: Arc<Database>,
@@ -185,7 +221,8 @@ impl SyncEngine {
     ) -> Self {
         let (update_tx, _) = broadcast::channel::<SyncUpdate>(1_000);
 
-        let status_manager = SyncStatusManager::new(update_tx.clone());
+        let mode = (&mode_int).into();
+        let status_manager = SyncStatusManager::new(mode, update_tx.clone());
 
         Self {
             config: config.into(),
@@ -261,28 +298,6 @@ impl SyncEngine {
         Ok(Self::with_mode_int(config, db, mode))
     }
 
-    pub fn mode(&self) -> SyncMode {
-        match self.mode_int {
-            SyncModeInt::Backfill { .. } => SyncMode::Backfill,
-            SyncModeInt::LiveNoLookback { .. } => SyncMode::Live(None),
-            SyncModeInt::LiveWithLookback {
-                api_rest: _,
-                api_ws: _,
-                lookback,
-            } => SyncMode::Live(Some(lookback)),
-            SyncModeInt::Full { .. } => SyncMode::Full,
-        }
-    }
-
-    pub fn live_price_feed_active(&self) -> bool {
-        match self.mode_int {
-            SyncModeInt::Backfill { .. } => false,
-            SyncModeInt::LiveNoLookback { .. } => true,
-            SyncModeInt::LiveWithLookback { .. } => true,
-            SyncModeInt::Full { .. } => true,
-        }
-    }
-
     pub fn reader(&self) -> Arc<dyn SyncReader> {
         self.status_manager.clone()
     }
@@ -299,8 +314,6 @@ impl SyncEngine {
         // Internal channel for shutdown signal
         let (shutdown_tx, _) = broadcast::channel::<()>(1);
 
-        let mode = self.mode();
-
         let handle = SyncProcess::spawn(
             &self.config,
             self.db,
@@ -310,6 +323,6 @@ impl SyncEngine {
             self.update_tx,
         );
 
-        SyncController::new(&self.config, mode, handle, shutdown_tx, self.status_manager)
+        SyncController::new(&self.config, handle, shutdown_tx, self.status_manager)
     }
 }
