@@ -55,15 +55,15 @@ impl SyncPriceHistoryTask {
                 let exp_candle_qtd = (to_est - from).num_minutes().max(3) as u64;
                 let exp_candle_qtd = NonZeroU64::try_from(exp_candle_qtd).expect("must be gte 0");
 
-                exp_candle_qtd.min(self.config.api_history_batch_size())
+                exp_candle_qtd.min(self.config.price_history_batch_size())
             }
-            _ => self.config.api_history_batch_size(),
+            _ => self.config.price_history_batch_size(),
         };
 
         let mut candles: Vec<OhlcCandle> = {
             let mut trials = 0;
             loop {
-                time::sleep(self.config.api_cooldown()).await;
+                time::sleep(self.config.rest_api_cooldown()).await;
 
                 match self
                     .api_rest
@@ -80,14 +80,14 @@ impl SyncPriceHistoryTask {
                     Ok(ohlc_candle_page) => break ohlc_candle_page.into(),
                     Err(error) => {
                         trials += 1;
-                        if trials >= self.config.api_error_max_trials().get() {
+                        if trials >= self.config.rest_api_error_max_trials().get() {
                             return Err(SyncPriceHistoryError::RestApiMaxTrialsReached {
                                 error,
-                                trials: self.config.api_error_max_trials(),
+                                trials: self.config.rest_api_error_max_trials(),
                             });
                         }
 
-                        time::sleep(self.config.api_error_cooldown()).await;
+                        time::sleep(self.config.rest_api_error_cooldown()).await;
                         continue;
                     }
                 };
@@ -159,7 +159,7 @@ impl SyncPriceHistoryTask {
         self.db.ohlc_candles.flag_missing_candles().await?;
 
         let mut history_state =
-            PriceHistoryState::evaluate_with_reach(&self.db, self.config.sync_history_reach())
+            PriceHistoryState::evaluate_with_reach(&self.db, self.config.price_history_reach())
                 .await?;
         self.handle_history_update(&history_state).await?;
 
@@ -189,7 +189,7 @@ impl SyncPriceHistoryTask {
             }
 
             history_state =
-                PriceHistoryState::evaluate_with_reach(&self.db, self.config.sync_history_reach())
+                PriceHistoryState::evaluate_with_reach(&self.db, self.config.price_history_reach())
                     .await?;
             self.handle_history_update(&history_state).await?;
 
@@ -212,10 +212,10 @@ impl SyncPriceHistoryTask {
     pub async fn live(self, lookback: LookbackPeriod) -> Result<()> {
         let lookback = lookback.as_duration();
 
-        if lookback > self.config.sync_history_reach() {
+        if lookback > self.config.price_history_reach() {
             return Err(SyncPriceHistoryError::InvalidLookbackPeriod {
                 lookback,
-                sync_history_reach: self.config.sync_history_reach(),
+                price_history_reach: self.config.price_history_reach(),
             });
         }
 

@@ -143,7 +143,7 @@ impl SyncProcess {
             self.status_manager
                 .update(SyncStatusNotSynced::WaitingForResync.into());
 
-            time::sleep(self.config.re_sync_history_interval()).await;
+            time::sleep(self.config.price_history_re_sync_interval()).await;
         }
     }
 
@@ -173,7 +173,8 @@ impl SyncProcess {
         let mut is_synced = false;
         let mut price_tick_rx = price_tick_tx.subscribe();
 
-        let new_tick_interval_timer = || Box::pin(time::sleep(self.config.max_tick_interval()));
+        let new_tick_interval_timer =
+            || Box::pin(time::sleep(self.config.live_price_tick_max_interval()));
         let mut tick_interval_timer = new_tick_interval_timer();
 
         loop {
@@ -197,7 +198,7 @@ impl SyncProcess {
                 _ = &mut tick_interval_timer => {
                     // Maximum interval between Price Ticks was exceeded
                     return Err(SyncProcessRecoverableError::MaxPriceTickIntevalExceeded(
-                        self.config.max_tick_interval(),
+                        self.config.live_price_tick_max_interval(),
                     )
                     .into());
                 }
@@ -243,10 +244,12 @@ impl SyncProcess {
         let mut is_synced = false;
         let mut price_tick_rx = price_tick_tx.subscribe();
 
-        let new_re_sync_timer = || Box::pin(time::sleep(self.config.re_sync_history_interval()));
+        let new_re_sync_timer =
+            || Box::pin(time::sleep(self.config.price_history_re_sync_interval()));
         let mut re_sync_timer = new_re_sync_timer();
 
-        let new_tick_interval_timer = || Box::pin(time::sleep(self.config.max_tick_interval()));
+        let new_tick_interval_timer =
+            || Box::pin(time::sleep(self.config.live_price_tick_max_interval()));
         let mut tick_interval_timer = new_tick_interval_timer();
 
         loop {
@@ -275,7 +278,7 @@ impl SyncProcess {
                 _ = &mut tick_interval_timer => {
                     // Maximum interval between Price Ticks was exceeded
                     return Err(SyncProcessRecoverableError::MaxPriceTickIntevalExceeded(
-                        self.config.max_tick_interval(),
+                        self.config.live_price_tick_max_interval(),
                     )
                     .into());
                 }
@@ -322,10 +325,12 @@ impl SyncProcess {
         let mut is_synced = false;
         let mut price_tick_rx = price_tick_tx.subscribe();
 
-        let new_re_sync_timer = || Box::pin(time::sleep(self.config.re_sync_history_interval()));
+        let new_re_sync_timer =
+            || Box::pin(time::sleep(self.config.price_history_re_sync_interval()));
         let mut re_sync_timer = new_re_sync_timer();
 
-        let new_tick_interval_timer = || Box::pin(time::sleep(self.config.max_tick_interval()));
+        let new_tick_interval_timer =
+            || Box::pin(time::sleep(self.config.live_price_tick_max_interval()));
         let mut tick_interval_timer = new_tick_interval_timer();
 
         loop {
@@ -354,7 +359,7 @@ impl SyncProcess {
                 _ = &mut tick_interval_timer => {
                     // Maximum interval between Price Ticks was exceeded
                     return Err(SyncProcessRecoverableError::MaxPriceTickIntevalExceeded(
-                        self.config.max_tick_interval(),
+                        self.config.live_price_tick_max_interval(),
                     )
                     .into());
                 }
