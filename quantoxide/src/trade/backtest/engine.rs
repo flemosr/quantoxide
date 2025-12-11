@@ -26,6 +26,10 @@ use super::{
     },
 };
 
+/// Controller for managing and monitoring a running backtest simulation process.
+///
+/// Provides an interface to monitor backtest status, receive updates, and control the simulation
+/// lifecycle including waiting for completion or aborting the process.
 #[derive(Debug)]
 pub struct BacktestController {
     handle: Mutex<Option<AbortOnDropHandle<()>>>,
@@ -40,10 +44,13 @@ impl BacktestController {
         })
     }
 
+    /// Creates a new [`BacktestReceiver`] for subscribing to backtest status and trading state
+    /// updates.
     pub fn receiver(&self) -> BacktestReceiver {
         self.status_manager.receiver()
     }
 
+    /// Returns the current [`BacktestStatus`] as a snapshot.
     pub fn status_snapshot(&self) -> BacktestStatus {
         self.status_manager.snapshot()
     }
@@ -55,9 +62,8 @@ impl BacktestController {
             .take()
     }
 
-    /// Consumes the task handle and waits for the backtest to complete.
-    /// This method can only be called once per controller instance.
-    /// Returns an error if the internal task was not properly handled.
+    /// Consumes the task handle and waits for the backtest to complete. This method can only be
+    /// called once per controller instance.
     pub async fn wait_for_completion(&self) -> Result<()> {
         if let Some(handle) = self.try_consume_handle() {
             return handle.await.map_err(BacktestError::TaskJoin);
@@ -66,9 +72,8 @@ impl BacktestController {
         Err(BacktestError::ProcessAlreadyConsumed)
     }
 
-    /// Consumes the task handle and aborts the backtest.
-    /// This method can only be called once per controller instance.
-    /// Returns an error if the internal task was not properly handled.
+    /// Consumes the task handle and aborts the backtest. This method can only be called once per
+    /// controller instance.
     pub async fn abort(&self) -> Result<()> {
         if let Some(handle) = self.try_consume_handle() {
             if !handle.is_finished() {
@@ -174,6 +179,9 @@ impl Operator {
     }
 }
 
+/// Builder for configuring and executing a backtest simulation. Encapsulates the configuration,
+/// database connection, operator, and time range for the backtest. The simulation is started when
+/// [`start`](Self::start) is called, returning a [`BacktestController`] for monitoring progress.
 pub struct BacktestEngine {
     config: BacktestConfig,
     db: Arc<Database>,
@@ -250,6 +258,8 @@ impl BacktestEngine {
         })
     }
 
+    /// Creates a new backtest engine using signal-based evaluation. Signal evaluators generate
+    /// trading signals that are processed by the signal operator to execute trading actions.
     pub async fn with_signal_operator(
         config: BacktestConfig,
         db: Arc<Database>,
@@ -264,6 +274,8 @@ impl BacktestEngine {
         Self::new(config, db, operator, start_time, start_balance, end_time).await
     }
 
+    /// Creates a new backtest engine using a raw operator. The raw operator directly implements
+    /// trading logic without intermediate signal generation.
     pub async fn with_raw_operator(
         config: BacktestConfig,
         db: Arc<Database>,
@@ -277,18 +289,22 @@ impl BacktestEngine {
         Self::new(config, db, operator, start_time, start_balance, end_time).await
     }
 
+    /// Returns the start time of the backtest simulation period.
     pub fn start_time(&self) -> DateTime<Utc> {
         self.start_time
     }
 
+    /// Returns the starting balance (in satoshis) for the backtest simulation.
     pub fn start_balance(&self) -> u64 {
         self.start_balance
     }
 
+    /// Returns the end time of the backtest simulation period.
     pub fn end_time(&self) -> DateTime<Utc> {
         self.end_time
     }
 
+    /// Creates a new receiver for subscribing to backtest status and trading state updates.
     pub fn receiver(&self) -> BacktestReceiver {
         self.status_manager.receiver()
     }
@@ -455,6 +471,8 @@ impl BacktestEngine {
         Ok(final_state)
     }
 
+    /// Starts the backtest simulation and returns a [`BacktestController`] for managing it. This
+    /// consumes the engine and spawns the backtest task in the background.
     pub fn start(self) -> Arc<BacktestController> {
         let status_manager = self.status_manager.clone();
 

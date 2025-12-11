@@ -7,37 +7,50 @@ use tokio::sync::broadcast;
 
 use super::{super::core::TradingState, error::BacktestError};
 
+/// Represents the current status of a backtest simulation process.
 #[derive(Debug, Clone)]
 pub enum BacktestStatus {
+    /// Backtest has been created but not yet started.
     NotInitiated,
+    /// Backtest is initializing and preparing to run.
     Starting,
+    /// Backtest is actively running the simulation.
     Running,
+    /// Backtest has completed successfully.
     Finished,
+    /// Backtest encountered an error and failed.
     Failed(Arc<BacktestError>),
+    /// Backtest was manually aborted by the user.
     Aborted,
 }
 
 impl BacktestStatus {
+    /// Returns `true` if the backtest has not been initiated.
     pub fn is_not_initiated(&self) -> bool {
         matches!(self, Self::NotInitiated)
     }
 
+    /// Returns `true` if the backtest is currently starting.
     pub fn is_starting(&self) -> bool {
         matches!(self, Self::Starting)
     }
 
+    /// Returns `true` if the backtest is currently running.
     pub fn is_running(&self) -> bool {
         matches!(self, Self::Running)
     }
 
+    /// Returns `true` if the backtest has finished successfully.
     pub fn is_finished(&self) -> bool {
         matches!(self, Self::Finished)
     }
 
+    /// Returns `true` if the backtest has failed.
     pub fn is_failed(&self) -> bool {
         matches!(self, Self::Failed(_))
     }
 
+    /// Returns `true` if the backtest was aborted.
     pub fn is_aborted(&self) -> bool {
         matches!(self, Self::Aborted)
     }
@@ -56,9 +69,13 @@ impl fmt::Display for BacktestStatus {
     }
 }
 
+/// Update events emitted during a backtest simulation containing status changes and trading state
+/// snapshots.
 #[derive(Clone)]
 pub enum BacktestUpdate {
+    /// Status change notification.
     Status(BacktestStatus),
+    /// Trading state snapshot update.
     TradingState(TradingState),
 }
 
@@ -75,6 +92,9 @@ impl From<TradingState> for BacktestUpdate {
 }
 
 pub(super) type BacktestTransmiter = broadcast::Sender<BacktestUpdate>;
+
+/// Receiver for subscribing to [`BacktestUpdate`]s including status changes and trading state
+/// snapshots.
 pub type BacktestReceiver = broadcast::Receiver<BacktestUpdate>;
 
 #[derive(Debug)]
