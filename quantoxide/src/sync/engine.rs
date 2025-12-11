@@ -140,10 +140,6 @@ impl SyncMode {
         SyncMode::Full
     }
 
-    pub(crate) fn live_with_lookback_opt(lookback: Option<LookbackPeriod>) -> Self {
-        SyncMode::Live(lookback)
-    }
-
     pub fn live_no_lookback() -> Self {
         SyncMode::Live(None)
     }
@@ -155,23 +151,37 @@ impl SyncMode {
     }
 }
 
+pub(super) enum SyncModeInt {
+    Backfill {
+        api_rest: Arc<RestClient>,
+    },
+    LiveNoLookback {
+        api_ws: Arc<WebSocketClient>,
+    },
+    LiveWithLookback {
+        api_rest: Arc<RestClient>,
+        api_ws: Arc<WebSocketClient>,
+        lookback: LookbackPeriod,
+    },
+    Full {
+        api_rest: Arc<RestClient>,
+        api_ws: Arc<WebSocketClient>,
+    },
+}
+
 pub struct SyncEngine {
     config: SyncConfig,
     db: Arc<Database>,
-    api_rest: Arc<RestClient>,
-    api_ws: Arc<WebSocketClient>,
-    mode: SyncMode,
+    mode_int: SyncModeInt,
     status_manager: Arc<SyncStatusManager>,
     update_tx: SyncTransmiter,
 }
 
 impl SyncEngine {
-    pub(crate) fn with_api(
+    fn with_mode_int(
         config: impl Into<SyncConfig>,
         db: Arc<Database>,
-        api_rest: Arc<RestClient>,
-        api_ws: Arc<WebSocketClient>,
-        mode: SyncMode,
+        mode_int: SyncModeInt,
     ) -> Self {
         let (update_tx, _) = broadcast::channel::<SyncUpdate>(1_000);
 
@@ -180,12 +190,47 @@ impl SyncEngine {
         Self {
             config: config.into(),
             db,
-            api_rest,
-            api_ws,
-            mode,
+            mode_int,
             status_manager,
             update_tx,
         }
+    }
+
+    pub(crate) fn live_no_lookback(
+        config: impl Into<SyncConfig>,
+        db: Arc<Database>,
+        api_ws: Arc<WebSocketClient>,
+    ) -> Self {
+        let mode_int = SyncModeInt::LiveNoLookback { api_ws };
+
+        Self::with_mode_int(config, db, mode_int)
+    }
+
+    pub(crate) fn live_with_lookback(
+        config: impl Into<SyncConfig>,
+        db: Arc<Database>,
+        api_rest: Arc<RestClient>,
+        api_ws: Arc<WebSocketClient>,
+        lookback: LookbackPeriod,
+    ) -> Self {
+        let mode_int = SyncModeInt::LiveWithLookback {
+            api_rest,
+            api_ws,
+            lookback,
+        };
+
+        Self::with_mode_int(config, db, mode_int)
+    }
+
+    pub(crate) fn full(
+        config: impl Into<SyncConfig>,
+        db: Arc<Database>,
+        api_rest: Arc<RestClient>,
+        api_ws: Arc<WebSocketClient>,
+    ) -> Self {
+        let mode_int = SyncModeInt::Full { api_rest, api_ws };
+
+        Self::with_mode_int(config, db, mode_int)
     }
 
     pub fn new(
@@ -200,11 +245,42 @@ impl SyncEngine {
         let api_rest = RestClient::new(&config, domain.clone()).map_err(SyncError::RestApiInit)?;
         let api_ws = WebSocketClient::new(&config, domain);
 
-        Ok(SyncEngine::with_api(config, db, api_rest, api_ws, mode))
+        let mode = match mode {
+            SyncMode::Backfill => SyncModeInt::Backfill { api_rest },
+            SyncMode::Live(lookback_opt) => match lookback_opt {
+                Some(lookback) => SyncModeInt::LiveWithLookback {
+                    api_rest,
+                    api_ws,
+                    lookback,
+                },
+                None => SyncModeInt::LiveNoLookback { api_ws },
+            },
+            SyncMode::Full => SyncModeInt::Full { api_rest, api_ws },
+        };
+
+        Ok(Self::with_mode_int(config, db, mode))
     }
 
     pub fn mode(&self) -> SyncMode {
-        self.mode
+        match self.mode_int {
+            SyncModeInt::Backfill { .. } => SyncMode::Backfill,
+            SyncModeInt::LiveNoLookback { .. } => SyncMode::Live(None),
+            SyncModeInt::LiveWithLookback {
+                api_rest: _,
+                api_ws: _,
+                lookback,
+            } => SyncMode::Live(Some(lookback)),
+            SyncModeInt::Full { .. } => SyncMode::Full,
+        }
+    }
+
+    pub fn live_price_feed_active(&self) -> bool {
+        match self.mode_int {
+            SyncModeInt::Backfill { .. } => false,
+            SyncModeInt::LiveNoLookback { .. } => true,
+            SyncModeInt::LiveWithLookback { .. } => true,
+            SyncModeInt::Full { .. } => true,
+        }
     }
 
     pub fn reader(&self) -> Arc<dyn SyncReader> {
@@ -223,23 +299,17 @@ impl SyncEngine {
         // Internal channel for shutdown signal
         let (shutdown_tx, _) = broadcast::channel::<()>(1);
 
+        let mode = self.mode();
+
         let handle = SyncProcess::spawn(
             &self.config,
             self.db,
-            self.api_rest,
-            self.api_ws,
-            self.mode,
+            self.mode_int,
             shutdown_tx.clone(),
             self.status_manager.clone(),
             self.update_tx,
         );
 
-        SyncController::new(
-            &self.config,
-            self.mode,
-            handle,
-            shutdown_tx,
-            self.status_manager,
-        )
+        SyncController::new(&self.config, mode, handle, shutdown_tx, self.status_manager)
     }
 }
