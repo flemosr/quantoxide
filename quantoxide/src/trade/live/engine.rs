@@ -8,7 +8,7 @@ use lnm_sdk::{api_v2::WebSocketClient, api_v3::RestClient};
 use crate::{
     db::Database,
     signal::{ConfiguredSignalEvaluator, LiveSignalEngine},
-    sync::{SyncEngine, SyncMode},
+    sync::SyncEngine,
     tui::{TuiControllerShutdown, TuiError, error::Result as TuiResult},
     util::AbortOnDropHandle,
 };
@@ -148,18 +148,6 @@ impl LiveEngine {
             return Err(LiveError::EmptyEvaluatorsVec);
         }
 
-        let sync_mode = if config.sync_mode_full() {
-            SyncMode::Full
-        } else {
-            let max_lookback = evaluators
-                .iter()
-                .map(|evaluator| evaluator.lookback())
-                .max()
-                .expect("`evaluators` can't be empty");
-
-            SyncMode::live_with_lookback_opt(max_lookback)
-        };
-
         let api_rest = RestClient::with_credentials(
             &config,
             api_domain.to_string(),
@@ -168,10 +156,28 @@ impl LiveEngine {
             api_passphrase.to_string(),
         )
         .map_err(LiveError::RestApiInit)?;
-        let api_ws = WebSocketClient::new(&config, api_domain.to_string());
 
-        let sync_engine =
-            SyncEngine::with_api(&config, db.clone(), api_rest.clone(), api_ws, sync_mode);
+        let api_ws = WebSocketClient::new(&config, api_domain.to_string());
+        let sync_engine = if config.sync_mode_full() {
+            SyncEngine::full(&config, db.clone(), api_rest.clone(), api_ws)
+        } else {
+            let max_lookback = evaluators
+                .iter()
+                .map(|evaluator| evaluator.lookback())
+                .max()
+                .expect("`evaluators` can't be empty");
+
+            match max_lookback {
+                Some(lookback) => SyncEngine::live_with_lookback(
+                    &config,
+                    db.clone(),
+                    api_rest.clone(),
+                    api_ws,
+                    lookback,
+                ),
+                None => SyncEngine::live_no_lookback(&config, db.clone(), api_ws),
+            }
+        };
 
         let signal_engine = LiveSignalEngine::new(
             &config,
@@ -184,7 +190,7 @@ impl LiveEngine {
         let operator_pending = OperatorPending::signal(signal_engine, operator.into());
 
         let trade_executor_launcher =
-            LiveTradeExecutorLauncher::new(&config, db, api_rest, sync_engine.update_receiver())
+            LiveTradeExecutorLauncher::new_int(&config, db, api_rest, &sync_engine)
                 .map_err(LiveError::SetupExecutor)?;
 
         let (update_tx, _) = broadcast::channel::<LiveUpdate>(1_000);
@@ -212,14 +218,6 @@ impl LiveEngine {
     ) -> Result<Self> {
         let operator = WrappedRawOperator::from(operator);
 
-        let sync_mode = if config.sync_mode_full() {
-            SyncMode::Full
-        } else {
-            let lookback = operator.lookback().map_err(LiveError::SetupOperatorError)?;
-
-            SyncMode::live_with_lookback_opt(lookback)
-        };
-
         let api_rest = RestClient::with_credentials(
             &config,
             api_domain.to_string(),
@@ -228,15 +226,27 @@ impl LiveEngine {
             api_passphrase.to_string(),
         )
         .map_err(LiveError::RestApiInit)?;
-        let api_ws = WebSocketClient::new(&config, api_domain.to_string());
 
-        let sync_engine =
-            SyncEngine::with_api(&config, db.clone(), api_rest.clone(), api_ws, sync_mode);
+        let api_ws = WebSocketClient::new(&config, api_domain.to_string());
+        let sync_engine = if config.sync_mode_full() {
+            SyncEngine::full(&config, db.clone(), api_rest.clone(), api_ws)
+        } else {
+            match operator.lookback().map_err(LiveError::SetupOperatorError)? {
+                Some(lookback) => SyncEngine::live_with_lookback(
+                    &config,
+                    db.clone(),
+                    api_rest.clone(),
+                    api_ws,
+                    lookback,
+                ),
+                None => SyncEngine::live_no_lookback(&config, db.clone(), api_ws),
+            }
+        };
 
         let operator_pending = OperatorPending::raw(db.clone(), sync_engine.reader(), operator);
 
         let trade_executor_launcher =
-            LiveTradeExecutorLauncher::new(&config, db, api_rest, sync_engine.update_receiver())
+            LiveTradeExecutorLauncher::new_int(&config, db, api_rest, &sync_engine)
                 .map_err(LiveError::SetupExecutor)?;
 
         let (update_tx, _) = broadcast::channel::<LiveUpdate>(1_000);
