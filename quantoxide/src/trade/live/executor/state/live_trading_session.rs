@@ -23,10 +23,12 @@ use super::super::super::{
     },
 };
 
+/// Time-to-live duration for a trading session before it requires renewal with API data.
 #[derive(Debug, Clone, Copy)]
 pub struct TradingSessionTTL(Duration);
 
 impl TradingSessionTTL {
+    /// Minimum allowed TTL duration (1 hour).
     pub const MIN: Duration = Duration::hours(1);
 }
 

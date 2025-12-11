@@ -26,6 +26,8 @@ use super::{
     state::{LiveReader, LiveReceiver, LiveStatus, LiveStatusManager, LiveTransmiter, LiveUpdate},
 };
 
+/// Controller for managing and monitoring a running live trading process. Provides an interface to
+/// monitor status, receive updates, and perform graceful shutdown operations.
 pub struct LiveController {
     config: LiveControllerConfig,
     process_handle: Mutex<Option<AbortOnDropHandle<LiveProcessFatalResult<()>>>>,
@@ -48,14 +50,17 @@ impl LiveController {
         })
     }
 
+    /// Returns a [`LiveReader`] interface for accessing live status and updates.
     pub fn reader(&self) -> Arc<dyn LiveReader> {
         self.status_manager.clone()
     }
 
+    /// Creates a new [`LiveReceiver`] for subscribing to live trading status and updates.
     pub fn update_receiver(&self) -> LiveReceiver {
         self.status_manager.update_receiver()
     }
 
+    /// Returns the current [`LiveStatus`] as a snapshot.
     pub fn status_snapshot(&self) -> LiveStatus {
         self.status_manager.status_snapshot()
     }
@@ -67,11 +72,12 @@ impl LiveController {
             .take()
     }
 
-    /// Tries to perform a clean shutdown of the live trade process and consumes
-    /// the task handle. If a clean shutdown fails, the process is aborted.
+    /// Tries to perform a clean shutdown of the live trade process and consumes the task handle. If
+    /// a clean shutdown fails, the process is aborted.
+    ///
     /// This method can only be called once per controller instance.
-    /// Returns an error if the process had to be aborted, or if it the handle
-    /// was already consumed.
+    ///
+    /// Returns an error if the process had to be aborted, or if it the handle was already consumed.
     pub async fn shutdown(&self) -> Result<()> {
         let Some(mut handle) = self.try_consume_handle() else {
             return Err(LiveError::LiveAlreadyShutdown);
@@ -123,6 +129,9 @@ impl TuiControllerShutdown for LiveController {
     }
 }
 
+/// Builder for configuring and starting a live trading engine. Encapsulates the configuration,
+/// database connection, API clients, sync engine, trade executor, and operator. The live trading
+/// process is started when [`start`](Self::start) is called, returning a [`LiveController`].
 pub struct LiveEngine {
     config: LiveConfig,
     sync_engine: SyncEngine,
@@ -133,6 +142,8 @@ pub struct LiveEngine {
 }
 
 impl LiveEngine {
+    /// Creates a new live trading engine using signal-based evaluation. Signal evaluators generate
+    /// trading signals that are processed by the signal operator to execute trading actions.
     #[allow(clippy::too_many_arguments)]
     pub fn with_signal_operator(
         config: LiveConfig,
@@ -207,6 +218,8 @@ impl LiveEngine {
         })
     }
 
+    /// Creates a new live trading engine using a raw operator. The raw operator directly implements
+    /// trading logic without intermediate signal generation.
     pub fn with_raw_operator(
         config: LiveConfig,
         db: Arc<Database>,
@@ -263,20 +276,24 @@ impl LiveEngine {
         })
     }
 
+    /// Returns a [`LiveReader`] interface for accessing live status and updates.
     pub fn reader(&self) -> Arc<dyn LiveReader> {
         self.status_manager.clone()
     }
 
+    /// Creates a new [`LiveReceiver`] for subscribing to live trading status and updates.
     pub fn update_receiver(&self) -> LiveReceiver {
         self.status_manager.update_receiver()
     }
 
+    /// Returns the current [`LiveStatus`]s as a snapshot.
     pub fn status_snapshot(&self) -> LiveStatus {
         self.status_manager.status_snapshot()
     }
 
+    /// Starts the live trading process and returns a [`LiveController`] for managing it. This
+    /// consumes the engine and spawns the live trading task in the background.
     pub async fn start(self) -> Result<Arc<LiveController>> {
-        // Internal channel for shutdown signal
         let (shutdown_tx, _) = broadcast::channel::<()>(1);
 
         let process_handle = LiveProcess::spawn(

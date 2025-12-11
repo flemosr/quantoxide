@@ -14,6 +14,7 @@ use super::{
     state::{LiveTradeExecutorStatus, live_trading_session::LiveTradingSession},
 };
 
+/// Represents a trade order operation sent to the exchange API.
 #[derive(Debug, Clone)]
 pub enum LiveTradeExecutorUpdateOrder {
     CreateNewTrade {
@@ -90,11 +91,17 @@ impl fmt::Display for LiveTradeExecutorUpdateOrder {
     }
 }
 
+/// Update events emitted by the live trade executor including orders, status changes, trading
+/// state, and closed trades.
 #[derive(Clone)]
 pub enum LiveTradeExecutorUpdate {
+    /// A trade order operation was sent to the exchange.
     Order(LiveTradeExecutorUpdateOrder),
+    /// The executor status changed.
     Status(LiveTradeExecutorStatus),
+    /// The trading state was updated.
     TradingState(TradingState),
+    /// A trade was closed.
     ClosedTrade(Trade),
 }
 
@@ -117,6 +124,9 @@ impl From<LiveTradingSession> for LiveTradeExecutorUpdate {
 }
 
 pub(super) type LiveTradeExecutorTransmiter = broadcast::Sender<LiveTradeExecutorUpdate>;
+
+/// Receiver for subscribing to [`LiveTradeExecutorUpdate`]s including orders, status changes, and
+/// closed trades.
 pub type LiveTradeExecutorReceiver = broadcast::Receiver<LiveTradeExecutorUpdate>;
 
 #[derive(Clone)]

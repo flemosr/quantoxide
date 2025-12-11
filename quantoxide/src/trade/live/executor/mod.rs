@@ -52,6 +52,8 @@ use update::{
     WrappedRestClient,
 };
 
+/// Live trade executor implementing the [`TradeExecutor`] trait for real-time trade execution on
+/// an exchange. Manages trading sessions, validates operations, and maintains trade state.
 pub struct LiveTradeExecutor {
     config: LiveTradeExecutorConfig,
     db: Arc<Database>,
@@ -80,6 +82,8 @@ impl LiveTradeExecutor {
         })
     }
 
+    /// Creates a new [`LiveTradeExecutorReceiver`] for subscribing to trade executor updates
+    /// including orders and closed trades.
     pub fn update_receiver(&self) -> LiveTradeExecutorReceiver {
         self.update_tx.subscribe()
     }
@@ -232,6 +236,8 @@ impl LiveTradeExecutor {
             .take()
     }
 
+    /// Shuts down the trade executor and optionally closes all running trades. This method can only
+    /// be called once per executor instance.
     pub async fn shutdown(&self) -> LiveTradeExecutorResult<()> {
         let Some(handle) = self.try_consume_handle() else {
             return Err(LiveTradeExecutorError::ExecutorProcessAlreadyConsumed);
@@ -459,6 +465,8 @@ impl TradeExecutor for LiveTradeExecutor {
     }
 }
 
+/// Launcher for initializing and starting a live trade executor. Validates configuration and API
+/// credentials before launching the executor process.
 pub struct LiveTradeExecutorLauncher {
     config: LiveTradeExecutorConfig,
     db: Arc<Database>,
@@ -469,6 +477,8 @@ pub struct LiveTradeExecutorLauncher {
 }
 
 impl LiveTradeExecutorLauncher {
+    /// Creates a new launcher for the live trade executor. Validates that API credentials are set
+    /// and that the sync engine has an active live feed.
     pub fn new(
         config: impl Into<LiveTradeExecutorConfig>,
         db: Arc<Database>,
@@ -502,6 +512,7 @@ impl LiveTradeExecutorLauncher {
         })
     }
 
+    /// Creates a new [`LiveTradeExecutorReceiver`] for subscribing to trade executor updates.
     pub fn update_receiver(&self) -> LiveTradeExecutorReceiver {
         self.update_tx.subscribe()
     }
@@ -654,6 +665,8 @@ impl LiveTradeExecutorLauncher {
         .into()
     }
 
+    /// Launches the live trade executor after optionally cleaning up existing trades. Returns a
+    /// running executor instance.
     pub async fn launch(self) -> LiveTradeExecutorResult<Arc<LiveTradeExecutor>> {
         if self.config.startup_clean_up_trades() {
             let (_, _) = futures::try_join!(

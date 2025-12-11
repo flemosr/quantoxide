@@ -16,13 +16,20 @@ pub(in crate::trade) mod live_trading_session;
 
 use live_trading_session::LiveTradingSession;
 
+/// Status variants indicating the trade executor is not ready to execute trades.
 #[derive(Debug, Clone)]
 pub enum LiveTradeExecutorStatusNotReady {
+    /// Executor is initializing.
     Starting,
+    /// Waiting for the sync engine to reach a synced state.
     WaitingForSync(SyncStatusNotSynced),
+    /// Executor encountered a recoverable error.
     Failed(Arc<ExecutorProcessRecoverableError>),
+    /// Executor encountered a fatal error and terminated.
     Terminated(Arc<ExecutorProcessFatalError>),
+    /// Shutdown has been initiated.
     ShutdownInitiated,
+    /// Executor has been shut down.
     Shutdown,
 }
 
@@ -41,9 +48,12 @@ impl fmt::Display for LiveTradeExecutorStatusNotReady {
     }
 }
 
+/// Overall status of the live trade executor indicating readiness to execute trades.
 #[derive(Debug, Clone)]
 pub enum LiveTradeExecutorStatus {
+    /// Executor is not ready to execute trades.
     NotReady(LiveTradeExecutorStatusNotReady),
+    /// Executor is ready and can accept trade operations.
     Ready,
 }
 

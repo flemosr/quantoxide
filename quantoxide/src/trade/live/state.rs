@@ -18,18 +18,30 @@ use super::{
     process::error::{LiveProcessFatalError, LiveProcessRecoverableError},
 };
 
+/// Represents the current status of a live trading process.
 #[derive(Debug, Clone)]
 pub enum LiveStatus {
+    /// Live trading process has been created but not yet started.
     NotInitiated,
+    /// Live trading process is initializing.
     Starting,
+    /// Waiting for the sync engine to reach a synced state.
     WaitingForSync(SyncStatusNotSynced),
+    /// Waiting for the signal evaluator to start running.
     WaitingForSignal(LiveSignalStatusNotRunning),
+    /// Waiting for the trade executor to become ready.
     WaitingTradeExecutor(LiveTradeExecutorStatusNotReady),
+    /// Live trading process is actively running.
     Running,
+    /// Live trading process encountered a recoverable error.
     Failed(Arc<LiveProcessRecoverableError>),
+    /// Live trading process is restarting after a recoverable error.
     Restarting,
+    /// Shutdown has been initiated.
     ShutdownInitiated,
+    /// Live trading process has been shut down.
     Shutdown,
+    /// Live trading process encountered a fatal error and terminated.
     Terminated(Arc<LiveProcessFatalError>),
 }
 
@@ -71,12 +83,19 @@ impl From<LiveProcessFatalError> for LiveStatus {
     }
 }
 
+/// Update events emitted during live trading including status changes, signals, orders, trading
+/// state, and closed trades.
 #[derive(Clone)]
 pub enum LiveUpdate {
+    /// Live trading status changed.
     Status(LiveStatus),
+    /// A trading signal was generated.
     Signal(Signal),
+    /// A trade order operation was sent to the exchange.
     Order(LiveTradeExecutorUpdateOrder),
+    /// The trading state was updated.
     TradingState(TradingState),
+    /// A trade was closed.
     ClosedTrade(Trade),
 }
 
@@ -105,10 +124,17 @@ impl From<TradingState> for LiveUpdate {
 }
 
 pub(super) type LiveTransmiter = broadcast::Sender<LiveUpdate>;
+
+/// Receiver for subscribing to [`LiveUpdate`]s including status changes, signals, orders, and
+/// closed trades.
 pub type LiveReceiver = broadcast::Receiver<LiveUpdate>;
 
+/// Trait for reading live trading status and subscribing to updates.
 pub trait LiveReader: Send + Sync + 'static {
+    /// Creates a new [`LiveReceiver`] for subscribing to live trading updates.
     fn update_receiver(&self) -> LiveReceiver;
+
+    /// Returns the current [`LiveStatus`] as a snapshot.
     fn status_snapshot(&self) -> LiveStatus;
 }
 
