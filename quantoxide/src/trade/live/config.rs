@@ -12,56 +12,56 @@ use super::executor::state::live_trading_session::TradingSessionTTL;
 
 #[derive(Clone, Debug)]
 pub struct LiveConfig {
-    api_rest_timeout: time::Duration,
-    api_ws_disconnect_timeout: time::Duration,
-    api_cooldown: time::Duration,
-    api_error_cooldown: time::Duration,
-    api_error_max_trials: NonZeroU64,
-    api_history_batch_size: NonZeroU64,
+    rest_api_timeout: time::Duration,
+    ws_api_disconnect_timeout: time::Duration,
+    rest_api_cooldown: time::Duration,
+    rest_api_error_cooldown: time::Duration,
+    rest_api_error_max_trials: NonZeroU64,
+    price_history_batch_size: NonZeroU64,
     sync_mode_full: bool,
-    sync_history_reach: Duration,
-    re_sync_history_interval: time::Duration,
-    max_tick_interval: time::Duration,
+    price_history_reach: Duration,
+    price_history_re_sync_interval: time::Duration,
+    live_price_tick_max_interval: time::Duration,
     sync_update_timeout: time::Duration,
-    tsl_step_size: PercentageCapped,
-    clean_up_trades_on_startup: bool,
-    recover_trades_on_startup: bool,
-    session_ttl: TradingSessionTTL,
-    session_refresh_interval: time::Duration,
-    clean_up_trades_on_shutdown: bool,
-    estimated_fee_perc: PercentageCapped,
-    max_running_qtd: usize,
+    trade_tsl_step_size: PercentageCapped,
+    startup_clean_up_trades: bool,
+    startup_recover_trades: bool,
+    trading_session_ttl: TradingSessionTTL,
+    trading_session_refresh_interval: time::Duration,
+    shutdown_clean_up_trades: bool,
+    trade_estimated_fee: PercentageCapped,
+    trade_max_running_qtd: usize,
     restart_interval: time::Duration,
     shutdown_timeout: time::Duration,
 }
 
 impl Default for LiveConfig {
     fn default() -> Self {
-        let session_ttl = (Duration::hours(1) + Duration::minutes(5))
+        let trading_session_ttl = (Duration::hours(1) + Duration::minutes(5))
             .try_into()
             .expect("must be valid `TradingSessionTTL`");
 
         Self {
-            api_rest_timeout: time::Duration::from_secs(20),
-            api_ws_disconnect_timeout: time::Duration::from_secs(6),
-            api_cooldown: time::Duration::from_secs(2),
-            api_error_cooldown: time::Duration::from_secs(10),
-            api_error_max_trials: 3.try_into().expect("not zero"),
-            api_history_batch_size: 1000.try_into().expect("not zero"),
+            rest_api_timeout: time::Duration::from_secs(20),
+            ws_api_disconnect_timeout: time::Duration::from_secs(6),
+            rest_api_cooldown: time::Duration::from_secs(2),
+            rest_api_error_cooldown: time::Duration::from_secs(10),
+            rest_api_error_max_trials: 3.try_into().expect("not zero"),
+            price_history_batch_size: 1000.try_into().expect("not zero"),
             sync_mode_full: false,
-            sync_history_reach: Duration::days(90),
-            re_sync_history_interval: time::Duration::from_secs(10),
-            max_tick_interval: time::Duration::from_mins(3),
+            price_history_reach: Duration::days(90),
+            price_history_re_sync_interval: time::Duration::from_secs(10),
+            live_price_tick_max_interval: time::Duration::from_mins(3),
             sync_update_timeout: time::Duration::from_secs(5),
-            tsl_step_size: PercentageCapped::MIN,
-            clean_up_trades_on_startup: true,
-            recover_trades_on_startup: false,
-            session_ttl,
-            session_refresh_interval: time::Duration::from_millis(1_000),
-            clean_up_trades_on_shutdown: true,
-            estimated_fee_perc: PercentageCapped::try_from(0.1)
+            trade_tsl_step_size: PercentageCapped::MIN,
+            startup_clean_up_trades: true,
+            startup_recover_trades: false,
+            trading_session_ttl,
+            trading_session_refresh_interval: time::Duration::from_millis(1_000),
+            shutdown_clean_up_trades: true,
+            trade_estimated_fee: PercentageCapped::try_from(0.1)
                 .expect("must be valid `PercentageCapped`"),
-            max_running_qtd: 50,
+            trade_max_running_qtd: 50,
             restart_interval: time::Duration::from_secs(10),
             shutdown_timeout: time::Duration::from_secs(6),
         }
@@ -69,44 +69,44 @@ impl Default for LiveConfig {
 }
 
 impl LiveConfig {
-    pub fn api_rest_timeout(&self) -> time::Duration {
-        self.api_rest_timeout
+    pub fn rest_api_timeout(&self) -> time::Duration {
+        self.rest_api_timeout
     }
 
-    pub fn api_ws_disconnect_timeout(&self) -> time::Duration {
-        self.api_ws_disconnect_timeout
+    pub fn ws_api_disconnect_timeout(&self) -> time::Duration {
+        self.ws_api_disconnect_timeout
     }
 
-    pub fn api_cooldown(&self) -> time::Duration {
-        self.api_cooldown
+    pub fn rest_api_cooldown(&self) -> time::Duration {
+        self.rest_api_cooldown
     }
 
-    pub fn api_error_cooldown(&self) -> time::Duration {
-        self.api_error_cooldown
+    pub fn rest_api_error_cooldown(&self) -> time::Duration {
+        self.rest_api_error_cooldown
     }
 
-    pub fn api_error_max_trials(&self) -> NonZeroU64 {
-        self.api_error_max_trials
+    pub fn rest_api_error_max_trials(&self) -> NonZeroU64 {
+        self.rest_api_error_max_trials
     }
 
-    pub fn api_history_batch_size(&self) -> NonZeroU64 {
-        self.api_history_batch_size
+    pub fn price_history_batch_size(&self) -> NonZeroU64 {
+        self.price_history_batch_size
     }
 
     pub fn sync_mode_full(&self) -> bool {
         self.sync_mode_full
     }
 
-    pub fn sync_history_reach(&self) -> Duration {
-        self.sync_history_reach
+    pub fn price_history_reach(&self) -> Duration {
+        self.price_history_reach
     }
 
-    pub fn re_sync_history_interval(&self) -> time::Duration {
-        self.re_sync_history_interval
+    pub fn price_history_re_sync_interval(&self) -> time::Duration {
+        self.price_history_re_sync_interval
     }
 
-    pub fn max_tick_interval(&self) -> time::Duration {
-        self.max_tick_interval
+    pub fn live_price_tick_max_interval(&self) -> time::Duration {
+        self.live_price_tick_max_interval
     }
 
     pub fn sync_update_timeout(&self) -> time::Duration {
@@ -114,35 +114,35 @@ impl LiveConfig {
     }
 
     pub fn trailing_stoploss_step_size(&self) -> PercentageCapped {
-        self.tsl_step_size
+        self.trade_tsl_step_size
     }
 
-    pub fn clean_up_trades_on_startup(&self) -> bool {
-        self.clean_up_trades_on_startup
+    pub fn startup_clean_up_trades(&self) -> bool {
+        self.startup_clean_up_trades
     }
 
-    pub fn recover_trades_on_startup(&self) -> bool {
-        self.recover_trades_on_startup
+    pub fn startup_recover_trades(&self) -> bool {
+        self.startup_recover_trades
     }
 
-    pub fn session_ttl(&self) -> TradingSessionTTL {
-        self.session_ttl
+    pub fn trading_session_ttl(&self) -> TradingSessionTTL {
+        self.trading_session_ttl
     }
 
-    pub fn session_refresh_interval(&self) -> time::Duration {
-        self.session_refresh_interval
+    pub fn trading_session_refresh_interval(&self) -> time::Duration {
+        self.trading_session_refresh_interval
     }
 
-    pub fn clean_up_trades_on_shutdown(&self) -> bool {
-        self.clean_up_trades_on_shutdown
+    pub fn shutdown_clean_up_trades(&self) -> bool {
+        self.shutdown_clean_up_trades
     }
 
-    pub fn estimated_fee_perc(&self) -> PercentageCapped {
-        self.estimated_fee_perc
+    pub fn trade_estimated_fee(&self) -> PercentageCapped {
+        self.trade_estimated_fee
     }
 
-    pub fn max_running_qtd(&self) -> usize {
-        self.max_running_qtd
+    pub fn trade_max_running_qtd(&self) -> usize {
+        self.trade_max_running_qtd
     }
 
     pub fn restart_interval(&self) -> time::Duration {
@@ -153,33 +153,33 @@ impl LiveConfig {
         self.shutdown_timeout
     }
 
-    pub fn with_api_rest_timeout(mut self, secs: u64) -> Self {
-        self.api_rest_timeout = time::Duration::from_secs(secs);
+    pub fn with_rest_api_timeout(mut self, secs: u64) -> Self {
+        self.rest_api_timeout = time::Duration::from_secs(secs);
         self
     }
 
-    pub fn with_api_ws_disconnect_timeout(mut self, secs: u64) -> Self {
-        self.api_ws_disconnect_timeout = time::Duration::from_secs(secs);
+    pub fn with_ws_api_disconnect_timeout(mut self, secs: u64) -> Self {
+        self.ws_api_disconnect_timeout = time::Duration::from_secs(secs);
         self
     }
 
     pub fn with_api_cooldown(mut self, secs: u64) -> Self {
-        self.api_cooldown = time::Duration::from_secs(secs);
+        self.rest_api_cooldown = time::Duration::from_secs(secs);
         self
     }
 
     pub fn with_api_error_cooldown(mut self, secs: u64) -> Self {
-        self.api_error_cooldown = time::Duration::from_secs(secs);
+        self.rest_api_error_cooldown = time::Duration::from_secs(secs);
         self
     }
 
     pub fn with_api_error_max_trials(mut self, max_trials: NonZeroU64) -> Self {
-        self.api_error_max_trials = max_trials;
+        self.rest_api_error_max_trials = max_trials;
         self
     }
 
-    pub fn with_api_history_batch_size(mut self, size: NonZeroU64) -> Self {
-        self.api_history_batch_size = size;
+    pub fn with_price_history_batch_size(mut self, size: NonZeroU64) -> Self {
+        self.price_history_batch_size = size;
         self
     }
 
@@ -188,18 +188,18 @@ impl LiveConfig {
         self
     }
 
-    pub fn with_sync_history_reach(mut self, days: NonZeroU64) -> Self {
-        self.sync_history_reach = Duration::days(days.get() as i64);
+    pub fn with_price_history_reach(mut self, days: NonZeroU64) -> Self {
+        self.price_history_reach = Duration::days(days.get() as i64);
         self
     }
 
-    pub fn with_re_sync_history_interval(mut self, secs: u64) -> Self {
-        self.re_sync_history_interval = time::Duration::from_secs(secs);
+    pub fn with_price_history_re_sync_interval(mut self, secs: u64) -> Self {
+        self.price_history_re_sync_interval = time::Duration::from_secs(secs);
         self
     }
 
-    pub fn with_max_tick_interval(mut self, secs: u64) -> Self {
-        self.max_tick_interval = time::Duration::from_secs(secs);
+    pub fn with_live_price_tick_max_interval(mut self, secs: u64) -> Self {
+        self.live_price_tick_max_interval = time::Duration::from_secs(secs);
         self
     }
 
@@ -208,43 +208,46 @@ impl LiveConfig {
         self
     }
 
-    pub fn with_trailing_stoploss_step_size(mut self, tsl_step_size: PercentageCapped) -> Self {
-        self.tsl_step_size = tsl_step_size;
+    pub fn with_trailing_stoploss_step_size(
+        mut self,
+        trade_tsl_step_size: PercentageCapped,
+    ) -> Self {
+        self.trade_tsl_step_size = trade_tsl_step_size;
         self
     }
 
-    pub fn with_clean_up_trades_on_startup(mut self, clean_up_trades_on_startup: bool) -> Self {
-        self.clean_up_trades_on_startup = clean_up_trades_on_startup;
+    pub fn with_startup_clean_up_trades(mut self, startup_clean_up_trades: bool) -> Self {
+        self.startup_clean_up_trades = startup_clean_up_trades;
         self
     }
 
-    pub fn with_recover_trades_on_startup(mut self, recover_trades_on_startup: bool) -> Self {
-        self.recover_trades_on_startup = recover_trades_on_startup;
+    pub fn with_startup_recover_trades(mut self, startup_recover_trades: bool) -> Self {
+        self.startup_recover_trades = startup_recover_trades;
         self
     }
 
-    pub fn with_session_ttl(mut self, session_ttl: TradingSessionTTL) -> Self {
-        self.session_ttl = session_ttl;
+    pub fn with_trading_session_ttl(mut self, trading_session_ttl: TradingSessionTTL) -> Self {
+        self.trading_session_ttl = trading_session_ttl;
         self
     }
 
-    pub fn with_session_refresh_interval(mut self, millis: u64) -> Self {
-        self.session_refresh_interval = time::Duration::from_millis(millis);
+    pub fn with_trading_session_refresh_interval(mut self, millis: u64) -> Self {
+        self.trading_session_refresh_interval = time::Duration::from_millis(millis);
         self
     }
 
-    pub fn with_clean_up_trades_on_shutdown(mut self, clean_up_trades_on_shutdown: bool) -> Self {
-        self.clean_up_trades_on_shutdown = clean_up_trades_on_shutdown;
+    pub fn with_shutdown_clean_up_trades(mut self, shutdown_clean_up_trades: bool) -> Self {
+        self.shutdown_clean_up_trades = shutdown_clean_up_trades;
         self
     }
 
-    pub fn with_estimated_fee_perc(mut self, estimated_fee_perc: PercentageCapped) -> Self {
-        self.estimated_fee_perc = estimated_fee_perc;
+    pub fn with_trade_estimated_fee(mut self, trade_estimated_fee: PercentageCapped) -> Self {
+        self.trade_estimated_fee = trade_estimated_fee;
         self
     }
 
-    pub fn with_max_running_qtd(mut self, max_running_qtd: usize) -> Self {
-        self.max_running_qtd = max_running_qtd;
+    pub fn with_trade_max_running_qtd(mut self, trade_max_running_qtd: usize) -> Self {
+        self.trade_max_running_qtd = trade_max_running_qtd;
         self
     }
 
@@ -261,13 +264,13 @@ impl LiveConfig {
 
 impl From<&LiveConfig> for RestClientConfig {
     fn from(value: &LiveConfig) -> Self {
-        RestClientConfig::new(value.api_rest_timeout())
+        RestClientConfig::new(value.rest_api_timeout())
     }
 }
 
 impl From<&LiveConfig> for WebSocketClientConfig {
     fn from(value: &LiveConfig) -> Self {
-        WebSocketClientConfig::new(value.api_ws_disconnect_timeout())
+        WebSocketClientConfig::new(value.ws_api_disconnect_timeout())
     }
 }
 
@@ -316,106 +319,109 @@ impl From<&LiveConfig> for LiveProcessConfig {
 }
 
 pub struct LiveTradeExecutorConfig {
-    tsl_step_size: PercentageCapped,
-    clean_up_trades_on_startup: bool,
-    recover_trades_on_startup: bool,
-    session_ttl: TradingSessionTTL,
-    session_refresh_interval: time::Duration,
-    clean_up_trades_on_shutdown: bool,
-    estimated_fee_perc: PercentageCapped,
-    max_running_qtd: usize,
+    trade_tsl_step_size: PercentageCapped,
+    startup_clean_up_trades: bool,
+    startup_recover_trades: bool,
+    trading_session_ttl: TradingSessionTTL,
+    trading_session_refresh_interval: time::Duration,
+    shutdown_clean_up_trades: bool,
+    trade_estimated_fee: PercentageCapped,
+    trade_max_running_qtd: usize,
 }
 
 impl LiveTradeExecutorConfig {
     pub fn trailing_stoploss_step_size(&self) -> PercentageCapped {
-        self.tsl_step_size
+        self.trade_tsl_step_size
     }
 
-    pub fn clean_up_trades_on_startup(&self) -> bool {
-        self.clean_up_trades_on_startup
+    pub fn startup_clean_up_trades(&self) -> bool {
+        self.startup_clean_up_trades
     }
 
-    pub fn recover_trades_on_startup(&self) -> bool {
-        self.recover_trades_on_startup
+    pub fn startup_recover_trades(&self) -> bool {
+        self.startup_recover_trades
     }
 
-    pub fn session_ttl(&self) -> TradingSessionTTL {
-        self.session_ttl
+    pub fn trading_session_ttl(&self) -> TradingSessionTTL {
+        self.trading_session_ttl
     }
 
-    pub fn session_refresh_interval(&self) -> time::Duration {
-        self.session_refresh_interval
+    pub fn trading_session_refresh_interval(&self) -> time::Duration {
+        self.trading_session_refresh_interval
     }
 
-    pub fn clean_up_trades_on_shutdown(&self) -> bool {
-        self.clean_up_trades_on_shutdown
+    pub fn shutdown_clean_up_trades(&self) -> bool {
+        self.shutdown_clean_up_trades
     }
 
-    pub fn estimated_fee_perc(&self) -> PercentageCapped {
-        self.estimated_fee_perc
+    pub fn trade_estimated_fee(&self) -> PercentageCapped {
+        self.trade_estimated_fee
     }
 
-    pub fn max_running_qtd(&self) -> usize {
-        self.max_running_qtd
+    pub fn trade_max_running_qtd(&self) -> usize {
+        self.trade_max_running_qtd
     }
 
-    pub fn with_trailing_stoploss_step_size(mut self, tsl_step_size: PercentageCapped) -> Self {
-        self.tsl_step_size = tsl_step_size;
+    pub fn with_trailing_stoploss_step_size(
+        mut self,
+        trade_tsl_step_size: PercentageCapped,
+    ) -> Self {
+        self.trade_tsl_step_size = trade_tsl_step_size;
         self
     }
 
-    pub fn with_clean_up_trades_on_startup(mut self, clean_up_trades_on_startup: bool) -> Self {
-        self.clean_up_trades_on_startup = clean_up_trades_on_startup;
+    pub fn with_startup_clean_up_trades(mut self, startup_clean_up_trades: bool) -> Self {
+        self.startup_clean_up_trades = startup_clean_up_trades;
         self
     }
 
-    pub fn with_recover_trades_on_startup(mut self, recover_trades_on_startup: bool) -> Self {
-        self.recover_trades_on_startup = recover_trades_on_startup;
+    pub fn with_startup_recover_trades(mut self, startup_recover_trades: bool) -> Self {
+        self.startup_recover_trades = startup_recover_trades;
         self
     }
 
-    pub fn with_session_ttl(mut self, session_ttl: TradingSessionTTL) -> Self {
-        self.session_ttl = session_ttl;
+    pub fn with_trading_session_ttl(mut self, trading_session_ttl: TradingSessionTTL) -> Self {
+        self.trading_session_ttl = trading_session_ttl;
         self
     }
 
-    pub fn with_session_refresh_interval(mut self, millis: u64) -> Self {
-        self.session_refresh_interval = time::Duration::from_millis(millis);
+    pub fn with_trading_session_refresh_interval(mut self, millis: u64) -> Self {
+        self.trading_session_refresh_interval = time::Duration::from_millis(millis);
         self
     }
 
-    pub fn with_clean_up_trades_on_shutdown(mut self, clean_up_trades_on_shutdown: bool) -> Self {
-        self.clean_up_trades_on_shutdown = clean_up_trades_on_shutdown;
+    pub fn with_shutdown_clean_up_trades(mut self, shutdown_clean_up_trades: bool) -> Self {
+        self.shutdown_clean_up_trades = shutdown_clean_up_trades;
         self
     }
 
-    pub fn with_estimated_fee_perc(mut self, estimated_fee_perc: PercentageCapped) -> Self {
-        self.estimated_fee_perc = estimated_fee_perc;
+    pub fn with_trade_estimated_fee(mut self, trade_estimated_fee: PercentageCapped) -> Self {
+        self.trade_estimated_fee = trade_estimated_fee;
         self
     }
 
-    pub fn with_max_running_qtd(mut self, max_running_qtd: usize) -> Self {
-        self.max_running_qtd = max_running_qtd;
+    pub fn with_trade_max_running_qtd(mut self, trade_max_running_qtd: usize) -> Self {
+        self.trade_max_running_qtd = trade_max_running_qtd;
         self
     }
 }
 
 impl Default for LiveTradeExecutorConfig {
     fn default() -> Self {
-        let session_ttl = (Duration::hours(1) + Duration::minutes(5))
+        let trading_session_ttl = (Duration::hours(1) + Duration::minutes(5))
             .try_into()
             .expect("must be valid `TradingSessionTTL`");
 
         Self {
-            tsl_step_size: PercentageCapped::MIN,
-            clean_up_trades_on_startup: true,
-            recover_trades_on_startup: false,
-            session_ttl,
-            session_refresh_interval: time::Duration::from_millis(1_000),
-            clean_up_trades_on_shutdown: true,
-            estimated_fee_perc: PercentageCapped::try_from(0.1)
+            trade_tsl_step_size: PercentageCapped::MIN,
+            startup_clean_up_trades: true,
+            startup_recover_trades: false,
+            trading_session_ttl,
+            trading_session_refresh_interval: time::Duration::from_millis(1_000),
+            shutdown_clean_up_trades: true,
+            trade_estimated_fee: PercentageCapped::try_from(0.1)
                 .expect("must be valid `PercentageCapped`"),
-            max_running_qtd: 50,
+            trade_max_running_qtd: 50,
         }
     }
 }
@@ -423,14 +429,14 @@ impl Default for LiveTradeExecutorConfig {
 impl From<&LiveConfig> for LiveTradeExecutorConfig {
     fn from(value: &LiveConfig) -> Self {
         Self {
-            tsl_step_size: value.trailing_stoploss_step_size(),
-            clean_up_trades_on_startup: value.clean_up_trades_on_startup(),
-            recover_trades_on_startup: value.recover_trades_on_startup(),
-            session_ttl: value.session_ttl(),
-            session_refresh_interval: value.session_refresh_interval(),
-            clean_up_trades_on_shutdown: value.clean_up_trades_on_shutdown(),
-            estimated_fee_perc: value.estimated_fee_perc(),
-            max_running_qtd: value.max_running_qtd(),
+            trade_tsl_step_size: value.trailing_stoploss_step_size(),
+            startup_clean_up_trades: value.startup_clean_up_trades(),
+            startup_recover_trades: value.startup_recover_trades(),
+            trading_session_ttl: value.trading_session_ttl(),
+            trading_session_refresh_interval: value.trading_session_refresh_interval(),
+            shutdown_clean_up_trades: value.shutdown_clean_up_trades(),
+            trade_estimated_fee: value.trade_estimated_fee(),
+            trade_max_running_qtd: value.trade_max_running_qtd(),
         }
     }
 }

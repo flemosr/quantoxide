@@ -138,7 +138,7 @@ impl LiveTradeExecutor {
                 market_price,
                 stoploss_price,
                 takeprofit,
-                self.config.estimated_fee_perc(),
+                self.config.trade_estimated_fee(),
             )
             .map_err(ExecutorActionError::InvalidTradeParams)?;
 
@@ -149,7 +149,7 @@ impl LiveTradeExecutor {
             return Err(ExecutorActionError::BalanceTooLow);
         }
 
-        let max_qtd = self.config.max_running_qtd();
+        let max_qtd = self.config.trade_max_running_qtd();
         if trading_session.running_map().len() == max_qtd {
             return Err(ExecutorActionError::MaxRunningTradesReached { max_qtd });
         }
@@ -250,7 +250,7 @@ impl LiveTradeExecutor {
 
         handle.abort();
 
-        if !self.config.clean_up_trades_on_shutdown() {
+        if !self.config.shutdown_clean_up_trades() {
             self.state_manager
                 .update_status_not_ready(LiveTradeExecutorStatusNotReady::Shutdown)
                 .await;
@@ -508,10 +508,10 @@ impl LiveTradeExecutorLauncher {
 
     #[allow(clippy::too_many_arguments)]
     fn spawn_sync_processor(
-        recover_trades_on_startup: bool,
-        tsl_step_size: PercentageCapped,
+        startup_recover_trades: bool,
+        trade_tsl_step_size: PercentageCapped,
         session_refresh_offset: TradingSessionTTL,
-        session_refresh_interval: time::Duration,
+        trading_session_refresh_interval: time::Duration,
         db: Arc<Database>,
         api: WrappedRestClient,
         update_tx: LiveTradeExecutorTransmiter,
@@ -550,8 +550,8 @@ impl LiveTradeExecutorLauncher {
                     }
                     prev_session => {
                         match LiveTradingSession::new(
-                            recover_trades_on_startup,
-                            tsl_step_size,
+                            startup_recover_trades,
+                            trade_tsl_step_size,
                             session_refresh_offset,
                             db.as_ref(),
                             &api,
@@ -577,7 +577,7 @@ impl LiveTradeExecutorLauncher {
             let handler = async || -> ExecutorProcessFatalResult<Never> {
                 let mut sync_rx = sync_rx;
                 let mut should_refresh = false;
-                let new_refresh_timer = || Box::pin(time::sleep(session_refresh_interval));
+                let new_refresh_timer = || Box::pin(time::sleep(trading_session_refresh_interval));
                 let mut refresh_timer = new_refresh_timer();
 
                 loop {
@@ -655,7 +655,7 @@ impl LiveTradeExecutorLauncher {
     }
 
     pub async fn launch(self) -> LiveTradeExecutorResult<Arc<LiveTradeExecutor>> {
-        if self.config.clean_up_trades_on_startup() {
+        if self.config.startup_clean_up_trades() {
             let (_, _) = futures::try_join!(
                 self.api_rest.cancel_all_trades(),
                 self.api_rest.close_all_trades()
@@ -664,10 +664,10 @@ impl LiveTradeExecutorLauncher {
         }
 
         let handle = Self::spawn_sync_processor(
-            self.config.recover_trades_on_startup(),
+            self.config.startup_recover_trades(),
             self.config.trailing_stoploss_step_size(),
-            self.config.session_ttl(),
-            self.config.session_refresh_interval(),
+            self.config.trading_session_ttl(),
+            self.config.trading_session_refresh_interval(),
             self.db.clone(),
             self.api_rest.clone(),
             self.update_tx.clone(),
