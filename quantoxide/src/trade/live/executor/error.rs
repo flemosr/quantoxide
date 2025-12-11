@@ -6,7 +6,10 @@ use uuid::Uuid;
 
 use lnm_sdk::api_v3::error::{PriceValidationError, RestApiError, TradeValidationError};
 
-use crate::{db::error::DbError, sync::process::error::SyncProcessFatalError};
+use crate::{
+    db::error::DbError,
+    sync::{SyncMode, process::error::SyncProcessFatalError},
+};
 
 use super::{
     super::super::error::TradeCoreError,
@@ -121,8 +124,8 @@ pub enum LiveTradeExecutorError {
     #[error("REST API client initialization error: {0}")]
     RestApiInit(RestApiError),
 
-    #[error("Sync engine live price feed must be active")]
-    SyncEngineLivePriceFeedInactive,
+    #[error("Sync engine live price feed is not active. Mode: {0}")]
+    SyncEngineLiveFeedInactive(SyncMode),
 
     #[error("Launch clean up error {0}")]
     LaunchCleanUp(ExecutorActionError),
