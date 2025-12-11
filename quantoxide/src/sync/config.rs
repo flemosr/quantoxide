@@ -5,7 +5,7 @@ use tokio::time;
 
 use lnm_sdk::{api_v2::WebSocketClientConfig, api_v3::RestClientConfig};
 
-use crate::trade::LiveConfig;
+use crate::trade::{LiveConfig, LiveTradeExecutorConfig};
 
 #[derive(Clone, Debug)]
 pub struct SyncConfig {
@@ -168,6 +168,20 @@ impl From<&LiveConfig> for SyncConfig {
             restart_interval: value.restart_interval(),
             shutdown_timeout: value.shutdown_timeout(),
         }
+    }
+}
+
+// Important: `SyncEngine` is only initialized by `LiveTradeExecutor` in 'live with no lookback'
+// mode. Therefore, only the configs used while on this mode need to be customizable by consumers.
+// Besides that, `WebSocketClientConfig` is obtained directly from `&LiveTradeExecutorConfig`, so
+// the corresponding properties shouldn't be transfered here.
+// Unnecessary `SyncConfig` properties are being set with defaults for the sake of simplicity.
+impl From<&LiveTradeExecutorConfig> for SyncConfig {
+    fn from(value: &LiveTradeExecutorConfig) -> Self {
+        SyncConfig::default()
+            .with_max_tick_interval(value.max_tick_interval().as_secs())
+            .with_restart_interval(value.restart_interval().as_secs())
+            .with_shutdown_timeout(value.shutdown_timeout().as_secs())
     }
 }
 
