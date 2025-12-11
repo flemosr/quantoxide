@@ -1,4 +1,4 @@
-use std::{future, pin::Pin, sync::Arc};
+use std::{pin::Pin, sync::Arc};
 
 use futures::TryFutureExt;
 use tokio::{
@@ -16,7 +16,7 @@ use crate::{
 
 use super::{
     config::{SyncConfig, SyncProcessConfig},
-    engine::SyncMode,
+    engine::SyncModeInt,
     state::{SyncStatus, SyncStatusManager, SyncStatusNotSynced, SyncTransmiter},
 };
 
@@ -33,9 +33,7 @@ use sync_price_history_task::{
 pub(super) struct SyncProcess {
     config: SyncProcessConfig,
     db: Arc<Database>,
-    api_rest: Arc<RestClient>,
-    api_ws: Arc<WebSocketClient>,
-    mode: SyncMode,
+    mode_int: SyncModeInt,
     shutdown_tx: broadcast::Sender<()>,
     status_manager: Arc<SyncStatusManager>,
     update_tx: SyncTransmiter,
@@ -46,9 +44,7 @@ impl SyncProcess {
     pub fn spawn(
         config: &SyncConfig,
         db: Arc<Database>,
-        api_rest: Arc<RestClient>,
-        api_ws: Arc<WebSocketClient>,
-        mode: SyncMode,
+        mode_int: SyncModeInt,
         shutdown_tx: broadcast::Sender<()>,
         status_manager: Arc<SyncStatusManager>,
         update_tx: SyncTransmiter,
@@ -59,9 +55,7 @@ impl SyncProcess {
             let process = Self {
                 config,
                 db,
-                api_rest,
-                api_ws,
-                mode,
+                mode_int,
                 shutdown_tx,
                 status_manager,
                 update_tx,
@@ -79,8 +73,6 @@ impl SyncProcess {
         let mut shutdown_rx = self.shutdown_tx.subscribe();
 
         loop {
-            self.api_ws.reset().await;
-
             let sync_process_error = tokio::select! {
                 Err(sync_error) = self.run_mode() => sync_error,
                 shutdown_res = shutdown_rx.recv() => {
@@ -122,14 +114,19 @@ impl SyncProcess {
     }
 
     fn run_mode(&self) -> Pin<Box<dyn Future<Output = Result<Never>> + Send + '_>> {
-        match &self.mode {
-            SyncMode::Backfill => Box::pin(self.run_backfill()),
-            SyncMode::Live(range) => Box::pin(self.run_live(*range)),
-            SyncMode::Full => Box::pin(self.run_full()),
+        match &self.mode_int {
+            SyncModeInt::Backfill { api_rest } => Box::pin(self.run_backfill(api_rest)),
+            SyncModeInt::LiveNoLookback { api_ws } => Box::pin(self.run_live_no_lookback(api_ws)),
+            SyncModeInt::LiveWithLookback {
+                api_rest,
+                api_ws,
+                lookback,
+            } => Box::pin(self.run_live_with_lookback(api_rest, api_ws, *lookback)),
+            SyncModeInt::Full { api_rest, api_ws } => Box::pin(self.run_full(api_rest, api_ws)),
         }
     }
 
-    async fn run_backfill(&self) -> Result<Never> {
+    async fn run_backfill(&self, api_rest: &Arc<RestClient>) -> Result<Never> {
         loop {
             self.status_manager
                 .update(SyncStatusNotSynced::InProgress.into());
@@ -140,7 +137,7 @@ impl SyncProcess {
 
             self.spawn_history_state_update_handler(history_state_rx);
 
-            self.run_price_history_task_backfill(Some(history_state_tx))
+            self.run_price_history_task_backfill(api_rest.clone(), Some(history_state_tx))
                 .await?;
 
             self.status_manager
@@ -150,25 +147,18 @@ impl SyncProcess {
         }
     }
 
-    async fn run_live(&self, lookback: Option<LookbackPeriod>) -> Result<Never> {
+    async fn run_live_no_lookback(&self, api_ws: &Arc<WebSocketClient>) -> Result<Never> {
         self.status_manager
             .update(SyncStatusNotSynced::InProgress.into());
 
-        if let Some(ref range) = lookback {
-            let (history_state_tx, history_state_rx) = mpsc::channel::<PriceHistoryState>(100);
-
-            self.spawn_history_state_update_handler(history_state_rx);
-
-            self.run_price_history_task_live(Some(history_state_tx), *range)
-                .await?;
-        }
+        api_ws.reset().await;
 
         // Start to collect real-time data
 
         let (price_tick_tx, _) = broadcast::channel::<PriceTickRow>(1_000);
 
         let mut real_time_collection_handle =
-            self.spawn_real_time_collection_task(price_tick_tx.clone());
+            self.spawn_real_time_collection_task(api_ws.clone(), price_tick_tx.clone());
 
         if real_time_collection_handle.is_finished() {
             real_time_collection_handle
@@ -182,14 +172,6 @@ impl SyncProcess {
 
         let mut is_synced = false;
         let mut price_tick_rx = price_tick_tx.subscribe();
-
-        let new_re_sync_timer = || Box::pin(time::sleep(self.config.re_sync_history_interval()));
-        let mut re_sync_timer: Pin<Box<dyn std::future::Future<Output = ()> + Send>> =
-            if lookback.is_some() {
-                new_re_sync_timer()
-            } else {
-                Box::pin(future::pending::<()>())
-            };
 
         let new_tick_interval_timer = || Box::pin(time::sleep(self.config.max_tick_interval()));
         let mut tick_interval_timer = new_tick_interval_timer();
@@ -212,12 +194,6 @@ impl SyncProcess {
 
                     let _ = self.update_tx.send(tick.into());
                 }
-                _ = &mut re_sync_timer => {
-                    // Ensure the OHLC candles DB remains up-to-date
-                    let range = lookback.expect("must be `Some` from `re_sync_timer` definition");
-                    self.run_price_history_task_live(None, range).await?;
-                    re_sync_timer = new_re_sync_timer();
-                }
                 _ = &mut tick_interval_timer => {
                     // Maximum interval between Price Ticks was exceeded
                     return Err(SyncProcessRecoverableError::MaxPriceTickIntevalExceeded(
@@ -229,17 +205,22 @@ impl SyncProcess {
         }
     }
 
-    async fn run_full(&self) -> Result<Never> {
+    async fn run_live_with_lookback(
+        &self,
+        api_rest: &Arc<RestClient>,
+        api_ws: &Arc<WebSocketClient>,
+        lookback: LookbackPeriod,
+    ) -> Result<Never> {
         self.status_manager
             .update(SyncStatusNotSynced::InProgress.into());
 
-        // Backfill full historical price data
+        api_ws.reset().await;
 
         let (history_state_tx, history_state_rx) = mpsc::channel::<PriceHistoryState>(100);
 
         self.spawn_history_state_update_handler(history_state_rx);
 
-        self.run_price_history_task_backfill(Some(history_state_tx))
+        self.run_price_history_task_live(api_rest.clone(), Some(history_state_tx), lookback)
             .await?;
 
         // Start to collect real-time data
@@ -247,7 +228,7 @@ impl SyncProcess {
         let (price_tick_tx, _) = broadcast::channel::<PriceTickRow>(1_000);
 
         let mut real_time_collection_handle =
-            self.spawn_real_time_collection_task(price_tick_tx.clone());
+            self.spawn_real_time_collection_task(api_ws.clone(), price_tick_tx.clone());
 
         if real_time_collection_handle.is_finished() {
             real_time_collection_handle
@@ -264,6 +245,7 @@ impl SyncProcess {
 
         let new_re_sync_timer = || Box::pin(time::sleep(self.config.re_sync_history_interval()));
         let mut re_sync_timer = new_re_sync_timer();
+
         let new_tick_interval_timer = || Box::pin(time::sleep(self.config.max_tick_interval()));
         let mut tick_interval_timer = new_tick_interval_timer();
 
@@ -287,7 +269,86 @@ impl SyncProcess {
                 }
                 _ = &mut re_sync_timer => {
                     // Ensure the OHLC candles DB remains up-to-date
-                    self.run_price_history_task_backfill(None).await?;
+                    self.run_price_history_task_live(api_rest.clone(), None, lookback).await?;
+                    re_sync_timer = new_re_sync_timer();
+                }
+                _ = &mut tick_interval_timer => {
+                    // Maximum interval between Price Ticks was exceeded
+                    return Err(SyncProcessRecoverableError::MaxPriceTickIntevalExceeded(
+                        self.config.max_tick_interval(),
+                    )
+                    .into());
+                }
+            }
+        }
+    }
+
+    async fn run_full(
+        &self,
+        api_rest: &Arc<RestClient>,
+        api_ws: &Arc<WebSocketClient>,
+    ) -> Result<Never> {
+        self.status_manager
+            .update(SyncStatusNotSynced::InProgress.into());
+
+        api_ws.reset().await;
+
+        // Backfill full historical price data
+
+        let (history_state_tx, history_state_rx) = mpsc::channel::<PriceHistoryState>(100);
+
+        self.spawn_history_state_update_handler(history_state_rx);
+
+        self.run_price_history_task_backfill(api_rest.clone(), Some(history_state_tx))
+            .await?;
+
+        // Start to collect real-time data
+
+        let (price_tick_tx, _) = broadcast::channel::<PriceTickRow>(1_000);
+
+        let mut real_time_collection_handle =
+            self.spawn_real_time_collection_task(api_ws.clone(), price_tick_tx.clone());
+
+        if real_time_collection_handle.is_finished() {
+            real_time_collection_handle
+                .await
+                .map_err(SyncProcessRecoverableError::RealTimeCollectionTaskJoin)??;
+
+            return Err(SyncProcessRecoverableError::UnexpectedRealTimeCollectionShutdown.into());
+        }
+
+        // Handle updates and re-syncs
+
+        let mut is_synced = false;
+        let mut price_tick_rx = price_tick_tx.subscribe();
+
+        let new_re_sync_timer = || Box::pin(time::sleep(self.config.re_sync_history_interval()));
+        let mut re_sync_timer = new_re_sync_timer();
+
+        let new_tick_interval_timer = || Box::pin(time::sleep(self.config.max_tick_interval()));
+        let mut tick_interval_timer = new_tick_interval_timer();
+
+        loop {
+            tokio::select! {
+                rt_res = &mut real_time_collection_handle => {
+                    rt_res.map_err(SyncProcessRecoverableError::RealTimeCollectionTaskJoin)??;
+
+                    return Err(SyncProcessRecoverableError::UnexpectedRealTimeCollectionShutdown.into());
+                }
+                tick_res = price_tick_rx.recv() => {
+                    tick_interval_timer = new_tick_interval_timer();
+
+                    let tick = tick_res.map_err(SyncProcessRecoverableError::PriceTickRecv)?;
+                    if !is_synced {
+                        self.status_manager.update(SyncStatus::Synced);
+                        is_synced = true;
+                    }
+
+                    let _ = self.update_tx.send(tick.into());
+                }
+                _ = &mut re_sync_timer => {
+                    // Ensure the OHLC candles DB remains up-to-date
+                    self.run_price_history_task_backfill(api_rest.clone(), None).await?;
                     re_sync_timer = new_re_sync_timer();
                 }
                 _ = &mut tick_interval_timer => {
@@ -303,33 +364,25 @@ impl SyncProcess {
 
     async fn run_price_history_task_backfill(
         &self,
+        api_rest: Arc<RestClient>,
         history_state_tx: Option<PriceHistoryStateTransmiter>,
     ) -> Result<()> {
-        SyncPriceHistoryTask::new(
-            &self.config,
-            self.db.clone(),
-            self.api_rest.clone(),
-            history_state_tx,
-        )
-        .backfill()
-        .await
-        .map_err(|e| SyncProcessRecoverableError::SyncPriceHistory(e).into())
+        SyncPriceHistoryTask::new(&self.config, self.db.clone(), api_rest, history_state_tx)
+            .backfill()
+            .await
+            .map_err(|e| SyncProcessRecoverableError::SyncPriceHistory(e).into())
     }
 
     async fn run_price_history_task_live(
         &self,
+        api_rest: Arc<RestClient>,
         history_state_tx: Option<PriceHistoryStateTransmiter>,
         lookback: LookbackPeriod,
     ) -> Result<()> {
-        SyncPriceHistoryTask::new(
-            &self.config,
-            self.db.clone(),
-            self.api_rest.clone(),
-            history_state_tx,
-        )
-        .live(lookback)
-        .await
-        .map_err(|e| SyncProcessRecoverableError::SyncPriceHistory(e).into())
+        SyncPriceHistoryTask::new(&self.config, self.db.clone(), api_rest, history_state_tx)
+            .live(lookback)
+            .await
+            .map_err(|e| SyncProcessRecoverableError::SyncPriceHistory(e).into())
     }
 
     /// Clean up is not needed since the task is terminated when
@@ -349,11 +402,12 @@ impl SyncProcess {
 
     fn spawn_real_time_collection_task(
         &self,
+        api_ws: Arc<WebSocketClient>,
         price_tick_tx: broadcast::Sender<PriceTickRow>,
     ) -> AbortOnDropHandle<Result<()>> {
         let task = RealTimeCollectionTask::new(
             self.db.clone(),
-            self.api_ws.clone(),
+            api_ws,
             self.shutdown_tx.clone(),
             price_tick_tx,
         );
