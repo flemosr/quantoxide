@@ -316,6 +316,8 @@ impl From<&LiveConfig> for LiveProcessConfig {
 }
 
 pub struct LiveTradeExecutorConfig {
+    api_rest_timeout: time::Duration,
+    api_ws_disconnect_timeout: time::Duration,
     tsl_step_size: PercentageCapped,
     clean_up_trades_on_startup: bool,
     recover_trades_on_startup: bool,
@@ -324,9 +326,20 @@ pub struct LiveTradeExecutorConfig {
     clean_up_trades_on_shutdown: bool,
     estimated_fee_perc: PercentageCapped,
     max_running_qtd: usize,
+    max_tick_interval: time::Duration,
+    restart_interval: time::Duration,
+    shutdown_timeout: time::Duration,
 }
 
 impl LiveTradeExecutorConfig {
+    pub fn api_rest_timeout(&self) -> time::Duration {
+        self.api_rest_timeout
+    }
+
+    pub fn api_ws_disconnect_timeout(&self) -> time::Duration {
+        self.api_ws_disconnect_timeout
+    }
+
     pub fn trailing_stoploss_step_size(&self) -> PercentageCapped {
         self.tsl_step_size
     }
@@ -357,6 +370,28 @@ impl LiveTradeExecutorConfig {
 
     pub fn max_running_qtd(&self) -> usize {
         self.max_running_qtd
+    }
+
+    pub fn max_tick_interval(&self) -> time::Duration {
+        self.max_tick_interval
+    }
+
+    pub fn restart_interval(&self) -> time::Duration {
+        self.restart_interval
+    }
+
+    pub fn shutdown_timeout(&self) -> time::Duration {
+        self.shutdown_timeout
+    }
+
+    pub fn with_api_rest_timeout(mut self, secs: u64) -> Self {
+        self.api_rest_timeout = time::Duration::from_secs(secs);
+        self
+    }
+
+    pub fn with_api_ws_disconnect_timeout(mut self, secs: u64) -> Self {
+        self.api_ws_disconnect_timeout = time::Duration::from_secs(secs);
+        self
     }
 
     pub fn with_trailing_stoploss_step_size(mut self, tsl_step_size: PercentageCapped) -> Self {
@@ -398,6 +433,21 @@ impl LiveTradeExecutorConfig {
         self.max_running_qtd = max_running_qtd;
         self
     }
+
+    pub fn with_max_tick_interval(mut self, secs: u64) -> Self {
+        self.max_tick_interval = time::Duration::from_secs(secs);
+        self
+    }
+
+    pub fn with_restart_interval(mut self, secs: u64) -> Self {
+        self.restart_interval = time::Duration::from_secs(secs);
+        self
+    }
+
+    pub fn with_shutdown_timeout(mut self, secs: u64) -> Self {
+        self.shutdown_timeout = time::Duration::from_secs(secs);
+        self
+    }
 }
 
 impl Default for LiveTradeExecutorConfig {
@@ -407,6 +457,8 @@ impl Default for LiveTradeExecutorConfig {
             .expect("must be valid `TradingSessionTTL`");
 
         Self {
+            api_rest_timeout: time::Duration::from_secs(20),
+            api_ws_disconnect_timeout: time::Duration::from_secs(6),
             tsl_step_size: PercentageCapped::MIN,
             clean_up_trades_on_startup: true,
             recover_trades_on_startup: false,
@@ -416,13 +468,30 @@ impl Default for LiveTradeExecutorConfig {
             estimated_fee_perc: PercentageCapped::try_from(0.1)
                 .expect("must be valid `PercentageCapped`"),
             max_running_qtd: 50,
+            max_tick_interval: time::Duration::from_mins(3),
+            restart_interval: time::Duration::from_secs(10),
+            shutdown_timeout: time::Duration::from_secs(6),
         }
+    }
+}
+
+impl From<&LiveTradeExecutorConfig> for RestClientConfig {
+    fn from(value: &LiveTradeExecutorConfig) -> Self {
+        RestClientConfig::new(value.api_rest_timeout())
+    }
+}
+
+impl From<&LiveTradeExecutorConfig> for WebSocketClientConfig {
+    fn from(value: &LiveTradeExecutorConfig) -> Self {
+        WebSocketClientConfig::new(value.api_ws_disconnect_timeout())
     }
 }
 
 impl From<&LiveConfig> for LiveTradeExecutorConfig {
     fn from(value: &LiveConfig) -> Self {
         Self {
+            api_rest_timeout: value.api_rest_timeout(),
+            api_ws_disconnect_timeout: value.api_ws_disconnect_timeout(),
             tsl_step_size: value.trailing_stoploss_step_size(),
             clean_up_trades_on_startup: value.clean_up_trades_on_startup(),
             recover_trades_on_startup: value.recover_trades_on_startup(),
@@ -431,6 +500,9 @@ impl From<&LiveConfig> for LiveTradeExecutorConfig {
             clean_up_trades_on_shutdown: value.clean_up_trades_on_shutdown(),
             estimated_fee_perc: value.estimated_fee_perc(),
             max_running_qtd: value.max_running_qtd(),
+            max_tick_interval: value.max_tick_interval(),
+            restart_interval: value.restart_interval(),
+            shutdown_timeout: value.shutdown_timeout(),
         }
     }
 }
