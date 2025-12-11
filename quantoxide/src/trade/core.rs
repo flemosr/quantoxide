@@ -373,12 +373,15 @@ impl TradeClosed for Trade {
 /// A reference to a trade, containing `(creation_timestamp, trade_uuid)`.
 pub type TradeReference = (DateTime<Utc>, Uuid);
 
+/// A collection of running trades indexed by creation time and UUID, with optional trailing
+/// stoploss metadata. Provides efficient lookups by trade ID and chronological iteration.
 #[derive(Debug)]
 pub struct RunningTradesMap<T: TradeRunning + ?Sized> {
     trades: BTreeMap<TradeReference, (Arc<T>, Option<TradeTrailingStoploss>)>,
     id_to_time: HashMap<Uuid, DateTime<Utc>>,
 }
 
+/// Type alias for a dynamically dispatched running trades map.
 pub type DynRunningTradesMap = RunningTradesMap<dyn TradeRunning>;
 
 impl<T: TradeRunning + ?Sized> RunningTradesMap<T> {
@@ -389,6 +392,7 @@ impl<T: TradeRunning + ?Sized> RunningTradesMap<T> {
         }
     }
 
+    /// Returns `true` if the map contains no trades.
     pub fn is_empty(&self) -> bool {
         self.trades.is_empty()
     }
@@ -399,14 +403,17 @@ impl<T: TradeRunning + ?Sized> RunningTradesMap<T> {
             .insert((trade.creation_ts(), trade.id()), (trade, trade_tsl));
     }
 
+    /// Returns the number of trades in the map.
     pub fn len(&self) -> usize {
         self.id_to_time.len()
     }
 
+    /// Returns `true` if the map contains a trade with the specified ID.
     pub fn contains(&self, trade_id: &Uuid) -> bool {
         self.id_to_time.contains_key(trade_id)
     }
 
+    /// Returns a reference to the trade and its trailing stoploss metadata for the given trade ID.
     pub fn get_trade_by_id(&self, id: Uuid) -> Option<&(Arc<T>, Option<TradeTrailingStoploss>)> {
         self.id_to_time
             .get(&id)
@@ -422,6 +429,7 @@ impl<T: TradeRunning + ?Sized> RunningTradesMap<T> {
             .and_then(|creation_ts| self.trades.get_mut(&(*creation_ts, id)))
     }
 
+    /// Returns an iterator over trades in descending chronological order (newest first).
     pub fn trades_desc(&self) -> impl Iterator<Item = &(Arc<T>, Option<TradeTrailingStoploss>)> {
         self.trades.iter().rev().map(|(_, trade_tuple)| trade_tuple)
     }
@@ -475,6 +483,9 @@ struct RunningStats {
     fees: u64,
 }
 
+/// Comprehensive snapshot of the current trading state including balance, running trades, and
+/// performance metrics. This type provides a complete view of a trading session at a specific point
+/// in time.
 #[derive(Debug, Clone)]
 pub struct TradingState {
     last_tick_time: DateTime<Utc>,
@@ -556,101 +567,121 @@ impl TradingState {
         })
     }
 
+    /// Returns the timestamp of the last market price update.
     pub fn last_tick_time(&self) -> DateTime<Utc> {
         self.last_tick_time
     }
 
+    /// Returns the total net value including balance, locked margin, and unrealized profit/loss.
     pub fn total_net_value(&self) -> u64 {
         self.balance
             .saturating_add(self.running_margin())
             .saturating_add_signed(self.running_pl())
     }
 
+    /// Returns the available balance (in satoshis) not locked in trades.
     pub fn balance(&self) -> u64 {
         self.balance
     }
 
+    /// Returns the current market price used for calculating unrealized profit/loss.
     pub fn market_price(&self) -> Price {
         self.market_price
     }
 
+    /// Returns the timestamp of the most recent trade action, if any.
     pub fn last_trade_time(&self) -> Option<DateTime<Utc>> {
         self.last_trade_time
     }
 
+    /// Returns a reference to the map of currently running trades.
     pub fn running_map(&self) -> &DynRunningTradesMap {
         &self.running_map
     }
 
+    /// Returns the number of running long positions.
     pub fn running_long_len(&self) -> usize {
         self.get_running_stats().long_len
     }
 
-    /// Returns the locked margin for long positions, if available
+    /// Returns the total locked margin for long positions (in satoshis).
     pub fn running_long_margin(&self) -> u64 {
         self.get_running_stats().long_margin
     }
 
+    /// Returns the total notional quantity for long positions (in USD).
     pub fn running_long_quantity(&self) -> u64 {
         self.get_running_stats().long_quantity
     }
 
+    /// Returns the number of running short positions.
     pub fn running_short_len(&self) -> usize {
         self.get_running_stats().short_len
     }
 
-    /// Returns the locked margin for short positions, if available
+    /// Returns the total locked margin for short positions (in satoshis).
     pub fn running_short_margin(&self) -> u64 {
         self.get_running_stats().short_margin
     }
 
+    /// Returns the total notional quantity for short positions (in USD).
     pub fn running_short_quantity(&self) -> u64 {
         self.get_running_stats().short_quantity
     }
 
+    /// Returns the total locked margin across all running positions (in satoshis).
     pub fn running_margin(&self) -> u64 {
         self.running_long_margin() + self.running_short_margin()
     }
 
+    /// Returns the total notional quantity across all running positions (in USD).
     pub fn running_quantity(&self) -> u64 {
         self.running_long_quantity() + self.running_short_quantity()
     }
 
+    /// Returns the total unrealized profit/loss across all running positions (in satoshis).
     pub fn running_pl(&self) -> i64 {
         self.get_running_stats().pl
     }
 
+    /// Returns the total fees for all running positions (in satoshis).
     pub fn running_fees(&self) -> u64 {
         self.get_running_stats().fees
     }
 
-    /// Returns the total realized PL of the trading session. Includes both the PL of closed trades
-    /// and the positive PL of running trades that was cashed-in.
+    /// Returns the total realized profit/loss including closed trades and cashed-in profits from
+    /// running trades (in satoshis).
     pub fn realized_pl(&self) -> i64 {
         self.realized_pl
     }
 
-    /// Returns the number of closed trades
+    /// Returns the number of closed trades.
     pub fn closed_len(&self) -> usize {
         self.closed_len
     }
 
+    /// Returns the total fees paid for closed trades (in satoshis).
     pub fn closed_fees(&self) -> u64 {
         self.closed_fees
     }
 
+    /// Returns the net profit/loss of closed trades after fees (in satoshis).
     pub fn closed_net_pl(&self) -> i64 {
         self.realized_pl - self.closed_fees as i64
     }
 
+    /// Returns the total profit/loss combining both running and realized P/L (in satoshis).
     pub fn pl(&self) -> i64 {
         self.running_pl() + self.realized_pl
     }
 
+    /// Returns the total fees across both running and closed trades (in satoshis).
     pub fn fees(&self) -> u64 {
         self.running_fees() + self.closed_fees
     }
 
+    /// Returns a formatted string containing a comprehensive summary of the trading state including
+    /// timing information, balances, positions, and metrics.
     pub fn summary(&self) -> String {
         let mut result = String::new();
 
@@ -693,6 +724,8 @@ impl TradingState {
         result
     }
 
+    /// Returns a formatted table displaying all running trades with their details including price,
+    /// leverage, margin, profit/loss, and fees.
     pub fn running_trades_table(&self) -> String {
         if self.running_map.is_empty() {
             return "No running trades.".to_string();
@@ -765,13 +798,17 @@ impl fmt::Display for TradingState {
     }
 }
 
+/// A chronologically ordered collection of closed trades. Stores completed trades indexed by
+/// creation time and UUID for historical analysis and reporting.
 pub struct ClosedTradeHistory<T: TradeClosed>(BTreeMap<(DateTime<Utc>, Uuid), T>);
 
 impl<T: TradeClosed> ClosedTradeHistory<T> {
+    /// Creates a new empty closed trade history.
     pub fn new() -> Self {
         Self(BTreeMap::new())
     }
 
+    /// Adds a closed trade to the history. Returns an error if the trade is not properly closed.
     pub fn add(&mut self, trade: T) -> TradeCoreResult<()> {
         if !trade.closed() || trade.exit_price().is_none() || trade.closed_ts().is_none() {
             return Err(TradeCoreError::TradeNotClosed {
@@ -783,6 +820,8 @@ impl<T: TradeClosed> ClosedTradeHistory<T> {
         Ok(())
     }
 
+    /// Returns a formatted table displaying all closed trades with their entry/exit details,
+    /// profit/loss, and fees.
     pub fn to_table(&self) -> String {
         if self.0.is_empty() {
             return "No closed trades.".to_string();
@@ -851,9 +890,12 @@ impl<T: TradeClosed> Default for ClosedTradeHistory<T> {
     }
 }
 
+/// Stoploss configuration specifying either a fixed price level or a trailing percentage.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Stoploss {
+    /// Fixed stoploss at a specific price.
     Fixed(Price),
+    /// Trailing stoploss that follows the market price by a percentage.
     Trailing(PercentageCapped),
 }
 
@@ -896,10 +938,12 @@ impl Stoploss {
         }
     }
 
+    /// Creates a fixed stoploss at the specified price.
     pub fn fixed(stoploss_price: Price) -> Self {
         Self::Fixed(stoploss_price)
     }
 
+    /// Creates a trailing stoploss with the specified percentage.
     pub fn trailing(stoploss_perc: PercentageCapped) -> Self {
         Self::Trailing(stoploss_perc)
     }
@@ -917,16 +961,19 @@ impl From<PercentageCapped> for Stoploss {
     }
 }
 
+/// Metadata for a trailing stoploss that has been validated and applied to a trade. Wraps a
+/// percentage value that determines how the stoploss follows market price movements.
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 pub struct TradeTrailingStoploss(PercentageCapped);
 
 impl TradeTrailingStoploss {
-    pub fn prev_validated(tsl: PercentageCapped) -> Self {
+    pub(crate) fn prev_validated(tsl: PercentageCapped) -> Self {
         Self(tsl)
     }
 
+    /// Returns the trailing stoploss percentage as an f64 value.
     pub fn as_f64(self) -> f64 {
-        self.into()
+        self.0.as_f64()
     }
 }
 
@@ -948,8 +995,12 @@ impl From<TradeTrailingStoploss> for Percentage {
     }
 }
 
+/// Trait for executing trading operations including opening/closing positions and managing margin.
+/// Implementors provide the core trading functionality for both backtesting and live trading.
 #[async_trait]
 pub trait TradeExecutor: Send + Sync {
+    /// Opens a new long position with the specified size, leverage, and optional risk management
+    /// parameters.
     async fn open_long(
         &self,
         size: TradeSize,
@@ -958,6 +1009,8 @@ pub trait TradeExecutor: Send + Sync {
         takeprofit: Option<Price>,
     ) -> TradeExecutorResult<()>;
 
+    /// Opens a new short position with the specified size, leverage, and optional risk management
+    /// parameters.
     async fn open_short(
         &self,
         size: TradeSize,
@@ -966,28 +1019,40 @@ pub trait TradeExecutor: Send + Sync {
         takeprofit: Option<Price>,
     ) -> TradeExecutorResult<()>;
 
+    /// Adds margin to an existing trade, reducing its leverage.
     async fn add_margin(&self, trade_id: Uuid, amount: NonZeroU64) -> TradeExecutorResult<()>;
 
+    /// Withdraws profit and/or margin from a running trade without closing the position.
     async fn cash_in(&self, trade_id: Uuid, amount: NonZeroU64) -> TradeExecutorResult<()>;
 
+    /// Closes a specific trade by its ID.
     async fn close_trade(&self, trade_id: Uuid) -> TradeExecutorResult<()>;
 
+    /// Closes all long positions.
     async fn close_longs(&self) -> TradeExecutorResult<()>;
 
+    /// Closes all short positions.
     async fn close_shorts(&self) -> TradeExecutorResult<()>;
 
+    /// Closes all open positions (both long and short).
     async fn close_all(&self) -> TradeExecutorResult<()>;
 
+    /// Returns the current trading state including balance, positions, and metrics.
     async fn trading_state(&self) -> TradeExecutorResult<TradingState>;
 }
 
+/// Trait for processing trading signals and making trading decisions. Signal operators receive
+/// evaluated signals and determine when to open, close, or modify positions.
 #[async_trait]
 pub trait SignalOperator: Send + Sync {
+    /// Sets the trade executor that should be used to execute trading operations.
     fn set_trade_executor(
         &mut self,
         trade_executor: Arc<dyn TradeExecutor>,
     ) -> std::result::Result<(), Box<dyn std::error::Error>>;
 
+    /// Processes a trading signal and executes trading actions via the [`TradeExecutor`] that was
+    /// set.
     async fn process_signal(
         &self,
         signal: &Signal,
@@ -1022,17 +1087,26 @@ impl From<Box<dyn SignalOperator>> for WrappedSignalOperator {
     }
 }
 
+/// Trait for implementing direct trading logic without intermediate signal generation. Raw operators
+/// receive candlestick data and make trading decisions directly, providing more flexible control
+/// over the trading strategy implementation.
 #[async_trait]
 pub trait RawOperator: Send + Sync {
+    /// Sets the trade executor that should be used to execute trading operations.
     fn set_trade_executor(
         &mut self,
         trade_executor: Arc<dyn TradeExecutor>,
     ) -> std::result::Result<(), Box<dyn std::error::Error>>;
 
+    /// Returns the lookback period determining how much historical candlestick data is provided to
+    /// the operator.
     fn lookback(&self) -> Option<LookbackPeriod>;
 
+    /// Returns the minimum interval between successive iterations of the operator.
     fn min_iteration_interval(&self) -> MinIterationInterval;
 
+    /// Processes candlestick data and executes trading actions via the [`TradeExecutor`] that was
+    /// set. Called periodically according to the minimum iteration interval.
     async fn iterate(
         &self,
         candles: &[OhlcCandleRow],
