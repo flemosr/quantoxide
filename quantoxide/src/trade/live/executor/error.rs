@@ -118,6 +118,12 @@ pub(super) type ExecutorProcessFatalResult<T> = result::Result<T, ExecutorProces
 
 #[derive(Error, Debug)]
 pub enum LiveTradeExecutorError {
+    #[error("REST API client initialization error: {0}")]
+    RestApiInit(RestApiError),
+
+    #[error("Sync engine live price feed must be active")]
+    SyncEngineLivePriceFeedInactive,
+
     #[error("Launch clean up error {0}")]
     LaunchCleanUp(ExecutorActionError),
 

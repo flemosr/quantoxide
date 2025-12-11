@@ -15,14 +15,17 @@ use tokio::{
 };
 use uuid::Uuid;
 
-use lnm_sdk::api_v3::{
-    RestClient,
-    models::{Leverage, PercentageCapped, Price, TradeSide, TradeSize, trade_util},
+use lnm_sdk::{
+    api_v2::WebSocketClient,
+    api_v3::{
+        RestClient,
+        models::{Leverage, PercentageCapped, Price, TradeSide, TradeSize, trade_util},
+    },
 };
 
 use crate::{
     db::Database,
-    sync::{SyncReceiver, SyncStatus, SyncUpdate},
+    sync::{SyncEngine, SyncReceiver, SyncStatus, SyncUpdate},
     util::{AbortOnDropHandle, Never},
 };
 
@@ -469,14 +472,17 @@ pub struct LiveTradeExecutorLauncher {
 }
 
 impl LiveTradeExecutorLauncher {
-    pub fn new(
+    pub(in crate::trade) fn new_int(
         config: impl Into<LiveTradeExecutorConfig>,
         db: Arc<Database>,
         api_rest: Arc<RestClient>,
-        sync_rx: SyncReceiver,
+        sync_engine: &SyncEngine,
     ) -> LiveTradeExecutorResult<Self> {
         if !api_rest.has_credentials {
             return Err(LiveTradeExecutorError::ApiCredentialsNotSet);
+        }
+        if !sync_engine.live_price_feed_active() {
+            return Err(LiveTradeExecutorError::SyncEngineLivePriceFeedInactive);
         }
 
         let (update_tx, _) = broadcast::channel::<LiveTradeExecutorUpdate>(1_000);
@@ -491,8 +497,33 @@ impl LiveTradeExecutorLauncher {
             api_rest,
             update_tx,
             state_manager,
-            sync_rx,
+            sync_rx: sync_engine.update_receiver(),
         })
+    }
+
+    pub fn new(
+        config: impl Into<LiveTradeExecutorConfig>,
+        db: Arc<Database>,
+        api_domain: impl ToString,
+        api_key: impl ToString,
+        api_secret: impl ToString,
+        api_passphrase: impl ToString,
+    ) -> LiveTradeExecutorResult<Self> {
+        let config = config.into();
+
+        let api_rest = RestClient::with_credentials(
+            &config,
+            api_domain.to_string(),
+            api_key.to_string(),
+            api_secret.to_string(),
+            api_passphrase.to_string(),
+        )
+        .map_err(LiveTradeExecutorError::RestApiInit)?;
+
+        let api_ws = WebSocketClient::new(&config, api_domain.to_string());
+        let sync_engine = SyncEngine::live_no_lookback(&config, db.clone(), api_ws);
+
+        Self::new_int(config, db, api_rest, &sync_engine)
     }
 
     pub fn update_receiver(&self) -> LiveTradeExecutorReceiver {
