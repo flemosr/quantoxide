@@ -22,6 +22,11 @@ use super::{
     state::{SyncReader, SyncReceiver, SyncStatus, SyncStatusManager, SyncTransmiter, SyncUpdate},
 };
 
+/// Controller for managing and monitoring a running synchronization process.
+///
+/// `SyncController` provides an interface to monitor the status of a sync process and perform
+/// graceful shutdown operations. It holds a handle to the running sync task and coordinates
+/// shutdown signals.
 #[derive(Debug)]
 pub struct SyncController {
     config: SyncControllerConfig,
@@ -45,18 +50,22 @@ impl SyncController {
         })
     }
 
+    /// Returns a [`SyncReader`] interface for accessing sync status and updates.
     pub fn reader(&self) -> Arc<dyn SyncReader> {
         self.status_manager.clone()
     }
 
+    /// Returns the [`SyncMode`] of the sync process.
     pub fn mode(&self) -> SyncMode {
         self.status_manager.mode()
     }
 
+    /// Creates a new [`SyncReceiver`] for subscribing to sync status updates.
     pub fn update_receiver(&self) -> SyncReceiver {
         self.status_manager.update_receiver()
     }
 
+    /// Returns the current [`SyncStatus`] as a snapshot.
     pub fn status_snapshot(&self) -> SyncStatus {
         self.status_manager.status_snapshot()
     }
@@ -68,11 +77,12 @@ impl SyncController {
             .take()
     }
 
-    /// Tries to perform a clean shutdown of the sync process and consumes the
-    /// task handle. If a clean shutdown fails, the process is aborted.
+    /// Tries to perform a clean shutdown of the sync process and consumes the task handle. If a
+    /// clean shutdown fails, the process is aborted.
+    ///
     /// This method can only be called once per controller instance.
-    /// Returns an error if the process had to be aborted, or if it the handle
-    /// was already consumed.
+    ///
+    /// Returns an error if the process had to be aborted, or if it the handle was already consumed.
     pub async fn shutdown(&self) -> Result<()> {
         let Some(mut handle) = self.try_consume_handle() else {
             return Err(SyncError::SyncAlreadyShutdown);
@@ -124,32 +134,54 @@ impl TuiControllerShutdown for SyncController {
     }
 }
 
+/// Synchronization mode that determines how price data is fetched and maintained.
+///
+/// The sync mode controls which data sources are used and how far back in time to fetch historical
+/// data.
 #[derive(Debug, Clone, Copy)]
 pub enum SyncMode {
+    /// Backfill mode: only fetches historical price data from REST API.
+    ///
+    /// This mode does not maintain live price feeds and is suitable for populating historical data
+    /// in batch.
     Backfill,
+    /// Live mode: maintains real-time price feeds via WebSocket.
+    ///
+    /// Optionally includes a lookback period to also fetch recent historical data before starting
+    /// the live feed.
     Live(Option<LookbackPeriod>),
+    /// Full mode: combines both backfill and live synchronization.
+    ///
+    /// Fetches complete historical data and then maintains real-time price feeds.
     Full,
 }
 
 impl SyncMode {
+    /// Creates a backfill-only sync mode.
     pub fn backfill() -> Self {
         SyncMode::Backfill
     }
 
-    pub fn full() -> Self {
-        SyncMode::Full
-    }
-
+    /// Creates a live sync mode without historical lookback.
     pub fn live_no_lookback() -> Self {
         SyncMode::Live(None)
     }
 
+    /// Creates a live sync mode with a specified lookback period in minutes.
     pub fn live_with_lookback(minutes: u64) -> Result<Self> {
         let lookback = LookbackPeriod::try_from(minutes)?;
 
         Ok(SyncMode::Live(Some(lookback)))
     }
 
+    /// Creates a full sync mode (both backfill and live).
+    pub fn full() -> Self {
+        SyncMode::Full
+    }
+
+    /// Returns whether this mode includes an active live price feed.
+    ///
+    /// Returns `true` for `Live` and `Full` modes, `false` for `Backfill`.
     pub fn live_feed_active(&self) -> bool {
         match self {
             SyncMode::Backfill => false,
@@ -205,6 +237,11 @@ impl From<&SyncModeInt> for SyncMode {
     }
 }
 
+/// Builder for configuring and starting a synchronization engine.
+///
+/// `SyncEngine` encapsulates the configuration, database connection, API clients, and sync mode.
+/// The sync process is spawned when [`start`](Self::start) is called, and a [`SyncController`] is
+/// returned for monitoring and management.
 pub struct SyncEngine {
     config: SyncConfig,
     db: Arc<Database>,
@@ -270,6 +307,9 @@ impl SyncEngine {
         Self::with_mode_int(config, db, mode_int)
     }
 
+    /// Creates a new sync engine with the specified configuration and mode.
+    ///
+    /// This constructor automatically initializes the required API clients based on the sync mode.
     pub fn new(
         config: impl Into<SyncConfig>,
         db: Arc<Database>,
@@ -298,20 +338,25 @@ impl SyncEngine {
         Ok(Self::with_mode_int(config, db, mode))
     }
 
+    /// Returns a reader interface for accessing sync status and updates.
     pub fn reader(&self) -> Arc<dyn SyncReader> {
         self.status_manager.clone()
     }
 
+    /// Creates a new receiver for subscribing to sync status updates.
     pub fn update_receiver(&self) -> SyncReceiver {
         self.status_manager.update_receiver()
     }
 
+    /// Returns the current synchronization status as a snapshot.
     pub fn status_snapshot(&self) -> SyncStatus {
         self.status_manager.status_snapshot()
     }
 
+    /// Starts the synchronization process and returns a [`SyncController`] for managing it.
+    ///
+    /// This consumes the engine and spawns the sync task in the background.
     pub fn start(self) -> Arc<SyncController> {
-        // Internal channel for shutdown signal
         let (shutdown_tx, _) = broadcast::channel::<()>(1);
 
         let handle = SyncProcess::spawn(

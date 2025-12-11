@@ -12,13 +12,22 @@ use super::process::{
     sync_price_history_task::price_history_state::PriceHistoryState,
 };
 
+/// Detailed status when synchronization is not yet complete.
+///
+/// Represents various states during the synchronization process before achieving full sync.
 #[derive(Debug, Clone)]
 pub enum SyncStatusNotSynced {
+    /// Sync process has not been started yet.
     NotInitiated,
+    /// Sync process is initializing.
     Starting,
+    /// Sync process is actively fetching and processing data.
     InProgress,
+    /// Sync process is waiting for the next resync interval.
     WaitingForResync,
+    /// Sync process encountered a recoverable error.
     Failed(Arc<SyncProcessRecoverableError>),
+    /// Sync process is restarting after an error.
     Restarting,
 }
 
@@ -35,12 +44,21 @@ impl fmt::Display for SyncStatusNotSynced {
     }
 }
 
+/// Overall synchronization status.
+///
+/// Represents the high-level state of the sync process, including active synchronization,
+/// completion, and shutdown states.
 #[derive(Debug, Clone)]
 pub enum SyncStatus {
+    /// Synchronization is in progress but not yet complete.
     NotSynced(SyncStatusNotSynced),
+    /// Synchronization has been successfully completed.
     Synced,
+    /// Shutdown has been requested and is in progress.
     ShutdownInitiated,
+    /// Sync process has been gracefully shut down.
     Shutdown,
+    /// Sync process terminated due to a fatal error.
     Terminated(Arc<SyncProcessFatalError>),
 }
 
@@ -80,10 +98,17 @@ impl From<SyncProcessFatalError> for SyncStatus {
     }
 }
 
+/// Update events emitted by the synchronization process.
+///
+/// These updates are broadcast to subscribers and include status changes, new price ticks, and
+/// price history state evaluations.
 #[derive(Debug, Clone)]
 pub enum SyncUpdate {
+    /// Sync status has changed.
     Status(SyncStatus),
+    /// A new price tick has been received.
     PriceTick(PriceTickRow),
+    /// Price history state has been evaluated or updated.
     PriceHistoryState(PriceHistoryState),
 }
 
@@ -106,11 +131,22 @@ impl From<PriceHistoryState> for SyncUpdate {
 }
 
 pub(super) type SyncTransmiter = broadcast::Sender<SyncUpdate>;
+
+/// Receiver for subscribing to [`SyncUpdate`]s.
 pub type SyncReceiver = broadcast::Receiver<SyncUpdate>;
 
+/// Trait for reading synchronization status and subscribing to updates.
+///
+/// Provides a read-only interface to the sync process state without the ability to control or
+/// modify it.
 pub trait SyncReader: Send + Sync + 'static {
+    /// Returns the [`SyncMode`] of the sync process.
     fn mode(&self) -> SyncMode;
+
+    /// Creates a new [`SyncReceiver`] for subscribing to sync updates.
     fn update_receiver(&self) -> SyncReceiver;
+
+    /// Returns the current [`SyncStatus`] a snapshot.
     fn status_snapshot(&self) -> SyncStatus;
 }
 

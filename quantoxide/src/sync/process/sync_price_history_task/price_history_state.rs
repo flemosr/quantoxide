@@ -37,6 +37,11 @@ impl DownloadRange {
     }
 }
 
+/// Represents the current state of price history data in the database.
+///
+/// Tracks the time range of available price data, identifies gaps in the data, and determines what
+/// additional data needs to be fetched to achieve complete synchronization within a specified reach
+/// period.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PriceHistoryState {
     reach_time: Option<DateTime<Utc>>,
@@ -102,6 +107,9 @@ impl PriceHistoryState {
         })
     }
 
+    /// Evaluates the current price history state from the database.
+    ///
+    /// Analyzes the database to determine data bounds and gaps without imposing a reach time limit.
     pub async fn evaluate(db: &Database) -> Result<Self> {
         Self::new(db, None).await
     }
@@ -110,21 +118,32 @@ impl PriceHistoryState {
         Self::new(db, Some(reach)).await
     }
 
+    /// Returns the time bounds of the available price history data.
+    ///
+    /// Returns `None` if the database is empty, otherwise returns a tuple of
+    /// (`earliest_time`, `latest_time`).
     pub fn bounds(&self) -> Option<(DateTime<Utc>, DateTime<Utc>)> {
         self.bounds
     }
+
+    /// Returns the list of time gaps in the price history data.
+    ///
+    /// Each gap is represented as a tuple of (`from_time`, `to_time`).
     pub fn gaps(&self) -> &Vec<(DateTime<Utc>, DateTime<Utc>)> {
         &self.gaps
     }
 
+    /// Returns the start time of the price history bounds.
     pub fn bound_start(&self) -> Option<DateTime<Utc>> {
         self.bounds.map(|(start, _)| start)
     }
 
+    /// Returns the end time of the price history bounds.
     pub fn bound_end(&self) -> Option<DateTime<Utc>> {
         self.bounds.map(|(_, end)| end)
     }
 
+    /// Checks if a specified time range is fully available without gaps.
     pub fn is_range_available(
         &self,
         range_from: DateTime<Utc>,
@@ -202,6 +221,10 @@ impl PriceHistoryState {
         })
     }
 
+    /// Returns the duration of continuous (gap-free) price history at the tail end.
+    ///
+    /// This is the time span from the end of the most recent gap to the latest data point.
+    /// If there are no gaps, returns the total duration of all available price history.
     pub fn tail_continuous_duration(&self) -> Option<Duration> {
         let history_bounds = &self.bounds?;
 
@@ -212,6 +235,7 @@ impl PriceHistoryState {
         Some(history_bounds.1 - history_bounds.0)
     }
 
+    /// Checks whether there are any gaps or missing data within the reach period.
     pub fn has_gaps(&self) -> Result<bool> {
         let Some(reach_time) = self.reach_time else {
             return Err(SyncPriceHistoryError::PriceHistoryStateReachNotSet);
@@ -232,6 +256,7 @@ impl PriceHistoryState {
         }
     }
 
+    /// Generates a human-readable summary of the price history state.
     pub fn summary(&self) -> String {
         let mut result = String::new();
 
