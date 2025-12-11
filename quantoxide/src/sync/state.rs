@@ -5,7 +5,7 @@ use std::{
 
 use tokio::sync::broadcast;
 
-use crate::db::models::PriceTickRow;
+use crate::{db::models::PriceTickRow, sync::SyncMode};
 
 use super::process::{
     error::{SyncProcessFatalError, SyncProcessRecoverableError},
@@ -109,21 +109,27 @@ pub(super) type SyncTransmiter = broadcast::Sender<SyncUpdate>;
 pub type SyncReceiver = broadcast::Receiver<SyncUpdate>;
 
 pub trait SyncReader: Send + Sync + 'static {
+    fn mode(&self) -> SyncMode;
     fn update_receiver(&self) -> SyncReceiver;
     fn status_snapshot(&self) -> SyncStatus;
 }
 
 #[derive(Debug)]
 pub(super) struct SyncStatusManager {
+    mode: SyncMode,
     status: Mutex<SyncStatus>,
     update_tx: SyncTransmiter,
 }
 
 impl SyncStatusManager {
-    pub fn new(update_tx: SyncTransmiter) -> Arc<Self> {
+    pub fn new(mode: SyncMode, update_tx: SyncTransmiter) -> Arc<Self> {
         let status = Mutex::new(SyncStatusNotSynced::NotInitiated.into());
 
-        Arc::new(Self { status, update_tx })
+        Arc::new(Self {
+            mode,
+            status,
+            update_tx,
+        })
     }
 
     fn lock_status(&self) -> MutexGuard<'_, SyncStatus> {
@@ -152,6 +158,10 @@ impl SyncStatusManager {
 }
 
 impl SyncReader for SyncStatusManager {
+    fn mode(&self) -> SyncMode {
+        self.mode
+    }
+
     fn update_receiver(&self) -> SyncReceiver {
         self.update_tx.subscribe()
     }
