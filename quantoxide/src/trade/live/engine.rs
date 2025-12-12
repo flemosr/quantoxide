@@ -25,7 +25,7 @@ use super::{
     },
     state::{
         LiveTradeReader, LiveTradeReceiver, LiveTradeStatus, LiveTradeStatusManager,
-        LiveTradeUpdate, LiveTransmiter,
+        LiveTradeTransmiter, LiveTradeUpdate,
     },
 };
 
@@ -142,7 +142,7 @@ pub struct LiveTradeEngine {
     trade_executor_launcher: LiveTradeExecutorLauncher,
     operator_pending: OperatorPending,
     status_manager: Arc<LiveTradeStatusManager>,
-    update_tx: LiveTransmiter,
+    update_tx: LiveTradeTransmiter,
 }
 
 impl LiveTradeEngine {

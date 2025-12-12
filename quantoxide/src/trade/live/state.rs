@@ -123,7 +123,7 @@ impl From<TradingState> for LiveTradeUpdate {
     }
 }
 
-pub(super) type LiveTransmiter = broadcast::Sender<LiveTradeUpdate>;
+pub(super) type LiveTradeTransmiter = broadcast::Sender<LiveTradeUpdate>;
 
 /// Receiver for subscribing to [`LiveTradeUpdate`]s including status changes, signals, orders, and
 /// closed trades.
@@ -141,11 +141,11 @@ pub trait LiveTradeReader: Send + Sync + 'static {
 #[derive(Debug)]
 pub(super) struct LiveTradeStatusManager {
     status: Mutex<LiveTradeStatus>,
-    update_tx: LiveTransmiter,
+    update_tx: LiveTradeTransmiter,
 }
 
 impl LiveTradeStatusManager {
-    pub fn new(update_tx: LiveTransmiter) -> Arc<Self> {
+    pub fn new(update_tx: LiveTradeTransmiter) -> Arc<Self> {
         let status = Mutex::new(LiveTradeStatus::NotInitiated);
 
         Arc::new(Self { status, update_tx })

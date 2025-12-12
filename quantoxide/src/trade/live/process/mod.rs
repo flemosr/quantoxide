@@ -21,7 +21,7 @@ use super::{
         state::{LiveTradeExecutorStatus, LiveTradeExecutorStatusNotReady},
         update::{LiveTradeExecutorReceiver, LiveTradeExecutorUpdate},
     },
-    state::{LiveTradeStatus, LiveTradeStatusManager, LiveTradeUpdate, LiveTransmiter},
+    state::{LiveTradeStatus, LiveTradeStatusManager, LiveTradeTransmiter, LiveTradeUpdate},
 };
 
 pub(crate) mod error;
@@ -41,7 +41,7 @@ pub(super) struct LiveProcess {
     executor_updates_handle: AbortOnDropHandle<()>,
     trade_executor: Arc<LiveTradeExecutor>,
     status_manager: Arc<LiveTradeStatusManager>,
-    update_tx: LiveTransmiter,
+    update_tx: LiveTradeTransmiter,
 }
 
 impl LiveProcess {
@@ -52,7 +52,7 @@ impl LiveProcess {
         operator_pending: OperatorPending,
         trade_executor_launcher: LiveTradeExecutorLauncher,
         status_manager: Arc<LiveTradeStatusManager>,
-        update_tx: LiveTransmiter,
+        update_tx: LiveTradeTransmiter,
     ) -> AbortOnDropHandle<LiveProcessFatalResult<()>> {
         let config = config.into();
 
@@ -105,7 +105,7 @@ impl LiveProcess {
 
     fn spawn_executor_update_handler(
         status_manager: Arc<LiveTradeStatusManager>,
-        update_tx: LiveTransmiter,
+        update_tx: LiveTradeTransmiter,
         mut executor_rx: LiveTradeExecutorReceiver,
     ) -> AbortOnDropHandle<()> {
         tokio::spawn(async move {
