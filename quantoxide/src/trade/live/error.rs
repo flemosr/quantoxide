@@ -8,7 +8,7 @@ use crate::signal::error::SignalError;
 
 use super::{
     super::error::TradeCoreError, executor::error::LiveTradeExecutorError,
-    process::error::LiveProcessFatalError, state::LiveStatus,
+    process::error::LiveProcessFatalError, state::LiveTradeStatus,
 };
 
 #[derive(Error, Debug)]
@@ -26,7 +26,7 @@ pub enum LiveError {
     LiveAlreadyShutdown,
 
     #[error("Live trade process already terminated error, status: {0}")]
-    LiveAlreadyTerminated(LiveStatus),
+    LiveAlreadyTerminated(LiveTradeStatus),
 
     #[error("Lauch `LiveSignal` error: {0}")]
     LaunchLiveSignalEngine(SignalError),

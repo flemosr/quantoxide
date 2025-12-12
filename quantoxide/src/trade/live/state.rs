@@ -20,7 +20,7 @@ use super::{
 
 /// Represents the current status of a live trading process.
 #[derive(Debug, Clone)]
-pub enum LiveStatus {
+pub enum LiveTradeStatus {
     /// Live trading process has been created but not yet started.
     NotInitiated,
     /// Live trading process is initializing.
@@ -45,7 +45,7 @@ pub enum LiveStatus {
     Terminated(Arc<LiveProcessFatalError>),
 }
 
-impl fmt::Display for LiveStatus {
+impl fmt::Display for LiveTradeStatus {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::NotInitiated => write!(f, "Not initiated"),
@@ -65,19 +65,19 @@ impl fmt::Display for LiveStatus {
     }
 }
 
-impl From<LiveProcessRecoverableError> for LiveStatus {
+impl From<LiveProcessRecoverableError> for LiveTradeStatus {
     fn from(value: LiveProcessRecoverableError) -> Self {
         Self::Failed(Arc::new(value))
     }
 }
 
-impl From<Arc<LiveProcessFatalError>> for LiveStatus {
+impl From<Arc<LiveProcessFatalError>> for LiveTradeStatus {
     fn from(value: Arc<LiveProcessFatalError>) -> Self {
         Self::Terminated(value)
     }
 }
 
-impl From<LiveProcessFatalError> for LiveStatus {
+impl From<LiveProcessFatalError> for LiveTradeStatus {
     fn from(value: LiveProcessFatalError) -> Self {
         Arc::new(value).into()
     }
@@ -88,7 +88,7 @@ impl From<LiveProcessFatalError> for LiveStatus {
 #[derive(Clone)]
 pub enum LiveUpdate {
     /// Live trading status changed.
-    Status(LiveStatus),
+    Status(LiveTradeStatus),
     /// A trading signal was generated.
     Signal(Signal),
     /// A trade order operation was sent to the exchange.
@@ -99,8 +99,8 @@ pub enum LiveUpdate {
     ClosedTrade(Trade),
 }
 
-impl From<LiveStatus> for LiveUpdate {
-    fn from(value: LiveStatus) -> Self {
+impl From<LiveTradeStatus> for LiveUpdate {
+    fn from(value: LiveTradeStatus) -> Self {
         Self::Status(value)
     }
 }
@@ -134,27 +134,27 @@ pub trait LiveTradeReader: Send + Sync + 'static {
     /// Creates a new [`LiveTradeReceiver`] for subscribing to live trading updates.
     fn update_receiver(&self) -> LiveTradeReceiver;
 
-    /// Returns the current [`LiveStatus`] as a snapshot.
-    fn status_snapshot(&self) -> LiveStatus;
+    /// Returns the current [`LiveTradeStatus`] as a snapshot.
+    fn status_snapshot(&self) -> LiveTradeStatus;
 }
 
 #[derive(Debug)]
-pub(super) struct LiveStatusManager {
-    status: Mutex<LiveStatus>,
+pub(super) struct LiveTradeStatusManager {
+    status: Mutex<LiveTradeStatus>,
     update_tx: LiveTransmiter,
 }
 
-impl LiveStatusManager {
+impl LiveTradeStatusManager {
     pub fn new(update_tx: LiveTransmiter) -> Arc<Self> {
-        let status = Mutex::new(LiveStatus::NotInitiated);
+        let status = Mutex::new(LiveTradeStatus::NotInitiated);
 
         Arc::new(Self { status, update_tx })
     }
 
     fn update_status_guard(
         &self,
-        mut status_guard: MutexGuard<'_, LiveStatus>,
-        new_status: LiveStatus,
+        mut status_guard: MutexGuard<'_, LiveTradeStatus>,
+        new_status: LiveTradeStatus,
     ) {
         *status_guard = new_status.clone();
         drop(status_guard);
@@ -163,21 +163,21 @@ impl LiveStatusManager {
         let _ = self.update_tx.send(new_status.into());
     }
 
-    fn lock_status(&self) -> MutexGuard<'_, LiveStatus> {
+    fn lock_status(&self) -> MutexGuard<'_, LiveTradeStatus> {
         self.status
             .lock()
-            .expect("`LiveStatusManager` mutex can't be poisoned")
+            .expect("`LiveTradeStatusManager` mutex can't be poisoned")
     }
-    pub fn update(&self, new_status: LiveStatus) {
+    pub fn update(&self, new_status: LiveTradeStatus) {
         let status_guard = self.lock_status();
 
         self.update_status_guard(status_guard, new_status);
     }
 
-    pub fn update_if_not_running(&self, new_status: LiveStatus) {
+    pub fn update_if_not_running(&self, new_status: LiveTradeStatus) {
         let status_guard = self.lock_status();
 
-        if matches!(*status_guard, LiveStatus::Running) {
+        if matches!(*status_guard, LiveTradeStatus::Running) {
             return;
         }
 
@@ -185,12 +185,12 @@ impl LiveStatusManager {
     }
 }
 
-impl LiveTradeReader for LiveStatusManager {
+impl LiveTradeReader for LiveTradeStatusManager {
     fn update_receiver(&self) -> LiveTradeReceiver {
         self.update_tx.subscribe()
     }
 
-    fn status_snapshot(&self) -> LiveStatus {
+    fn status_snapshot(&self) -> LiveTradeStatus {
         self.lock_status().clone()
     }
 }

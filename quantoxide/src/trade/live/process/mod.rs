@@ -21,7 +21,7 @@ use super::{
         state::{LiveTradeExecutorStatus, LiveTradeExecutorStatusNotReady},
         update::{LiveTradeExecutorReceiver, LiveTradeExecutorUpdate},
     },
-    state::{LiveStatus, LiveStatusManager, LiveTransmiter, LiveUpdate},
+    state::{LiveTradeStatus, LiveTradeStatusManager, LiveTransmiter, LiveUpdate},
 };
 
 pub(crate) mod error;
@@ -40,7 +40,7 @@ pub(super) struct LiveProcess {
     operator_running: OperatorRunning,
     executor_updates_handle: AbortOnDropHandle<()>,
     trade_executor: Arc<LiveTradeExecutor>,
-    status_manager: Arc<LiveStatusManager>,
+    status_manager: Arc<LiveTradeStatusManager>,
     update_tx: LiveTransmiter,
 }
 
@@ -51,7 +51,7 @@ impl LiveProcess {
         sync_engine: SyncEngine,
         operator_pending: OperatorPending,
         trade_executor_launcher: LiveTradeExecutorLauncher,
-        status_manager: Arc<LiveStatusManager>,
+        status_manager: Arc<LiveTradeStatusManager>,
         update_tx: LiveTransmiter,
     ) -> AbortOnDropHandle<LiveProcessFatalResult<()>> {
         let config = config.into();
@@ -104,7 +104,7 @@ impl LiveProcess {
     }
 
     fn spawn_executor_update_handler(
-        status_manager: Arc<LiveStatusManager>,
+        status_manager: Arc<LiveTradeStatusManager>,
         update_tx: LiveTransmiter,
         mut executor_rx: LiveTradeExecutorReceiver,
     ) -> AbortOnDropHandle<()> {
@@ -139,9 +139,9 @@ impl LiveProcess {
 
     // Only possibily returns errors if they took place during shutdown.
     // Other `LiveProcessFatalError`s will result in `Ok` and should be accessed
-    // via `LiveStatus`.
+    // via `LiveTradeStatus`.
     async fn recovery_loop(self) -> LiveProcessFatalResult<()> {
-        self.status_manager.update(LiveStatus::Starting);
+        self.status_manager.update(LiveTradeStatus::Starting);
 
         let mut shutdown_rx = self.shutdown_tx.subscribe();
 
@@ -187,7 +187,7 @@ impl LiveProcess {
                 }
             }
 
-            self.status_manager.update(LiveStatus::Restarting);
+            self.status_manager.update(LiveTradeStatus::Restarting);
         }
     }
 
@@ -229,7 +229,7 @@ impl LiveProcess {
 
             if let SyncStatus::NotSynced(sync_status_not_synced) = sync_reader.status_snapshot() {
                 self.status_manager
-                    .update(LiveStatus::WaitingForSync(sync_status_not_synced));
+                    .update(LiveTradeStatus::WaitingForSync(sync_status_not_synced));
 
                 let mut sync_rx = sync_reader.update_receiver();
                 loop {
@@ -240,7 +240,7 @@ impl LiveProcess {
                                     SyncUpdate::Status(sync_status) => match sync_status {
                                         SyncStatus::NotSynced(sync_status_not_synced) => {
                                             self.status_manager.update(
-                                                LiveStatus::WaitingForSync(sync_status_not_synced)
+                                                LiveTradeStatus::WaitingForSync(sync_status_not_synced)
                                             );
                                         }
                                         SyncStatus::Synced => break,
@@ -284,7 +284,7 @@ impl LiveProcess {
             match tex_status {
                 LiveTradeExecutorStatus::Ready => {
                     self.status_manager
-                        .update_if_not_running(LiveStatus::Running);
+                        .update_if_not_running(LiveTradeStatus::Running);
                 }
                 LiveTradeExecutorStatus::NotReady(tex_status_not_ready) => {
                     match tex_status_not_ready {
@@ -301,9 +301,10 @@ impl LiveProcess {
                         LiveTradeExecutorStatusNotReady::Starting
                         | LiveTradeExecutorStatusNotReady::WaitingForSync(_)
                         | LiveTradeExecutorStatusNotReady::Failed(_) => {
-                            self.status_manager.update(LiveStatus::WaitingTradeExecutor(
-                                tex_status_not_ready.clone(),
-                            ));
+                            self.status_manager
+                                .update(LiveTradeStatus::WaitingTradeExecutor(
+                                    tex_status_not_ready.clone(),
+                                ));
                             continue;
                         }
                     }
@@ -344,7 +345,9 @@ impl LiveProcess {
                     LiveSignalUpdate::Status(signal_status) => match signal_status {
                         LiveSignalStatus::NotRunning(signal_status_not_running) => {
                             self.status_manager
-                                .update(LiveStatus::WaitingForSignal(signal_status_not_running));
+                                .update(LiveTradeStatus::WaitingForSignal(
+                                    signal_status_not_running,
+                                ));
                         }
                         LiveSignalStatus::Running => {}
                         LiveSignalStatus::Terminated(err) => {
@@ -363,7 +366,7 @@ impl LiveProcess {
                         match tex_status {
                             LiveTradeExecutorStatus::Ready => {
                                 self.status_manager
-                                    .update_if_not_running(LiveStatus::Running);
+                                    .update_if_not_running(LiveTradeStatus::Running);
                             }
                             LiveTradeExecutorStatus::NotReady(tex_status_not_ready) => {
                                 match tex_status_not_ready {
@@ -385,7 +388,7 @@ impl LiveProcess {
                                     | LiveTradeExecutorStatusNotReady::WaitingForSync(_)
                                     | LiveTradeExecutorStatusNotReady::Failed(_) => {
                                         self.status_manager.update(
-                                            LiveStatus::WaitingTradeExecutor(
+                                            LiveTradeStatus::WaitingTradeExecutor(
                                                 tex_status_not_ready.clone(),
                                             ),
                                         );

@@ -24,8 +24,8 @@ use super::{
         operator::OperatorPending,
     },
     state::{
-        LiveStatus, LiveStatusManager, LiveTradeReader, LiveTradeReceiver, LiveTransmiter,
-        LiveUpdate,
+        LiveTradeReader, LiveTradeReceiver, LiveTradeStatus, LiveTradeStatusManager,
+        LiveTransmiter, LiveUpdate,
     },
 };
 
@@ -35,7 +35,7 @@ pub struct LiveTradeController {
     config: LiveTradeControllerConfig,
     process_handle: Mutex<Option<AbortOnDropHandle<LiveProcessFatalResult<()>>>>,
     shutdown_tx: broadcast::Sender<()>,
-    status_manager: Arc<LiveStatusManager>,
+    status_manager: Arc<LiveTradeStatusManager>,
 }
 
 impl LiveTradeController {
@@ -43,7 +43,7 @@ impl LiveTradeController {
         config: &LiveTradeConfig,
         process_handle: AbortOnDropHandle<LiveProcessFatalResult<()>>,
         shutdown_tx: broadcast::Sender<()>,
-        status_manager: Arc<LiveStatusManager>,
+        status_manager: Arc<LiveTradeStatusManager>,
     ) -> Arc<Self> {
         Arc::new(Self {
             config: config.into(),
@@ -63,8 +63,8 @@ impl LiveTradeController {
         self.status_manager.update_receiver()
     }
 
-    /// Returns the current [`LiveStatus`] as a snapshot.
-    pub fn status_snapshot(&self) -> LiveStatus {
+    /// Returns the current [`LiveTradeStatus`] as a snapshot.
+    pub fn status_snapshot(&self) -> LiveTradeStatus {
         self.status_manager.status_snapshot()
     }
 
@@ -91,7 +91,8 @@ impl LiveTradeController {
             return Err(LiveError::LiveAlreadyTerminated(status));
         }
 
-        self.status_manager.update(LiveStatus::ShutdownInitiated);
+        self.status_manager
+            .update(LiveTradeStatus::ShutdownInitiated);
 
         let live_shutdown_send_res = self.shutdown_tx.send(()).map_err(|e| {
             handle.abort();
@@ -120,7 +121,7 @@ impl LiveTradeController {
             return Err(LiveError::LiveShutdownFailed(e_ref));
         }
 
-        self.status_manager.update(LiveStatus::Shutdown);
+        self.status_manager.update(LiveTradeStatus::Shutdown);
         Ok(())
     }
 }
@@ -140,7 +141,7 @@ pub struct LiveTradeEngine {
     sync_engine: SyncEngine,
     trade_executor_launcher: LiveTradeExecutorLauncher,
     operator_pending: OperatorPending,
-    status_manager: Arc<LiveStatusManager>,
+    status_manager: Arc<LiveTradeStatusManager>,
     update_tx: LiveTransmiter,
 }
 
@@ -209,7 +210,7 @@ impl LiveTradeEngine {
 
         let (update_tx, _) = broadcast::channel::<LiveUpdate>(1_000);
 
-        let status_manager = LiveStatusManager::new(update_tx.clone());
+        let status_manager = LiveTradeStatusManager::new(update_tx.clone());
 
         Ok(Self {
             config,
@@ -267,7 +268,7 @@ impl LiveTradeEngine {
 
         let (update_tx, _) = broadcast::channel::<LiveUpdate>(1_000);
 
-        let status_manager = LiveStatusManager::new(update_tx.clone());
+        let status_manager = LiveTradeStatusManager::new(update_tx.clone());
 
         Ok(Self {
             config,
@@ -289,8 +290,8 @@ impl LiveTradeEngine {
         self.status_manager.update_receiver()
     }
 
-    /// Returns the current [`LiveStatus`]s as a snapshot.
-    pub fn status_snapshot(&self) -> LiveStatus {
+    /// Returns the current [`LiveTradeStatus`]s as a snapshot.
+    pub fn status_snapshot(&self) -> LiveTradeStatus {
         self.status_manager.status_snapshot()
     }
 
