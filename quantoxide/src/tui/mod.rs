@@ -13,7 +13,6 @@ pub(crate) use core::TuiControllerShutdown;
 pub use backtest::BacktestTui;
 pub use config::TuiConfig;
 pub use core::TuiLogger;
-pub use error::TuiError;
 pub use live::LiveTui;
 pub use status::{TuiStatus, TuiStatusStopped};
 pub use sync::SyncTui;

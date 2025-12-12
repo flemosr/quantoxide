@@ -9,7 +9,10 @@ use crate::{
     db::Database,
     signal::{ConfiguredSignalEvaluator, LiveSignalEngine},
     sync::SyncEngine,
-    tui::{TuiControllerShutdown, TuiError, error::Result as TuiResult},
+    tui::{
+        TuiControllerShutdown,
+        error::{Result as TuiResult, TuiError},
+    },
     util::AbortOnDropHandle,
 };
 

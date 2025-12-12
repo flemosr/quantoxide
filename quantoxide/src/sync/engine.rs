@@ -12,7 +12,10 @@ use crate::{
     db::Database,
     shared::LookbackPeriod,
     sync::config::{SyncConfig, SyncControllerConfig},
-    tui::{TuiControllerShutdown, TuiError, error::Result as TuiResult},
+    tui::{
+        TuiControllerShutdown,
+        error::{Result as TuiResult, TuiError},
+    },
     util::AbortOnDropHandle,
 };
 
