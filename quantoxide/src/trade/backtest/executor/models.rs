@@ -4,7 +4,7 @@ use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
 use lnm_sdk::api_v3::models::{
-    PercentageCapped, Leverage, Margin, Price, Quantity, TradeSide, TradeSize, trade_util,
+    Leverage, Margin, PercentageCapped, Price, Quantity, TradeSide, TradeSize, trade_util,
 };
 
 use super::{
