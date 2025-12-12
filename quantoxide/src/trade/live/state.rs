@@ -130,7 +130,7 @@ pub(super) type LiveTransmiter = broadcast::Sender<LiveUpdate>;
 pub type LiveReceiver = broadcast::Receiver<LiveUpdate>;
 
 /// Trait for reading live trading status and subscribing to updates.
-pub trait LiveReader: Send + Sync + 'static {
+pub trait LiveTradeReader: Send + Sync + 'static {
     /// Creates a new [`LiveReceiver`] for subscribing to live trading updates.
     fn update_receiver(&self) -> LiveReceiver;
 
@@ -185,7 +185,7 @@ impl LiveStatusManager {
     }
 }
 
-impl LiveReader for LiveStatusManager {
+impl LiveTradeReader for LiveStatusManager {
     fn update_receiver(&self) -> LiveReceiver {
         self.update_tx.subscribe()
     }

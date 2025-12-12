@@ -23,7 +23,9 @@ use super::{
         error::{LiveProcessFatalError, LiveProcessFatalResult},
         operator::OperatorPending,
     },
-    state::{LiveReader, LiveReceiver, LiveStatus, LiveStatusManager, LiveTransmiter, LiveUpdate},
+    state::{
+        LiveReceiver, LiveStatus, LiveStatusManager, LiveTradeReader, LiveTransmiter, LiveUpdate,
+    },
 };
 
 /// Controller for managing and monitoring a running live trading process. Provides an interface to
@@ -50,8 +52,8 @@ impl LiveTradeController {
         })
     }
 
-    /// Returns a [`LiveReader`] interface for accessing live status and updates.
-    pub fn reader(&self) -> Arc<dyn LiveReader> {
+    /// Returns a [`LiveTradeReader`] interface for accessing live status and updates.
+    pub fn reader(&self) -> Arc<dyn LiveTradeReader> {
         self.status_manager.clone()
     }
 
@@ -276,8 +278,8 @@ impl LiveTradeEngine {
         })
     }
 
-    /// Returns a [`LiveReader`] interface for accessing live status and updates.
-    pub fn reader(&self) -> Arc<dyn LiveReader> {
+    /// Returns a [`LiveTradeReader`] interface for accessing live status and updates.
+    pub fn reader(&self) -> Arc<dyn LiveTradeReader> {
         self.status_manager.clone()
     }
 
