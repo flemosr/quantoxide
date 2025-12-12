@@ -25,5 +25,5 @@ pub use live::{
             LiveTradeExecutorReceiver, LiveTradeExecutorUpdate, LiveTradeExecutorUpdateOrder,
         },
     },
-    state::{LiveReceiver, LiveStatus, LiveTradeReader, LiveUpdate},
+    state::{LiveStatus, LiveTradeReader, LiveTradeReceiver, LiveUpdate},
 };

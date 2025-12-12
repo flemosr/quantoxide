@@ -24,7 +24,8 @@ use super::{
         operator::OperatorPending,
     },
     state::{
-        LiveReceiver, LiveStatus, LiveStatusManager, LiveTradeReader, LiveTransmiter, LiveUpdate,
+        LiveStatus, LiveStatusManager, LiveTradeReader, LiveTradeReceiver, LiveTransmiter,
+        LiveUpdate,
     },
 };
 
@@ -57,8 +58,8 @@ impl LiveTradeController {
         self.status_manager.clone()
     }
 
-    /// Creates a new [`LiveReceiver`] for subscribing to live trading status and updates.
-    pub fn update_receiver(&self) -> LiveReceiver {
+    /// Creates a new [`LiveTradeReceiver`] for subscribing to live trading status and updates.
+    pub fn update_receiver(&self) -> LiveTradeReceiver {
         self.status_manager.update_receiver()
     }
 
@@ -283,8 +284,8 @@ impl LiveTradeEngine {
         self.status_manager.clone()
     }
 
-    /// Creates a new [`LiveReceiver`] for subscribing to live trading status and updates.
-    pub fn update_receiver(&self) -> LiveReceiver {
+    /// Creates a new [`LiveTradeReceiver`] for subscribing to live trading status and updates.
+    pub fn update_receiver(&self) -> LiveTradeReceiver {
         self.status_manager.update_receiver()
     }
 

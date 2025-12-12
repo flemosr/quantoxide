@@ -10,7 +10,7 @@ use tokio::{
 };
 
 use crate::{
-    trade::{ClosedTradeHistory, LiveReceiver, LiveTradeEngine, LiveUpdate},
+    trade::{ClosedTradeHistory, LiveTradeEngine, LiveTradeReceiver, LiveUpdate},
     util::AbortOnDropHandle,
 };
 
@@ -105,7 +105,7 @@ impl LiveTui {
 
     fn spawn_live_update_listener(
         status_manager: Arc<TuiStatusManager<LiveTuiView>>,
-        mut live_rx: LiveReceiver,
+        mut live_rx: LiveTradeReceiver,
         ui_tx: mpsc::Sender<LiveUiMessage>,
     ) -> AbortOnDropHandle<()> {
         tokio::spawn(async move {
