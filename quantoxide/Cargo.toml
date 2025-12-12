@@ -1,26 +1,27 @@
 [package]
 name = "quantoxide"
-authors = ["Rafael Lemos <contact@flemosr.com"]
 version = "0.1.0"
+authors = ["Rafael Lemos <contact@flemosr.com"]
 edition = "2024"
+rust-version = "1.88"
 license = "UNLICENSED"
 publish = false
 
 [dependencies]
 lnm-sdk = { path = "../lnm-sdk" }
-chrono = { version = "0.4.40", features = ["now", "serde"] }
+chrono = { version = "0.4.42", features = ["now", "serde"] }
 lazy_static = "1.5.0"
-sqlx = { version = "0.8.3", features = [
+sqlx = { version = "0.8.6", features = [
     "chrono",
     "migrate",
     "postgres",
     "runtime-tokio",
     "uuid",
 ] }
-thiserror = "2.0.12"
-tokio = "1.44.2"
-async-trait = "0.1.88"
+thiserror = "2.0.17"
+tokio = "1.48.0"
+async-trait = "0.1.89"
 futures = "0.3.31"
-uuid = { version = "1.16.0", features = ["serde", "v4"] }
+uuid = { version = "1.19.0", features = ["serde", "v4"] }
 ratatui = "0.29.0"
-strum = { version = "0.27.1", features = ["derive"] }
+strum = { version = "0.27.2", features = ["derive"] }
