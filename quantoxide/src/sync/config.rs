@@ -34,7 +34,7 @@ impl Default for SyncConfig {
             price_history_batch_size: 1000.try_into().expect("not zero"),
             price_history_reach: Duration::days(90),
             price_history_re_sync_interval: time::Duration::from_secs(10),
-            live_price_tick_max_interval: time::Duration::from_mins(3),
+            live_price_tick_max_interval: time::Duration::from_secs(3 * 60),
             restart_interval: time::Duration::from_secs(10),
             shutdown_timeout: time::Duration::from_secs(6),
         }

@@ -53,7 +53,7 @@ impl Default for LiveTradeConfig {
             sync_mode_full: false,
             price_history_reach: Duration::days(90),
             price_history_re_sync_interval: time::Duration::from_secs(10),
-            live_price_tick_max_interval: time::Duration::from_mins(3),
+            live_price_tick_max_interval: time::Duration::from_secs(3 * 60),
             sync_update_timeout: time::Duration::from_secs(5),
             trade_tsl_step_size: PercentageCapped::MIN,
             startup_clean_up_trades: false,
