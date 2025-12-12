@@ -2,13 +2,17 @@ use std::{env, time::Instant};
 
 use dotenv::dotenv;
 
-use crate::{
-    api_v3::{
-        FuturesDataRepository,
-        models::{PercentageCapped, CrossLeverage, CrossOrder, TradeExecutionType},
-        rest::{lnm::futures_data::LnmFuturesDataRepository, models::ticker::Ticker},
+use crate::shared::{
+    config::RestClientConfig,
+    models::{price::PercentageCapped, quantity::Quantity, trade::TradeExecutionType},
+};
+
+use super::super::{
+    super::{
+        models::{cross_leverage::CrossLeverage, ticker::Ticker, trade::CrossOrder},
+        repositories::FuturesDataRepository,
     },
-    shared::{config::RestClientConfig, models::quantity::Quantity},
+    futures_data::LnmFuturesDataRepository,
 };
 
 use super::*;
