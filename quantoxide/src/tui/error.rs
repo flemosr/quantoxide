@@ -82,10 +82,10 @@ pub enum TuiError {
     LiveRecv(RecvError),
 
     #[error("Live engine already coupled")]
-    LiveEngineAlreadyCoupled,
+    LiveTradeEngineAlreadyCoupled,
 
     #[error("Live engine start failed: {0}")]
-    LiveEngineStartFailed(LiveError),
+    LiveTradeEngineStartFailed(LiveError),
 
     #[error("Live shutdown failed: {0}")]
     LiveShutdownFailed(LiveError),

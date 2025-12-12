@@ -132,7 +132,7 @@ impl TuiControllerShutdown for LiveTradeController {
 /// Builder for configuring and starting a live trading engine. Encapsulates the configuration,
 /// database connection, API clients, sync engine, trade executor, and operator. The live trading
 /// process is started when [`start`](Self::start) is called, returning a [`LiveTradeController`].
-pub struct LiveEngine {
+pub struct LiveTradeEngine {
     config: LiveTradeConfig,
     sync_engine: SyncEngine,
     trade_executor_launcher: LiveTradeExecutorLauncher,
@@ -141,7 +141,7 @@ pub struct LiveEngine {
     update_tx: LiveTransmiter,
 }
 
-impl LiveEngine {
+impl LiveTradeEngine {
     /// Creates a new live trading engine using signal-based evaluation. Signal evaluators generate
     /// trading signals that are processed by the signal operator to execute trading actions.
     #[allow(clippy::too_many_arguments)]

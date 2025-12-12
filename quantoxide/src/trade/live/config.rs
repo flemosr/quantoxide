@@ -10,7 +10,7 @@ use lnm_sdk::{
 
 use super::executor::state::live_trading_session::TradingSessionTTL;
 
-/// Configuration for the [`LiveEngine`] controlling synchronization, signal processing, trade
+/// Configuration for the [`LiveTradeEngine`] controlling synchronization, signal processing, trade
 /// execution, and session management.
 #[derive(Clone, Debug)]
 pub struct LiveTradeConfig {

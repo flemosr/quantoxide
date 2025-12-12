@@ -10,7 +10,7 @@ use tokio::{
 };
 
 use crate::{
-    trade::{ClosedTradeHistory, LiveEngine, LiveReceiver, LiveUpdate},
+    trade::{ClosedTradeHistory, LiveReceiver, LiveTradeEngine, LiveUpdate},
     util::AbortOnDropHandle,
 };
 
@@ -197,9 +197,9 @@ impl LiveTui {
         .into()
     }
 
-    pub async fn couple(&self, engine: LiveEngine) -> Result<()> {
+    pub async fn couple(&self, engine: LiveTradeEngine) -> Result<()> {
         if self.live_controller.initialized() {
-            return Err(TuiError::LiveEngineAlreadyCoupled);
+            return Err(TuiError::LiveTradeEngineAlreadyCoupled);
         }
 
         let live_rx = engine.update_receiver();
@@ -213,15 +213,15 @@ impl LiveTui {
         let live_controller = engine
             .start()
             .await
-            .map_err(TuiError::LiveEngineStartFailed)?;
+            .map_err(TuiError::LiveTradeEngineStartFailed)?;
 
         self.live_controller
             .set(live_controller)
-            .map_err(|_| TuiError::LiveEngineAlreadyCoupled)?;
+            .map_err(|_| TuiError::LiveTradeEngineAlreadyCoupled)?;
 
         self.live_update_listener_handle
             .set(live_update_listener_handle)
-            .map_err(|_| TuiError::LiveEngineAlreadyCoupled)?;
+            .map_err(|_| TuiError::LiveTradeEngineAlreadyCoupled)?;
 
         Ok(())
     }
