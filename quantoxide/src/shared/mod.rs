@@ -6,6 +6,9 @@ pub mod error;
 
 use error::{LookbackPeriodValidationError, MinIterationIntervalValidationError};
 
+/// Validated lookback period specifying how much historical data to provide for analysis.
+///
+/// Represents a duration in minutes with enforced minimum and maximum bounds.
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Eq, Ord)]
 pub struct LookbackPeriod(u64);
 
@@ -14,18 +17,22 @@ impl LookbackPeriod {
 
     pub const MAX: Self = Self(1440);
 
+    /// Returns the lookback period as a [`Duration`].
     pub fn as_duration(&self) -> Duration {
         Duration::minutes(self.0 as i64)
     }
 
+    /// Returns the lookback period in minutes as a `u64`.
     pub fn as_u64(&self) -> u64 {
         self.0
     }
 
+    /// Returns the lookback period in minutes as a `usize`.
     pub fn as_usize(&self) -> usize {
         self.0 as usize
     }
 
+    /// Returns the lookback period in minutes as an `i64`.
     pub fn as_i64(&self) -> i64 {
         self.0 as i64
     }
@@ -53,6 +60,10 @@ impl fmt::Display for LookbackPeriod {
     }
 }
 
+/// Validated minimum interval between successive iterations.
+///
+/// Represents a duration with enforced bounds to prevent iterations from running too frequently or
+/// too infrequently.
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Eq, Ord)]
 pub struct MinIterationInterval(Duration);
 
@@ -61,6 +72,7 @@ impl MinIterationInterval {
 
     pub const MAX: Self = Self(Duration::minutes(10));
 
+    /// Returns the minimum iteration interval as a [`Duration`].
     pub fn as_duration(&self) -> Duration {
         self.0
     }
