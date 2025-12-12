@@ -86,7 +86,7 @@ impl From<LiveProcessFatalError> for LiveTradeStatus {
 /// Update events emitted during live trading including status changes, signals, orders, trading
 /// state, and closed trades.
 #[derive(Clone)]
-pub enum LiveUpdate {
+pub enum LiveTradeUpdate {
     /// Live trading status changed.
     Status(LiveTradeStatus),
     /// A trading signal was generated.
@@ -99,35 +99,35 @@ pub enum LiveUpdate {
     ClosedTrade(Trade),
 }
 
-impl From<LiveTradeStatus> for LiveUpdate {
+impl From<LiveTradeStatus> for LiveTradeUpdate {
     fn from(value: LiveTradeStatus) -> Self {
         Self::Status(value)
     }
 }
 
-impl From<LiveTradeExecutorUpdateOrder> for LiveUpdate {
+impl From<LiveTradeExecutorUpdateOrder> for LiveTradeUpdate {
     fn from(value: LiveTradeExecutorUpdateOrder) -> Self {
         Self::Order(value)
     }
 }
 
-impl From<Signal> for LiveUpdate {
+impl From<Signal> for LiveTradeUpdate {
     fn from(value: Signal) -> Self {
         Self::Signal(value)
     }
 }
 
-impl From<TradingState> for LiveUpdate {
+impl From<TradingState> for LiveTradeUpdate {
     fn from(value: TradingState) -> Self {
         Self::TradingState(value)
     }
 }
 
-pub(super) type LiveTransmiter = broadcast::Sender<LiveUpdate>;
+pub(super) type LiveTransmiter = broadcast::Sender<LiveTradeUpdate>;
 
-/// Receiver for subscribing to [`LiveUpdate`]s including status changes, signals, orders, and
+/// Receiver for subscribing to [`LiveTradeUpdate`]s including status changes, signals, orders, and
 /// closed trades.
-pub type LiveTradeReceiver = broadcast::Receiver<LiveUpdate>;
+pub type LiveTradeReceiver = broadcast::Receiver<LiveTradeUpdate>;
 
 /// Trait for reading live trading status and subscribing to updates.
 pub trait LiveTradeReader: Send + Sync + 'static {

@@ -10,7 +10,7 @@ use tokio::{
 };
 
 use crate::{
-    trade::{ClosedTradeHistory, LiveTradeEngine, LiveTradeReceiver, LiveUpdate},
+    trade::{ClosedTradeHistory, LiveTradeEngine, LiveTradeReceiver, LiveTradeUpdate},
     util::AbortOnDropHandle,
 };
 
@@ -127,19 +127,19 @@ impl LiveTui {
             let mut closed_trade_history = ClosedTradeHistory::new();
             let mut closed_trades_table = closed_trade_history.to_table();
 
-            let mut handle_live_update = async |live_update: LiveUpdate| -> Result<()> {
+            let mut handle_live_update = async |live_update: LiveTradeUpdate| -> Result<()> {
                 match live_update {
-                    LiveUpdate::Status(live_status) => {
+                    LiveTradeUpdate::Status(live_status) => {
                         send_ui_msg(LiveUiMessage::LogEntry(format!("Live status: {live_status}"))).await?;
 
                     }
-                    LiveUpdate::Signal(signal) => {
+                    LiveTradeUpdate::Signal(signal) => {
                         send_ui_msg(LiveUiMessage::LogEntry(signal.to_string())).await?;
                     }
-                    LiveUpdate::Order(order) => {
+                    LiveTradeUpdate::Order(order) => {
                         send_ui_msg(LiveUiMessage::LogEntry(format!("Order: {order}"))).await?;
                     }
-                    LiveUpdate::TradingState(trading_state) => {
+                    LiveTradeUpdate::TradingState(trading_state) => {
                         send_ui_msg(LiveUiMessage::SummaryUpdate(format!(
                             "\n{}",
                             trading_state.summary()
@@ -149,7 +149,7 @@ impl LiveTui {
 
                         send_trades_update(&running_trades_table, &closed_trades_table).await?;
                     }
-                    LiveUpdate::ClosedTrade(closed_trade) => {
+                    LiveTradeUpdate::ClosedTrade(closed_trade) => {
                         closed_trade_history.add(closed_trade).map_err(TuiError::LiveHandleClosedTradeFailed)?;
 
                         closed_trades_table = closed_trade_history.to_table();

@@ -21,7 +21,7 @@ use super::{
         state::{LiveTradeExecutorStatus, LiveTradeExecutorStatusNotReady},
         update::{LiveTradeExecutorReceiver, LiveTradeExecutorUpdate},
     },
-    state::{LiveTradeStatus, LiveTradeStatusManager, LiveTransmiter, LiveUpdate},
+    state::{LiveTradeStatus, LiveTradeStatusManager, LiveTradeUpdate, LiveTransmiter},
 };
 
 pub(crate) mod error;
@@ -120,7 +120,7 @@ impl LiveProcess {
                             let _ = update_tx.send(trading_state.into());
                         }
                         LiveTradeExecutorUpdate::ClosedTrade(closed_trade) => {
-                            let _ = update_tx.send(LiveUpdate::ClosedTrade(closed_trade));
+                            let _ = update_tx.send(LiveTradeUpdate::ClosedTrade(closed_trade));
                         }
                     },
                     Err(RecvError::Lagged(skipped)) => {

@@ -25,7 +25,7 @@ use super::{
     },
     state::{
         LiveTradeReader, LiveTradeReceiver, LiveTradeStatus, LiveTradeStatusManager,
-        LiveTransmiter, LiveUpdate,
+        LiveTradeUpdate, LiveTransmiter,
     },
 };
 
@@ -208,7 +208,7 @@ impl LiveTradeEngine {
             LiveTradeExecutorLauncher::new(&config, db, api_rest, sync_engine.reader())
                 .map_err(LiveError::SetupExecutor)?;
 
-        let (update_tx, _) = broadcast::channel::<LiveUpdate>(1_000);
+        let (update_tx, _) = broadcast::channel::<LiveTradeUpdate>(1_000);
 
         let status_manager = LiveTradeStatusManager::new(update_tx.clone());
 
@@ -266,7 +266,7 @@ impl LiveTradeEngine {
             LiveTradeExecutorLauncher::new(&config, db, api_rest, sync_engine.reader())
                 .map_err(LiveError::SetupExecutor)?;
 
-        let (update_tx, _) = broadcast::channel::<LiveUpdate>(1_000);
+        let (update_tx, _) = broadcast::channel::<LiveTradeUpdate>(1_000);
 
         let status_manager = LiveTradeStatusManager::new(update_tx.clone());
 
