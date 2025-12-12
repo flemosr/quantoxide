@@ -15,7 +15,7 @@ use crate::{
 
 use super::{
     super::core::{RawOperator, SignalOperator, WrappedRawOperator},
-    config::{LiveControllerConfig, LiveTradeConfig},
+    config::{LiveTradeConfig, LiveTradeControllerConfig},
     error::{LiveError, Result},
     executor::LiveTradeExecutorLauncher,
     process::{
@@ -28,14 +28,14 @@ use super::{
 
 /// Controller for managing and monitoring a running live trading process. Provides an interface to
 /// monitor status, receive updates, and perform graceful shutdown operations.
-pub struct LiveController {
-    config: LiveControllerConfig,
+pub struct LiveTradeController {
+    config: LiveTradeControllerConfig,
     process_handle: Mutex<Option<AbortOnDropHandle<LiveProcessFatalResult<()>>>>,
     shutdown_tx: broadcast::Sender<()>,
     status_manager: Arc<LiveStatusManager>,
 }
 
-impl LiveController {
+impl LiveTradeController {
     fn new(
         config: &LiveTradeConfig,
         process_handle: AbortOnDropHandle<LiveProcessFatalResult<()>>,
@@ -68,7 +68,7 @@ impl LiveController {
     fn try_consume_handle(&self) -> Option<AbortOnDropHandle<LiveProcessFatalResult<()>>> {
         self.process_handle
             .lock()
-            .expect("`LiveController` mutex can't be poisoned")
+            .expect("`LiveTradeController` mutex can't be poisoned")
             .take()
     }
 
@@ -123,7 +123,7 @@ impl LiveController {
 }
 
 #[async_trait]
-impl TuiControllerShutdown for LiveController {
+impl TuiControllerShutdown for LiveTradeController {
     async fn tui_shutdown(&self) -> TuiResult<()> {
         self.shutdown().await.map_err(TuiError::LiveShutdownFailed)
     }
@@ -131,7 +131,7 @@ impl TuiControllerShutdown for LiveController {
 
 /// Builder for configuring and starting a live trading engine. Encapsulates the configuration,
 /// database connection, API clients, sync engine, trade executor, and operator. The live trading
-/// process is started when [`start`](Self::start) is called, returning a [`LiveController`].
+/// process is started when [`start`](Self::start) is called, returning a [`LiveTradeController`].
 pub struct LiveEngine {
     config: LiveTradeConfig,
     sync_engine: SyncEngine,
@@ -291,9 +291,9 @@ impl LiveEngine {
         self.status_manager.status_snapshot()
     }
 
-    /// Starts the live trading process and returns a [`LiveController`] for managing it. This
+    /// Starts the live trading process and returns a [`LiveTradeController`] for managing it. This
     /// consumes the engine and spawns the live trading task in the background.
-    pub async fn start(self) -> Result<Arc<LiveController>> {
+    pub async fn start(self) -> Result<Arc<LiveTradeController>> {
         let (shutdown_tx, _) = broadcast::channel::<()>(1);
 
         let process_handle = LiveProcess::spawn(
@@ -306,7 +306,7 @@ impl LiveEngine {
             self.update_tx,
         );
 
-        let controller = LiveController::new(
+        let controller = LiveTradeController::new(
             &self.config,
             process_handle,
             shutdown_tx,

@@ -14,7 +14,7 @@ pub use core::{
 };
 pub use live::{
     config::{LiveTradeConfig, LiveTradeExecutorConfig},
-    engine::{LiveController, LiveEngine},
+    engine::{LiveEngine, LiveTradeController},
     executor::{
         LiveTradeExecutor, LiveTradeExecutorLauncher,
         state::{

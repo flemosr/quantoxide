@@ -363,17 +363,17 @@ impl From<&LiveTradeConfig> for WebSocketClientConfig {
 }
 
 #[derive(Debug)]
-pub(super) struct LiveControllerConfig {
+pub(super) struct LiveTradeControllerConfig {
     shutdown_timeout: time::Duration,
 }
 
-impl LiveControllerConfig {
+impl LiveTradeControllerConfig {
     pub fn shutdown_timeout(&self) -> time::Duration {
         self.shutdown_timeout
     }
 }
 
-impl From<&LiveTradeConfig> for LiveControllerConfig {
+impl From<&LiveTradeConfig> for LiveTradeControllerConfig {
     fn from(value: &LiveTradeConfig) -> Self {
         Self {
             shutdown_timeout: value.shutdown_timeout,
