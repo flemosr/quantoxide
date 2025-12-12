@@ -11,6 +11,10 @@ pub(crate) struct RunningTrade {
     pub trailing_stoploss: Option<f64>,
 }
 
+/// Database row representing a single OHLC (Open, High, Low, Close) candlestick.
+///
+/// Contains aggregated price and volume data for a specific time period, along with metadata
+/// indicating when the row was created and updated, and whether the candle is stable (finalized).
 #[derive(Debug, Clone)]
 pub struct OhlcCandleRow {
     pub time: DateTime<Utc>,
@@ -40,6 +44,7 @@ impl OhlcCandleRow {
         }
     }
 
+    /// Returns a formatted string representation of the candle data for display purposes.
     pub fn as_data_str(&self) -> String {
         let time_str = self.time.format_local_millis();
         let created_at_str = self.created_at.format_local_millis();
@@ -74,6 +79,10 @@ impl fmt::Display for OhlcCandleRow {
     }
 }
 
+/// Database row representing a single price tick observation.
+///
+/// Contains the last traded price at a specific point in time, along with metadata indicating when
+/// the observation was recorded.
 #[derive(Debug, Clone)]
 pub struct PriceTickRow {
     pub time: DateTime<Utc>,
@@ -82,6 +91,7 @@ pub struct PriceTickRow {
 }
 
 impl PriceTickRow {
+    /// Returns a formatted string representation of the price tick data for display purposes.
     pub fn as_data_str(&self) -> String {
         let time_str = self.time.format_local_millis();
         let created_at_str = self.created_at.format_local_millis();
