@@ -34,6 +34,11 @@ pub enum LiveUiMessage {
     ShutdownCompleted,
 }
 
+/// Terminal user interface for live trading operations.
+///
+/// `LiveTui` provides a visual interface for monitoring live trading activity, including signals,
+/// orders, trading state, and position updates. It must be coupled with a [`LiveTradeEngine`]
+/// before trading begins.
 pub struct LiveTui {
     event_check_interval: Duration,
     shutdown_timeout: Duration,
@@ -51,6 +56,9 @@ pub struct LiveTui {
 }
 
 impl LiveTui {
+    /// Launches a new live trading TUI with the specified configuration.
+    ///
+    /// Optionally writes TUI logs to a file if `log_file_path` is provided.
     pub async fn launch(config: TuiConfig, log_file_path: Option<&str>) -> Result<Arc<Self>> {
         let log_file = core::open_log_file(log_file_path)?;
 
@@ -99,6 +107,7 @@ impl LiveTui {
         }))
     }
 
+    /// Returns the current [`TuiStatus`] as a snapshot.
     pub fn status(&self) -> TuiStatus {
         self.status_manager.status()
     }
@@ -197,6 +206,13 @@ impl LiveTui {
         .into()
     }
 
+    /// Couples a [`LiveTradeEngine`] to this TUI instance.
+    ///
+    /// This method starts the live trade engine and begins listening for trading updates. It can
+    /// only be called once per TUI instance.
+    ///
+    /// Returns an error if a live trade engine has already been coupled or if the engine fails to
+    /// start.
     pub async fn couple(&self, engine: LiveTradeEngine) -> Result<()> {
         if self.live_controller.initialized() {
             return Err(TuiError::LiveTradeEngineAlreadyCoupled);
@@ -226,6 +242,12 @@ impl LiveTui {
         Ok(())
     }
 
+    /// Performs a graceful shutdown of the live trading TUI.
+    ///
+    /// This method shuts down the coupled live trade engine and stops the UI task. If shutdown
+    /// does not complete within the configured timeout, the task is aborted.
+    ///
+    /// Returns an error if the TUI is not running or if shutdown fails.
     pub async fn shutdown(&self) -> Result<()> {
         self.status_manager.require_running()?;
 
@@ -241,6 +263,10 @@ impl LiveTui {
         .await
     }
 
+    /// Waits until the TUI has stopped and returns the final stopped status.
+    ///
+    /// This method blocks until the TUI reaches a stopped state, either through graceful shutdown
+    /// or a crash.
     pub async fn until_stopped(&self) -> Arc<TuiStatusStopped> {
         loop {
             if let TuiStatus::Stopped(status_stopped) = self.status() {

@@ -13,6 +13,7 @@ use crate::{
 
 use super::{TuiStatus, backtest::BacktestUiMessage, live::LiveUiMessage, sync::SyncUiMessage};
 
+/// Error types for TUI operations.
 #[derive(Error, Debug)]
 pub enum TuiError {
     #[error("TUI not running error: {0}")]

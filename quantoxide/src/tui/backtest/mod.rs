@@ -34,6 +34,11 @@ pub enum BacktestUiMessage {
     ShutdownCompleted,
 }
 
+/// Terminal user interface for backtest operations.
+///
+/// `BacktestTui` provides a visual interface for monitoring backtest execution, including trading
+/// state, balance changes, and iteration progress. It must be coupled with a [`BacktestEngine`]
+/// before the backtest begins.
 pub struct BacktestTui {
     event_check_interval: Duration,
     shutdown_timeout: Duration,
@@ -52,6 +57,9 @@ pub struct BacktestTui {
 }
 
 impl BacktestTui {
+    /// Launches a new backtest TUI with the specified configuration.
+    ///
+    /// Optionally writes TUI logs to a file if `log_file_path` is provided.
     pub async fn launch(config: TuiConfig, log_file_path: Option<&str>) -> Result<Arc<Self>> {
         let log_file = core::open_log_file(log_file_path)?;
 
@@ -101,6 +109,7 @@ impl BacktestTui {
         }))
     }
 
+    /// Returns the current [`TuiStatus`] as a snapshot.
     pub fn status(&self) -> TuiStatus {
         self.status_manager.status()
     }
@@ -183,6 +192,12 @@ impl BacktestTui {
         .into()
     }
 
+    /// Couples a [`BacktestEngine`] to this TUI instance.
+    ///
+    /// This method initializes the backtest visualization and starts listening for backtest
+    /// updates. It can only be called once per TUI instance.
+    ///
+    /// Returns an error if a backtest engine has already been coupled.
     pub async fn couple(&self, engine: BacktestEngine) -> Result<()> {
         if self.backtest_controller.initialized() {
             return Err(TuiError::BacktestEngineAlreadyCoupled);
@@ -226,6 +241,12 @@ impl BacktestTui {
         Ok(())
     }
 
+    /// Performs a graceful shutdown of the backtest TUI.
+    ///
+    /// This method shuts down the coupled backtest engine and stops the UI task. If shutdown does
+    /// not complete within the configured timeout, the task is aborted.
+    ///
+    /// Returns an error if the TUI is not running or if shutdown fails.
     pub async fn shutdown(&self) -> Result<()> {
         self.status_manager.require_running()?;
 
@@ -241,6 +262,10 @@ impl BacktestTui {
         .await
     }
 
+    /// Waits until the TUI has stopped and returns the final stopped status.
+    ///
+    /// This method blocks until the TUI reaches a stopped state, either through graceful shutdown
+    /// or a crash.
     pub async fn until_stopped(&self) -> Arc<TuiStatusStopped> {
         loop {
             if let TuiStatus::Stopped(status_stopped) = self.status() {

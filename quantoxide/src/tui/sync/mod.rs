@@ -33,6 +33,11 @@ pub enum SyncUiMessage {
     ShutdownCompleted,
 }
 
+/// Terminal user interface for synchronization operations.
+///
+/// `SyncTui` provides a visual interface for monitoring price data synchronization, including sync
+/// status, price ticks, and price history state. It must be coupled with a [`SyncEngine`] before
+/// synchronization begins.
 pub struct SyncTui {
     event_check_interval: Duration,
     shutdown_timeout: Duration,
@@ -50,6 +55,9 @@ pub struct SyncTui {
 }
 
 impl SyncTui {
+    /// Launches a new sync TUI with the specified configuration.
+    ///
+    /// Optionally writes TUI logs to a file if `log_file_path` is provided.
     pub async fn launch(config: TuiConfig, log_file_path: Option<&str>) -> Result<Arc<Self>> {
         let log_file = core::open_log_file(log_file_path)?;
 
@@ -98,6 +106,7 @@ impl SyncTui {
         }))
     }
 
+    /// Returns the current [`TuiStatus`] as a snapshot.
     pub fn status(&self) -> TuiStatus {
         self.status_manager.status()
     }
@@ -183,6 +192,12 @@ impl SyncTui {
         .into()
     }
 
+    /// Couples a [`SyncEngine`] to this TUI instance.
+    ///
+    /// This method starts the sync engine and begins listening for sync updates. It can only be
+    /// called once per TUI instance.
+    ///
+    /// Returns an error if a sync engine has already been coupled.
     pub fn couple(&self, engine: SyncEngine) -> Result<()> {
         if self.sync_controller.initialized() {
             return Err(TuiError::SyncEngineAlreadyCoupled);
@@ -207,6 +222,12 @@ impl SyncTui {
         Ok(())
     }
 
+    /// Performs a graceful shutdown of the sync TUI.
+    ///
+    /// This method shuts down the coupled sync engine and stops the UI task. If shutdown does not
+    /// complete within the configured timeout, the task is aborted.
+    ///
+    /// Returns an error if the TUI is not running or if shutdown fails.
     pub async fn shutdown(&self) -> Result<()> {
         self.status_manager.require_running()?;
 
@@ -222,6 +243,10 @@ impl SyncTui {
         .await
     }
 
+    /// Waits until the TUI has stopped and returns the final stopped status.
+    ///
+    /// This method blocks until the TUI reaches a stopped state, either through graceful shutdown
+    /// or a crash.
     pub async fn until_stopped(&self) -> Arc<TuiStatusStopped> {
         loop {
             if let TuiStatus::Stopped(status_stopped) = self.status() {

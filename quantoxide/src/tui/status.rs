@@ -8,16 +8,28 @@ use super::{
     view::TuiLogManager,
 };
 
+/// Detailed status when a TUI has stopped running.
+///
+/// Represents the final state of a TUI that is no longer active.
 #[derive(Debug)]
 pub enum TuiStatusStopped {
+    /// TUI stopped due to a fatal error.
     Crashed(TuiError),
+    /// TUI stopped due to a graceful shutdown.
     Shutdown,
 }
 
+/// Overall TUI status.
+///
+/// Represents the high-level state of a TUI instance, including active operation and stopped
+/// states.
 #[derive(Debug, Clone)]
 pub enum TuiStatus {
+    /// TUI is running normally.
     Running,
+    /// Shutdown has been requested and is in progress.
     ShutdownInitiated,
+    /// TUI has stopped.
     Stopped(Arc<TuiStatusStopped>),
 }
 
@@ -41,6 +53,7 @@ impl fmt::Display for TuiStatus {
 }
 
 impl TuiStatus {
+    /// Returns whether the TUI has crashed.
     pub fn is_crashed(&self) -> bool {
         if let TuiStatus::Stopped(ref status_stopped) = *self
             && let TuiStatusStopped::Crashed(_) = status_stopped.as_ref()
@@ -51,10 +64,12 @@ impl TuiStatus {
         false
     }
 
+    /// Returns whether shutdown has been initiated.
     pub fn is_shutdown_initiated(&self) -> bool {
         matches!(self, TuiStatus::ShutdownInitiated)
     }
 
+    /// Returns whether the TUI has been gracefully shut down.
     pub fn is_shutdown(&self) -> bool {
         if let TuiStatus::Stopped(ref status_stopped) = *self {
             return matches!(status_stopped.as_ref(), TuiStatusStopped::Shutdown);

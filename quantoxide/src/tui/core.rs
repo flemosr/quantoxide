@@ -245,7 +245,13 @@ where
     .into()
 }
 
+/// Trait for logging messages to a TUI instance.
+///
+/// Provides an interface for sending log entries to the TUI display.
 #[async_trait]
 pub trait TuiLogger: Send + Sync {
+    /// Sends a log entry to the TUI for display.
+    ///
+    /// Returns an error if the TUI is not running or if the log message cannot be sent.
     async fn log(&self, log_entry: String) -> Result<()>;
 }
