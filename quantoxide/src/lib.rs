@@ -1,10 +1,12 @@
-pub mod db;
+mod db;
 mod shared;
 pub mod signal;
 pub mod sync;
 pub mod trade;
 pub mod tui;
 mod util;
+
+pub use db::Database;
 
 pub mod error {
     pub use super::db::error::DbError;
