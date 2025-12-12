@@ -5,7 +5,7 @@ use tokio::time;
 
 use lnm_sdk::{api_v2::WebSocketClientConfig, api_v3::RestClientConfig};
 
-use crate::trade::LiveConfig;
+use crate::trade::LiveTradeConfig;
 
 /// Configuration for the synchronization engine.
 #[derive(Clone, Debug)]
@@ -199,8 +199,8 @@ impl From<&SyncConfig> for WebSocketClientConfig {
     }
 }
 
-impl From<&LiveConfig> for SyncConfig {
-    fn from(value: &LiveConfig) -> Self {
+impl From<&LiveTradeConfig> for SyncConfig {
+    fn from(value: &LiveTradeConfig) -> Self {
         SyncConfig {
             rest_api_timeout: value.rest_api_timeout(),
             ws_api_disconnect_timeout: value.ws_api_disconnect_timeout(),

@@ -13,7 +13,7 @@ use super::executor::state::live_trading_session::TradingSessionTTL;
 /// Configuration for the [`LiveEngine`] controlling synchronization, signal processing, trade
 /// execution, and session management.
 #[derive(Clone, Debug)]
-pub struct LiveConfig {
+pub struct LiveTradeConfig {
     rest_api_timeout: time::Duration,
     ws_api_disconnect_timeout: time::Duration,
     rest_api_cooldown: time::Duration,
@@ -37,7 +37,7 @@ pub struct LiveConfig {
     shutdown_timeout: time::Duration,
 }
 
-impl Default for LiveConfig {
+impl Default for LiveTradeConfig {
     fn default() -> Self {
         let trading_session_ttl = (Duration::hours(1) + Duration::minutes(5))
             .try_into()
@@ -70,7 +70,7 @@ impl Default for LiveConfig {
     }
 }
 
-impl LiveConfig {
+impl LiveTradeConfig {
     /// Returns the timeout duration for REST API requests.
     pub fn rest_api_timeout(&self) -> time::Duration {
         self.rest_api_timeout
@@ -350,14 +350,14 @@ impl LiveConfig {
     }
 }
 
-impl From<&LiveConfig> for RestClientConfig {
-    fn from(value: &LiveConfig) -> Self {
+impl From<&LiveTradeConfig> for RestClientConfig {
+    fn from(value: &LiveTradeConfig) -> Self {
         RestClientConfig::new(value.rest_api_timeout())
     }
 }
 
-impl From<&LiveConfig> for WebSocketClientConfig {
-    fn from(value: &LiveConfig) -> Self {
+impl From<&LiveTradeConfig> for WebSocketClientConfig {
+    fn from(value: &LiveTradeConfig) -> Self {
         WebSocketClientConfig::new(value.ws_api_disconnect_timeout())
     }
 }
@@ -373,8 +373,8 @@ impl LiveControllerConfig {
     }
 }
 
-impl From<&LiveConfig> for LiveControllerConfig {
-    fn from(value: &LiveConfig) -> Self {
+impl From<&LiveTradeConfig> for LiveControllerConfig {
+    fn from(value: &LiveTradeConfig) -> Self {
         Self {
             shutdown_timeout: value.shutdown_timeout,
         }
@@ -397,8 +397,8 @@ impl LiveProcessConfig {
     }
 }
 
-impl From<&LiveConfig> for LiveProcessConfig {
-    fn from(value: &LiveConfig) -> Self {
+impl From<&LiveTradeConfig> for LiveProcessConfig {
+    fn from(value: &LiveTradeConfig) -> Self {
         Self {
             sync_update_timeout: value.sync_update_timeout(),
             restart_interval: value.restart_interval(),
@@ -548,8 +548,8 @@ impl Default for LiveTradeExecutorConfig {
     }
 }
 
-impl From<&LiveConfig> for LiveTradeExecutorConfig {
-    fn from(value: &LiveConfig) -> Self {
+impl From<&LiveTradeConfig> for LiveTradeExecutorConfig {
+    fn from(value: &LiveTradeConfig) -> Self {
         Self {
             trade_tsl_step_size: value.trailing_stoploss_step_size(),
             startup_clean_up_trades: value.startup_clean_up_trades(),

@@ -15,7 +15,7 @@ use crate::{
 
 use super::{
     super::core::{WrappedRawOperator, WrappedSignalOperator},
-    config::{LiveConfig, LiveProcessConfig},
+    config::{LiveProcessConfig, LiveTradeConfig},
     executor::{
         LiveTradeExecutor, LiveTradeExecutorLauncher,
         state::{LiveTradeExecutorStatus, LiveTradeExecutorStatusNotReady},
@@ -46,7 +46,7 @@ pub(super) struct LiveProcess {
 
 impl LiveProcess {
     pub fn spawn(
-        config: &LiveConfig,
+        config: &LiveTradeConfig,
         shutdown_tx: broadcast::Sender<()>,
         sync_engine: SyncEngine,
         operator_pending: OperatorPending,

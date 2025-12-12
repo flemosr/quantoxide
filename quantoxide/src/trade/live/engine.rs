@@ -15,7 +15,7 @@ use crate::{
 
 use super::{
     super::core::{RawOperator, SignalOperator, WrappedRawOperator},
-    config::{LiveConfig, LiveControllerConfig},
+    config::{LiveControllerConfig, LiveTradeConfig},
     error::{LiveError, Result},
     executor::LiveTradeExecutorLauncher,
     process::{
@@ -37,7 +37,7 @@ pub struct LiveController {
 
 impl LiveController {
     fn new(
-        config: &LiveConfig,
+        config: &LiveTradeConfig,
         process_handle: AbortOnDropHandle<LiveProcessFatalResult<()>>,
         shutdown_tx: broadcast::Sender<()>,
         status_manager: Arc<LiveStatusManager>,
@@ -133,7 +133,7 @@ impl TuiControllerShutdown for LiveController {
 /// database connection, API clients, sync engine, trade executor, and operator. The live trading
 /// process is started when [`start`](Self::start) is called, returning a [`LiveController`].
 pub struct LiveEngine {
-    config: LiveConfig,
+    config: LiveTradeConfig,
     sync_engine: SyncEngine,
     trade_executor_launcher: LiveTradeExecutorLauncher,
     operator_pending: OperatorPending,
@@ -146,7 +146,7 @@ impl LiveEngine {
     /// trading signals that are processed by the signal operator to execute trading actions.
     #[allow(clippy::too_many_arguments)]
     pub fn with_signal_operator(
-        config: LiveConfig,
+        config: LiveTradeConfig,
         db: Arc<Database>,
         api_domain: impl ToString,
         api_key: impl ToString,
@@ -221,7 +221,7 @@ impl LiveEngine {
     /// Creates a new live trading engine using a raw operator. The raw operator directly implements
     /// trading logic without intermediate signal generation.
     pub fn with_raw_operator(
-        config: LiveConfig,
+        config: LiveTradeConfig,
         db: Arc<Database>,
         api_domain: impl ToString,
         api_key: impl ToString,

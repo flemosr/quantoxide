@@ -13,7 +13,7 @@ pub use core::{
     TradeExecutor, TradeReference, TradeRunning, TradeTrailingStoploss, TradingState,
 };
 pub use live::{
-    config::{LiveConfig, LiveTradeExecutorConfig},
+    config::{LiveTradeConfig, LiveTradeExecutorConfig},
     engine::{LiveController, LiveEngine},
     executor::{
         LiveTradeExecutor, LiveTradeExecutorLauncher,

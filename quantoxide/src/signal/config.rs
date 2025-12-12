@@ -1,6 +1,6 @@
 use tokio::time;
 
-use crate::trade::LiveConfig;
+use crate::trade::LiveTradeConfig;
 
 /// Configuration for the [`LiveSignalEngine`].
 #[derive(Clone, Debug)]
@@ -61,8 +61,8 @@ impl LiveSignalConfig {
     }
 }
 
-impl From<&LiveConfig> for LiveSignalConfig {
-    fn from(value: &LiveConfig) -> Self {
+impl From<&LiveTradeConfig> for LiveSignalConfig {
+    fn from(value: &LiveTradeConfig) -> Self {
         Self {
             sync_update_timeout: value.sync_update_timeout(),
             restart_interval: value.restart_interval(),
