@@ -45,6 +45,13 @@ pub enum LiveTradeStatus {
     Terminated(Arc<LiveProcessFatalError>),
 }
 
+impl LiveTradeStatus {
+    /// Returns `true` if the live trade process has stopped (either shut down or terminated).
+    pub fn is_stopped(&self) -> bool {
+        matches!(self, Self::Shutdown | Self::Terminated(_))
+    }
+}
+
 impl fmt::Display for LiveTradeStatus {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
