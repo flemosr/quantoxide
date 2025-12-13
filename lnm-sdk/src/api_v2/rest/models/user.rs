@@ -35,10 +35,10 @@ impl fmt::Display for UserRole {
 ///
 /// ```no_run
 /// # #[allow(deprecated)]
-/// # async fn example(rest_api: lnm_sdk::api_v2::RestClient) -> Result<(), Box<dyn std::error::Error>> {
-/// # use std::env;
-/// # use lnm_sdk::api_v2::models::User;
-/// let user: User = rest_api.user.get_user().await?;
+/// # async fn example(rest: lnm_sdk::api_v2::RestClient) -> Result<(), Box<dyn std::error::Error>> {
+/// use lnm_sdk::api_v2::models::User;
+///
+/// let user: User = rest.user.get_user().await?;
 ///
 /// println!("User: {}", user.username());
 /// println!("Balance: {} sats", user.balance());
@@ -73,8 +73,8 @@ impl User {
     ///
     /// ```no_run
     /// # #[allow(deprecated)]
-    /// # async fn example(rest_api: lnm_sdk::api_v2::RestClient) -> Result<(), Box<dyn std::error::Error>> {
-    /// let user = rest_api.user.get_user().await?;
+    /// # async fn example(rest: lnm_sdk::api_v2::RestClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// let user = rest.user.get_user().await?;
     ///
     /// println!("User ID: {}", user.uid());
     /// # Ok(())
@@ -90,9 +90,9 @@ impl User {
     ///
     /// ```no_run
     /// # #[allow(deprecated)]
-    /// # async fn example(rest_api: lnm_sdk::api_v2::RestClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// # async fn example(rest: lnm_sdk::api_v2::RestClient) -> Result<(), Box<dyn std::error::Error>> {
     /// # use lnm_sdk::api_v2::models::UserRole;
-    /// let user = rest_api.user.get_user().await?;
+    /// let user = rest.user.get_user().await?;
     ///
     /// if matches!(user.role(), UserRole::Admin) {
     ///     println!("User has admin privileges");
@@ -110,8 +110,8 @@ impl User {
     ///
     /// ```no_run
     /// # #[allow(deprecated)]
-    /// # async fn example(rest_api: lnm_sdk::api_v2::RestClient) -> Result<(), Box<dyn std::error::Error>> {
-    /// let user = rest_api.user.get_user().await?;
+    /// # async fn example(rest: lnm_sdk::api_v2::RestClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// let user = rest.user.get_user().await?;
     ///
     /// println!("Balance: {} sats", user.balance());
     /// # Ok(())
@@ -127,8 +127,8 @@ impl User {
     ///
     /// ```no_run
     /// # #[allow(deprecated)]
-    /// # async fn example(rest_api: lnm_sdk::api_v2::RestClient) -> Result<(), Box<dyn std::error::Error>> {
-    /// let user = rest_api.user.get_user().await?;
+    /// # async fn example(rest: lnm_sdk::api_v2::RestClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// let user = rest.user.get_user().await?;
     /// println!("Welcome, {}!", user.username());
     /// # Ok(())
     /// # }
@@ -143,8 +143,8 @@ impl User {
     ///
     /// ```no_run
     /// # #[allow(deprecated)]
-    /// # async fn example(rest_api: lnm_sdk::api_v2::RestClient) -> Result<(), Box<dyn std::error::Error>> {
-    /// let user = rest_api.user.get_user().await?;
+    /// # async fn example(rest: lnm_sdk::api_v2::RestClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// let user = rest.user.get_user().await?;
     ///
     /// println!("Synthetic USD balance: {}", user.synthetic_usd_balance());
     /// # Ok(())
@@ -160,8 +160,8 @@ impl User {
     ///
     /// ```no_run
     /// # #[allow(deprecated)]
-    /// # async fn example(rest_api: lnm_sdk::api_v2::RestClient) -> Result<(), Box<dyn std::error::Error>> {
-    /// let user = rest_api.user.get_user().await?;
+    /// # async fn example(rest: lnm_sdk::api_v2::RestClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// let user = rest.user.get_user().await?;
     ///
     /// if let Some(key) = user.linkingpublickey() {
     ///     println!("Linking public key: {}", key);
@@ -179,8 +179,8 @@ impl User {
     ///
     /// ```no_run
     /// # #[allow(deprecated)]
-    /// # async fn example(rest_api: lnm_sdk::api_v2::RestClient) -> Result<(), Box<dyn std::error::Error>> {
-    /// let user = rest_api.user.get_user().await?;
+    /// # async fn example(rest: lnm_sdk::api_v2::RestClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// let user = rest.user.get_user().await?;
     ///
     /// if user.show_leaderboard() {
     ///     println!("User is visible on leaderboard");
@@ -198,8 +198,8 @@ impl User {
     ///
     /// ```no_run
     /// # #[allow(deprecated)]
-    /// # async fn example(rest_api: lnm_sdk::api_v2::RestClient) -> Result<(), Box<dyn std::error::Error>> {
-    /// let user = rest_api.user.get_user().await?;
+    /// # async fn example(rest: lnm_sdk::api_v2::RestClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// let user = rest.user.get_user().await?;
     ///
     /// if let Some(email) = user.email() {
     ///     println!("Email: {}", email);
@@ -217,8 +217,8 @@ impl User {
     ///
     /// ```no_run
     /// # #[allow(deprecated)]
-    /// # async fn example(rest_api: lnm_sdk::api_v2::RestClient) -> Result<(), Box<dyn std::error::Error>> {
-    /// let user = rest_api.user.get_user().await?;
+    /// # async fn example(rest: lnm_sdk::api_v2::RestClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// let user = rest.user.get_user().await?;
     ///
     /// if !user.email_confirmed() {
     ///     println!("Email not confirmed");
@@ -236,8 +236,8 @@ impl User {
     ///
     /// ```no_run
     /// # #[allow(deprecated)]
-    /// # async fn example(rest_api: lnm_sdk::api_v2::RestClient) -> Result<(), Box<dyn std::error::Error>> {
-    /// let user = rest_api.user.get_user().await?;
+    /// # async fn example(rest: lnm_sdk::api_v2::RestClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// let user = rest.user.get_user().await?;
     ///
     /// if user.use_taproot_addresses() {
     ///     println!("Using Taproot addresses");
@@ -255,8 +255,8 @@ impl User {
     ///
     /// ```no_run
     /// # #[allow(deprecated)]
-    /// # async fn example(rest_api: lnm_sdk::api_v2::RestClient) -> Result<(), Box<dyn std::error::Error>> {
-    /// let user = rest_api.user.get_user().await?;
+    /// # async fn example(rest: lnm_sdk::api_v2::RestClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// let user = rest.user.get_user().await?;
     ///
     /// println!("Account type: {}", user.account_type());
     /// # Ok(())
@@ -272,8 +272,8 @@ impl User {
     ///
     /// ```no_run
     /// # #[allow(deprecated)]
-    /// # async fn example(rest_api: lnm_sdk::api_v2::RestClient) -> Result<(), Box<dyn std::error::Error>> {
-    /// let user = rest_api.user.get_user().await?;
+    /// # async fn example(rest: lnm_sdk::api_v2::RestClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// let user = rest.user.get_user().await?;
     ///
     /// if user.auto_withdraw_enabled() {
     ///     println!("Auto-withdrawal is enabled");
@@ -291,8 +291,8 @@ impl User {
     ///
     /// ```no_run
     /// # #[allow(deprecated)]
-    /// # async fn example(rest_api: lnm_sdk::api_v2::RestClient) -> Result<(), Box<dyn std::error::Error>> {
-    /// let user = rest_api.user.get_user().await?;
+    /// # async fn example(rest: lnm_sdk::api_v2::RestClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// let user = rest.user.get_user().await?;
     ///
     /// if let Some(address) = user.auto_withdraw_lightning_address() {
     ///     println!("Auto-withdraw address: {}", address);
@@ -310,8 +310,8 @@ impl User {
     ///
     /// ```no_run
     /// # #[allow(deprecated)]
-    /// # async fn example(rest_api: lnm_sdk::api_v2::RestClient) -> Result<(), Box<dyn std::error::Error>> {
-    /// let user = rest_api.user.get_user().await?;
+    /// # async fn example(rest: lnm_sdk::api_v2::RestClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// let user = rest.user.get_user().await?;
     ///
     /// if user.totp_enabled() {
     ///     println!("TOTP 2FA is enabled");
@@ -329,8 +329,8 @@ impl User {
     ///
     /// ```no_run
     /// # #[allow(deprecated)]
-    /// # async fn example(rest_api: lnm_sdk::api_v2::RestClient) -> Result<(), Box<dyn std::error::Error>> {
-    /// let user = rest_api.user.get_user().await?;
+    /// # async fn example(rest: lnm_sdk::api_v2::RestClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// let user = rest.user.get_user().await?;
     ///
     /// if user.webauthn_enabled() {
     ///     println!("WebAuthn 2FA is enabled");
@@ -348,8 +348,8 @@ impl User {
     ///
     /// ```no_run
     /// # #[allow(deprecated)]
-    /// # async fn example(rest_api: lnm_sdk::api_v2::RestClient) -> Result<(), Box<dyn std::error::Error>> {
-    /// let user = rest_api.user.get_user().await?;
+    /// # async fn example(rest: lnm_sdk::api_v2::RestClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// let user = rest.user.get_user().await?;
     ///
     /// println!("Fee tier: {}", user.fee_tier());
     /// # Ok(())
@@ -365,8 +365,8 @@ impl User {
     ///
     /// ```no_run
     /// # #[allow(deprecated)]
-    /// # async fn example(rest_api: lnm_sdk::api_v2::RestClient) -> Result<(), Box<dyn std::error::Error>> {
-    /// let user = rest_api.user.get_user().await?;
+    /// # async fn example(rest: lnm_sdk::api_v2::RestClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// let user = rest.user.get_user().await?;
     ///
     /// if let Some(metrics) = user.metrics() {
     ///     println!("Metrics: {:?}", metrics);

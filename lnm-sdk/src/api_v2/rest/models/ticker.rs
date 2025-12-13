@@ -14,9 +14,10 @@ use crate::shared::models::price::Price;
 ///
 /// ```no_run
 /// # #[allow(deprecated)]
-/// # async fn example(rest_api: lnm_sdk::api_v2::RestClient) -> Result<(), Box<dyn std::error::Error>> {
-/// # use lnm_sdk::api_v2::models::Ticker;
-/// let ticker: Ticker = rest_api.futures.ticker().await?;
+/// # async fn example(rest: lnm_sdk::api_v2::RestClient) -> Result<(), Box<dyn std::error::Error>> {
+/// use lnm_sdk::api_v2::models::Ticker;
+///
+/// let ticker: Ticker = rest.futures.ticker().await?;
 ///
 /// println!("Index: {}", ticker.index());
 /// println!("Last price: {}", ticker.last_price());
@@ -47,8 +48,8 @@ impl Ticker {
     ///
     /// ```no_run
     /// # #[allow(deprecated)]
-    /// # async fn example(rest_api: lnm_sdk::api_v2::RestClient) -> Result<(), Box<dyn std::error::Error>> {
-    /// let ticker = rest_api.futures.ticker().await?;
+    /// # async fn example(rest: lnm_sdk::api_v2::RestClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// let ticker = rest.futures.ticker().await?;
     ///
     /// println!("Index price: ${}", ticker.index().as_f64());
     /// # Ok(())
@@ -64,8 +65,8 @@ impl Ticker {
     ///
     /// ```no_run
     /// # #[allow(deprecated)]
-    /// # async fn example(rest_api: lnm_sdk::api_v2::RestClient) -> Result<(), Box<dyn std::error::Error>> {
-    /// let ticker = rest_api.futures.ticker().await?;
+    /// # async fn example(rest: lnm_sdk::api_v2::RestClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// let ticker = rest.futures.ticker().await?;
     ///
     /// println!("Last trade: ${}", ticker.last_price().as_f64());
     /// # Ok(())
@@ -81,8 +82,8 @@ impl Ticker {
     ///
     /// ```no_run
     /// # #[allow(deprecated)]
-    /// # async fn example(rest_api: lnm_sdk::api_v2::RestClient) -> Result<(), Box<dyn std::error::Error>> {
-    /// let ticker = rest_api.futures.ticker().await?;
+    /// # async fn example(rest: lnm_sdk::api_v2::RestClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// let ticker = rest.futures.ticker().await?;
     ///
     /// println!("Ask: ${}", ticker.ask_price().as_f64());
     /// # Ok(())
@@ -98,8 +99,8 @@ impl Ticker {
     ///
     /// ```no_run
     /// # #[allow(deprecated)]
-    /// # async fn example(rest_api: lnm_sdk::api_v2::RestClient) -> Result<(), Box<dyn std::error::Error>> {
-    /// let ticker = rest_api.futures.ticker().await?;
+    /// # async fn example(rest: lnm_sdk::api_v2::RestClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// let ticker = rest.futures.ticker().await?;
     ///
     /// println!("Bid: ${}", ticker.bid_price().as_f64());
     /// # Ok(())
@@ -117,8 +118,8 @@ impl Ticker {
     ///
     /// ```no_run
     /// # #[allow(deprecated)]
-    /// # async fn example(rest_api: lnm_sdk::api_v2::RestClient) -> Result<(), Box<dyn std::error::Error>> {
-    /// let ticker = rest_api.futures.ticker().await?;
+    /// # async fn example(rest: lnm_sdk::api_v2::RestClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// let ticker = rest.futures.ticker().await?;
     ///
     /// println!("Carry fee rate: {:.6}%", ticker.carry_fee_rate() * 100.0);
     /// # Ok(())
@@ -134,8 +135,8 @@ impl Ticker {
     ///
     /// ```no_run
     /// # #[allow(deprecated)]
-    /// # async fn example(rest_api: lnm_sdk::api_v2::RestClient) -> Result<(), Box<dyn std::error::Error>> {
-    /// let ticker = rest_api.futures.ticker().await?;
+    /// # async fn example(rest: lnm_sdk::api_v2::RestClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// let ticker = rest.futures.ticker().await?;
     ///
     /// println!("Carry fee settlement at: {}", ticker.carry_fee_timestamp());
     /// # Ok(())
@@ -154,8 +155,8 @@ impl Ticker {
     ///
     /// ```no_run
     /// # #[allow(deprecated)]
-    /// # async fn example(rest_api: lnm_sdk::api_v2::RestClient) -> Result<(), Box<dyn std::error::Error>> {
-    /// let ticker = rest_api.futures.ticker().await?;
+    /// # async fn example(rest: lnm_sdk::api_v2::RestClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// let ticker = rest.futures.ticker().await?;
     ///
     /// for (exchange, weight) in ticker.exchanges_weights() {
     ///     println!("{}: {:.2}%", exchange, weight * 100.0);

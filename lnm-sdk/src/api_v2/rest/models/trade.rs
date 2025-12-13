@@ -92,17 +92,17 @@ impl FuturesTradeRequestBody {
 ///
 /// ```no_run
 /// # #[allow(deprecated)]
-/// # async fn example(rest_api: lnm_sdk::api_v2::RestClient) -> Result<(), Box<dyn std::error::Error>> {
+/// # async fn example(rest: lnm_sdk::api_v2::RestClient) -> Result<(), Box<dyn std::error::Error>> {
 /// use lnm_sdk::api_v2::models::{
-///     Trade, TradeExecution, TradeSide, TradeSize, Leverage, Margin
+///     Leverage, Margin, Trade, TradeExecution, TradeSide, TradeSize,
 /// };
 ///
-/// let trade: Trade = rest_api
+/// let trade: Trade = rest
 ///     .futures
 ///     .create_new_trade(
 ///         TradeSide::Buy,
-///         TradeSize::from(Margin::try_from(10_000).unwrap()),
-///         Leverage::try_from(10.0).unwrap(),
+///         TradeSize::from(Margin::try_from(10_000)?),
+///         Leverage::try_from(10.0)?,
 ///         TradeExecution::Market,
 ///         None,
 ///         None,

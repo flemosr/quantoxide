@@ -15,9 +15,10 @@ use crate::shared::models::price::Price;
 ///
 /// ```no_run
 /// # #[allow(deprecated)]
-/// # async fn example(rest_api: lnm_sdk::api_v2::RestClient) -> Result<(), Box<dyn std::error::Error>> {
-/// # use lnm_sdk::api_v2::models::PriceEntry;
-/// let price_history: Vec<PriceEntry> = rest_api
+/// # async fn example(rest: lnm_sdk::api_v2::RestClient) -> Result<(), Box<dyn std::error::Error>> {
+/// use lnm_sdk::api_v2::models::PriceEntry;
+///
+/// let price_history: Vec<PriceEntry> = rest
 ///     .futures
 ///     .price_history(None, None, None)
 ///     .await?;
@@ -42,9 +43,9 @@ impl PriceEntry {
     ///
     /// ```no_run
     /// # #[allow(deprecated)]
-    /// # async fn example(rest_api: lnm_sdk::api_v2::RestClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// # async fn example(rest: lnm_sdk::api_v2::RestClient) -> Result<(), Box<dyn std::error::Error>> {
     /// # use lnm_sdk::api_v2::models::PriceEntry;
-    /// let price_history: Vec<PriceEntry> = rest_api
+    /// let price_history: Vec<PriceEntry> = rest
     ///     .futures
     ///     .price_history(None, None, None)
     ///     .await?;
@@ -66,9 +67,9 @@ impl PriceEntry {
     ///
     /// ```no_run
     /// # #[allow(deprecated)]
-    /// # async fn example(rest_api: lnm_sdk::api_v2::RestClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// # async fn example(rest: lnm_sdk::api_v2::RestClient) -> Result<(), Box<dyn std::error::Error>> {
     /// # use lnm_sdk::api_v2::models::PriceEntry;
-    /// let price_history: Vec<PriceEntry> = rest_api
+    /// let price_history: Vec<PriceEntry> = rest
     ///     .futures
     ///     .price_history(None, None, None)
     ///     .await?;
