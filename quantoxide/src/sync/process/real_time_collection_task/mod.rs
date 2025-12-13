@@ -2,10 +2,7 @@ use std::sync::Arc;
 
 use tokio::sync::broadcast::{self, error::RecvError};
 
-use lnm_sdk::api_v2::{
-    WebSocketClient,
-    models::{WebSocketChannel, WebSocketUpdate},
-};
+use lnm_sdk::api_v2::{WebSocketChannel, WebSocketClient, WebSocketUpdate};
 
 use crate::db::{Database, models::PriceTickRow};
 
