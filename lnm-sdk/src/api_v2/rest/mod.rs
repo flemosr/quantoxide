@@ -61,6 +61,7 @@ impl RestClient {
     /// # Examples
     ///
     /// ```no_run
+    /// # #[allow(deprecated)]
     /// # fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// use std::env;
     /// use lnm_sdk::api_v2::{RestClient, RestClientConfig};
@@ -84,6 +85,7 @@ impl RestClient {
     /// # Examples
     ///
     /// ```no_run
+    /// # #[allow(deprecated)]
     /// # fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// use std::env;
     /// use lnm_sdk::api_v2::{RestClient, RestClientConfig};
