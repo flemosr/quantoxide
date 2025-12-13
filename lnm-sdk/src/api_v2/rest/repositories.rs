@@ -22,7 +22,9 @@ use super::models::{price_history::PriceEntry, ticker::Ticker, trade::Trade, use
 /// [LNM's v2 API]: https://docs.lnmarkets.com/api/#overview
 #[async_trait]
 pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
-    /// **Requires credentials**. Fetch the user’s trades by [`TradeStatus`].
+    /// Fetch the user's trades by [`TradeStatus`].
+    ///
+    /// **Required permission**: `Retrieve open and running trades` or `Retrieve closed trades`.
     ///
     /// # Examples
     ///
@@ -55,7 +57,9 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
         limit: Option<usize>,
     ) -> Result<Vec<Trade>>;
 
-    /// **Requires credentials**. Fetch the user’s open trades.
+    /// Fetch the user's open trades.
+    ///
+    /// **Required permission**: `Retrieve open and running trades`
     ///
     /// # Examples
     ///
@@ -77,7 +81,9 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
         limit: Option<usize>,
     ) -> Result<Vec<Trade>>;
 
-    /// **Requires credentials**. Fetch the user’s running trades.
+    /// Fetch the user's running trades.
+    ///
+    /// **Required permission**: `Retrieve open and running trades`
     ///
     /// # Examples
     ///
@@ -99,7 +105,9 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
         limit: Option<usize>,
     ) -> Result<Vec<Trade>>;
 
-    /// **Requires credentials**. Fetch the user’s closed trades.
+    /// Fetch the user's closed trades.
+    ///
+    /// **Required permission**: `Retrieve closed trades`
     ///
     /// # Examples
     ///
@@ -123,6 +131,8 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
 
     /// Retrieve price history between two given timestamps. Limited to 1000 entries.
     ///
+    /// **Public endpoint** - No authentication required.
+    ///
     /// # Examples
     ///
     /// ```no_run
@@ -143,7 +153,9 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
         limit: Option<usize>,
     ) -> Result<Vec<PriceEntry>>;
 
-    /// **Requires credentials**. Create a new trade.
+    /// Create a new trade.
+    ///
+    /// **Required permission**: `Create new trades`
     ///
     /// # Examples
     ///
@@ -214,7 +226,9 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
         takeprofit: Option<Price>,
     ) -> Result<Trade>;
 
-    /// **Requires credentials**. Get a trade by id.
+    /// Get a trade by id.
+    ///
+    /// **Required permission**: `Retrieve open and running trades` or `Retrieve closed trades`
     ///
     /// # Examples
     ///
@@ -246,7 +260,9 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// ```
     async fn get_trade(&self, id: Uuid) -> Result<Trade>;
 
-    /// **Requires credentials**. Cancel an open trade.
+    /// Cancel an open trade.
+    ///
+    /// **Required permission**: `Close and cancel trades`
     ///
     /// # Examples
     ///
@@ -281,7 +297,9 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// ```
     async fn cancel_trade(&self, id: Uuid) -> Result<Trade>;
 
-    /// **Requires credentials**. Cancel all open trades.
+    /// Cancel all open trades.
+    ///
+    /// **Required permission**: `Close and cancel trades`
     ///
     /// # Examples
     ///
@@ -298,7 +316,9 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// ```
     async fn cancel_all_trades(&self) -> Result<Vec<Trade>>;
 
-    /// **Requires credentials**. Close a running trade.
+    /// Close a running trade.
+    ///
+    /// **Required permission**: `Close and cancel trades`
     ///
     /// # Examples
     ///
@@ -330,7 +350,9 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// ```
     async fn close_trade(&self, id: Uuid) -> Result<Trade>;
 
-    /// **Requires credentials**. Close all running trades.
+    /// Close all running trades.
+    ///
+    /// **Required permission**: `Close and cancel trades`
     ///
     /// # Examples
     ///
@@ -349,6 +371,8 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
 
     /// Get the futures ticker.
     ///
+    /// **Public endpoint** - No authentication required.
+    ///
     /// # Examples
     ///
     /// ```no_run
@@ -360,7 +384,9 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// # }
     async fn ticker(&self) -> Result<Ticker>;
 
-    /// **Requires credentials**. Modify the stoploss of an open/running trade.
+    /// Modify the stoploss of an open/running trade.
+    ///
+    /// **Required permission**: `Modify trades`
     ///
     /// # Examples
     ///
@@ -396,7 +422,9 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// ```
     async fn update_trade_stoploss(&self, id: Uuid, stoploss: Price) -> Result<Trade>;
 
-    /// **Requires credentials**. Modify the takeprofit of an open/running trade.
+    /// Modify the takeprofit of an open/running trade.
+    ///
+    /// **Required permission**: `Modify trades`
     ///
     /// # Examples
     ///
@@ -432,8 +460,10 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// ```
     async fn update_trade_takeprofit(&self, id: Uuid, takeprofit: Price) -> Result<Trade>;
 
-    /// **Requires credentials**. Adds margin to an open/running trade, increasing the collateral
-    /// and therefore reducing the leverage.
+    /// Adds margin to an open/running trade, increasing the collateral and therefore reducing the
+    /// leverage.
+    ///
+    /// **Required permission**: `Modify trades`
     ///
     /// The resulting [`Leverage`] must be valid (≥ 1) after the update. To target a specific
     /// liquidation price, see [`trade_util::evaluate_collateral_delta_for_liquidation`].
@@ -481,8 +511,9 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
     /// [`trade_util::evaluate_collateral_delta_for_liquidation`]: crate::api_v2::models::trade_util::evaluate_collateral_delta_for_liquidation
     async fn add_margin(&self, id: Uuid, amount: NonZeroU64) -> Result<Trade>;
 
-    /// **Requires credentials**. Removes funds from a trade, decreasing the collateral and
-    /// possibly increasing the leverage.
+    /// Removes funds from a trade, decreasing the collateral and possibly increasing the leverage.
+    ///
+    /// **Required permission**: `Modify trades`
     ///
     /// Funds are first removed from the trade's PL, if positive, by adjusting the trade's entry
     /// price. Then, they are removed from the trade's margin.
