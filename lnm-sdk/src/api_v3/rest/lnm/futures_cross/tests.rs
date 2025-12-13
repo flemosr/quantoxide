@@ -342,6 +342,14 @@ async fn test_api() {
         );
     }
 
+    if cross_position.margin() < 4_000 {
+        let deposit_amount = 4_000 - cross_position.margin();
+        time_test!(
+            "test_deposit",
+            test_deposit(&repo, cross_position, deposit_amount).await
+        );
+    }
+
     time_test!(
         "set_leverage (cleanup)",
         repo.set_leverage(CrossLeverage::try_from(1).unwrap())
@@ -413,7 +421,7 @@ async fn test_api() {
         test_deposit(&repo, cross_position, deposit_amount).await
     );
 
-    let withdrawal_amount = 100;
+    let withdrawal_amount = cross_position.margin();
     time_test!(
         "test_withdrawal",
         test_withdrawal(&repo, cross_position, withdrawal_amount).await
