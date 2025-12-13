@@ -1,7 +1,10 @@
 use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
-use tokio::{sync::broadcast, time};
+use tokio::{
+    sync::broadcast::{self, error::RecvError},
+    time,
+};
 
 use lnm_sdk::{api_v2::WebSocketClient, api_v3::RestClient};
 
@@ -126,6 +129,38 @@ impl LiveTradeController {
 
         self.status_manager.update(LiveTradeStatus::Shutdown);
         Ok(())
+    }
+
+    /// Waits until the live trade process has stopped and returns the final status.
+    ///
+    /// This method blocks until the live trade process reaches a stopped state, either through
+    /// graceful shutdown or termination.
+    pub async fn until_stopped(&self) -> LiveTradeStatus {
+        let mut trade_rx = self.update_receiver();
+
+        let status = self.status_snapshot();
+        if status.is_stopped() {
+            return status;
+        }
+
+        loop {
+            match trade_rx.recv().await {
+                Ok(trade_update) => {
+                    if let LiveTradeUpdate::Status(status) = trade_update
+                        && status.is_stopped()
+                    {
+                        return status;
+                    }
+                }
+                Err(RecvError::Lagged(_)) => {
+                    let status = self.status_snapshot();
+                    if status.is_stopped() {
+                        return status;
+                    }
+                }
+                Err(RecvError::Closed) => return self.status_snapshot(),
+            }
+        }
     }
 }
 
