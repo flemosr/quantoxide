@@ -9,7 +9,9 @@ pub use rest::{
     repositories::{FuturesRepository, UserRepository},
 };
 pub use websocket::{
-    WebSocketClient, WebSocketConnection, repositories::WebSocketRepository,
+    WebSocketClient, WebSocketConnection,
+    models::{WebSocketChannel, WebSocketUpdate},
+    repositories::WebSocketRepository,
     state::WsConnectionStatus,
 };
 
@@ -57,8 +59,6 @@ pub mod models {
             trade::Trade,
             user::{User, UserRole},
         },
-        websocket::models::{
-            LastTickDirection, PriceIndex, PriceTick, WebSocketChannel, WebSocketUpdate,
-        },
+        websocket::models::{LastTickDirection, PriceIndex, PriceTick},
     };
 }
