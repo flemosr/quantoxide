@@ -11,11 +11,10 @@
 //! cargo run --example v2_ws
 //! ```
 
-use std::{env, time::Duration};
+use std::env;
 
 use dotenv::dotenv;
 use lnm_sdk::api_v2::{WebSocketChannel, WebSocketClient, WebSocketClientConfig, WebSocketUpdate};
-use tokio::time::sleep;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -38,34 +37,32 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("Subscribed to channels.");
 
-    let timeout = sleep(Duration::from_secs(10));
-    tokio::pin!(timeout);
+    let max_messages = 10;
+    let mut count = 0;
 
-    loop {
-        tokio::select! {
-            res = ws_rx.recv() => {
-                match res {
-                    Ok(ws_update) => match ws_update {
-                        WebSocketUpdate::ConnectionStatus(status) => println!("{status}"),
-                        WebSocketUpdate::PriceTick(price_tick) => println!("{price_tick}"),
-                        WebSocketUpdate::PriceIndex(price_index) => println!("{price_index}"),
-                    }
-                    Err(e) => {
-                        println!("error: {:?}", e);
-                        break;
-                    }
-                }
+    while let Ok(ws_update) = ws_rx.recv().await {
+        match ws_update {
+            WebSocketUpdate::ConnectionStatus(status) => {
+                println!("{status}");
             }
-            _ = &mut timeout => {
-                println!("10 seconds elapsed, stop receiving");
-                break;
+            WebSocketUpdate::PriceTick(price_tick) => {
+                println!("{price_tick}");
+                count += 1;
             }
+            WebSocketUpdate::PriceIndex(price_index) => {
+                println!("{price_index}");
+                count += 1;
+            }
+        }
+
+        if count >= max_messages {
+            println!("Received {max_messages} messages, disconnecting...");
+            break;
         }
     }
 
     ws.disconnect().await?;
-
-    println!("Disconnected to WebSocket successfully.");
+    println!("Disconnected successfully.");
 
     Ok(())
 }
