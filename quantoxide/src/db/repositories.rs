@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use async_trait::async_trait;
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Duration, Utc};
 use uuid::Uuid;
 
 use lnm_sdk::{api_v2::models::PriceTick, api_v3::models::OhlcCandle};
@@ -72,5 +72,5 @@ pub(crate) trait OhlcCandlesRepository: Send + Sync {
 
     /// Finds unflagged gaps in the candle history and marks surrounding candles as unstable
     /// so they can be re-fetched from the API.
-    async fn flag_missing_candles(&self) -> Result<()>;
+    async fn flag_missing_candles(&self, range: Duration) -> Result<()>;
 }
