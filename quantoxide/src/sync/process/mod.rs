@@ -1,5 +1,6 @@
 use std::{pin::Pin, sync::Arc};
 
+use chrono::Duration;
 use futures::TryFutureExt;
 use tokio::{
     sync::{broadcast, mpsc},
@@ -127,6 +128,8 @@ impl SyncProcess {
     }
 
     async fn run_backfill(&self, api_rest: &Arc<RestClient>) -> Result<Never> {
+        let mut flag_gaps_range = self.config.price_history_flag_gap_range();
+
         loop {
             self.status_manager
                 .update(SyncStatusNotSynced::InProgress.into());
@@ -137,8 +140,14 @@ impl SyncProcess {
 
             self.spawn_history_state_update_handler(history_state_rx);
 
-            self.run_price_history_task_backfill(api_rest.clone(), Some(history_state_tx))
-                .await?;
+            self.run_price_history_task_backfill(
+                api_rest.clone(),
+                Some(history_state_tx),
+                flag_gaps_range,
+            )
+            .await?;
+
+            flag_gaps_range = None;
 
             self.status_manager
                 .update(SyncStatusNotSynced::WaitingForResync.into());
@@ -302,8 +311,12 @@ impl SyncProcess {
 
         self.spawn_history_state_update_handler(history_state_rx);
 
-        self.run_price_history_task_backfill(api_rest.clone(), Some(history_state_tx))
-            .await?;
+        self.run_price_history_task_backfill(
+            api_rest.clone(),
+            Some(history_state_tx),
+            self.config.price_history_flag_gap_range(),
+        )
+        .await?;
 
         // Start to collect real-time data
 
@@ -353,7 +366,7 @@ impl SyncProcess {
                 }
                 _ = &mut re_sync_timer => {
                     // Ensure the OHLC candles DB remains up-to-date
-                    self.run_price_history_task_backfill(api_rest.clone(), None).await?;
+                    self.run_price_history_task_backfill(api_rest.clone(), None, None).await?;
                     re_sync_timer = new_re_sync_timer();
                 }
                 _ = &mut tick_interval_timer => {
@@ -371,9 +384,10 @@ impl SyncProcess {
         &self,
         api_rest: Arc<RestClient>,
         history_state_tx: Option<PriceHistoryStateTransmiter>,
+        flag_gaps_range: Option<Duration>,
     ) -> Result<()> {
         SyncPriceHistoryTask::new(&self.config, self.db.clone(), api_rest, history_state_tx)
-            .backfill()
+            .backfill(flag_gaps_range)
             .await
             .map_err(|e| SyncProcessRecoverableError::SyncPriceHistory(e).into())
     }
