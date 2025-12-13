@@ -1,6 +1,9 @@
 use std::sync::{Arc, Mutex};
 
-use tokio::{sync::broadcast, time};
+use tokio::{
+    sync::broadcast::{self, error::RecvError},
+    time,
+};
 
 use crate::{
     db::Database,
@@ -121,6 +124,38 @@ impl LiveSignalController {
 
         self.status_manager.update(LiveSignalStatus::Shutdown);
         Ok(())
+    }
+
+    /// Waits until the signal process has stopped and returns the final status.
+    ///
+    /// This method blocks until the signal process reaches a stopped state, either through graceful
+    /// shutdown or termination.
+    pub async fn until_stopped(&self) -> LiveSignalStatus {
+        let mut signal_rx = self.update_receiver();
+
+        let status = self.status_snapshot();
+        if status.is_stopped() {
+            return status;
+        }
+
+        loop {
+            match signal_rx.recv().await {
+                Ok(signal_update) => {
+                    if let LiveSignalUpdate::Status(status) = signal_update
+                        && status.is_stopped()
+                    {
+                        return status;
+                    }
+                }
+                Err(RecvError::Lagged(_)) => {
+                    let status = self.status_snapshot();
+                    if status.is_stopped() {
+                        return status;
+                    }
+                }
+                Err(RecvError::Closed) => return self.status_snapshot(),
+            }
+        }
     }
 }
 
