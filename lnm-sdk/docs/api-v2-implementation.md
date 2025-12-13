@@ -33,7 +33,9 @@ The SDK implements the **WebSocket API** for real-time market data streaming usi
   - Ping/Pong frame handling
   - Graceful disconnection with configurable timeout
   - TLS/SSL encryption via `tokio-rustls`
-- **Subscription Management**: State tracking for pending operations with atomic confirmations
+- **Subscription Management**:
+  - Prevents conflicting operations on the same channel
+  - State tracking for subscribe/unsubscribe requests with server confirmation
 - **Error Handling**: Comprehensive error types for connection and API-level errors
 
 ---
