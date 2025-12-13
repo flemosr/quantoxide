@@ -33,7 +33,7 @@ impl UtilitiesRepository for LnmUtilitiesRepository {
             .make_get_request_plain_text(RestPathV3::UtilitiesPing)
             .await?;
 
-        if res.as_str() == "pong" {
+        if res.as_str() == "\"pong\"" {
             Ok(())
         } else {
             return Err(RestApiV3Error::UnexpectedPingResponse(res).into());
