@@ -1,6 +1,6 @@
 use std::{num::NonZeroU64, sync::Arc};
 
-use chrono::{Timelike, Utc};
+use chrono::{Duration, Timelike, Utc};
 use tokio::{sync::mpsc, time};
 
 use lnm_sdk::api_v3::{
@@ -155,8 +155,10 @@ impl SyncPriceHistoryTask {
         Ok(())
     }
 
-    pub async fn backfill(self) -> Result<()> {
-        self.db.ohlc_candles.flag_missing_candles().await?;
+    pub async fn backfill(self, flag_gaps_range: Option<Duration>) -> Result<()> {
+        if let Some(range) = flag_gaps_range {
+            self.db.ohlc_candles.flag_missing_candles(range).await?;
+        }
 
         let mut history_state =
             PriceHistoryState::evaluate_with_reach(&self.db, self.config.price_history_reach())
