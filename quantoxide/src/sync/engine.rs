@@ -4,7 +4,10 @@ use std::{
 };
 
 use async_trait::async_trait;
-use tokio::{sync::broadcast, time};
+use tokio::{
+    sync::broadcast::{self, error::RecvError},
+    time,
+};
 
 use lnm_sdk::{api_v2::WebSocketClient, api_v3::RestClient};
 
@@ -127,6 +130,38 @@ impl SyncController {
 
         self.status_manager.update(SyncStatus::Shutdown);
         Ok(())
+    }
+
+    /// Waits until the sync process has stopped and returns the final status.
+    ///
+    /// This method blocks until the sync process reaches a stopped state, either through graceful
+    /// shutdown or termination.
+    pub async fn until_stopped(&self) -> SyncStatus {
+        let mut sync_rx = self.update_receiver();
+
+        let status = self.status_snapshot();
+        if status.is_stopped() {
+            return status;
+        }
+
+        loop {
+            match sync_rx.recv().await {
+                Ok(sync_update) => {
+                    if let SyncUpdate::Status(status) = sync_update
+                        && status.is_stopped()
+                    {
+                        return status;
+                    }
+                }
+                Err(RecvError::Lagged(_)) => {
+                    let status = self.status_snapshot();
+                    if status.is_stopped() {
+                        return status;
+                    }
+                }
+                Err(RecvError::Closed) => return self.status_snapshot(),
+            }
+        }
     }
 }
 
