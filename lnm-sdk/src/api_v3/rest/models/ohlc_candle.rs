@@ -57,10 +57,10 @@ impl fmt::Display for OhlcRange {
 /// # Examples
 ///
 /// ```no_run
-/// # async fn example(rest_api: lnm_sdk::api_v3::RestClient) -> Result<(), Box<dyn std::error::Error>> {
+/// # async fn example(rest: lnm_sdk::api_v3::RestClient) -> Result<(), Box<dyn std::error::Error>> {
 /// use lnm_sdk::api_v3::models::{OhlcCandle, OhlcRange, Page};
 ///
-/// let candles: Page<OhlcCandle> = rest_api
+/// let candles: Page<OhlcCandle> = rest
 ///     .futures_data
 ///     .get_candles(None, None, None, Some(OhlcRange::OneHour), None)
 ///     .await?;

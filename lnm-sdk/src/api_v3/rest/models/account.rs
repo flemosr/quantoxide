@@ -8,10 +8,10 @@ use uuid::Uuid;
 /// # Examples
 ///
 /// ```no_run
-/// # async fn example(rest_api: lnm_sdk::api_v3::RestClient) -> Result<(), Box<dyn std::error::Error>> {
+/// # async fn example(rest: lnm_sdk::api_v3::RestClient) -> Result<(), Box<dyn std::error::Error>> {
 /// use lnm_sdk::api_v3::models::Account;
 ///
-/// let account: Account = rest_api
+/// let account: Account = rest
 ///     .account
 ///     .get_account()
 ///     .await?;

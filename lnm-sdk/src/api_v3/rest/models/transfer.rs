@@ -14,11 +14,11 @@ use uuid::Uuid;
 /// # Examples
 ///
 /// ```no_run
-/// # async fn example(rest_api: lnm_sdk::api_v3::RestClient) -> Result<(), Box<dyn std::error::Error>> {
-/// use lnm_sdk::api_v3::models::{Page, CrossTransfer};
+/// # async fn example(rest: lnm_sdk::api_v3::RestClient) -> Result<(), Box<dyn std::error::Error>> {
+/// use lnm_sdk::api_v3::models::{CrossTransfer, Page};
 ///
 /// // Get transfer history for cross margin account
-/// let transfers: Page<CrossTransfer> = rest_api
+/// let transfers: Page<CrossTransfer> = rest
 ///     .futures_cross
 ///     .get_transfers(None, None, None, None)
 ///     .await?;

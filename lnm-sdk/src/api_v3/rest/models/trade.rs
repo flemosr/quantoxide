@@ -99,12 +99,12 @@ impl FuturesIsolatedTradeRequestBody {
 /// # Examples
 ///
 /// ```no_run
-/// # async fn example(rest_api: lnm_sdk::api_v3::RestClient) -> Result<(), Box<dyn std::error::Error>> {
+/// # async fn example(rest: lnm_sdk::api_v3::RestClient) -> Result<(), Box<dyn std::error::Error>> {
 /// use lnm_sdk::api_v3::models::{
-///     Trade, Leverage, Margin, TradeExecution, TradeSide, TradeSize,
+///     Leverage, Margin, Trade, TradeExecution, TradeSide, TradeSize,
 /// };
 ///
-/// let trade: Trade = rest_api
+/// let trade: Trade = rest
 ///     .futures_isolated
 ///     .new_trade(
 ///         TradeSide::Buy,
@@ -687,12 +687,12 @@ impl FuturesCrossOrderBody {
 /// # Examples
 ///
 /// ```no_run
-/// # async fn example(rest_api: lnm_sdk::api_v3::RestClient) -> Result<(), Box<dyn std::error::Error>> {
+/// # async fn example(rest: lnm_sdk::api_v3::RestClient) -> Result<(), Box<dyn std::error::Error>> {
 /// use lnm_sdk::api_v3::models::{
 ///     CrossOrder, Quantity, TradeExecution, TradeSide,
 /// };
 ///
-/// let order: CrossOrder = rest_api
+/// let order: CrossOrder = rest
 ///     .futures_cross
 ///     .place_order(
 ///         TradeSide::Buy,
@@ -985,10 +985,10 @@ impl fmt::Display for CrossOrder {
 /// # Examples
 ///
 /// ```no_run
-/// # async fn example(rest_api: lnm_sdk::api_v3::RestClient) -> Result<(), Box<dyn std::error::Error>> {
+/// # async fn example(rest: lnm_sdk::api_v3::RestClient) -> Result<(), Box<dyn std::error::Error>> {
 /// use lnm_sdk::api_v3::models::CrossPosition;
 ///
-/// let position: CrossPosition = rest_api
+/// let position: CrossPosition = rest
 ///     .futures_cross
 ///     .get_position()
 ///     .await?;

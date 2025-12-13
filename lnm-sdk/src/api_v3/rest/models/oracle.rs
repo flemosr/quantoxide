@@ -12,10 +12,10 @@ use crate::shared::models::price::Price;
 /// # Examples
 ///
 /// ```no_run
-/// # async fn example(rest_api: lnm_sdk::api_v3::RestClient) -> Result<(), Box<dyn std::error::Error>> {
+/// # async fn example(rest: lnm_sdk::api_v3::RestClient) -> Result<(), Box<dyn std::error::Error>> {
 /// use lnm_sdk::api_v3::models::Index;
 ///
-/// let index_history: Vec<Index> = rest_api
+/// let index_history: Vec<Index> = rest
 ///     .oracle
 ///     .get_index(None, None, None, None)
 ///     .await?;
@@ -64,10 +64,10 @@ impl fmt::Display for Index {
 /// # Examples
 ///
 /// ```no_run
-/// # async fn example(rest_api: lnm_sdk::api_v3::RestClient) -> Result<(), Box<dyn std::error::Error>> {
+/// # async fn example(rest: lnm_sdk::api_v3::RestClient) -> Result<(), Box<dyn std::error::Error>> {
 /// use lnm_sdk::api_v3::models::LastPrice;
 ///
-/// let price_history: Vec<LastPrice> = rest_api
+/// let price_history: Vec<LastPrice> = rest
 ///     .oracle
 ///     .get_last_price(None, None, None, None)
 ///     .await?;

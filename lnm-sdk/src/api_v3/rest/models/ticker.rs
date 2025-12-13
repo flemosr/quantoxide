@@ -58,10 +58,10 @@ impl fmt::Display for TickerPrice {
 /// # Examples
 ///
 /// ```no_run
-/// # async fn example(rest_api: lnm_sdk::api_v3::RestClient) -> Result<(), Box<dyn std::error::Error>> {
+/// # async fn example(rest: lnm_sdk::api_v3::RestClient) -> Result<(), Box<dyn std::error::Error>> {
 /// use lnm_sdk::api_v3::models::Ticker;
 ///
-/// let ticker: Ticker = rest_api
+/// let ticker: Ticker = rest
 ///     .futures_data
 ///     .get_ticker()
 ///     .await?;

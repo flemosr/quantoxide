@@ -12,10 +12,10 @@ use crate::shared::models::price::Price;
 /// # Examples
 ///
 /// ```no_run
-/// # async fn example(rest_api: lnm_sdk::api_v3::RestClient) -> Result<(), Box<dyn std::error::Error>> {
+/// # async fn example(rest: lnm_sdk::api_v3::RestClient) -> Result<(), Box<dyn std::error::Error>> {
 /// use lnm_sdk::api_v3::models::{CrossFunding, Page};
 ///
-/// let funding_fees: Page<CrossFunding> = rest_api
+/// let funding_fees: Page<CrossFunding> = rest
 ///     .futures_cross
 ///     .get_funding_fees(None, None, None, None)
 ///     .await?;
@@ -78,10 +78,10 @@ impl fmt::Display for CrossFunding {
 /// # Examples
 ///
 /// ```no_run
-/// # async fn example(rest_api: lnm_sdk::api_v3::RestClient) -> Result<(), Box<dyn std::error::Error>> {
+/// # async fn example(rest: lnm_sdk::api_v3::RestClient) -> Result<(), Box<dyn std::error::Error>> {
 /// use lnm_sdk::api_v3::models::{IsolatedFunding, Page};
 ///
-/// let funding_fees: Page<IsolatedFunding> = rest_api
+/// let funding_fees: Page<IsolatedFunding> = rest
 ///     .futures_isolated
 ///     .get_funding_fees(None, None, None, None)
 ///     .await?;
@@ -151,10 +151,10 @@ impl fmt::Display for IsolatedFunding {
 /// # Examples
 ///
 /// ```no_run
-/// # async fn example(rest_api: lnm_sdk::api_v3::RestClient) -> Result<(), Box<dyn std::error::Error>> {
+/// # async fn example(rest: lnm_sdk::api_v3::RestClient) -> Result<(), Box<dyn std::error::Error>> {
 /// use lnm_sdk::api_v3::models::{FundingSettlement, Page};
 ///
-/// let settlements: Page<FundingSettlement> = rest_api
+/// let settlements: Page<FundingSettlement> = rest
 ///     .futures_data
 ///     .get_funding_settlements(None, None, None, None)
 ///     .await?;
