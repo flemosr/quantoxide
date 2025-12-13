@@ -253,8 +253,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Placed new cross order. Order ID: {}", new_order.id());
 
     // Close the cross position
-    let closed_order = rest.futures_cross.close_position().await?;
-    println!("Closed cross position. Order ID: {}", closed_order.id());
+    let close_order = rest.futures_cross.close_position().await?;
+    println!("Closed cross position. Order ID: {}", close_order.id());
 
     // Place a limit cross order and then cancel it
     let cancelable_order = rest
