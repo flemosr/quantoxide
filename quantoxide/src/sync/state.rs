@@ -62,6 +62,13 @@ pub enum SyncStatus {
     Terminated(Arc<SyncProcessFatalError>),
 }
 
+impl SyncStatus {
+    /// Returns `true` if the sync process has stopped (either shut down or terminated).
+    pub fn is_stopped(&self) -> bool {
+        matches!(self, Self::Shutdown | Self::Terminated(_))
+    }
+}
+
 impl fmt::Display for SyncStatus {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
