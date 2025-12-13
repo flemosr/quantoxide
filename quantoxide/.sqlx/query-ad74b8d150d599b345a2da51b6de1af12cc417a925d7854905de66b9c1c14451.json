@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                WITH gap_times AS (\n                    SELECT unnest($2::timestamptz[]) as gap_time\n                ),\n                sixth_candles AS (\n                    SELECT DISTINCT time\n                    FROM gap_times gt\n                    CROSS JOIN LATERAL (\n                        SELECT time\n                        FROM ohlc_candles\n                        WHERE time >= $1 AND time > gt.gap_time\n                        ORDER BY time ASC\n                        LIMIT 1 OFFSET 5\n                    ) sixth\n                )\n                UPDATE ohlc_candles\n                SET gap = true\n                WHERE time IN (SELECT time FROM sixth_candles)\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Timestamptz",
+        "TimestamptzArray"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "ad74b8d150d599b345a2da51b6de1af12cc417a925d7854905de66b9c1c14451"
+}

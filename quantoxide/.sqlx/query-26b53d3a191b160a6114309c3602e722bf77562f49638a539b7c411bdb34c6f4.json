@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                WITH gap_times AS (\n                    SELECT unnest($2::timestamptz[]) as gap_time\n                ),\n                unstable_times AS (\n                    -- Get 5 candles before each gap\n                    SELECT DISTINCT time\n                    FROM gap_times gt\n                    CROSS JOIN LATERAL (\n                        SELECT time\n                        FROM ohlc_candles\n                        WHERE time >= $1 AND time <= gt.gap_time\n                        ORDER BY time DESC\n                        LIMIT 5\n                    ) before_gap\n                    UNION\n                    -- Get 5 candles after each gap\n                    SELECT DISTINCT time\n                    FROM gap_times gt\n                    CROSS JOIN LATERAL (\n                        SELECT time\n                        FROM ohlc_candles\n                        WHERE time >= $1 AND time > gt.gap_time\n                        ORDER BY time ASC\n                        LIMIT 5\n                    ) after_gap\n                )\n                UPDATE ohlc_candles\n                SET stable = false\n                WHERE time IN (SELECT time FROM unstable_times)\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Timestamptz",
+        "TimestamptzArray"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "26b53d3a191b160a6114309c3602e722bf77562f49638a539b7c411bdb34c6f4"
+}
