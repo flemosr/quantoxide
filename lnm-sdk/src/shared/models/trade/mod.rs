@@ -52,6 +52,32 @@ pub enum TradeSize {
 }
 
 impl TradeSize {
+    /// Creates a new trade size specified by quantity (USD notional value).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use lnm_sdk::api_v3::models::{TradeSize, Quantity};
+    ///
+    /// let size = TradeSize::quantity(Quantity::try_from(1_000).unwrap());
+    /// ```
+    pub fn quantity(quantity: Quantity) -> Self {
+        Self::Quantity(quantity)
+    }
+
+    /// Creates a new trade size specified by margin (satoshis collateral).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use lnm_sdk::api_v3::models::{TradeSize, Margin};
+    ///
+    /// let size = TradeSize::margin(Margin::try_from(10_000).unwrap());
+    /// ```
+    pub fn margin(margin: Margin) -> Self {
+        Self::Margin(margin)
+    }
+
     /// Converts the trade size to both quantity and margin values.
     ///
     /// Calculates the corresponding quantity and margin based on the provided price and leverage.
