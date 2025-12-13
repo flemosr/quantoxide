@@ -169,13 +169,13 @@ impl TradeCore for Trade {
 /// # Examples
 ///
 /// ```no_run
-/// # async fn example(rest_api: lnm_sdk::api_v3::RestClient) -> Result<(), Box<dyn std::error::Error>> {
+/// # async fn example(rest: lnm_sdk::api_v3::RestClient) -> Result<(), Box<dyn std::error::Error>> {
 /// use lnm_sdk::api_v3::models::{
 ///     Trade, TradeExecution, TradeSide, TradeSize, Leverage, Margin, Price
 /// };
 /// use quantoxide::trade::TradeRunning;
 ///
-/// let trade: Trade = rest_api
+/// let trade: Trade = rest
 ///     .futures_isolated
 ///     .new_trade(
 ///         TradeSide::Buy,
