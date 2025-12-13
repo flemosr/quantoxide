@@ -78,6 +78,7 @@ impl DateTimeExt for DateTime<Utc> {
 /// # Examples
 ///
 /// ```ignore
+/// use tokio::time;
 /// use crate::util::AbortOnDropHandle;
 ///
 /// async fn example() {
@@ -85,7 +86,7 @@ impl DateTimeExt for DateTime<Utc> {
 ///     let handle = AbortOnDropHandle::from(tokio::spawn(async {
 ///         loop {
 ///             // Long-running work...
-///             tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+///             time::sleep(time::Duration::from_secs(1)).await;
 ///         }
 ///     }));
 ///
