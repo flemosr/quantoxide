@@ -46,7 +46,7 @@ async fn test_api() {
 
     // Start tests
 
-    let _ = time_test!("test_ping", repo.ping().await);
+    let _ = time_test!("test_ping", repo.ping().await).unwrap();
 
-    let _ = time_test!("test_time", repo.time().await);
+    let _ = time_test!("test_time", repo.time().await).unwrap();
 }
