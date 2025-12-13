@@ -35,7 +35,7 @@ async fn test_api() {
 
     macro_rules! time_test {
         ($test_name: expr, $test_block: expr) => {{
-            println!("Starting test: {}", $test_name);
+            println!("\nStarting test: {}", $test_name);
             let start = Instant::now();
             let result = $test_block;
             let elapsed = start.elapsed();
