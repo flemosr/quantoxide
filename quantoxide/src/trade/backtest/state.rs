@@ -54,6 +54,11 @@ impl BacktestStatus {
     pub fn is_aborted(&self) -> bool {
         matches!(self, Self::Aborted)
     }
+
+    /// Returns `true` if the backtest has stopped (finished, failed, or aborted).
+    pub fn is_stopped(&self) -> bool {
+        matches!(self, Self::Finished | Self::Failed(_) | Self::Aborted)
+    }
 }
 
 impl fmt::Display for BacktestStatus {
