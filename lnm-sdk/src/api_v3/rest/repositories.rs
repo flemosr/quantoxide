@@ -33,8 +33,10 @@ use super::models::{
 /// [LNM's v3 API]: https://api.lnmarkets.com/v3/
 #[async_trait]
 pub trait UtilitiesRepository: crate::sealed::Sealed + Send + Sync {
+    /// Ping.
     async fn ping(&self) -> Result<()>;
 
+    /// Get the server time.
     async fn time(&self) -> Result<DateTime<Utc>>;
 }
 
