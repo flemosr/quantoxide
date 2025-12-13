@@ -571,7 +571,9 @@ pub trait FuturesRepository: crate::sealed::Sealed + Send + Sync {
 /// [LNM's v2 API]: https://docs.lnmarkets.com/api/#overview
 #[async_trait]
 pub trait UserRepository: crate::sealed::Sealed + Send + Sync {
-    /// **Requires credentials**. Get user information.
+    /// Get user information.
+    ///
+    /// **Required permission**: `Retrieve user information`
     ///
     /// # Examples
     ///
