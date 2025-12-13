@@ -2,7 +2,7 @@ use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
 use chrono::{DateTime, Duration, Utc};
-use tokio::sync::broadcast;
+use tokio::sync::broadcast::{self, error::RecvError};
 
 use crate::{
     db::Database,
@@ -62,14 +62,36 @@ impl BacktestController {
             .take()
     }
 
-    /// Consumes the task handle and waits for the backtest to complete. This method can only be
-    /// called once per controller instance.
-    pub async fn wait_for_completion(&self) -> Result<()> {
-        if let Some(handle) = self.try_consume_handle() {
-            return handle.await.map_err(BacktestError::TaskJoin);
+    /// Waits until the backtest has stopped and returns the final status.
+    ///
+    /// This method blocks until the backtest reaches a stopped state (finished, failed, or
+    /// aborted).
+    pub async fn until_stopped(&self) -> BacktestStatus {
+        let mut backtest_rx = self.receiver();
+
+        let status = self.status_snapshot();
+        if status.is_stopped() {
+            return status;
         }
 
-        Err(BacktestError::ProcessAlreadyConsumed)
+        loop {
+            match backtest_rx.recv().await {
+                Ok(backtest_update) => {
+                    if let BacktestUpdate::Status(status) = backtest_update
+                        && status.is_stopped()
+                    {
+                        return status;
+                    }
+                }
+                Err(RecvError::Lagged(_)) => {
+                    let status = self.status_snapshot();
+                    if status.is_stopped() {
+                        return status;
+                    }
+                }
+                Err(RecvError::Closed) => return self.status_snapshot(),
+            }
+        }
     }
 
     /// Consumes the task handle and aborts the backtest. This method can only be called once per
