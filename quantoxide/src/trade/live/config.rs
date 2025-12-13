@@ -23,6 +23,7 @@ pub struct LiveTradeConfig {
     sync_mode_full: bool,
     price_history_reach: Duration,
     price_history_re_sync_interval: time::Duration,
+    price_history_flag_gap_range: Option<Duration>,
     live_price_tick_max_interval: time::Duration,
     sync_update_timeout: time::Duration,
     trade_tsl_step_size: PercentageCapped,
@@ -53,6 +54,7 @@ impl Default for LiveTradeConfig {
             sync_mode_full: false,
             price_history_reach: Duration::days(90),
             price_history_re_sync_interval: time::Duration::from_secs(10),
+            price_history_flag_gap_range: Some(Duration::weeks(4)),
             live_price_tick_max_interval: time::Duration::from_secs(3 * 60),
             sync_update_timeout: time::Duration::from_secs(5),
             trade_tsl_step_size: PercentageCapped::MIN,
@@ -114,6 +116,14 @@ impl LiveTradeConfig {
     /// Returns the interval for re-synchronizing price history data.
     pub fn price_history_re_sync_interval(&self) -> time::Duration {
         self.price_history_re_sync_interval
+    }
+
+    /// Returns the time range (looking back from the current time) that will be scanned for gaps
+    /// in the candle history during each backfill cycle.
+    ///
+    /// Only candles with `time >= now - range` will be analyzed for gaps.
+    pub fn price_history_flag_gap_range(&self) -> Option<Duration> {
+        self.price_history_flag_gap_range
     }
 
     /// Returns the maximum interval between live price ticks before considering the connection
@@ -246,6 +256,17 @@ impl LiveTradeConfig {
     /// Default: `10` seconds
     pub fn with_price_history_re_sync_interval(mut self, secs: u64) -> Self {
         self.price_history_re_sync_interval = time::Duration::from_secs(secs);
+        self
+    }
+
+    /// Sets the time range (looking back from the current time) to scan for gaps in the candle
+    /// history during each backfill cycle.
+    ///
+    /// Only candles with `time >= now - range` will be analyzed for gaps.
+    ///
+    /// Default: `672` hours (4 weeks)
+    pub fn with_price_history_flag_gap_range(mut self, hours: Option<u64>) -> Self {
+        self.price_history_flag_gap_range = hours.map(|h| Duration::hours(h as i64));
         self
     }
 
