@@ -62,6 +62,13 @@ pub enum LiveSignalStatus {
     Terminated(Arc<SignalProcessFatalError>),
 }
 
+impl LiveSignalStatus {
+    /// Returns `true` if the signal process has stopped (either shut down or terminated).
+    pub fn is_stopped(&self) -> bool {
+        matches!(self, Self::Shutdown | Self::Terminated(_))
+    }
+}
+
 impl fmt::Display for LiveSignalStatus {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
