@@ -20,7 +20,7 @@ pub(crate) trait DateTimeExt {
 
     fn next_minute(&self) -> DateTime<Utc>;
 
-    fn is_round(&self) -> bool;
+    fn is_round_minute(&self) -> bool;
 
     fn format_local_secs(&self) -> String;
 
@@ -47,8 +47,8 @@ impl DateTimeExt for DateTime<Utc> {
         self.floor_minute() + Duration::minutes(1)
     }
 
-    fn is_round(&self) -> bool {
-        *self == self.trunc_subsecs(0)
+    fn is_round_minute(&self) -> bool {
+        *self == self.floor_minute()
     }
 
     fn format_local_secs(&self) -> String {
