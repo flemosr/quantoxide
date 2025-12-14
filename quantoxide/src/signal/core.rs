@@ -6,6 +6,7 @@ use futures::FutureExt;
 
 use crate::{
     db::models::OhlcCandleRow,
+    error::Result as GeneralResult,
     shared::{LookbackPeriod, MinIterationInterval},
     util::DateTimeExt,
 };
@@ -95,18 +96,12 @@ pub trait SignalActionEvaluator: Send + Sync {
     /// Evaluates a series of OHLC candlesticks and returns a signal action.
     ///
     /// The candlestick slice is ordered chronologically, with the most recent candle last.
-    async fn evaluate(
-        &self,
-        candles: &[OhlcCandleRow],
-    ) -> std::result::Result<SignalAction, Box<dyn std::error::Error>>;
+    async fn evaluate(&self, candles: &[OhlcCandleRow]) -> GeneralResult<SignalAction>;
 }
 
 #[async_trait]
 impl SignalActionEvaluator for Box<dyn SignalActionEvaluator> {
-    async fn evaluate(
-        &self,
-        candles: &[OhlcCandleRow],
-    ) -> std::result::Result<SignalAction, Box<dyn std::error::Error>> {
+    async fn evaluate(&self, candles: &[OhlcCandleRow]) -> GeneralResult<SignalAction> {
         (**self).evaluate(candles).await
     }
 }
