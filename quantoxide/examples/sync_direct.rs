@@ -3,6 +3,8 @@
 use std::env;
 
 use dotenv::dotenv;
+use tokio::time::{self, Duration};
+
 use quantoxide::{
     Database,
     sync::{SyncConfig, SyncEngine, SyncMode, SyncUpdate},
@@ -52,7 +54,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let sync_controller = sync_engine.start();
 
     let final_status = sync_controller.until_stopped().await;
-    println!("`Sync` status: {final_status}");
+
+    // Delay for printing all `sync_rx` updates
+    time::sleep(Duration::from_millis(100)).await;
+
+    println!("Sync status: {final_status}");
 
     Ok(())
 }
