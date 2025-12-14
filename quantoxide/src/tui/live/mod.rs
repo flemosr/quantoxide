@@ -43,9 +43,8 @@ pub struct LiveTui {
     event_check_interval: Duration,
     shutdown_timeout: Duration,
     status_manager: Arc<TuiStatusManager<LiveTuiView>>,
-    // Retain ownership to ensure `TuiTerminal` destructor is executed when
-    // `LiveTui` is dropped.
-    _tui_terminal: Arc<TuiTerminal>,
+    // Ownership ensures the `TuiTerminal` destructor is executed when `LiveTui` is dropped
+    tui_terminal: Arc<TuiTerminal>,
     ui_tx: mpsc::Sender<LiveUiMessage>,
     // Explicitly aborted on drop, to ensure the terminal is restored before
     // `LiveTui`'s drop is completed.
@@ -98,7 +97,7 @@ impl LiveTui {
             event_check_interval: config.event_check_interval(),
             shutdown_timeout: config.shutdown_timeout(),
             status_manager,
-            _tui_terminal: tui_terminal,
+            tui_terminal,
             ui_tx,
             ui_task_handle,
             _shutdown_listener_handle,
@@ -267,9 +266,12 @@ impl LiveTui {
     ///
     /// This method blocks until the TUI reaches a stopped state, either through graceful shutdown
     /// or a crash.
+    ///
+    /// The terminal is automatically restored before this method returns.
     pub async fn until_stopped(&self) -> Arc<TuiStatusStopped> {
         loop {
             if let TuiStatus::Stopped(status_stopped) = self.status() {
+                let _ = self.tui_terminal.restore();
                 return status_stopped;
             }
 
