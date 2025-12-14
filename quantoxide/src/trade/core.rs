@@ -20,8 +20,8 @@ use lnm_sdk::api_v3::{
 };
 
 use crate::{
-    db::models::OhlcCandleRow, shared::LookbackPeriod, shared::MinIterationInterval,
-    signal::Signal, util::DateTimeExt,
+    db::models::OhlcCandleRow, error::Result as GeneralResult, shared::LookbackPeriod,
+    shared::MinIterationInterval, signal::Signal, util::DateTimeExt,
 };
 
 use super::error::{TradeCoreError, TradeCoreResult, TradeExecutorResult};
@@ -1046,17 +1046,11 @@ pub trait TradeExecutor: Send + Sync {
 #[async_trait]
 pub trait SignalOperator: Send + Sync {
     /// Sets the trade executor that should be used to execute trading operations.
-    fn set_trade_executor(
-        &mut self,
-        trade_executor: Arc<dyn TradeExecutor>,
-    ) -> std::result::Result<(), Box<dyn std::error::Error>>;
+    fn set_trade_executor(&mut self, trade_executor: Arc<dyn TradeExecutor>) -> GeneralResult<()>;
 
     /// Processes a trading signal and executes trading actions via the [`TradeExecutor`] that was
     /// set.
-    async fn process_signal(
-        &self,
-        signal: &Signal,
-    ) -> std::result::Result<(), Box<dyn std::error::Error>>;
+    async fn process_signal(&self, signal: &Signal) -> GeneralResult<()>;
 }
 
 pub(super) struct WrappedSignalOperator(Box<dyn SignalOperator>);
@@ -1093,10 +1087,7 @@ impl From<Box<dyn SignalOperator>> for WrappedSignalOperator {
 #[async_trait]
 pub trait RawOperator: Send + Sync {
     /// Sets the trade executor that should be used to execute trading operations.
-    fn set_trade_executor(
-        &mut self,
-        trade_executor: Arc<dyn TradeExecutor>,
-    ) -> std::result::Result<(), Box<dyn std::error::Error>>;
+    fn set_trade_executor(&mut self, trade_executor: Arc<dyn TradeExecutor>) -> GeneralResult<()>;
 
     /// Returns the lookback period determining how much historical candlestick data is provided to
     /// the operator.
@@ -1107,10 +1098,7 @@ pub trait RawOperator: Send + Sync {
 
     /// Processes candlestick data and executes trading actions via the [`TradeExecutor`] that was
     /// set. Called periodically according to the minimum iteration interval.
-    async fn iterate(
-        &self,
-        candles: &[OhlcCandleRow],
-    ) -> std::result::Result<(), Box<dyn std::error::Error>>;
+    async fn iterate(&self, candles: &[OhlcCandleRow]) -> GeneralResult<()>;
 }
 
 pub(super) struct WrappedRawOperator(Box<dyn RawOperator>);
