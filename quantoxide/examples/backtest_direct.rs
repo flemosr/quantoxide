@@ -1,0 +1,103 @@
+//! Example demonstrating direct interaction with the backtest process, without the TUI abstraction.
+
+use std::env;
+
+use dotenv::dotenv;
+use tokio::time::{self, Duration};
+
+use quantoxide::{
+    Database,
+    error::Result,
+    sync::PriceHistoryState,
+    trade::{BacktestConfig, BacktestEngine, BacktestUpdate},
+};
+
+#[path = "operators/mod.rs"]
+mod operators;
+#[path = "util/mod.rs"]
+mod util;
+
+use operators::raw::RawOperatorTemplate;
+use util::input;
+
+#[tokio::main]
+async fn main() -> Result<()> {
+    dotenv().ok();
+
+    let pg_url = env::var("POSTGRES_DB_URL").expect("POSTGRES_DB_URL must be set");
+
+    println!("Initializing database...");
+
+    let db = Database::new(&pg_url).await?;
+
+    println!("Database ready. Evaluating `PriceHistoryState`...");
+
+    let price_history_state = PriceHistoryState::evaluate(&db).await?;
+
+    println!("\n{price_history_state}\n");
+
+    println!("Please provide the backtest parameters.");
+    println!(
+        "Note: There must be data available for the lookback period, if any, of the raw operator used.\n"
+    );
+
+    let start_time = input::prompt_date("Start date (YYYY-MM-DD): ")?;
+
+    let start_balance =
+        input::prompt_balance("Start balance (sats, default: 10000000): ", 10_000_000)?;
+
+    let end_time = input::prompt_date("End date (YYYY-MM-DD): ")?;
+
+    println!("\nBacktest Configuration:");
+    println!("Start date: {}", start_time.format("%Y-%m-%d %H:%M %Z"));
+    println!("Start balance: {}", start_balance);
+    println!("End date: {}\n", end_time.format("%Y-%m-%d %H:%M %Z"));
+
+    println!("Initializing `BacktestEngine`...");
+
+    let operator = RawOperatorTemplate::new(None); // No TUI logger provided
+
+    let backtest_engine = BacktestEngine::with_raw_operator(
+        BacktestConfig::default(),
+        db,
+        operator,
+        start_time,
+        start_balance,
+        end_time,
+    )
+    .await?;
+
+    let mut backtest_rx = backtest_engine.receiver();
+
+    tokio::spawn(async move {
+        loop {
+            match backtest_rx.recv().await {
+                Ok(backtest_update) => match backtest_update {
+                    BacktestUpdate::Status(backtest_status) => {
+                        println!("\n{backtest_status}");
+                    }
+                    BacktestUpdate::TradingState(trading_state) => {
+                        println!("\n{trading_state}");
+                    }
+                },
+                Err(e) => {
+                    eprint!("{:?}", e);
+                    break;
+                }
+            }
+        }
+    });
+
+    println!("Initialization OK. Starting `SyncEngine`...");
+
+    let backtest_controller = backtest_engine.start();
+
+    let final_status = backtest_controller.until_stopped().await;
+
+    // Delay for printing all `backtest_rx` updates
+    time::sleep(Duration::from_millis(100)).await;
+
+    println!("Backtest status: {final_status}");
+
+    Ok(())
+}
