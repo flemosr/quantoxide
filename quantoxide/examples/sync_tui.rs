@@ -1,7 +1,9 @@
-//! Example demonstrating how to run the sync process using the TUI abstraction.
+//! Example demonstrating how to run the sync process using its TUI abstraction.
+
 use std::env;
 
 use dotenv::dotenv;
+
 use quantoxide::{
     Database,
     sync::{SyncConfig, SyncEngine, SyncMode},
