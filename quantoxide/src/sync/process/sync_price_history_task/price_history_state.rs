@@ -2,7 +2,7 @@ use std::fmt;
 
 use chrono::{DateTime, Duration, Utc};
 
-use crate::{db::Database, util::DateTimeExt};
+use crate::db::Database;
 
 use super::error::{Result, SyncPriceHistoryError};
 
@@ -261,7 +261,10 @@ impl PriceHistoryState {
         let mut result = String::new();
 
         if let Some(reach_time) = self.reach_time {
-            result.push_str(&format!("reach: {}\n", reach_time.format_local_millis()));
+            result.push_str(&format!(
+                "reach: {}\n",
+                reach_time.format("%Y-%m-%d %H:%M %Z")
+            ));
         }
 
         match &self.bounds {
@@ -270,15 +273,15 @@ impl PriceHistoryState {
 
                 if let Some(reach_time) = self.reach_time {
                     let start_eval = Self::eval_missing_hours(start, &reach_time);
-                    let start_str = start.format_local_millis();
+                    let start_str = start.format("%Y-%m-%d %H:%M %Z");
                     result.push_str(&format!("  start: {start_str} ({start_eval})\n"));
                 } else {
-                    let start_str = start.format_local_millis();
+                    let start_str = start.format("%Y-%m-%d %H:%M %Z");
                     result.push_str(&format!("  start: {start_str}\n"));
                 };
 
                 let end_val = Self::eval_missing_hours(&Utc::now(), end);
-                let end_str = end.format_local_millis();
+                let end_str = end.format("%Y-%m-%d %H:%M %Z");
                 result.push_str(&format!("  end: {end_str} ({end_val})\n"));
 
                 if self.gaps.is_empty() {
@@ -292,10 +295,10 @@ impl PriceHistoryState {
                             i + 1,
                             gap_hours
                         ));
-                        let gap_start_str = gap_start.format_local_millis();
+                        let gap_start_str = gap_start.format("%Y-%m-%d %H:%M %Z");
                         result.push_str(&format!("      from: {gap_start_str}\n"));
 
-                        let gap_end_str = gap_end.format_local_millis();
+                        let gap_end_str = gap_end.format("%Y-%m-%d %H:%M %Z");
                         if i == self.gaps.len() - 1 {
                             result.push_str(&format!("      to: {gap_end_str}"));
                         } else {
