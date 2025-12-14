@@ -1,18 +1,4 @@
-//! Basic example demonstrating how to create and use an API v3 REST authenticated client.
-//!
-//! ## Prerequisites
-//!
-//! Set the following environment variables:
-//! - `LNM_API_DOMAIN` - The LN Markets API domain
-//! - `LNM_API_V3_KEY` - Your API v3 key
-//! - `LNM_API_V3_SECRET` - Your API v3 secret
-//! - `LNM_API_V3_PASSPHRASE` - Your API v3 passphrase
-//!
-//! ## Usage
-//!
-//! ```bash
-//! cargo run --example v3_rest_auth
-//! ```
+//! Example demonstrating how to use the API v3 REST authenticated client.
 
 use std::{env, num::NonZeroU64};
 

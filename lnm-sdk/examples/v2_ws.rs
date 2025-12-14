@@ -1,15 +1,4 @@
-//! Basic example demonstrating how to create and use an API v2 WebSocket client.
-//!
-//! ## Prerequisites
-//!
-//! Set the following environment variables:
-//! - `LNM_API_DOMAIN` - The LN Markets API domain
-//!
-//! ## Usage
-//!
-//! ```bash
-//! cargo run --example v2_ws
-//! ```
+//! Example demonstrating how to use the API v2 WebSocket client.
 
 use std::env;
 

@@ -1,15 +1,4 @@
-//! Basic example demonstrating how to create and use an API v3 REST public client.
-//!
-//! ## Prerequisites
-//!
-//! Set the following environment variables:
-//! - `LNM_API_DOMAIN` - The LN Markets API domain
-//!
-//! ## Usage
-//!
-//! ```bash
-//! cargo run --example v3_rest_public
-//! ```
+//! Example demonstrating how to use the API v3 REST public client.
 
 use std::env;
 

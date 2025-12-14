@@ -1,18 +1,4 @@
-//! Basic example demonstrating how to create and use an API v2 REST authenticated client.
-//!
-//! ## Prerequisites
-//!
-//! Set the following environment variables:
-//! - `LNM_API_DOMAIN` - The LN Markets API domain
-//! - `LNM_API_V2_KEY` - Your API v2 key
-//! - `LNM_API_V2_SECRET` - Your API v2 secret
-//! - `LNM_API_V2_PASSPHRASE` - Your API v2 passphrase
-//!
-//! ## Usage
-//!
-//! ```bash
-//! cargo run --example v2_rest_auth
-//! ```
+//! Example demonstrating how to use the API v2 REST authenticated client.
 
 #![allow(deprecated)]
 
