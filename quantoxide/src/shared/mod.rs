@@ -1,4 +1,4 @@
-use std::fmt;
+use std::{fmt, result::Result};
 
 use chrono::Duration;
 
@@ -72,6 +72,10 @@ impl MinIterationInterval {
 
     pub const MAX: Self = Self(Duration::minutes(10));
 
+    pub fn seconds(secs: u64) -> Result<Self, MinIterationIntervalValidationError> {
+        Self::try_from(Duration::seconds(secs as i64))
+    }
+
     /// Returns the minimum iteration interval as a [`Duration`].
     pub fn as_duration(&self) -> Duration {
         self.0
@@ -81,7 +85,7 @@ impl MinIterationInterval {
 impl TryFrom<Duration> for MinIterationInterval {
     type Error = MinIterationIntervalValidationError;
 
-    fn try_from(value: Duration) -> std::result::Result<Self, Self::Error> {
+    fn try_from(value: Duration) -> Result<Self, Self::Error> {
         if value < Self::MIN.0 {
             return Err(MinIterationIntervalValidationError::InvalidMinIterationIntervalTooShort);
         }
