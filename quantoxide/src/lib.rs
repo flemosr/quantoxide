@@ -43,6 +43,9 @@ pub mod error {
     };
     pub use super::tui::error::TuiError;
     pub use super::util::PanicPayload;
+
+    /// Convenience general-purpose Result type alias.
+    pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 }
 
 pub mod models {
