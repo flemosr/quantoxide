@@ -1,6 +1,6 @@
 use std::result;
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Duration, Utc};
 use thiserror::Error;
 use tokio::task::JoinError;
 
@@ -29,11 +29,27 @@ pub enum BacktestError {
     #[error("Maximum running quantity must be at least 1, got {max}")]
     InvalidConfigurationMaxRunningQtd { max: usize },
 
-    #[error("Start and end times must be rounded to seconds")]
-    InvalidTimeRangeNotRounded,
+    #[error(
+        "Start and end times must be rounded to minutes. Start time: {start_time}, end time: {end_time}"
+    )]
+    InvalidTimeRangeNotRounded {
+        start_time: DateTime<Utc>,
+        end_time: DateTime<Utc>,
+    },
 
-    #[error("Backtest duration must be at least 1 day, got {duration_hours} hours")]
-    InvalidTimeRangeTooShort { duration_hours: i64 },
+    #[error(
+        "Start time must be before the end time. Start time: {start_time}, end time: {end_time}"
+    )]
+    InvalidTimeRangeSequence {
+        start_time: DateTime<Utc>,
+        end_time: DateTime<Utc>,
+    },
+
+    #[error("Backtest duration must be at least {min_duration} day, got {duration_hours} hours")]
+    InvalidTimeRangeTooShort {
+        min_duration: Duration,
+        duration_hours: i64,
+    },
 
     #[error("Buffer size {buffer_size} is incompatible with max lookback {max_lookback}")]
     IncompatibleBufferSize {

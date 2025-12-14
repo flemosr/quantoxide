@@ -224,13 +224,27 @@ impl BacktestEngine {
         start_balance: u64,
         end_time: DateTime<Utc>,
     ) -> Result<Self> {
-        if !start_time.is_round() || !end_time.is_round() {
-            return Err(BacktestError::InvalidTimeRangeNotRounded);
+        if !start_time.is_round_minute() || !end_time.is_round_minute() {
+            return Err(BacktestError::InvalidTimeRangeNotRounded {
+                start_time,
+                end_time,
+            });
         }
 
-        if end_time - start_time < Duration::days(1) {
+        if end_time <= start_time {
+            return Err(BacktestError::InvalidTimeRangeSequence {
+                start_time,
+                end_time,
+            });
+        }
+
+        let min_duration = Duration::days(1);
+        if end_time - start_time < min_duration {
             let duration_hours = (end_time - start_time).num_hours();
-            return Err(BacktestError::InvalidTimeRangeTooShort { duration_hours });
+            return Err(BacktestError::InvalidTimeRangeTooShort {
+                min_duration,
+                duration_hours,
+            });
         }
 
         let max_lookback = operator.max_lookback()?;
