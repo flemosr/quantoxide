@@ -4,7 +4,7 @@ Example applications demonstrating different ways to use the `quantoxide` crate.
 
 ## Prerequisites
 
-All examples require:
+All examples require a running PostgreSQL instance and the following environment variable:
 - `POSTGRES_DB_URL` - PostgreSQL database connection URL
 
 Synchronization examples require:
@@ -18,6 +18,32 @@ Live trading examples require:
 
 These environment variables should be set, or a `.env` file should be added in the project root.
 A `.env.template` file is available.
+
+### Setting up PostgreSQL with Docker
+
+To quickly set up a PostgreSQL database for running the examples:
+
+```bash
+docker run -d \
+  --name quantoxide-postgres \
+  -e POSTGRES_USER=admin \
+  -e POSTGRES_PASSWORD=password \
+  -e POSTGRES_DB=bot_db \
+  -p 5432:5432 \
+  -v quantoxide-pgdata:/var/lib/postgresql \
+  postgres:18.1-bookworm
+```
+
+Then the `POSTGRES_DB_URL` environment variable should be set to:
+```
+postgres://admin:password@localhost:5432/bot_db
+```
+
+Useful commands:
++ Stop the container: `docker stop quantoxide-postgres`
++ Start the container: `docker start quantoxide-postgres`
++ Remove the container: `docker rm quantoxide-postgres`
++ Remove the persistent volume: `docker volume rm quantoxide-pgdata`
 
 ## Synchronization
 
@@ -48,7 +74,9 @@ cargo run --example sync_direct
 ## Backtesting
 
 The following examples demonstrate the backtesting engine, which allows testing trading strategies
-against historical data stored in the local database.
+against historical data stored in the local database. **Some price history must be available in the 
+local database to run the backtest examples**. It can be obtained by running one of the
+synchronization examples.
 
 ### backtest_tui
 
