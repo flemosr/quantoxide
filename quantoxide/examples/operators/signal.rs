@@ -1,0 +1,91 @@
+//! Template implementation of a `SignalOperator`.
+
+use std::sync::{Arc, OnceLock};
+
+use async_trait::async_trait;
+
+use quantoxide::{
+    error::Result,
+    signal::Signal,
+    trade::{SignalOperator, TradeExecutor},
+    tui::TuiLogger,
+};
+
+// Uncomment to enable trade demo
+// use quantoxide::trade::Stoploss;
+// use lnm_sdk::api_v3::models::{Leverage, TradeSize};
+
+pub struct SignalOperatorTemplate {
+    trade_executor: OnceLock<Arc<dyn TradeExecutor>>,
+    logger: Option<Arc<dyn TuiLogger>>,
+}
+
+impl SignalOperatorTemplate {
+    #[allow(dead_code)]
+    pub fn new(logger: Option<Arc<dyn TuiLogger>>) -> Box<Self> {
+        Box::new(Self {
+            trade_executor: OnceLock::new(),
+            logger,
+        })
+    }
+
+    fn trade_executor(&self) -> Result<&Arc<dyn TradeExecutor>> {
+        if let Some(trade_executor) = self.trade_executor.get() {
+            return Ok(trade_executor);
+        }
+        Err("trade executor was not set".into())
+    }
+
+    #[allow(dead_code)]
+    async fn log(&self, text: String) -> Result<()> {
+        if let Some(logger) = self.logger.as_ref() {
+            logger.log(text).await?;
+        }
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl SignalOperator for SignalOperatorTemplate {
+    fn set_trade_executor(&mut self, trade_executor: Arc<dyn TradeExecutor>) -> Result<()> {
+        if let Err(_) = self.trade_executor.set(trade_executor) {
+            return Err("trade executor was already set".into());
+        }
+        Ok(())
+    }
+
+    #[allow(unused_variables)]
+    async fn process_signal(&self, signal: &Signal) -> Result<()> {
+        let trade_executor = self.trade_executor()?;
+
+        // If a TUI `logger` was provided, it can be used to log info in the interface
+        // self.log("Logging in the TUI".into()).await?;
+
+        // To access the current trading state:
+
+        let trading_state = trade_executor.trading_state().await?;
+        let balance = trading_state.balance();
+        let market_price = trading_state.market_price();
+        let running_trades_map = trading_state.running_map();
+        // Additional information is available
+
+        // Evaluate signal and perform trading operations via trade executor
+
+        // Uncomment to enable trade demo
+        // // If there are no running trades and balance is gte 6000 sats, open a long trade
+        // if running_trades_map.is_empty() && balance >= 6_000 {
+        //     trade_executor
+        //         .open_long(
+        //             TradeSize::quantity(1)?, // Size 1 USD. `TradeSize::margin` is also available
+        //             Leverage::try_from(6)?,  // Leverage 6x
+        //             Some(Stoploss::trailing(5.try_into()?)), // 5% trailing stoploss
+        //             None,                    // No takeprofit
+        //         )
+        //         .await?;
+        // }
+
+        // ...
+
+        Ok(())
+    }
+}
