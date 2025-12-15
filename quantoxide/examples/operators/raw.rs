@@ -21,6 +21,7 @@ pub struct RawOperatorTemplate {
 }
 
 impl RawOperatorTemplate {
+    #[allow(dead_code)]
     pub fn new(logger: Option<Arc<dyn TuiLogger>>) -> Box<Self> {
         Box::new(Self {
             trade_executor: OnceLock::new(),
