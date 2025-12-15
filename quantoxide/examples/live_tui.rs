@@ -1,4 +1,5 @@
-//! Example demonstrating how to run the live trading process using its TUI abstraction.
+//! Example demonstrating how to run the live trading process with a raw operator, using its TUI
+//! abstraction.
 
 use std::env;
 
