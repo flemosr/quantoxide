@@ -88,7 +88,7 @@ async fn main() -> Result<()> {
         }
     });
 
-    println!("Initialization OK. Starting `SyncEngine`...");
+    println!("Initialization OK. Starting `BacktestEngine`...");
 
     let backtest_controller = backtest_engine.start();
 
