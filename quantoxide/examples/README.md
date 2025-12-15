@@ -10,7 +10,14 @@ All examples require:
 Synchronization examples require:
 - `LNM_API_DOMAIN` - The LN Markets API domain
 
+Live trading examples require:
+- `LNM_API_DOMAIN` - The LN Markets API domain
+- `LNM_API_V3_KEY` - The LN Markets API v3 key
+- `LNM_API_V3_SECRET` - The LN Markets API v3 secret
+- `LNM_API_V3_PASSPHRASE` - The LN Markets API v3 passphrase
+
 These environment variables should be set, or a `.env` file should be added in the project root.
+A `.env.template` file is available.
 
 ## Synchronization
 
@@ -66,4 +73,26 @@ cargo run --example backtest_direct
 
 ## Live Trading
 
-*TODO*
+The following examples demonstrate the live trading engine, which executes trading strategies in 
+real-time against the LN Markets API using live market data and real trading operations.
+
+### live_tui
+
+Demonstrates how to run the live trading process using its TUI (Terminal User Interface) abstraction,
+that automatically handles and displays updates. This is the **recommended approach** for most use
+cases.
+
+**Usage:**
+```bash
+cargo run --example live_tui
+```
+
+### live_direct
+
+Demonstrates direct interaction with the live trading process for custom update handling. This 
+approach simplifies integration of live trading updates into other UIs or processing logic.
+
+**Usage:**
+```bash
+cargo run --example live_direct
+```
