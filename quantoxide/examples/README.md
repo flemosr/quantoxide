@@ -56,7 +56,7 @@ necessary data from the LN Markets API to remediate them.
 Demonstrates how to run the sync process using its TUI (Terminal User Interface) abstraction, that
 automatically handles and displays updates. This is the **recommended approach** for most use cases.
 
-**Usage:**
+Usage:
 ```bash
 cargo run --example sync_tui
 ```
@@ -66,7 +66,7 @@ cargo run --example sync_tui
 Demonstrates direct interaction with the sync process for custom update handling. This approach 
 simplifies integration of sync updates into other UIs or processing logic.
 
-**Usage:**
+Usage:
 ```bash
 cargo run --example sync_direct
 ```
@@ -78,15 +78,20 @@ against historical data stored in the local database. **Some price history must 
 local database to run the backtest examples**. It can be obtained by running one of the
 synchronization examples.
 
-### backtest_tui
+### backtest_raw_tui / backtest_signal_tui
 
 Demonstrates how to run the backtest process using its TUI (Terminal User Interface) abstraction,
 that automatically handles and displays updates. This is the **recommended approach** for most use
 cases.
 
-**Usage:**
+Usage with a **raw operator**:
 ```bash
-cargo run --example backtest_tui
+cargo run --example backtest_raw_tui
+```
+
+Usage with a **signal operator** and evaluators:
+```bash
+cargo run --example backtest_signal_tui
 ```
 
 ### backtest_direct
@@ -94,7 +99,7 @@ cargo run --example backtest_tui
 Demonstrates direct interaction with the backtest process for custom update handling. This approach
 simplifies integration of backtest updates into other UIs or processing logic.
 
-**Usage:**
+Usage:
 ```bash
 cargo run --example backtest_direct
 ```
@@ -104,15 +109,20 @@ cargo run --example backtest_direct
 The following examples demonstrate the live trading engine, which executes trading strategies in 
 real-time against the LN Markets API using live market data and real trading operations.
 
-### live_tui
+### live_raw_tui / live_signal_tui
 
 Demonstrates how to run the live trading process using its TUI (Terminal User Interface) abstraction,
 that automatically handles and displays updates. This is the **recommended approach** for most use
 cases.
 
-**Usage:**
+Usage with a **raw operator**:
 ```bash
-cargo run --example live_tui
+cargo run --example live_raw_tui
+```
+
+Usage with a **signal operator** and evaluators:
+```bash
+cargo run --example live_signal_tui
 ```
 
 ### live_direct
@@ -120,7 +130,7 @@ cargo run --example live_tui
 Demonstrates direct interaction with the live trading process for custom update handling. This 
 approach simplifies integration of live trading updates into other UIs or processing logic.
 
-**Usage:**
+Usage:
 ```bash
 cargo run --example live_direct
 ```
