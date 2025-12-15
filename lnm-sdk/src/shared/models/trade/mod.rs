@@ -3,7 +3,10 @@ use std::fmt;
 use serde::{Deserialize, Serialize};
 
 use super::{
-    error::QuantityValidationError, leverage::Leverage, margin::Margin, price::Price,
+    error::{MarginValidationError, QuantityValidationError},
+    leverage::Leverage,
+    margin::Margin,
+    price::Price,
     quantity::Quantity,
 };
 
@@ -57,12 +60,15 @@ impl TradeSize {
     /// # Examples
     ///
     /// ```
-    /// use lnm_sdk::api_v3::models::{TradeSize, Quantity};
+    /// use lnm_sdk::api_v3::models::TradeSize;
     ///
-    /// let size = TradeSize::quantity(Quantity::try_from(1_000).unwrap());
+    /// let size = TradeSize::quantity(1).unwrap(); // Size: 1 USD
     /// ```
-    pub fn quantity(quantity: Quantity) -> Self {
-        Self::Quantity(quantity)
+    pub fn quantity<Q>(value: Q) -> std::result::Result<Self, QuantityValidationError>
+    where
+        Q: TryInto<Quantity, Error = QuantityValidationError>,
+    {
+        Ok(Self::Quantity(value.try_into()?))
     }
 
     /// Creates a new trade size specified by margin (satoshis collateral).
@@ -70,12 +76,15 @@ impl TradeSize {
     /// # Examples
     ///
     /// ```
-    /// use lnm_sdk::api_v3::models::{TradeSize, Margin};
+    /// use lnm_sdk::api_v3::models::TradeSize;
     ///
-    /// let size = TradeSize::margin(Margin::try_from(10_000).unwrap());
+    /// let size = TradeSize::margin(10_000).unwrap(); // Size: 10000 sats
     /// ```
-    pub fn margin(margin: Margin) -> Self {
-        Self::Margin(margin)
+    pub fn margin<M>(value: M) -> std::result::Result<Self, MarginValidationError>
+    where
+        M: TryInto<Margin, Error = MarginValidationError>,
+    {
+        Ok(Self::Margin(value.try_into()?))
     }
 
     /// Converts the trade size to both quantity and margin values.
