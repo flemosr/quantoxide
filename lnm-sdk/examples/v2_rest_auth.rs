@@ -18,7 +18,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenv().ok();
 
     let domain = env::var("LNM_API_DOMAIN").expect("LNM_API_DOMAIN must be set");
-
     let key = env::var("LNM_API_V2_KEY").expect("LNM_API_V2_KEY must be set");
     let secret = env::var("LNM_API_V2_SECRET").expect("LNM_API_V2_SECRET must be set");
     let passphrase = env::var("LNM_API_V2_PASSPHRASE").expect("LNM_API_V2_PASSPHRASE must be set");
