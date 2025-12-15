@@ -36,6 +36,13 @@ async fn main() -> Result<()> {
 
     println!("\n{price_history_state}\n");
 
+    if price_history_state.bound_end().is_none() {
+        println!("Some price history must be available in the local database to run the backtest.");
+        println!("Run a synchronization example first to fetch historical data.");
+
+        return Ok(());
+    }
+
     println!("Please provide the backtest parameters.");
     println!(
         "Note: There must be data available for the lookback period, if any, of the raw operator used.\n"
