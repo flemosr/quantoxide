@@ -18,6 +18,7 @@ API v2 authenticated examples (`v2_rest_auth`) require:
 - `LNM_API_V2_PASSPHRASE` - Your API v2 passphrase
 
 These environment variables should be set, or a `.env` file should be added in the project root.
+A `.env.template` file is available.
 
 ## API v3
 
