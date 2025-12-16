@@ -40,7 +40,7 @@ intervals, has access to the current trading state, and can perform trading oper
 
 Trade operators can be implemented in two ways:
 - **Raw operators** process OHLC data directly and execute trades (recommended for most use cases)
-- **Signal-based operators** delegate OHLC processing to a signal evaluator and only handle signal
+- **Signal-based operators** delegate OHLC processing to a Signal Evaluator and only handle signal
   interpretation and trade execution (useful for separating analysis from trading logic)
 
 ### Synchronization
@@ -57,7 +57,7 @@ The **Backtesting** engine allows trading strategies to be tested against histor
 stored in the PostgreSQL database, without risking real funds. The `BacktestEngine` replays
 historical market conditions, simulating the Trade Operator actions and tracking performance metrics.
 This allows strategies to be iterated on, parameters to be adjusted, and profitability to be
-validated, all locally in a risk-free environment.
+estimated, all locally in a risk-free environment.
 
 ### Live Trading
 
@@ -68,21 +68,21 @@ manages actual positions with real funds. Thorough testing is recommended before
 ## Suggested Workflow
 
 ```
-                      ┌───────────────────┐
-                      │  Synchronization  │
-                      └─────────┬─────────┘
-                                │
-                                ↓
-┌─────────────────┐     ┌───────────────┐
-│  Develop Trade  │────→│  Backtesting  │
-│    Operator     │←────│               │
-└─────────────────┘     └───────┬───────┘
-                                │
-                                │ (Strategy validated)
-                                ↓
-                       ┌────────────────┐
-                       │  Live Trading  │ (requires API keys)
-                       └────────────────┘
+                                      ┌───────────────────┐
+                                      │  Synchronization  │
+                                      └─────────┬─────────┘
+                                                │
+                                                ↓
+                ┌─────────────────┐     ┌───────────────┐
+                │  Develop Trade  │────→│  Backtesting  │
+                │    Operator     │←────│               │
+                └─────────────────┘     └───────┬───────┘
+                                                │
+                                                │ (Strategy validated)
+                                                ↓
+                                      ┌────────────────┐
+                                      │  Live Trading  │ (requires API keys)
+                                      └────────────────┘
 ```
 
 1. **Development**: Implement trading strategy as a Trade Operator
@@ -101,6 +101,18 @@ granular permissions following the *principle of least privilege*.
 + `futures:isolated:read` (view isolated margin positions)
 + `futures:isolated:write` (create and manage isolated positions)
 
+## Current Limitations
+
+This project is in active development and currently has the following limitations:
+
+- **Isolated margin only**: Only isolated futures trades are supported. Cross margin trades are not
+  supported yet.
+- **Funding fees not accounted for in backtests**: Backtesting does not yet take [funding fees]
+  into account. This will generally overstate the returns of long positions held across funding
+  events, and understate the returns of short positions.
+- **1-minute candle resolution only**: Only candles with 1-minute resolution are currently
+  supported by Trade Operators and Signal Evaluators (additional resolutions planned).
+  
 ## Examples
 
 Complete runnable examples are available in [`quantoxide/examples`](quantoxide/examples). The
@@ -159,6 +171,9 @@ let sync_engine = SyncEngine::new(SyncConfig::default(), db, domain, SyncMode::B
 sync_tui.couple(sync_engine)?;
 sync_tui.until_stopped().await;
 ```
+
+How far back to fetch price history data can be configured with
+`SyncConfig::with_price_history_reach`.
 
 See [`quantoxide/examples/sync_tui.rs`](quantoxide/examples/sync_tui.rs) for the complete example.
 
@@ -236,3 +251,4 @@ signal-based approach.
 [LN Markets]: https://lnmarkets.com/
 [`lnm-sdk`]: lnm-sdk/README.md
 [`examples README`]: quantoxide/examples/README.md
+[funding fees]: https://docs.lnmarkets.com/resources/futures/#funding-fees
