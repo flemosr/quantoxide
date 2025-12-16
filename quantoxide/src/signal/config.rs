@@ -2,7 +2,7 @@ use tokio::time;
 
 use crate::trade::LiveTradeConfig;
 
-/// Configuration for the [`LiveSignalEngine`].
+/// Configuration for the [`LiveSignalEngine`](crate::signal::LiveSignalEngine).
 #[derive(Clone, Debug)]
 pub struct LiveSignalConfig {
     sync_update_timeout: time::Duration,
