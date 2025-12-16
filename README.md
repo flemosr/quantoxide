@@ -124,6 +124,8 @@ use quantoxide::{
 
 #[async_trait]
 impl RawOperator for MyOperator {
+    // ...
+    
     fn lookback(&self) -> Option<LookbackPeriod> {
         Some(LookbackPeriod::try_from(10).expect("is valid")) // Last 10 candles (1 min resolution)
     }
@@ -257,11 +259,12 @@ For a complete implementation with a raw operator, see the [`live_raw_tui` examp
 
 ## License
 
-*TODO*
+This project is licensed under the [Apache License (Version 2.0)].
 
 ## Contribution
 
-*TODO*
+Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion by
+you, shall be licensed as Apache-2.0, without any additional terms or conditions.
 
 [`lnm-sdk`]: https://github.com/flemosr/quantoxide/tree/master/lnm-sdk
 [LN Markets]: https://lnmarkets.com/
@@ -275,3 +278,4 @@ For a complete implementation with a raw operator, see the [`live_raw_tui` examp
 [`backtest_signal_tui` example]: https://github.com/flemosr/quantoxide/blob/master/quantoxide/examples/backtest_signal_tui.rs
 [`live_raw_tui` example]: https://github.com/flemosr/quantoxide/blob/master/quantoxide/examples/live_raw_tui.rs
 [`live_signal_tui` example]: https://github.com/flemosr/quantoxide/blob/master/quantoxide/examples/live_signal_tui.rs
+[Apache License (Version 2.0)]: https://github.com/flemosr/quantoxide/blob/master/quantoxide/LICENSE
