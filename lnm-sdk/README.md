@@ -3,7 +3,7 @@
 A Rust SDK for interacting with [LN Markets]. Supports REST API v3, REST API v2, and WebSocket API.
 
 > **Note:** This is an unofficial SDK. API v3 support is functional but not yet feature-complete. 
-> For implementation status, see [docs/api-v3-implementation.md](docs/api-v3-implementation.md).
+> For implementation status, see the [API v3 implementation docs].
 
 ## Getting Started
 
@@ -36,6 +36,8 @@ use lnm_sdk::api_v2::{
 
 ## Examples
 
+Complete runnable examples are available in the [`lnm-sdk/examples`] directory. 
+
 ### REST API v3 - Public
 
 ```rust
@@ -57,8 +59,7 @@ let _candles = rest
     .await?;
 ```
 
-For more complete public API examples, see
-[`lnm-sdk/examples/v3_rest_public.rs`](examples/v3_rest_public.rs).
+For more complete public API examples, see the [`v3_rest_public` example].
 
 ### REST API v3 - Authenticated
 
@@ -120,8 +121,7 @@ let _new_order = rest
 let _close_order = rest.futures_cross.close_position().await?;
 ```
 
-For more complete authenticated REST API examples, see
-[`lnm-sdk/examples/v3_rest_auth.rs`](examples/v3_rest_auth.rs).
+For more complete authenticated REST API examples, see the [`v3_rest_auth` example].
 
 ### WebSocket API
 
@@ -172,7 +172,7 @@ while let Ok(ws_update) = ws_rx.recv().await {
 }
 ```
 
-For a more complete WebSocket API example, see [`lnm-sdk/examples/v2_ws.rs`](examples/v2_ws.rs).
+For a more complete WebSocket API example, see the [`v2_ws` example].
 
 ## Testing
 
@@ -199,8 +199,13 @@ cargo test -- --include-ignored --test-threads=1
 *TODO*
 
 [LN Markets]: https://lnmarkets.com/
+[API v3 implementation docs]: https://github.com/flemosr/quantoxide/blob/master/lnm-sdk/docs/api-v3-implementation.md
+[`lnm-sdk/examples`]: https://github.com/flemosr/quantoxide/tree/master/lnm-sdk/examples
+[`v3_rest_public` example]: https://github.com/flemosr/quantoxide/blob/master/lnm-sdk/examples/v3_rest_public.rs
+[`v3_rest_auth` example]: https://github.com/flemosr/quantoxide/blob/master/lnm-sdk/examples/v3_rest_auth.rs
 [`fastwebsockets`]: https://github.com/denoland/fastwebsockets
 [`tokio-rustls`]: https://github.com/rustls/tokio-rustls
-[`.env.template`]: ../.env.template
+[`v2_ws` example]: https://github.com/flemosr/quantoxide/blob/master/lnm-sdk/examples/v2_ws.rs
+[`.env.template`]: https://github.com/flemosr/quantoxide/blob/master/.env.template
 [LN Markets API v3 Documentation]: https://api.lnmarkets.com/v3/
 [LN Markets API v2 Documentation]: https://docs.lnmarkets.com/api/
