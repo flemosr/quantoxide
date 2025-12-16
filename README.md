@@ -240,6 +240,12 @@ live_tui.couple(live_engine).await?;
 live_tui.until_stopped().await;
 ```
 
+**Terminal User Interface (TUI)**:
+
+<p align="center">
+  <img src="./assets/v0.1.0_live-tui_45s.gif" alt="Live TUI Demo" width="800">
+</p>
+
 See [`quantoxide/examples/live_raw_tui.rs`](quantoxide/examples/live_raw_tui.rs) for the complete
 example with a raw operator, or
 [`quantoxide/examples/live_signal_tui.rs`](quantoxide/examples/live_signal_tui.rs) for a
