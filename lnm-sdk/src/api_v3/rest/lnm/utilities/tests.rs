@@ -11,20 +11,9 @@ fn init_repository_from_env() -> LnmUtilitiesRepository {
 
     let domain =
         env::var("LNM_API_DOMAIN").expect("LNM_API_DOMAIN environment variable must be set");
-    let key = env::var("LNM_API_V3_KEY").expect("LNM_API_V3_KEY environment variable must be set");
-    let secret =
-        env::var("LNM_API_V3_SECRET").expect("LNM_API_V3_SECRET environment variable must be set");
-    let passphrase = env::var("LNM_API_V3_PASSPHRASE")
-        .expect("LNM_API_V3_PASSPHRASE environment variable must be set");
 
-    let base = LnmRestBase::with_credentials(
-        RestClientConfig::default(),
-        domain,
-        key,
-        passphrase,
-        SignatureGeneratorV3::new(secret),
-    )
-    .expect("Can create `LnmApiBase`");
+    let base =
+        LnmRestBase::new(RestClientConfig::default(), domain).expect("Can create `LnmApiBase`");
 
     LnmUtilitiesRepository::new(base)
 }
