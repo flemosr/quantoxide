@@ -1,14 +1,22 @@
 [package]
 name = "quantoxide"
 version = "0.1.0"
-authors = ["Rafael Lemos <contact@flemosr.com"]
+authors = ["Rafael Lemos <contact@flemosr.com>"]
 edition = "2024"
 rust-version = "1.88"
-license = "UNLICENSED"
-publish = false
+description = """
+Rust framework for developing, backtesting, and deploying Bitcoin futures trading strategies.
+"""
+documentation = "https://docs.rs/quantoxide"
+readme = "../README.md"
+homepage = "https://github.com/flemosr/quantoxide"
+repository = "https://github.com/flemosr/quantoxide"
+license = "Apache-2.0"
+keywords = ["bitcoin", "backtesting", "algotrading", "futures", "trading"]
+categories = ["finance", "simulation", "cryptography::cryptocurrencies"]
 
 [dependencies]
-lnm-sdk = { path = "../lnm-sdk" }
+lnm-sdk = { version = "0.1.0", path = "../lnm-sdk" }
 chrono = { version = "0.4.42", features = ["now", "serde"] }
 lazy_static = "1.5.0"
 sqlx = { version = "0.8.6", features = [
