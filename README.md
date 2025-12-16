@@ -168,7 +168,7 @@ sync_tui.until_stopped().await;
 How far back to fetch price history data can be configured with
 `SyncConfig::with_price_history_reach`.
 
-**Terminal User Interface**:
+**Terminal User Interface (TUI)**:
 
 <p align="center">
   <img src="./assets/v0.1.0_sync-tui_45s.gif" alt="Sync TUI Demo" width="800">
@@ -201,6 +201,12 @@ let backtest_engine = BacktestEngine::with_raw_operator(
 backtest_tui.couple(backtest_engine).await?;
 backtest_tui.until_stopped().await;
 ```
+
+**Terminal User Interface (TUI)**:
+
+<p align="center">
+  <img src="./assets/v0.1.0_backtest-tui_20s.gif" alt="Backtest TUI Demo" width="800">
+</p>
 
 See [`quantoxide/examples/backtest_raw_tui.rs`](quantoxide/examples/backtest_raw_tui.rs) for the
 complete example with a raw operator, or
