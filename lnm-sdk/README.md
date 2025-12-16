@@ -192,11 +192,12 @@ cargo test -- --include-ignored --test-threads=1
 
 ## License
 
-*TODO*
+This project is licensed under the [Apache License (Version 2.0)].
 
 ## Contribution
 
-*TODO*
+Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion by
+you, shall be licensed as Apache-2.0, without any additional terms or conditions.
 
 [LN Markets]: https://lnmarkets.com/
 [API v3 implementation docs]: https://github.com/flemosr/quantoxide/blob/master/lnm-sdk/docs/api-v3-implementation.md
@@ -209,3 +210,4 @@ cargo test -- --include-ignored --test-threads=1
 [`.env.template`]: https://github.com/flemosr/quantoxide/blob/master/.env.template
 [LN Markets API v3 Documentation]: https://api.lnmarkets.com/v3/
 [LN Markets API v2 Documentation]: https://docs.lnmarkets.com/api/
+[Apache License (Version 2.0)]: https://github.com/flemosr/quantoxide/blob/master/lnm-sdk/LICENSE
