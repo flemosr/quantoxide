@@ -174,6 +174,17 @@ while let Ok(ws_update) = ws_rx.recv().await {
 
 For a more complete WebSocket API example, see [`lnm-sdk/examples/v2_ws.rs`](examples/v2_ws.rs).
 
+## Testing
+
+Some tests require environment variables and are ignored by default. Moreover, said tests must be
+run sequentially as they depend on exchange state. The full test suite can be executed by setting
+the `LNM_API_*` variables or adding a `.env` file to the project root (a [`.env.template`] file is
+available), and then running:
+
+```bash
+cargo test -- --include-ignored --test-threads=1
+```
+
 ## API Reference
 
 + [LN Markets API v3 Documentation] (recommended)
@@ -190,5 +201,6 @@ For a more complete WebSocket API example, see [`lnm-sdk/examples/v2_ws.rs`](exa
 [LN Markets]: https://lnmarkets.com/
 [`fastwebsockets`]: https://github.com/denoland/fastwebsockets
 [`tokio-rustls`]: https://github.com/rustls/tokio-rustls
+[`.env.template`]: ../.env.template
 [LN Markets API v3 Documentation]: https://api.lnmarkets.com/v3/
 [LN Markets API v2 Documentation]: https://docs.lnmarkets.com/api/
