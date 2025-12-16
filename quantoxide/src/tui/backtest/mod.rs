@@ -4,7 +4,6 @@ use std::{
 };
 
 use async_trait::async_trait;
-use chrono::Utc;
 use tokio::{
     sync::{OnceCell, broadcast::error::RecvError, mpsc},
     time,
@@ -119,8 +118,6 @@ impl BacktestTui {
         ui_tx: mpsc::Sender<BacktestUiMessage>,
     ) -> AbortOnDropHandle<()> {
         tokio::spawn(async move {
-            let backtest_start = Utc::now();
-
             let send_ui_msg = async |ui_msg: BacktestUiMessage| -> Result<()> {
                 ui_tx
                     .send(ui_msg)
@@ -131,21 +128,8 @@ impl BacktestTui {
             let handle_backtest_update = async |backtest_update: BacktestUpdate| -> Result<()> {
                 match backtest_update {
                     BacktestUpdate::Status(backtest_status) => {
-                        let complement = if backtest_status.is_finished() {
-                            let backtest_elapsed = Utc::now().signed_duration_since(backtest_start);
-                            format!(
-                                "\nIterations completed. Elapsed: {}m {}s",
-                                backtest_elapsed.num_minutes(),
-                                backtest_elapsed.num_seconds() % 60
-                            )
-                        } else {
-                            String::new()
-                        };
-
-                        send_ui_msg(BacktestUiMessage::LogEntry(format!(
-                            "Backtest status: {backtest_status}{complement}"
-                        )))
-                        .await?;
+                        let log_msg = format!("Backtest status: {backtest_status}");
+                        send_ui_msg(BacktestUiMessage::LogEntry(log_msg)).await?;
                     }
                     BacktestUpdate::TradingState(trading_state) => {
                         send_ui_msg(BacktestUiMessage::StateUpdate(trading_state)).await?;
