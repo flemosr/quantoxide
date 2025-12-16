@@ -56,8 +56,8 @@ impl RawOperator for RawOperatorTemplate {
 
     fn lookback(&self) -> Option<LookbackPeriod> {
         // None // Return no candles
-        // Some(LookbackPeriod::try_from(10).expect("is valid")) // Return the last 10 candles
-        Some(LookbackPeriod::MIN) // Return the last 5 candles
+        // Some(LookbackPeriod::try_from(10).expect("is valid")) // Last 10 candles (1 min resolution)
+        Some(LookbackPeriod::MIN) // Last 5 candles (1 min resolution)
     }
 
     fn min_iteration_interval(&self) -> MinIterationInterval {
