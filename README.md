@@ -26,7 +26,7 @@ quantoxide = "<quantoxide-version>"
 ### Requirements
 
 A PostgreSQL database instance is required to store historical price data. Quick setup instructions
-with Docker are available in the [`examples README`].
+with Docker are available in the [examples `README`] file.
 
 ## Usage
 
@@ -108,8 +108,8 @@ This project is in active development and currently has the following limitation
   
 ## Examples
 
-Complete runnable examples are available in [`quantoxide/examples`](quantoxide/examples). The
-snippets below demonstrate the core components of the framework.
+Complete runnable examples are available in the [`quantoxide/examples`] directory. The snippets
+below demonstrate the core components of the framework.
 
 ### Trade Operator
 
@@ -144,9 +144,8 @@ impl RawOperator for MyOperator {
 }
 ```
 
-See [`quantoxide/examples/operators/raw.rs`](quantoxide/examples/operators/raw.rs) for a complete
-template. For signal-based operators, see
-[`quantoxide/examples/operators/signal.rs`](quantoxide/examples/operators/signal.rs).
+See the [`operators/raw` example] for a complete template. For signal-based operators, see the
+[`operators/signal` example].
 
 ### Synchronization TUI
 
@@ -171,10 +170,13 @@ How far back to fetch price history data can be configured with
 **Terminal User Interface (TUI)**:
 
 <p align="center">
-  <img src="./assets/v0.1.0_sync-tui_45s.gif" alt="Sync TUI Demo" width="800">
+  <img
+      src="https://raw.githubusercontent.com/flemosr/quantoxide/refs/heads/master/assets/v0.1.0_sync-tui_45s.gif"
+      alt="Sync TUI Demo"
+      width="800">
 </p>
 
-See [`quantoxide/examples/sync_tui.rs`](quantoxide/examples/sync_tui.rs) for the complete example.
+For a complete implementation, see the [`sync_tui` example].
 
 ### Backtesting TUI
 
@@ -205,13 +207,14 @@ backtest_tui.until_stopped().await;
 **Terminal User Interface (TUI)**:
 
 <p align="center">
-  <img src="./assets/v0.1.0_backtest-tui_20s.gif" alt="Backtest TUI Demo" width="800">
+  <img
+      src="https://raw.githubusercontent.com/flemosr/quantoxide/refs/heads/master/assets/v0.1.0_backtest-tui_20s.gif"
+      alt="Backtest TUI Demo"
+      width="800">
 </p>
 
-See [`quantoxide/examples/backtest_raw_tui.rs`](quantoxide/examples/backtest_raw_tui.rs) for the
-complete example with a raw operator, or
-[`quantoxide/examples/backtest_signal_tui.rs`](quantoxide/examples/backtest_signal_tui.rs) for a
-signal-based approach.
+For a complete implementation with a raw operator, see the [`backtest_raw_tui` example]. Or see the
+[`backtest_signal_tui` example] for a signal-based approach.
 
 ### Live Trading TUI
 
@@ -243,13 +246,14 @@ live_tui.until_stopped().await;
 **Terminal User Interface (TUI)**:
 
 <p align="center">
-  <img src="./assets/v0.1.0_live-tui_45s.gif" alt="Live TUI Demo" width="800">
+  <img
+      src="https://raw.githubusercontent.com/flemosr/quantoxide/refs/heads/master/assets/v0.1.0_live-tui_45s.gif"
+      alt="Live TUI Demo"
+      width="800">
 </p>
 
-See [`quantoxide/examples/live_raw_tui.rs`](quantoxide/examples/live_raw_tui.rs) for the complete
-example with a raw operator, or
-[`quantoxide/examples/live_signal_tui.rs`](quantoxide/examples/live_signal_tui.rs) for a
-signal-based approach.
+For a complete implementation with a raw operator, see the [`live_raw_tui` example]. Or see the
+[`live_signal_tui` example] for a signal-based approach.
 
 ## License
 
@@ -259,7 +263,15 @@ signal-based approach.
 
 *TODO*
 
+[`lnm-sdk`]: https://github.com/flemosr/quantoxide/tree/master/lnm-sdk
 [LN Markets]: https://lnmarkets.com/
-[`lnm-sdk`]: lnm-sdk/README.md
-[`examples README`]: quantoxide/examples/README.md
+[examples `README`]: https://github.com/flemosr/quantoxide/blob/master/quantoxide/examples/README.md
 [funding fees]: https://docs.lnmarkets.com/resources/futures/#funding-fees
+[`quantoxide/examples`]: https://github.com/flemosr/quantoxide/tree/master/quantoxide/examples
+[`operators/raw` example]: https://github.com/flemosr/quantoxide/blob/master/quantoxide/examples/operators/raw.rs
+[`operators/signal` example]: https://github.com/flemosr/quantoxide/blob/master/quantoxide/examples/operators/signal.rs
+[`sync_tui` example]: https://github.com/flemosr/quantoxide/blob/master/quantoxide/examples/sync_tui.rs
+[`backtest_raw_tui` example]: https://github.com/flemosr/quantoxide/blob/master/quantoxide/examples/backtest_raw_tui.rs
+[`backtest_signal_tui` example]: https://github.com/flemosr/quantoxide/blob/master/quantoxide/examples/backtest_signal_tui.rs
+[`live_raw_tui` example]: https://github.com/flemosr/quantoxide/blob/master/quantoxide/examples/live_raw_tui.rs
+[`live_signal_tui` example]: https://github.com/flemosr/quantoxide/blob/master/quantoxide/examples/live_signal_tui.rs
