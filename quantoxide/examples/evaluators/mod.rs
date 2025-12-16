@@ -21,7 +21,7 @@ impl SignalEvaluatorTemplate {
     pub fn new(logger: Option<Arc<dyn TuiLogger>>) -> ConfiguredSignalEvaluator {
         let name = SignalName::new("my-sinal-name").expect("name is valid");
         let min_iteration_interval = MinIterationInterval::MIN; // Minimum iteration interval of 5 seconds
-        let lookback = LookbackPeriod::MIN; // Return the last 5 candles
+        let lookback = LookbackPeriod::MIN; // Last 5 candles (1 min resolution)
         let action_evaluator = Self { logger };
 
         SignalEvaluator::new_boxed(
