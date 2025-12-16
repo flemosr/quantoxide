@@ -21,7 +21,7 @@ fn collect_input(prompt: &str) -> Result<String> {
 fn parse_date(date_str: &str) -> Result<DateTime<Utc>> {
     let naive_datetime = NaiveDate::parse_from_str(date_str, "%Y-%m-%d")?
         .and_hms_opt(0, 0, 0)
-        .ok_or_else(|| "Failed to create datetime")?;
+        .ok_or("Failed to create datetime")?;
 
     Ok(Utc.from_utc_datetime(&naive_datetime))
 }
