@@ -12,5 +12,6 @@ pub use core::{
 };
 pub use engine::{LiveSignalController, LiveSignalEngine};
 pub use state::{
-    LiveSignalReceiver, LiveSignalStatus, LiveSignalStatusNotRunning, LiveSignalUpdate,
+    LiveSignalReader, LiveSignalReceiver, LiveSignalStatus, LiveSignalStatusNotRunning,
+    LiveSignalUpdate,
 };
