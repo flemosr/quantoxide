@@ -1,11 +1,17 @@
 [package]
 name = "lnm-sdk"
 version = "0.1.0"
-authors = ["Rafael Lemos <contact@flemosr.com"]
+authors = ["Rafael Lemos <contact@flemosr.com>"]
 edition = "2024"
 rust-version = "1.88"
-license = "UNLICENSED"
-publish = false
+description = "Rust SDK for interacting with LN Markets."
+documentation = "https://docs.rs/lnm-sdk"
+readme = "README.md"
+homepage = "https://github.com/flemosr/quantoxide"
+repository = "https://github.com/flemosr/quantoxide"
+license = "Apache-2.0"
+keywords = ["bitcoin", "trading", "futures", "lnmarkets", "crypto"]
+categories = ["api-bindings", "asynchronous", "cryptography::cryptocurrencies", "finance"]
 
 [dependencies]
 async-trait = "0.1.89"
