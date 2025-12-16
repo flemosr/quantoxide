@@ -1,4 +1,4 @@
-# Quantoxide
+# quantoxide
 
 A Rust framework for developing, backtesting, and deploying algorithmic trading strategies for
 Bitcoin futures.
@@ -8,6 +8,12 @@ workflow from strategy development to live trading, with local historical data t
 
 > **Disclaimer**: This is alpha software provided "as is" without warranty of any kind. Understand
 > that bugs may result in loss of assets. Use at your own risk.
+
+[![Crates.io Badge](https://img.shields.io/crates/v/quantoxide)](https://crates.io/crates/quantoxide)
+[![Documentation Badge](https://docs.rs/quantoxide/badge.svg)](https://docs.rs/quantoxide/latest/quantoxide/)
+[![License Badge](https://img.shields.io/crates/l/quantoxide)](https://github.com/flemosr/quantoxide/blob/master/quantoxide/LICENSE)
+
+[Examples] | [Docs]
 
 ## Getting Started
 
@@ -268,6 +274,8 @@ you, shall be licensed as Apache-2.0, without any additional terms or conditions
 
 [`lnm-sdk`]: https://github.com/flemosr/quantoxide/tree/master/lnm-sdk
 [LN Markets]: https://lnmarkets.com/
+[Examples]: https://github.com/flemosr/quantoxide/blob/master/quantoxide/examples
+[Docs]: https://docs.rs/quantoxide/latest/quantoxide/
 [examples `README`]: https://github.com/flemosr/quantoxide/blob/master/quantoxide/examples/README.md
 [funding fees]: https://docs.lnmarkets.com/resources/futures/#funding-fees
 [`quantoxide/examples`]: https://github.com/flemosr/quantoxide/tree/master/quantoxide/examples
