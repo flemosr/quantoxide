@@ -67,22 +67,16 @@ manages actual positions with real funds. Thorough testing is recommended before
 
 ## Suggested Workflow
 
-```
-                                      ┌───────────────────┐
-                                      │  Synchronization  │
-                                      └─────────┬─────────┘
-                                                │
-                                                ↓
-                ┌─────────────────┐     ┌───────────────┐
-                │  Develop Trade  │────→│  Backtesting  │
-                │    Operator     │←────│               │
-                └─────────────────┘     └───────┬───────┘
-                                                │
-                                                │ (Strategy validated)
-                                                ↓
-                                      ┌────────────────┐
-                                      │  Live Trading  │ (requires API keys)
-                                      └────────────────┘
+```mermaid
+flowchart TD
+    A[Synchronization]
+    B[Develop Trade Operator]
+    C[Backtesting]
+    D[Live Trading<br/><i>requires API keys</i>]
+    
+    A --> C
+    B <--> C
+    C -->|Strategy validated| D
 ```
 
 1. **Development**: Implement trading strategy as a Trade Operator
