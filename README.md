@@ -168,6 +168,12 @@ sync_tui.until_stopped().await;
 How far back to fetch price history data can be configured with
 `SyncConfig::with_price_history_reach`.
 
+**Terminal User Interface**:
+
+<p align="center">
+  <img src="./assets/v0.1.0_sync-tui_45s.gif" alt="Sync TUI Demo" width="800">
+</p>
+
 See [`quantoxide/examples/sync_tui.rs`](quantoxide/examples/sync_tui.rs) for the complete example.
 
 ### Backtesting TUI
