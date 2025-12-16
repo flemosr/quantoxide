@@ -10,8 +10,8 @@ use lnm_sdk::{
 
 use super::executor::state::live_trading_session::TradingSessionTTL;
 
-/// Configuration for the [`LiveTradeEngine`] controlling synchronization, signal processing, trade
-/// execution, and session management.
+/// Configuration for the [`LiveTradeEngine`](crate::trade::LiveTradeEngine) controlling
+/// synchronization, signal processing, trade execution, and session management.
 #[derive(Clone, Debug)]
 pub struct LiveTradeConfig {
     rest_api_timeout: time::Duration,
