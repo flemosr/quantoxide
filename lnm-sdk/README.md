@@ -5,6 +5,12 @@ A Rust SDK for interacting with [LN Markets]. Supports REST API v3, REST API v2,
 > **Note:** This is an unofficial SDK. API v3 support is functional but not yet feature-complete. 
 > For implementation status, see the [API v3 implementation docs].
 
+[![Crates.io Badge](https://img.shields.io/crates/v/lnm-sdk)](https://crates.io/crates/lnm-sdk)
+[![Documentation Badge](https://docs.rs/lnm-sdk/badge.svg)](https://docs.rs/lnm-sdk/latest/lnm_sdk/)
+[![License Badge](https://img.shields.io/crates/l/lnm-sdk)](https://github.com/flemosr/quantoxide/blob/master/lnm-sdk/LICENSE)
+
+[Examples] | [Docs]
+
 ## Getting Started
 
 ### Rust Version
@@ -201,6 +207,8 @@ you, shall be licensed as Apache-2.0, without any additional terms or conditions
 
 [LN Markets]: https://lnmarkets.com/
 [API v3 implementation docs]: https://github.com/flemosr/quantoxide/blob/master/lnm-sdk/docs/api-v3-implementation.md
+[Examples]: https://github.com/flemosr/quantoxide/tree/master/lnm-sdk/examples
+[Docs]: https://docs.rs/lnm-sdk/latest/lnm_sdk/
 [`lnm-sdk/examples`]: https://github.com/flemosr/quantoxide/tree/master/lnm-sdk/examples
 [`v3_rest_public` example]: https://github.com/flemosr/quantoxide/blob/master/lnm-sdk/examples/v3_rest_public.rs
 [`v3_rest_auth` example]: https://github.com/flemosr/quantoxide/blob/master/lnm-sdk/examples/v3_rest_auth.rs
