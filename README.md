@@ -6,8 +6,8 @@ Bitcoin futures.
 This crate is built on top of [`lnm-sdk`], using the [LN Markets] API. It provides a complete
 workflow from strategy development to live trading, with local historical data testing capabilities.
 
-> **Important**: This is alpha software. Do not use it with significant amounts of money. Understand
-> that bugs and financial losses may occur. Use at your own risk.
+> **Disclaimer**: This is alpha software provided "as is" without warranty of any kind. Understand
+> that bugs may result in loss of assets. Use at your own risk.
 
 ## Getting Started
 
@@ -99,13 +99,12 @@ granular permissions following the *principle of least privilege*.
 
 This project is in active development and currently has the following limitations:
 
-- **Isolated margin only**: Only isolated futures trades are supported. Cross margin trades are not
-  supported yet.
-- **Funding fees not accounted for in backtests**: Backtesting does not yet take [funding fees]
-  into account. This will generally overstate the returns of long positions held across funding
-  events, and understate the returns of short positions.
-- **1-minute candle resolution only**: Only candles with 1-minute resolution are currently
-  supported by Trade Operators and Signal Evaluators (additional resolutions planned).
+- **Only isolated futures trades are supported**. Cross margin trades are not supported yet.
+- **Backtesting does not yet take [funding fees] into account**. This will generally overstate the
+  returns of long positions held across funding events, and understate the returns of short
+  positions.
+- **Only candles with 1-minute resolution are currently supported** by Trade Operators and Signal
+  Evaluators (additional resolutions planned).
   
 ## Examples
 
