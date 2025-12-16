@@ -30,6 +30,7 @@ fn init_repository_from_env() -> LnmAccountRepository {
 }
 
 #[tokio::test]
+#[ignore]
 async fn test_api() {
     let repo = init_repository_from_env();
 

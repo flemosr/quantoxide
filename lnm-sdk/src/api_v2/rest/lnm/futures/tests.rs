@@ -444,6 +444,7 @@ async fn test_cash_in(repo: &LnmFuturesRepository, trade: Trade) -> Trade {
 }
 
 #[tokio::test]
+#[ignore]
 async fn test_api() {
     let repo = init_repository_from_env();
 

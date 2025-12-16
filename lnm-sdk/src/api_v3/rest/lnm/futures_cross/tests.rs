@@ -309,6 +309,7 @@ async fn test_get_funding_fees(repo: &LnmFuturesCrossRepository) {
 }
 
 #[tokio::test]
+#[ignore]
 async fn test_api() {
     let (repo, repo_data) = init_repositories_from_env();
 

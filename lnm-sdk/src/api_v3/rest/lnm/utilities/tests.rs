@@ -19,6 +19,7 @@ fn init_repository_from_env() -> LnmUtilitiesRepository {
 }
 
 #[tokio::test]
+#[ignore]
 async fn test_api() {
     let repo = init_repository_from_env();
 

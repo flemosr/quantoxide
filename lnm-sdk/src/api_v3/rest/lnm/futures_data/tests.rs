@@ -48,6 +48,7 @@ async fn test_get_last_candle(repo: &LnmFuturesDataRepository) {
 }
 
 #[tokio::test]
+#[ignore]
 async fn test_api() {
     let repo = init_repository_from_env();
 

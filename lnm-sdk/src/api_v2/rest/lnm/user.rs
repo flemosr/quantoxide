@@ -69,6 +69,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_api() {
         let repo = init_repository_from_env();
 

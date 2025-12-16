@@ -33,6 +33,7 @@ async fn test_get_last_price(repo: &LnmOracleRepository, limit: Option<NonZeroU6
 }
 
 #[tokio::test]
+#[ignore]
 async fn test_api() {
     let repo = init_repository_from_env();
 
