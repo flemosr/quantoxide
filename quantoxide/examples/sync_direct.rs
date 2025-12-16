@@ -23,7 +23,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("Database ready. Initializing `SyncEngine`...");
 
-    let sync_engine = SyncEngine::new(SyncConfig::default(), db, domain, SyncMode::Backfill)?;
+    let config = SyncConfig::default();
+    // How far back to fetch price history data can be configured with:
+    // let config = config.with_price_history_reach(180.try_into()?); // 180 days
+
+    let sync_engine = SyncEngine::new(config, db, domain, SyncMode::Backfill)?;
 
     let mut sync_rx = sync_engine.reader().update_receiver();
 
