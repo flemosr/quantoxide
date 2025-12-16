@@ -53,7 +53,8 @@ impl LiveSignalController {
         })
     }
 
-    /// Returns a [`LiveSignalReader`] interface for accessing signal status and updates.
+    /// Returns a [`LiveSignalReader`](crate::signal::LiveSignalReader) interface for accessing
+    /// signal status and updates.
     pub fn reader(&self) -> Arc<dyn LiveSignalReader> {
         self.status_manager.clone()
     }
