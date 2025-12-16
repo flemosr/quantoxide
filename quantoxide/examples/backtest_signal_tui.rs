@@ -72,7 +72,9 @@ async fn main() -> Result<()> {
         .log("Initializing  `BacktestEngine`...".into())
         .await?;
 
-    let evaluators = vec![SignalEvaluatorTemplate::new(Some(backtest_tui.clone()))]; // With TUI logger
+    let evaluators = vec![SignalEvaluatorTemplate::configure(Some(
+        backtest_tui.clone(),
+    ))]; // With TUI logger
 
     let operator = SignalOperatorTemplate::new(Some(backtest_tui.clone())); // With TUI logger
 
