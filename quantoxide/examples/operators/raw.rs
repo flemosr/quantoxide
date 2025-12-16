@@ -48,7 +48,7 @@ impl RawOperatorTemplate {
 #[async_trait]
 impl RawOperator for RawOperatorTemplate {
     fn set_trade_executor(&mut self, trade_executor: Arc<dyn TradeExecutor>) -> Result<()> {
-        if let Err(_) = self.trade_executor.set(trade_executor) {
+        if self.trade_executor.set(trade_executor).is_err() {
             return Err("trade executor was already set".into());
         }
         Ok(())
