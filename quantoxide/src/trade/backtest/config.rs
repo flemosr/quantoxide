@@ -4,7 +4,8 @@ use lnm_sdk::api_v3::models::PercentageCapped;
 
 use super::error::{BacktestError, Result};
 
-/// Configuration for the [`BacktestEngine`] controlling simulation parameters and behavior.
+/// Configuration for the [`BacktestEngine`](crate::trade::BacktestEngine) controlling simulation
+/// parameters and behavior.
 pub struct BacktestConfig {
     buffer_size: usize,
     trade_max_running_qtd: usize,
