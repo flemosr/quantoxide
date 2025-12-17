@@ -47,6 +47,9 @@ impl SignalActionEvaluator for SignalEvaluatorTemplate {
     async fn evaluate(&self, candles: &[OhlcCandleRow]) -> Result<SignalAction> {
         // If a TUI `logger` was provided, it can be used to log info in the interface
         // self.log("Logging in the TUI".into()).await?;
+        //
+        // NOTE: `println!` and other `stdout`/`stderr` outputs should be avoided when using TUIs,
+        // as they would disrupt rendering.
 
         // Evaluate candles return a signal action
 

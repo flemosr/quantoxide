@@ -60,6 +60,9 @@ impl SignalOperator for SignalOperatorTemplate {
 
         // If a TUI `logger` was provided, it can be used to log info in the interface
         // self.log("Logging in the TUI".into()).await?;
+        //
+        // NOTE: `println!` and other `stdout`/`stderr` outputs should be avoided when using TUIs,
+        // as they would disrupt rendering.
 
         // To access the current trading state:
 
