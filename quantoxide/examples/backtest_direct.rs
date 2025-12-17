@@ -62,7 +62,11 @@ async fn main() -> Result<()> {
 
     println!("Initializing `BacktestEngine`...");
 
-    let operator = RawOperatorTemplate::new(None); // No TUI logger provided
+    // In general, no TUI logger should be provided to Trade Operators in backtests. Since many
+    // iterations will be processed per second, excessive per-iteration logging would create a
+    // severe performance bottleneck.
+
+    let operator = RawOperatorTemplate::new(None);
 
     let backtest_engine = BacktestEngine::with_raw_operator(
         BacktestConfig::default(),

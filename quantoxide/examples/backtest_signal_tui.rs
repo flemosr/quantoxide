@@ -72,11 +72,13 @@ async fn main() -> Result<()> {
         .log("Initializing  `BacktestEngine`...".into())
         .await?;
 
-    let evaluators = vec![SignalEvaluatorTemplate::configure(Some(
-        backtest_tui.clone(),
-    ))]; // With TUI logger
+    // In general, no TUI logger should be provided to Signal Evaluators or to Trade Operators in
+    // backtests. Since many iterations will be processed per second, excessive per-iteration
+    // logging would create a severe performance bottleneck.
 
-    let operator = SignalOperatorTemplate::new(Some(backtest_tui.clone())); // With TUI logger
+    let evaluators = vec![SignalEvaluatorTemplate::configure(None)];
+
+    let operator = SignalOperatorTemplate::new(None);
 
     let backtest_engine = BacktestEngine::with_signal_operator(
         BacktestConfig::default(),
