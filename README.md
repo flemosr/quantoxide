@@ -36,7 +36,7 @@ with Docker are available in the [examples `README`] file.
 
 ## Usage
 
-Quantoxide provides four core components for the complete algorithmic trading workflow:
+`quantoxide` provides four core components for the complete algorithmic trading workflow:
 
 ### Trade Operator
 
@@ -48,6 +48,10 @@ Trade operators can be implemented in two ways:
 - **Raw operators** process OHLC data directly and execute trades (recommended for most use cases)
 - **Signal-based operators** delegate OHLC processing to a Signal Evaluator and only handle signal
   interpretation and trade execution (useful for separating analysis from trading logic)
+
+> **Note**: `println!` and other `stdout`/`stderr` outputs should be avoided in `iterate`/`evaluate`
+> methods when using the TUI abstractions, since they would disrupt rendering. `TuiLogger` should be
+> used instead, as implemented in the [`quantoxide/examples`] directory.
 
 ### Synchronization
 
