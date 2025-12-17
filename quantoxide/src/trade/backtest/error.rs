@@ -64,11 +64,15 @@ pub enum BacktestError {
     DatabaseNoEntriesBeforeStartTime,
 
     #[error(
-        "Required price history range including lookback period ({lookback_time} to {end_time}) is not available"
+        "Required price history range including lookback period ({lookback_time} to {end_time}) is not available. History start {:?}, end: {:?}",
+        history_start,
+        history_end
     )]
     PriceHistoryUnavailable {
         lookback_time: DateTime<Utc>,
         end_time: DateTime<Utc>,
+        history_start: Option<DateTime<Utc>>,
+        history_end: Option<DateTime<Utc>>,
     },
 
     #[error("Buffer date calculation resulted in out of range value")]

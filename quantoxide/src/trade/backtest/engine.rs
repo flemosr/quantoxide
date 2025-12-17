@@ -275,6 +275,8 @@ impl BacktestEngine {
             return Err(BacktestError::PriceHistoryUnavailable {
                 lookback_time,
                 end_time,
+                history_start: price_history_state.bound_start(),
+                history_end: price_history_state.bound_end(),
             });
         }
 
