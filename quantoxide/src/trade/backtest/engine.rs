@@ -417,7 +417,8 @@ impl BacktestEngine {
 
                         let ctx_candles = if let Some(lookback) = evaluator.lookback() {
                             let lookback = lookback.as_usize();
-                            &candle_buffer[buffer_cursor_idx + 1 - lookback..=buffer_cursor_idx]
+                            let start_idx = buffer_cursor_idx.saturating_sub(lookback - 1);
+                            &candle_buffer[start_idx..=buffer_cursor_idx]
                         } else {
                             &[]
                         };
@@ -450,7 +451,8 @@ impl BacktestEngine {
 
                         let ctx_candles = if let Some(lookback) = lookback_opt {
                             let lookback = lookback.as_usize();
-                            &candle_buffer[buffer_cursor_idx + 1 - lookback..=buffer_cursor_idx]
+                            let start_idx = buffer_cursor_idx.saturating_sub(lookback - 1);
+                            &candle_buffer[start_idx..=buffer_cursor_idx]
                         } else {
                             &[]
                         };
