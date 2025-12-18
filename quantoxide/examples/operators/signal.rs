@@ -80,9 +80,19 @@ impl SignalOperator for SignalOperatorTemplate {
         let balance = trading_state.balance();
         let market_price = trading_state.market_price();
         let running_trades_map = trading_state.running_map();
-        // Additional information is available
+        // Additional information is available, see the `TradingState` docs
 
-        // Evaluate signal and perform trading operations via trade executor
+        // Evaluate candles. Perform trading operations via trade executor
+
+        // Iterate over running trades
+        for ((creation_time, trade_id), (trade, tsl)) in running_trades_map {
+            // Example: Check current profit/loss
+            let pl = trade.est_pl(market_price);
+
+            // Take action based on trade status
+
+            // trade_executor.close_trade(*trade_id).await?;
+        }
 
         // Uncomment to enable trade demo
         // // If there are no running trades and balance is gte 6000 sats, open a long trade
