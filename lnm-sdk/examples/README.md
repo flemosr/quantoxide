@@ -2,6 +2,18 @@
 
 Example applications demonstrating different ways to use the `lnm-sdk` crate.
 
+## Quick Templates
+
+Direct source code links for quick reference:
+
+| Category | Raw Source |
+|----------|------------|
+| **API v3 - Public Endpoints** | [v3_rest_public.rs](https://raw.githubusercontent.com/flemosr/quantoxide/master/lnm-sdk/examples/v3_rest_public.rs) |
+| **API v3 - Authenticated Endpoints** | [v3_rest_auth.rs](https://raw.githubusercontent.com/flemosr/quantoxide/master/lnm-sdk/examples/v3_rest_auth.rs) |
+| **API v2 - Public Endpoints** | [v2_rest_public.rs](https://raw.githubusercontent.com/flemosr/quantoxide/master/lnm-sdk/examples/v2_rest_public.rs) |
+| **API v2 - Authenticated Endpoints** | [v2_rest_auth.rs](https://raw.githubusercontent.com/flemosr/quantoxide/master/lnm-sdk/examples/v2_rest_auth.rs) |
+| **WebSocket API** | [v2_ws.rs](https://raw.githubusercontent.com/flemosr/quantoxide/master/lnm-sdk/examples/v2_ws.rs) |
+
 ## Prerequisites
 
 All examples require:
