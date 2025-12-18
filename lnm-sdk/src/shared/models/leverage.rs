@@ -123,6 +123,94 @@ impl From<Leverage> for f64 {
     }
 }
 
+impl TryFrom<u8> for Leverage {
+    type Error = LeverageValidationError;
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        Self::try_from(value as f64)
+    }
+}
+
+impl TryFrom<u16> for Leverage {
+    type Error = LeverageValidationError;
+
+    fn try_from(value: u16) -> Result<Self, Self::Error> {
+        Self::try_from(value as f64)
+    }
+}
+
+impl TryFrom<u32> for Leverage {
+    type Error = LeverageValidationError;
+
+    fn try_from(value: u32) -> Result<Self, Self::Error> {
+        Self::try_from(value as f64)
+    }
+}
+
+impl TryFrom<u64> for Leverage {
+    type Error = LeverageValidationError;
+
+    fn try_from(value: u64) -> Result<Self, Self::Error> {
+        Self::try_from(value as f64)
+    }
+}
+
+impl TryFrom<i8> for Leverage {
+    type Error = LeverageValidationError;
+
+    fn try_from(value: i8) -> Result<Self, Self::Error> {
+        Self::try_from(value as f64)
+    }
+}
+
+impl TryFrom<i16> for Leverage {
+    type Error = LeverageValidationError;
+
+    fn try_from(value: i16) -> Result<Self, Self::Error> {
+        Self::try_from(value as f64)
+    }
+}
+
+impl TryFrom<i32> for Leverage {
+    type Error = LeverageValidationError;
+
+    fn try_from(leverage: i32) -> Result<Self, Self::Error> {
+        Self::try_from(leverage as f64)
+    }
+}
+
+impl TryFrom<i64> for Leverage {
+    type Error = LeverageValidationError;
+
+    fn try_from(value: i64) -> Result<Self, Self::Error> {
+        Self::try_from(value as f64)
+    }
+}
+
+impl TryFrom<usize> for Leverage {
+    type Error = LeverageValidationError;
+
+    fn try_from(value: usize) -> Result<Self, Self::Error> {
+        Self::try_from(value as f64)
+    }
+}
+
+impl TryFrom<isize> for Leverage {
+    type Error = LeverageValidationError;
+
+    fn try_from(value: isize) -> Result<Self, Self::Error> {
+        Self::try_from(value as f64)
+    }
+}
+
+impl TryFrom<f32> for Leverage {
+    type Error = LeverageValidationError;
+
+    fn try_from(value: f32) -> Result<Self, Self::Error> {
+        Self::try_from(value as f64)
+    }
+}
+
 impl TryFrom<f64> for Leverage {
     type Error = LeverageValidationError;
 
@@ -136,14 +224,6 @@ impl TryFrom<f64> for Leverage {
         }
 
         Ok(Leverage(value))
-    }
-}
-
-impl TryFrom<i32> for Leverage {
-    type Error = LeverageValidationError;
-
-    fn try_from(leverage: i32) -> Result<Self, Self::Error> {
-        Self::try_from(leverage as f64)
     }
 }
 
