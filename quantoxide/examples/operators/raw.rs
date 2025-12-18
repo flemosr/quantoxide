@@ -12,8 +12,10 @@ use quantoxide::{
 };
 
 // Uncomment to enable trade demo
-// use quantoxide::trade::Stoploss;
-// use lnm_sdk::api_v3::models::{Leverage, TradeSize};
+// use quantoxide::{
+//     models::{Leverage, TradeSize},
+//     trade::Stoploss,
+// };
 
 pub struct RawOperatorTemplate {
     trade_executor: OnceLock<Arc<dyn TradeExecutor>>,
