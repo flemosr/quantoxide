@@ -411,13 +411,13 @@ impl<T: TradeRunning + ?Sized> RunningTradesMap<T> {
     }
 
     /// Returns a reference to the trade and its trailing stoploss metadata for the given trade ID.
-    pub fn get_trade_by_id(&self, id: Uuid) -> Option<&(Arc<T>, Option<TradeTrailingStoploss>)> {
+    pub fn get_by_id(&self, id: Uuid) -> Option<&(Arc<T>, Option<TradeTrailingStoploss>)> {
         self.id_to_time
             .get(&id)
             .and_then(|creation_ts| self.trades.get(&(*creation_ts, id)))
     }
 
-    pub(super) fn get_trade_by_id_mut(
+    pub(super) fn get_by_id_mut(
         &mut self,
         id: Uuid,
     ) -> Option<&mut (Arc<T>, Option<TradeTrailingStoploss>)> {

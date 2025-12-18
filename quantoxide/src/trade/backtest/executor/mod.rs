@@ -366,7 +366,7 @@ impl TradeExecutor for SimulatedTradeExecutor {
             return Err(SimulatedTradeExecutorError::BalanceTooLow)?;
         }
 
-        let Some((trade, _)) = state_guard.running_map.get_trade_by_id_mut(trade_id) else {
+        let Some((trade, _)) = state_guard.running_map.get_by_id_mut(trade_id) else {
             return Err(SimulatedTradeExecutorError::TradeNotRunning { trade_id })?;
         };
 
@@ -383,7 +383,7 @@ impl TradeExecutor for SimulatedTradeExecutor {
 
         let market_price = Price::bounded(state_guard.market_price);
 
-        let Some((trade, _)) = state_guard.running_map.get_trade_by_id_mut(trade_id) else {
+        let Some((trade, _)) = state_guard.running_map.get_by_id_mut(trade_id) else {
             return Err(SimulatedTradeExecutorError::TradeNotRunning { trade_id })?;
         };
 

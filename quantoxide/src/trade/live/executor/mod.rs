@@ -322,8 +322,7 @@ impl TradeExecutor for LiveTradeExecutor {
 
         let trading_session = locked_ready_state.trading_session();
 
-        let Some((current_trade, _)) = trading_session.running_map().get_trade_by_id(trade_id)
-        else {
+        let Some((current_trade, _)) = trading_session.running_map().get_by_id(trade_id) else {
             return Err(ExecutorActionError::TradeNotRegistered { trade_id })?;
         };
 
@@ -358,8 +357,7 @@ impl TradeExecutor for LiveTradeExecutor {
 
         let trading_session = locked_ready_state.trading_session();
 
-        let Some((current_trade, _)) = trading_session.running_map().get_trade_by_id(trade_id)
-        else {
+        let Some((current_trade, _)) = trading_session.running_map().get_by_id(trade_id) else {
             return Err(ExecutorActionError::TradeNotRegistered { trade_id })?;
         };
 
