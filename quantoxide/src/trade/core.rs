@@ -426,6 +426,34 @@ impl<T: TradeRunning + ?Sized> RunningTradesMap<T> {
             .and_then(|creation_ts| self.trades.get_mut(&(*creation_ts, id)))
     }
 
+    /// Returns a reference to the trade and its trailing stoploss metadata for the given trade
+    /// reference.
+    pub fn get(
+        &self,
+        trade_ref: &TradeReference,
+    ) -> Option<&(Arc<T>, Option<TradeTrailingStoploss>)> {
+        self.trades.get(trade_ref)
+    }
+
+    /// Returns an iterator over trade references and their data in ascending chronological order
+    /// (oldest first).
+    pub fn iter(
+        &self,
+    ) -> impl Iterator<Item = (&TradeReference, &(Arc<T>, Option<TradeTrailingStoploss>))> {
+        self.trades.iter()
+    }
+
+    /// Returns an iterator over trade references in ascending chronological order (oldest first).
+    pub fn keys(&self) -> impl Iterator<Item = &TradeReference> {
+        self.trades.keys()
+    }
+
+    /// Returns an iterator over trades and their trailing stoploss metadata in ascending
+    /// chronological order (oldest first).
+    pub fn values(&self) -> impl Iterator<Item = &(Arc<T>, Option<TradeTrailingStoploss>)> {
+        self.trades.values()
+    }
+
     /// Returns an iterator over trades in descending chronological order (newest first).
     pub fn trades_desc(&self) -> impl Iterator<Item = &(Arc<T>, Option<TradeTrailingStoploss>)> {
         self.trades.iter().rev().map(|(_, trade_tuple)| trade_tuple)
@@ -465,6 +493,22 @@ impl<T: TradeRunning + ?Sized> Clone for RunningTradesMap<T> {
             trades: self.trades.clone(),
             id_to_time: self.id_to_time.clone(),
         }
+    }
+}
+
+impl<'a, T: TradeRunning + ?Sized> IntoIterator for &'a RunningTradesMap<T> {
+    type Item = (
+        &'a TradeReference,
+        &'a (Arc<T>, Option<TradeTrailingStoploss>),
+    );
+    type IntoIter = std::collections::btree_map::Iter<
+        'a,
+        TradeReference,
+        (Arc<T>, Option<TradeTrailingStoploss>),
+    >;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.trades.iter()
     }
 }
 
