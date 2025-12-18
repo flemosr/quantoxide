@@ -32,10 +32,13 @@ quantoxide = "<quantoxide-version>"
 
 ### Requirements
 
-A PostgreSQL database instance is required to store historical price data. Quick setup instructions
-with Docker are available in the
-[examples `README`](https://github.com/flemosr/quantoxide/blob/master/quantoxide/examples/README.md)
-file.
+A PostgreSQL database instance is required to store historical price data. 
+
+**Setup instructions and code templates are available in the
+[examples `README`](https://github.com/flemosr/quantoxide/blob/master/quantoxide/examples/README.md)**,
+which includes:
+- Quick Docker setup for PostgreSQL
+- **Ready-to-use code templates** for Trade Operators, synchronization, backtesting, and live trading
 
 ## Usage
 
