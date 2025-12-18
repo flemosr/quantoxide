@@ -170,10 +170,10 @@ impl TradeCore for Trade {
 ///
 /// ```no_run
 /// # async fn example(rest: lnm_sdk::api_v3::RestClient) -> Result<(), Box<dyn std::error::Error>> {
-/// use lnm_sdk::api_v3::models::{
-///     Trade, TradeExecution, TradeSide, TradeSize, Leverage, Margin, Price
+/// use quantoxide::{
+///     models::{Trade, TradeExecution, TradeSide, TradeSize, Leverage, Margin, Price},
+///     trade::TradeRunning,
 /// };
-/// use quantoxide::trade::TradeRunning;
 ///
 /// let trade: Trade = rest
 ///     .futures_isolated
@@ -206,11 +206,10 @@ pub trait TradeRunning: crate::sealed::Sealed + TradeCore {
     /// # Examples
     ///
     /// ```no_run
-    /// # fn example(trade: lnm_sdk::api_v3::models::Trade) -> Result<(), Box<dyn std::error::Error>> {
+    /// # fn example(trade: quantoxide::models::Trade) -> Result<(), Box<dyn std::error::Error>> {
     /// // Assuming `trade` impl `TradeRunning`
     ///
-    /// use lnm_sdk::api_v3::models::Price;
-    /// use quantoxide::trade::TradeRunning;
+    /// use quantoxide::{models::Price, trade::TradeRunning};
     ///
     /// let market_price = Price::try_from(101_000.0).unwrap();
     /// let pl = trade.est_pl(market_price);
@@ -262,11 +261,10 @@ pub trait TradeRunning: crate::sealed::Sealed + TradeCore {
     /// # Examples
     ///
     /// ```no_run
-    /// # fn example(trade: lnm_sdk::api_v3::models::Trade) -> Result<(), Box<dyn std::error::Error>> {
+    /// # fn example(trade: quantoxide::models::Trade) -> Result<(), Box<dyn std::error::Error>> {
     /// // Assuming `trade` impl `TradeRunning`
     ///
-    /// use lnm_sdk::api_v3::models::Price;
-    /// use quantoxide::trade::TradeRunning;
+    /// use quantoxide::{models::Price, trade::TradeRunning};
     ///
     /// let market_price = Price::try_from(101_000.0).unwrap();
     /// let max_withdrawal = trade.est_max_cash_in(market_price);
@@ -293,11 +291,10 @@ pub trait TradeRunning: crate::sealed::Sealed + TradeCore {
     /// # Examples
     ///
     /// ```no_run
-    /// # fn example(trade: lnm_sdk::api_v3::models::Trade) -> Result<(), Box<dyn std::error::Error>>  {
+    /// # fn example(trade: quantoxide::models::Trade) -> Result<(), Box<dyn std::error::Error>>  {
     /// // Assuming `trade` impl `TradeRunning`
     ///
-    /// use lnm_sdk::api_v3::models::Price;
-    /// use quantoxide::trade::TradeRunning;
+    /// use quantoxide::{models::Price, trade::TradeRunning};
     ///
     /// let target_liquidation = Price::try_from(95_000.0).unwrap();
     /// let market_price = Price::try_from(100_000.0).unwrap();
