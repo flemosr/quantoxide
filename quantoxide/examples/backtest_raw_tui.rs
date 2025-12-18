@@ -73,7 +73,7 @@ async fn main() -> Result<()> {
     // iterations will be processed per second, excessive per-iteration logging would create a
     // severe performance bottleneck.
 
-    let operator = RawOperatorTemplate::new(None);
+    let operator = RawOperatorTemplate::new();
 
     let backtest_engine = BacktestEngine::with_raw_operator(
         BacktestConfig::default(),
