@@ -184,6 +184,30 @@ impl From<Quantity> for f64 {
     }
 }
 
+impl TryFrom<u8> for Quantity {
+    type Error = QuantityValidationError;
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        Self::try_from(value as u64)
+    }
+}
+
+impl TryFrom<u16> for Quantity {
+    type Error = QuantityValidationError;
+
+    fn try_from(value: u16) -> Result<Self, Self::Error> {
+        Self::try_from(value as u64)
+    }
+}
+
+impl TryFrom<u32> for Quantity {
+    type Error = QuantityValidationError;
+
+    fn try_from(value: u32) -> Result<Self, Self::Error> {
+        Self::try_from(value as u64)
+    }
+}
+
 impl TryFrom<u64> for Quantity {
     type Error = QuantityValidationError;
 
@@ -200,11 +224,59 @@ impl TryFrom<u64> for Quantity {
     }
 }
 
+impl TryFrom<i8> for Quantity {
+    type Error = QuantityValidationError;
+
+    fn try_from(value: i8) -> Result<Self, Self::Error> {
+        Self::try_from(value.max(0) as u64)
+    }
+}
+
+impl TryFrom<i16> for Quantity {
+    type Error = QuantityValidationError;
+
+    fn try_from(value: i16) -> Result<Self, Self::Error> {
+        Self::try_from(value.max(0) as u64)
+    }
+}
+
 impl TryFrom<i32> for Quantity {
     type Error = QuantityValidationError;
 
     fn try_from(quantity: i32) -> Result<Self, Self::Error> {
         Self::try_from(quantity.max(0) as u64)
+    }
+}
+
+impl TryFrom<i64> for Quantity {
+    type Error = QuantityValidationError;
+
+    fn try_from(value: i64) -> Result<Self, Self::Error> {
+        Self::try_from(value.max(0) as u64)
+    }
+}
+
+impl TryFrom<usize> for Quantity {
+    type Error = QuantityValidationError;
+
+    fn try_from(value: usize) -> Result<Self, Self::Error> {
+        Self::try_from(value as u64)
+    }
+}
+
+impl TryFrom<isize> for Quantity {
+    type Error = QuantityValidationError;
+
+    fn try_from(value: isize) -> Result<Self, Self::Error> {
+        Self::try_from(value.max(0) as u64)
+    }
+}
+
+impl TryFrom<f32> for Quantity {
+    type Error = QuantityValidationError;
+
+    fn try_from(value: f32) -> Result<Self, Self::Error> {
+        Self::try_from(value as f64)
     }
 }
 
