@@ -244,6 +244,30 @@ impl From<NonZeroU64> for Margin {
     }
 }
 
+impl TryFrom<u8> for Margin {
+    type Error = MarginValidationError;
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        Self::try_from(value as u64)
+    }
+}
+
+impl TryFrom<u16> for Margin {
+    type Error = MarginValidationError;
+
+    fn try_from(value: u16) -> Result<Self, Self::Error> {
+        Self::try_from(value as u64)
+    }
+}
+
+impl TryFrom<u32> for Margin {
+    type Error = MarginValidationError;
+
+    fn try_from(value: u32) -> Result<Self, Self::Error> {
+        Self::try_from(value as u64)
+    }
+}
+
 impl TryFrom<u64> for Margin {
     type Error = MarginValidationError;
 
@@ -256,11 +280,59 @@ impl TryFrom<u64> for Margin {
     }
 }
 
+impl TryFrom<i8> for Margin {
+    type Error = MarginValidationError;
+
+    fn try_from(value: i8) -> Result<Self, Self::Error> {
+        Self::try_from(value.max(0) as u64)
+    }
+}
+
+impl TryFrom<i16> for Margin {
+    type Error = MarginValidationError;
+
+    fn try_from(value: i16) -> Result<Self, Self::Error> {
+        Self::try_from(value.max(0) as u64)
+    }
+}
+
 impl TryFrom<i32> for Margin {
     type Error = MarginValidationError;
 
     fn try_from(value: i32) -> Result<Self, Self::Error> {
         Self::try_from(value.max(0) as u64)
+    }
+}
+
+impl TryFrom<i64> for Margin {
+    type Error = MarginValidationError;
+
+    fn try_from(value: i64) -> Result<Self, Self::Error> {
+        Self::try_from(value.max(0) as u64)
+    }
+}
+
+impl TryFrom<usize> for Margin {
+    type Error = MarginValidationError;
+
+    fn try_from(value: usize) -> Result<Self, Self::Error> {
+        Self::try_from(value as u64)
+    }
+}
+
+impl TryFrom<isize> for Margin {
+    type Error = MarginValidationError;
+
+    fn try_from(value: isize) -> Result<Self, Self::Error> {
+        Self::try_from(value.max(0) as u64)
+    }
+}
+
+impl TryFrom<f32> for Margin {
+    type Error = MarginValidationError;
+
+    fn try_from(value: f32) -> Result<Self, Self::Error> {
+        Self::try_from(value as f64)
     }
 }
 
