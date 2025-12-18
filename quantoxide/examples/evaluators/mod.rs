@@ -1,5 +1,8 @@
 //! Template implementation of a `SignalActionEvaluator`.
 
+// Remove during implementation
+#![allow(unused)]
+
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -18,18 +21,22 @@ pub struct SignalEvaluatorTemplate {
 }
 
 impl SignalEvaluatorTemplate {
-    pub fn configure(logger: Option<Arc<dyn TuiLogger>>) -> ConfiguredSignalEvaluator {
+    pub fn new() -> Self {
+        Self { logger: None }
+    }
+
+    pub fn with_logger(logger: Arc<dyn TuiLogger>) -> Self {
+        Self {
+            logger: Some(logger),
+        }
+    }
+
+    pub fn configure(self) -> ConfiguredSignalEvaluator {
         let name = SignalName::new("my-sinal-name").expect("name is valid");
         let min_iteration_interval = MinIterationInterval::MIN; // Minimum iteration interval of 5 seconds
         let lookback = LookbackPeriod::MIN; // Last 5 candles (1 min resolution)
-        let action_evaluator = Self { logger };
 
-        SignalEvaluator::new_boxed(
-            name,
-            min_iteration_interval,
-            Some(lookback),
-            action_evaluator,
-        )
+        SignalEvaluator::new_boxed(name, min_iteration_interval, Some(lookback), self)
     }
 
     #[allow(dead_code)]
