@@ -25,7 +25,6 @@ This project's MSRV is `1.88`.
 
 ```toml
 [dependencies]
-lnm-sdk = "<lnm-sdk-version>"
 quantoxide = "<quantoxide-version>"
 ```
 
