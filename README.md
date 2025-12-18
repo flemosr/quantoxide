@@ -3,8 +3,9 @@
 A Rust framework for developing, backtesting, and deploying algorithmic trading strategies for
 Bitcoin futures.
 
-This crate is built on top of [`lnm-sdk`], using the [LN Markets] API. It provides a complete
-workflow from strategy development to live trading, with local historical data testing capabilities.
+This crate is built on top of [`lnm-sdk`](https://github.com/flemosr/quantoxide/tree/master/lnm-sdk),
+using the [LN Markets](https://lnmarkets.com/) API. It provides a complete workflow from strategy
+development to live trading, with local historical data testing capabilities.
 
 > **Disclaimer**: This is alpha software provided "as is" without warranty of any kind. Understand
 > that bugs may result in loss of assets. Use at your own risk.
@@ -13,7 +14,8 @@ workflow from strategy development to live trading, with local historical data t
 [![Documentation Badge](https://docs.rs/quantoxide/badge.svg)](https://docs.rs/quantoxide/latest/quantoxide/)
 [![License Badge](https://img.shields.io/crates/l/quantoxide)](https://github.com/flemosr/quantoxide/blob/master/quantoxide/LICENSE)
 
-[Examples] | [Docs]
+[Examples](https://github.com/flemosr/quantoxide/blob/master/quantoxide/examples) |
+[Docs](https://docs.rs/quantoxide/latest/quantoxide/)
 
 ## Getting Started
 
@@ -31,7 +33,9 @@ quantoxide = "<quantoxide-version>"
 ### Requirements
 
 A PostgreSQL database instance is required to store historical price data. Quick setup instructions
-with Docker are available in the [examples `README`] file.
+with Docker are available in the
+[examples `README`](https://github.com/flemosr/quantoxide/blob/master/quantoxide/examples/README.md)
+file.
 
 ## Usage
 
@@ -96,25 +100,27 @@ obtain API v3 keys. When creating API keys for live trading, they should be conf
 granular permissions following the *principle of least privilege*.
 
 **Recommended API key permissions for live trading**:
-+ `account:read` (to view account balance)
-+ `futures:isolated:read` (view isolated margin positions)
-+ `futures:isolated:write` (create and manage isolated positions)
++ `account:read` to view account balance
++ `futures:isolated:read` to view isolated margin positions
++ `futures:isolated:write` to create and manage isolated positions
 
 ## Current Limitations
 
 This project is in active development and currently has the following limitations:
 
 - **Only isolated futures trades are supported**. Cross margin trades are not supported yet.
-- **Backtesting does not yet take [funding fees] into account**. This will generally overstate the
-  returns of long positions held across funding events, and understate the returns of short
-  positions.
+- **Backtesting does not yet take
+  [funding fees](https://docs.lnmarkets.com/resources/futures/#funding-fees) into account**. This
+  will generally overstate the returns of long positions held across funding events, and understate
+  the returns of short positions.
 - **Only candles with 1-minute resolution are currently supported** by Trade Operators and Signal
   Evaluators (additional resolutions planned).
   
 ## Examples
 
-Complete runnable examples are available in the [`quantoxide/examples`] directory. The snippets
-below demonstrate the core components of the framework.
+Complete runnable examples are available in the
+[`quantoxide/examples`](https://github.com/flemosr/quantoxide/tree/master/quantoxide/examples)
+directory. The snippets below demonstrate the core components of the framework.
 
 > **Note**: `println!` and other `stdout`/`stderr` outputs should be avoided when TUIs are running,
 > since they would disrupt rendering. `TuiLogger::log` should be used instead, as implemented in the
@@ -155,8 +161,10 @@ impl RawOperator for MyOperator {
 }
 ```
 
-See the [`operators/raw` example] for a complete template. For signal-based operators, see the
-[`operators/signal` example].
+See the
+[`operators/raw` example](https://github.com/flemosr/quantoxide/blob/master/quantoxide/examples/operators/raw.rs)
+for a complete template. For signal-based operators, see the
+[`operators/signal` example](https://github.com/flemosr/quantoxide/blob/master/quantoxide/examples/operators/signal.rs).
 
 ### Synchronization TUI
 
@@ -187,7 +195,8 @@ How far back to fetch price history data can be configured with
       width="800">
 </p>
 
-For a complete implementation, see the [`sync_tui` example].
+For a complete implementation, see the
+[`sync_tui` example](https://github.com/flemosr/quantoxide/blob/master/quantoxide/examples/sync_tui.rs).
 
 ### Backtesting TUI
 
@@ -224,8 +233,11 @@ backtest_tui.until_stopped().await;
       width="800">
 </p>
 
-For a complete implementation with a raw operator, see the [`backtest_raw_tui` example]. Or see the
-[`backtest_signal_tui` example] for a signal-based approach.
+For a complete implementation with a raw operator, see the
+[`backtest_raw_tui` example](https://github.com/flemosr/quantoxide/blob/master/quantoxide/examples/backtest_raw_tui.rs).
+Or see the
+[`backtest_signal_tui` example](https://github.com/flemosr/quantoxide/blob/master/quantoxide/examples/backtest_signal_tui.rs)
+for a signal-based approach.
 
 ### Live Trading TUI
 
@@ -263,30 +275,18 @@ live_tui.until_stopped().await;
       width="800">
 </p>
 
-For a complete implementation with a raw operator, see the [`live_raw_tui` example]. Or see the
-[`live_signal_tui` example] for a signal-based approach.
+For a complete implementation with a raw operator, see the
+[`live_raw_tui` example](https://github.com/flemosr/quantoxide/blob/master/quantoxide/examples/live_raw_tui.rs).
+Or see the
+[`live_signal_tui` example](https://github.com/flemosr/quantoxide/blob/master/quantoxide/examples/live_signal_tui.rs)
+for a signal-based approach.
 
 ## License
 
-This project is licensed under the [Apache License (Version 2.0)].
+This project is licensed under the
+[Apache License (Version 2.0)](https://github.com/flemosr/quantoxide/blob/master/quantoxide/LICENSE).
 
 ## Contribution
 
 Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion by
 you, shall be licensed as Apache-2.0, without any additional terms or conditions.
-
-[`lnm-sdk`]: https://github.com/flemosr/quantoxide/tree/master/lnm-sdk
-[LN Markets]: https://lnmarkets.com/
-[Examples]: https://github.com/flemosr/quantoxide/blob/master/quantoxide/examples
-[Docs]: https://docs.rs/quantoxide/latest/quantoxide/
-[examples `README`]: https://github.com/flemosr/quantoxide/blob/master/quantoxide/examples/README.md
-[funding fees]: https://docs.lnmarkets.com/resources/futures/#funding-fees
-[`quantoxide/examples`]: https://github.com/flemosr/quantoxide/tree/master/quantoxide/examples
-[`operators/raw` example]: https://github.com/flemosr/quantoxide/blob/master/quantoxide/examples/operators/raw.rs
-[`operators/signal` example]: https://github.com/flemosr/quantoxide/blob/master/quantoxide/examples/operators/signal.rs
-[`sync_tui` example]: https://github.com/flemosr/quantoxide/blob/master/quantoxide/examples/sync_tui.rs
-[`backtest_raw_tui` example]: https://github.com/flemosr/quantoxide/blob/master/quantoxide/examples/backtest_raw_tui.rs
-[`backtest_signal_tui` example]: https://github.com/flemosr/quantoxide/blob/master/quantoxide/examples/backtest_signal_tui.rs
-[`live_raw_tui` example]: https://github.com/flemosr/quantoxide/blob/master/quantoxide/examples/live_raw_tui.rs
-[`live_signal_tui` example]: https://github.com/flemosr/quantoxide/blob/master/quantoxide/examples/live_signal_tui.rs
-[Apache License (Version 2.0)]: https://github.com/flemosr/quantoxide/blob/master/quantoxide/LICENSE
