@@ -6,9 +6,12 @@ use uuid::Uuid;
 
 use lnm_sdk::{api_v2::models::PriceTick, api_v3::models::OhlcCandle};
 
-use crate::{db::models::OhlcCandleRow, trade::TradeTrailingStoploss};
+use crate::trade::TradeTrailingStoploss;
 
-use super::{error::Result, models::PriceTickRow};
+use super::{
+    error::Result,
+    models::{OhlcCandleRow, PriceTickRow},
+};
 
 #[async_trait]
 pub(crate) trait PriceTicksRepository: Send + Sync {
