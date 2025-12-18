@@ -29,7 +29,7 @@ lnm-sdk = "<lnm-sdk-version>"
 This SDK provides strong type-safety with validated types for all parameters used in trade 
 operations. All necessary models can be imported via the `models` mod of the API version in question.
 
-```rust
+```rust,ignore
 // When working with API v3
 use lnm_sdk::api_v3::{RestClient, RestClientConfig, models::*, error::*};
 
@@ -46,7 +46,7 @@ Complete runnable examples are available in the [`lnm-sdk/examples`] directory.
 
 ### REST API v3 - Public
 
-```rust
+```rust,ignore
 use lnm_sdk::api_v3::{RestClient, RestClientConfig};
 
 //...
@@ -69,7 +69,7 @@ For more complete public API examples, see the [`v3_rest_public` example].
 
 ### REST API v3 - Authenticated
 
-```rust
+```rust,ignore
 use lnm_sdk::api_v3::{
     RestClient, RestClientConfig,
     models::{Leverage, Quantity, TradeExecution, TradeSide, TradeSize},
@@ -145,7 +145,7 @@ The SDK implements the **WebSocket API** for real-time market data streaming usi
   - Prevents conflicting operations on the same channel
   - State tracking for subscribe/unsubscribe requests with server confirmation
 
-```rust
+```rust,ignore
 use lnm_sdk::api_v2::{WebSocketChannel, WebSocketClient, WebSocketClientConfig, WebSocketUpdate};
 
 // ...
