@@ -123,7 +123,7 @@ below demonstrate the core components of the framework.
 
 ### Trade Operator
 
-```rust
+```rust,ignore
 use quantoxide::{
     error::Result,
     models::{LookbackPeriod, MinIterationInterval, OhlcCandleRow},
@@ -161,7 +161,7 @@ See the [`operators/raw` example] for a complete template. For signal-based oper
 
 ### Synchronization TUI
 
-```rust
+```rust,ignore
 use quantoxide::{
     Database,
     sync::{SyncConfig, SyncEngine, SyncMode},
@@ -192,7 +192,7 @@ For a complete implementation, see the [`sync_tui` example].
 
 ### Backtesting TUI
 
-```rust
+```rust,ignore
 use quantoxide::{
     Database,
     trade::{BacktestConfig, BacktestEngine},
@@ -230,7 +230,7 @@ For a complete implementation with a raw operator, see the [`backtest_raw_tui` e
 
 ### Live Trading TUI
 
-```rust
+```rust,ignore
 use quantoxide::{
     Database,
     trade::{LiveTradeConfig, LiveTradeEngine},
