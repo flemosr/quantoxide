@@ -28,7 +28,8 @@ Live trading examples require:
 - `LNM_API_V3_PASSPHRASE` - The LN Markets API v3 passphrase
 
 These environment variables should be set, or a `.env` file should be added in the project root.
-A `.env.template` file is available.
+A [`.env.template`](https://github.com/flemosr/quantoxide/blob/master/.env.template) file is
+available.
 
 ### Setting up PostgreSQL with Docker
 
