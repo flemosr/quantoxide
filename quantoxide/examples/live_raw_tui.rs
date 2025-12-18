@@ -39,7 +39,7 @@ async fn main() -> Result<()> {
         .log("Database ready. Initializing `LiveTradeEngine`...".into())
         .await?;
 
-    let operator = RawOperatorTemplate::new(Some(live_tui.clone())); // With TUI logger
+    let operator = RawOperatorTemplate::with_logger(live_tui.clone()); // With TUI logger
 
     let live_engine = LiveTradeEngine::with_raw_operator(
         LiveTradeConfig::default(),
