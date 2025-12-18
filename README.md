@@ -49,10 +49,6 @@ Trade operators can be implemented in two ways:
 - **Signal-based operators** delegate OHLC processing to a Signal Evaluator and only handle signal
   interpretation and trade execution (useful for separating analysis from trading logic)
 
-> **Note**: `println!` and other `stdout`/`stderr` outputs should be avoided in `iterate`/`evaluate`
-> methods when using the TUI abstractions, since they would disrupt rendering. `TuiLogger` should be
-> used instead, as implemented in the [`quantoxide/examples`] directory.
-
 ### Synchronization
 
 The **Synchronization** process is responsible for determining the current state of the PostgreSQL
@@ -120,6 +116,10 @@ This project is in active development and currently has the following limitation
 
 Complete runnable examples are available in the [`quantoxide/examples`] directory. The snippets
 below demonstrate the core components of the framework.
+
+> **Note**: `println!` and other `stdout`/`stderr` outputs should be avoided when TUIs are running,
+> since they would disrupt rendering. `TuiLogger::log` should be used instead, as implemented in the
+> complete examples.
 
 ### Trade Operator
 
