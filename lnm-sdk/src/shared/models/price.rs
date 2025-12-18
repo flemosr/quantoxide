@@ -91,6 +91,94 @@ impl PercentageCapped {
     }
 }
 
+impl TryFrom<u8> for PercentageCapped {
+    type Error = PercentageCappedValidationError;
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        Self::try_from(value as f64)
+    }
+}
+
+impl TryFrom<u16> for PercentageCapped {
+    type Error = PercentageCappedValidationError;
+
+    fn try_from(value: u16) -> Result<Self, Self::Error> {
+        Self::try_from(value as f64)
+    }
+}
+
+impl TryFrom<u32> for PercentageCapped {
+    type Error = PercentageCappedValidationError;
+
+    fn try_from(value: u32) -> Result<Self, Self::Error> {
+        Self::try_from(value as f64)
+    }
+}
+
+impl TryFrom<u64> for PercentageCapped {
+    type Error = PercentageCappedValidationError;
+
+    fn try_from(value: u64) -> Result<Self, Self::Error> {
+        Self::try_from(value as f64)
+    }
+}
+
+impl TryFrom<i8> for PercentageCapped {
+    type Error = PercentageCappedValidationError;
+
+    fn try_from(value: i8) -> Result<Self, Self::Error> {
+        Self::try_from(value as f64)
+    }
+}
+
+impl TryFrom<i16> for PercentageCapped {
+    type Error = PercentageCappedValidationError;
+
+    fn try_from(value: i16) -> Result<Self, Self::Error> {
+        Self::try_from(value as f64)
+    }
+}
+
+impl TryFrom<i32> for PercentageCapped {
+    type Error = PercentageCappedValidationError;
+
+    fn try_from(value: i32) -> Result<Self, Self::Error> {
+        Self::try_from(value as f64)
+    }
+}
+
+impl TryFrom<i64> for PercentageCapped {
+    type Error = PercentageCappedValidationError;
+
+    fn try_from(value: i64) -> Result<Self, Self::Error> {
+        Self::try_from(value as f64)
+    }
+}
+
+impl TryFrom<usize> for PercentageCapped {
+    type Error = PercentageCappedValidationError;
+
+    fn try_from(value: usize) -> Result<Self, Self::Error> {
+        Self::try_from(value as f64)
+    }
+}
+
+impl TryFrom<isize> for PercentageCapped {
+    type Error = PercentageCappedValidationError;
+
+    fn try_from(value: isize) -> Result<Self, Self::Error> {
+        Self::try_from(value as f64)
+    }
+}
+
+impl TryFrom<f32> for PercentageCapped {
+    type Error = PercentageCappedValidationError;
+
+    fn try_from(value: f32) -> Result<Self, Self::Error> {
+        Self::try_from(value as f64)
+    }
+}
+
 impl TryFrom<f64> for PercentageCapped {
     type Error = PercentageCappedValidationError;
 
@@ -104,14 +192,6 @@ impl TryFrom<f64> for PercentageCapped {
         }
 
         Ok(Self(value))
-    }
-}
-
-impl TryFrom<i32> for PercentageCapped {
-    type Error = PercentageCappedValidationError;
-
-    fn try_from(value: i32) -> Result<Self, Self::Error> {
-        Self::try_from(value as f64)
     }
 }
 
@@ -227,6 +307,94 @@ impl Percentage {
     }
 }
 
+impl TryFrom<u8> for Percentage {
+    type Error = PercentageValidationError;
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        Self::try_from(value as f64)
+    }
+}
+
+impl TryFrom<u16> for Percentage {
+    type Error = PercentageValidationError;
+
+    fn try_from(value: u16) -> Result<Self, Self::Error> {
+        Self::try_from(value as f64)
+    }
+}
+
+impl TryFrom<u32> for Percentage {
+    type Error = PercentageValidationError;
+
+    fn try_from(value: u32) -> Result<Self, Self::Error> {
+        Self::try_from(value as f64)
+    }
+}
+
+impl TryFrom<u64> for Percentage {
+    type Error = PercentageValidationError;
+
+    fn try_from(value: u64) -> Result<Self, Self::Error> {
+        Self::try_from(value as f64)
+    }
+}
+
+impl TryFrom<i8> for Percentage {
+    type Error = PercentageValidationError;
+
+    fn try_from(value: i8) -> Result<Self, Self::Error> {
+        Self::try_from(value as f64)
+    }
+}
+
+impl TryFrom<i16> for Percentage {
+    type Error = PercentageValidationError;
+
+    fn try_from(value: i16) -> Result<Self, Self::Error> {
+        Self::try_from(value as f64)
+    }
+}
+
+impl TryFrom<i32> for Percentage {
+    type Error = PercentageValidationError;
+
+    fn try_from(value: i32) -> Result<Self, Self::Error> {
+        Self::try_from(value as f64)
+    }
+}
+
+impl TryFrom<i64> for Percentage {
+    type Error = PercentageValidationError;
+
+    fn try_from(value: i64) -> Result<Self, Self::Error> {
+        Self::try_from(value as f64)
+    }
+}
+
+impl TryFrom<usize> for Percentage {
+    type Error = PercentageValidationError;
+
+    fn try_from(value: usize) -> Result<Self, Self::Error> {
+        Self::try_from(value as f64)
+    }
+}
+
+impl TryFrom<isize> for Percentage {
+    type Error = PercentageValidationError;
+
+    fn try_from(value: isize) -> Result<Self, Self::Error> {
+        Self::try_from(value as f64)
+    }
+}
+
+impl TryFrom<f32> for Percentage {
+    type Error = PercentageValidationError;
+
+    fn try_from(value: f32) -> Result<Self, Self::Error> {
+        Self::try_from(value as f64)
+    }
+}
+
 impl TryFrom<f64> for Percentage {
     type Error = PercentageValidationError;
 
@@ -240,14 +408,6 @@ impl TryFrom<f64> for Percentage {
         }
 
         Ok(Self(value))
-    }
-}
-
-impl TryFrom<i32> for Percentage {
-    type Error = PercentageValidationError;
-
-    fn try_from(value: i32) -> Result<Self, Self::Error> {
-        Self::try_from(value as f64)
     }
 }
 
@@ -501,6 +661,94 @@ impl From<Price> for f64 {
     }
 }
 
+impl TryFrom<u8> for Price {
+    type Error = PriceValidationError;
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        Self::try_from(value as f64)
+    }
+}
+
+impl TryFrom<u16> for Price {
+    type Error = PriceValidationError;
+
+    fn try_from(value: u16) -> Result<Self, Self::Error> {
+        Self::try_from(value as f64)
+    }
+}
+
+impl TryFrom<u32> for Price {
+    type Error = PriceValidationError;
+
+    fn try_from(value: u32) -> Result<Self, Self::Error> {
+        Self::try_from(value as f64)
+    }
+}
+
+impl TryFrom<u64> for Price {
+    type Error = PriceValidationError;
+
+    fn try_from(value: u64) -> Result<Self, Self::Error> {
+        Self::try_from(value as f64)
+    }
+}
+
+impl TryFrom<i8> for Price {
+    type Error = PriceValidationError;
+
+    fn try_from(value: i8) -> Result<Self, Self::Error> {
+        Self::try_from(value as f64)
+    }
+}
+
+impl TryFrom<i16> for Price {
+    type Error = PriceValidationError;
+
+    fn try_from(value: i16) -> Result<Self, Self::Error> {
+        Self::try_from(value as f64)
+    }
+}
+
+impl TryFrom<i32> for Price {
+    type Error = PriceValidationError;
+
+    fn try_from(value: i32) -> Result<Self, Self::Error> {
+        Self::try_from(value as f64)
+    }
+}
+
+impl TryFrom<i64> for Price {
+    type Error = PriceValidationError;
+
+    fn try_from(value: i64) -> Result<Self, Self::Error> {
+        Self::try_from(value as f64)
+    }
+}
+
+impl TryFrom<usize> for Price {
+    type Error = PriceValidationError;
+
+    fn try_from(value: usize) -> Result<Self, Self::Error> {
+        Self::try_from(value as f64)
+    }
+}
+
+impl TryFrom<isize> for Price {
+    type Error = PriceValidationError;
+
+    fn try_from(value: isize) -> Result<Self, Self::Error> {
+        Self::try_from(value as f64)
+    }
+}
+
+impl TryFrom<f32> for Price {
+    type Error = PriceValidationError;
+
+    fn try_from(value: f32) -> Result<Self, Self::Error> {
+        Self::try_from(value as f64)
+    }
+}
+
 impl TryFrom<f64> for Price {
     type Error = PriceValidationError;
 
@@ -519,22 +767,6 @@ impl TryFrom<f64> for Price {
         }
 
         Ok(Price(value))
-    }
-}
-
-impl TryFrom<u64> for Price {
-    type Error = PriceValidationError;
-
-    fn try_from(value: u64) -> Result<Self, Self::Error> {
-        Self::try_from(value as f64)
-    }
-}
-
-impl TryFrom<i32> for Price {
-    type Error = PriceValidationError;
-
-    fn try_from(value: i32) -> Result<Self, Self::Error> {
-        Self::try_from(value as f64)
     }
 }
 
