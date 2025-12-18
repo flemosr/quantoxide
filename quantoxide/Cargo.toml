@@ -8,7 +8,7 @@ description = """
 Rust framework for developing, backtesting, and deploying Bitcoin futures trading strategies.
 """
 documentation = "https://docs.rs/quantoxide"
-readme = "../README.md"
+readme = "README.md"
 homepage = "https://github.com/flemosr/quantoxide"
 repository = "https://github.com/flemosr/quantoxide"
 license = "Apache-2.0"
