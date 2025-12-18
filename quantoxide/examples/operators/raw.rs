@@ -1,5 +1,8 @@
 //! Template implementation of a `RawOperator`.
 
+// Remove during implementation
+#![allow(unused)]
+
 use std::sync::{Arc, OnceLock};
 
 use async_trait::async_trait;
@@ -7,7 +10,7 @@ use async_trait::async_trait;
 use quantoxide::{
     error::Result,
     models::{LookbackPeriod, MinIterationInterval, OhlcCandleRow},
-    trade::{RawOperator, TradeExecutor},
+    trade::{RawOperator, TradeExecutor, TradingState},
     tui::TuiLogger,
 };
 
@@ -23,11 +26,17 @@ pub struct RawOperatorTemplate {
 }
 
 impl RawOperatorTemplate {
-    #[allow(dead_code)]
-    pub fn new(logger: Option<Arc<dyn TuiLogger>>) -> Box<Self> {
+    pub fn new() -> Box<Self> {
         Box::new(Self {
             trade_executor: OnceLock::new(),
-            logger,
+            logger: None,
+        })
+    }
+
+    pub fn with_logger(logger: Arc<dyn TuiLogger>) -> Box<Self> {
+        Box::new(Self {
+            trade_executor: OnceLock::new(),
+            logger: Some(logger),
         })
     }
 
@@ -38,7 +47,6 @@ impl RawOperatorTemplate {
         Err("trade executor was not set".into())
     }
 
-    #[allow(dead_code)]
     async fn log(&self, text: String) -> Result<()> {
         if let Some(logger) = self.logger.as_ref() {
             logger.log(text).await?;
@@ -67,7 +75,6 @@ impl RawOperator for RawOperatorTemplate {
         MinIterationInterval::MIN // Minimum iteration interval of 5 seconds
     }
 
-    #[allow(unused_variables)]
     async fn iterate(&self, candles: &[OhlcCandleRow]) -> Result<()> {
         let trade_executor = self.trade_executor()?;
 
@@ -79,7 +86,7 @@ impl RawOperator for RawOperatorTemplate {
 
         // To access the current trading state:
 
-        let trading_state = trade_executor.trading_state().await?;
+        let trading_state: TradingState = trade_executor.trading_state().await?;
         let balance = trading_state.balance();
         let market_price = trading_state.market_price();
         let running_trades_map = trading_state.running_map();
