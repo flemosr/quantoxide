@@ -46,6 +46,13 @@ pub mod error {
     pub use super::tui::error::TuiError;
     pub use super::util::PanicPayload;
 
+    // Re-export selected `lnm-sdk::api_v3` errors for convenience
+    pub use lnm_sdk::api_v3::error::{
+        FuturesIsolatedTradeRequestValidationError, LeverageValidationError, MarginValidationError,
+        PercentageCappedValidationError, PercentageValidationError, PriceValidationError,
+        QuantityValidationError, RestApiError, RestApiV3Error, TradeValidationError,
+    };
+
     /// Convenience general-purpose Result type alias.
     pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 }
@@ -53,6 +60,12 @@ pub mod error {
 pub mod models {
     pub use super::db::models::{OhlcCandleRow, PriceTickRow};
     pub use super::shared::{LookbackPeriod, MinIterationInterval};
+
+    // Re-export selected `lnm-sdk::api_v3` models and utils for convenience
+    pub use lnm_sdk::api_v3::models::{
+        Leverage, Margin, Percentage, PercentageCapped, Price, Quantity, SATS_PER_BTC, Trade,
+        TradeExecution, TradeExecutionType, TradeSide, TradeSize, TradeStatus, Uuid, trade_util,
+    };
 }
 
 mod sealed {
