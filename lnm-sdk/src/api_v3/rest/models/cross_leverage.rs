@@ -150,11 +150,83 @@ impl TryFrom<u64> for CrossLeverage {
     }
 }
 
+impl TryFrom<u8> for CrossLeverage {
+    type Error = CrossLeverageValidationError;
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        Self::try_from(value as u64)
+    }
+}
+
+impl TryFrom<u16> for CrossLeverage {
+    type Error = CrossLeverageValidationError;
+
+    fn try_from(value: u16) -> Result<Self, Self::Error> {
+        Self::try_from(value as u64)
+    }
+}
+
+impl TryFrom<u32> for CrossLeverage {
+    type Error = CrossLeverageValidationError;
+
+    fn try_from(value: u32) -> Result<Self, Self::Error> {
+        Self::try_from(value as u64)
+    }
+}
+
+impl TryFrom<i8> for CrossLeverage {
+    type Error = CrossLeverageValidationError;
+
+    fn try_from(value: i8) -> Result<Self, Self::Error> {
+        Self::try_from(value.max(0) as u64)
+    }
+}
+
+impl TryFrom<i16> for CrossLeverage {
+    type Error = CrossLeverageValidationError;
+
+    fn try_from(value: i16) -> Result<Self, Self::Error> {
+        Self::try_from(value.max(0) as u64)
+    }
+}
+
 impl TryFrom<i32> for CrossLeverage {
     type Error = CrossLeverageValidationError;
 
     fn try_from(value: i32) -> Result<Self, Self::Error> {
         Self::try_from(value.max(0) as u64)
+    }
+}
+
+impl TryFrom<i64> for CrossLeverage {
+    type Error = CrossLeverageValidationError;
+
+    fn try_from(value: i64) -> Result<Self, Self::Error> {
+        Self::try_from(value.max(0) as u64)
+    }
+}
+
+impl TryFrom<usize> for CrossLeverage {
+    type Error = CrossLeverageValidationError;
+
+    fn try_from(value: usize) -> Result<Self, Self::Error> {
+        Self::try_from(value as u64)
+    }
+}
+
+impl TryFrom<isize> for CrossLeverage {
+    type Error = CrossLeverageValidationError;
+
+    fn try_from(value: isize) -> Result<Self, Self::Error> {
+        Self::try_from(value.max(0) as u64)
+    }
+}
+
+impl TryFrom<f32> for CrossLeverage {
+    type Error = CrossLeverageValidationError;
+
+    fn try_from(value: f32) -> Result<Self, Self::Error> {
+        Self::try_from(value as f64)
     }
 }
 
