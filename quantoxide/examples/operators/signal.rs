@@ -1,5 +1,8 @@
 //! Template implementation of a `SignalOperator`.
 
+// Remove during implementation
+#![allow(unused)]
+
 use std::sync::{Arc, OnceLock};
 
 use async_trait::async_trait;
@@ -7,7 +10,7 @@ use async_trait::async_trait;
 use quantoxide::{
     error::Result,
     signal::Signal,
-    trade::{SignalOperator, TradeExecutor},
+    trade::{SignalOperator, TradeExecutor, TradingState},
     tui::TuiLogger,
 };
 
@@ -23,11 +26,17 @@ pub struct SignalOperatorTemplate {
 }
 
 impl SignalOperatorTemplate {
-    #[allow(dead_code)]
-    pub fn new(logger: Option<Arc<dyn TuiLogger>>) -> Box<Self> {
+    pub fn new() -> Box<Self> {
         Box::new(Self {
             trade_executor: OnceLock::new(),
-            logger,
+            logger: None,
+        })
+    }
+
+    pub fn with_logger(logger: Arc<dyn TuiLogger>) -> Box<Self> {
+        Box::new(Self {
+            trade_executor: OnceLock::new(),
+            logger: Some(logger),
         })
     }
 
@@ -56,7 +65,6 @@ impl SignalOperator for SignalOperatorTemplate {
         Ok(())
     }
 
-    #[allow(unused_variables)]
     async fn process_signal(&self, signal: &Signal) -> Result<()> {
         let trade_executor = self.trade_executor()?;
 
@@ -68,7 +76,7 @@ impl SignalOperator for SignalOperatorTemplate {
 
         // To access the current trading state:
 
-        let trading_state = trade_executor.trading_state().await?;
+        let trading_state: TradingState = trade_executor.trading_state().await?;
         let balance = trading_state.balance();
         let market_price = trading_state.market_price();
         let running_trades_map = trading_state.running_map();
