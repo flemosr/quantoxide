@@ -76,9 +76,9 @@ async fn main() -> Result<()> {
     // backtests. Since many iterations will be processed per second, excessive per-iteration
     // logging would create a severe performance bottleneck.
 
-    let evaluators = vec![SignalEvaluatorTemplate::configure(None)];
+    let evaluators = vec![SignalEvaluatorTemplate::new().configure()];
 
-    let operator = SignalOperatorTemplate::new(None);
+    let operator = SignalOperatorTemplate::new();
 
     let backtest_engine = BacktestEngine::with_signal_operator(
         BacktestConfig::default(),

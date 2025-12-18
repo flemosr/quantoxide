@@ -42,9 +42,9 @@ async fn main() -> Result<()> {
         .log("Database ready. Initializing `LiveTradeEngine`...".into())
         .await?;
 
-    let evaluators = vec![SignalEvaluatorTemplate::configure(Some(live_tui.clone()))]; // With TUI logger
+    let evaluators = vec![SignalEvaluatorTemplate::with_logger(live_tui.clone()).configure()]; // With TUI logger
 
-    let operator = SignalOperatorTemplate::new(Some(live_tui.clone())); // With TUI logger
+    let operator = SignalOperatorTemplate::with_logger(live_tui.clone()); // With TUI logger
 
     let live_engine = LiveTradeEngine::with_signal_operator(
         LiveTradeConfig::default(),
