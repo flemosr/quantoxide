@@ -279,6 +279,20 @@ impl LiveTui {
         }
     }
 
+    /// Logs a message to the TUI.
+    ///
+    /// Returns an error if the TUI is not running or if sending the log entry fails.
+    pub async fn log(&self, text: String) -> Result<()> {
+        self.status_manager.require_running()?;
+
+        // An error here would be an edge case
+
+        self.ui_tx
+            .send(LiveUiMessage::LogEntry(text))
+            .await
+            .map_err(|e| TuiError::LiveTuiSendFailed(Box::new(e)))
+    }
+
     /// Returns this TUI as a [`TuiLogger`] trait object.
     ///
     /// This is useful for passing the TUI to components that accept a generic logger.
@@ -290,14 +304,7 @@ impl LiveTui {
 #[async_trait]
 impl TuiLogger for LiveTui {
     async fn log(&self, log_entry: String) -> Result<()> {
-        self.status_manager.require_running()?;
-
-        // An error here would be an edge case
-
-        self.ui_tx
-            .send(LiveUiMessage::LogEntry(log_entry))
-            .await
-            .map_err(|e| TuiError::LiveTuiSendFailed(Box::new(e)))
+        self.log(log_entry).await
     }
 }
 
