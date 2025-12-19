@@ -258,6 +258,13 @@ impl SyncTui {
             time::sleep(self.event_check_interval).await;
         }
     }
+
+    /// Returns this TUI as a [`TuiLogger`] trait object.
+    ///
+    /// This is useful for passing the TUI to components that accept a generic logger.
+    pub fn as_logger(self: &Arc<Self>) -> Arc<dyn TuiLogger> {
+        self.clone()
+    }
 }
 
 #[async_trait]
