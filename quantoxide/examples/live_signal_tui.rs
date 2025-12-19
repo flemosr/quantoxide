@@ -9,7 +9,7 @@ use quantoxide::{
     Database,
     error::Result,
     trade::{LiveTradeConfig, LiveTradeEngine},
-    tui::{LiveTui, TuiConfig, TuiLogger},
+    tui::{LiveTui, TuiConfig},
 };
 
 #[path = "evaluators/mod.rs"]
@@ -34,6 +34,7 @@ async fn main() -> Result<()> {
 
     let live_tui = LiveTui::launch(TuiConfig::default(), None).await?;
 
+    // Direct `stdout`/`stderr` outputs will corrupt the TUI. Use `live_tui.log()` instead
     live_tui.log("Initializing database...".into()).await?;
 
     let db = Database::new(&pg_url).await?;
@@ -42,9 +43,9 @@ async fn main() -> Result<()> {
         .log("Database ready. Initializing `LiveTradeEngine`...".into())
         .await?;
 
-    let evaluators = vec![SignalEvaluatorTemplate::with_logger(live_tui.clone()).configure()]; // With TUI logger
-
-    let operator = SignalOperatorTemplate::with_logger(live_tui.clone()); // With TUI logger
+    // Pass TUI logger to Signal Evaluator and Trade Operator
+    let evaluator = SignalEvaluatorTemplate::with_logger(live_tui.as_logger()).configure();
+    let operator = SignalOperatorTemplate::with_logger(live_tui.as_logger());
 
     let live_engine = LiveTradeEngine::with_signal_operator(
         LiveTradeConfig::default(),
@@ -53,7 +54,7 @@ async fn main() -> Result<()> {
         key,
         secret,
         passphrase,
-        evaluators,
+        vec![evaluator], // Multiple evaluators can run in parallel
         operator,
     )?;
 

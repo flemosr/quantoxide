@@ -9,7 +9,7 @@ use quantoxide::{
     Database,
     error::Result,
     trade::{LiveTradeConfig, LiveTradeEngine},
-    tui::{LiveTui, TuiConfig, TuiLogger},
+    tui::{LiveTui, TuiConfig},
 };
 
 #[path = "operators/mod.rs"]
@@ -31,6 +31,7 @@ async fn main() -> Result<()> {
 
     let live_tui = LiveTui::launch(TuiConfig::default(), None).await?;
 
+    // Direct `stdout`/`stderr` outputs will corrupt the TUI. Use `live_tui.log()` instead
     live_tui.log("Initializing database...".into()).await?;
 
     let db = Database::new(&pg_url).await?;
@@ -39,7 +40,8 @@ async fn main() -> Result<()> {
         .log("Database ready. Initializing `LiveTradeEngine`...".into())
         .await?;
 
-    let operator = RawOperatorTemplate::with_logger(live_tui.clone()); // With TUI logger
+    // Pass TUI logger to Trade Operator
+    let operator = RawOperatorTemplate::with_logger(live_tui.as_logger());
 
     let live_engine = LiveTradeEngine::with_raw_operator(
         LiveTradeConfig::default(),

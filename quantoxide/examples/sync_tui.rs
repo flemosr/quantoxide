@@ -7,7 +7,7 @@ use dotenv::dotenv;
 use quantoxide::{
     Database,
     sync::{SyncConfig, SyncEngine, SyncMode},
-    tui::{SyncTui, TuiConfig, TuiLogger},
+    tui::{SyncTui, TuiConfig},
 };
 
 #[tokio::main]
@@ -21,6 +21,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let sync_tui = SyncTui::launch(TuiConfig::default(), None).await?;
 
+    // Direct `stdout`/`stderr` outputs will corrupt the TUI. Use `sync_tui.log()` instead
     sync_tui.log("Initializing database...".into()).await?;
 
     let db = Database::new(&pg_url).await?;

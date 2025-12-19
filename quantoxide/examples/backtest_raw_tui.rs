@@ -10,7 +10,7 @@ use quantoxide::{
     error::Result,
     sync::PriceHistoryState,
     trade::{BacktestConfig, BacktestEngine},
-    tui::{BacktestTui, TuiConfig, TuiLogger},
+    tui::{BacktestTui, TuiConfig},
 };
 
 #[path = "operators/mod.rs"]
@@ -65,6 +65,7 @@ async fn main() -> Result<()> {
 
     let backtest_tui = BacktestTui::launch(TuiConfig::default(), None).await?;
 
+    // Direct `stdout`/`stderr` outputs will corrupt the TUI. Use `backtest_tui.log()` instead
     backtest_tui
         .log("Initializing  `BacktestEngine`...".into())
         .await?;
