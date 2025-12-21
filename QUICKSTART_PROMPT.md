@@ -45,11 +45,17 @@ Follow this workflow when helping me develop a trading strategy:
 
 2. **Create a project context file (CLAUDE.md or similar)** to maintain consistency across sessions:
    - Propose creating this file after determining versions
-   - Start by documenting quantoxide version, dependency versions, and Rust edition
-   - Add sections for strategy concept, parameters, and implementation decisions
-   - Track backtest results, performance metrics, and refinement notes
+   - Include all essential quantoxide context from this prompt:
+     - quantoxide version, dependency versions, and Rust edition
+     - Key API patterns and validated models being used
+     - Important constraints
+     - Links to relevant documentation sections and templates
+   - Add project-specific sections:
+     - Strategy concept, parameters, and implementation decisions
+     - Backtest results, performance metrics, and refinement notes
+     - Any trade-offs or design choices made during development
    - Update this file as the strategy evolves to prevent hallucinations in future sessions
-   - This ensures continuity when resuming work later
+   - This ensures continuity and provides complete context when resuming work later
 
 3. **Implement a synchronization binary** to download historical price data (using `SyncEngine`)
 
