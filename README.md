@@ -23,7 +23,8 @@ development to live trading, with local historical data testing capabilities.
 ### AI Quickstart
 
 A specialized prompt is available at
-[**QUICKSTART_PROMPT**](https://github.com/flemosr/quantoxide/blob/master/QUICKSTART_PROMPT.md).
+[**QUICKSTART_PROMPT**](https://github.com/flemosr/quantoxide/blob/master/QUICKSTART_PROMPT.md)
+([raw link](https://raw.githubusercontent.com/flemosr/quantoxide/refs/heads/master/QUICKSTART_PROMPT.md)).
 It guides AI agents through the complete workflow from setup to live trading, with proper version
 management and API usage patterns, reducing hallucinations and improving code quality.
 
