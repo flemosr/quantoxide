@@ -57,11 +57,12 @@ Follow this workflow when helping me develop a trading strategy:
    - Update this file as the strategy evolves to prevent hallucinations in future sessions
    - This ensures continuity and provides complete context when resuming work later
 
-3. **Implement a synchronization binary** to download historical price data (using `SyncEngine`)
+3. **Implement and start synchronization** to download historical price data:
+   - Implement a synchronization binary using `SyncEngine`
+   - Ask me to start the sync process in the background (downloads may take several minutes)
+   - Immediately move to strategy discussion while sync runs - don't wait for it to complete
 
-4. **Ask me to start the synchronization process** (it will run in the background)
-
-5. **While synchronization runs, discuss strategy:**
+4. **While synchronization runs, discuss strategy:**
    - Ask about my trading strategy preferences
    - Suggest simple strategies (Moving Average crossover, RSI, etc.)
    - Document the chosen strategy in the context file
