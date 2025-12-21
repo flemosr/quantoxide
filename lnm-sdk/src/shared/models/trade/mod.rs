@@ -10,6 +10,10 @@ use super::{
     quantity::Quantity,
 };
 
+/// Utility functions for trade calculations and validations.
+///
+/// Provides functions for estimating liquidation prices, profit/loss calculations, parameter
+/// validation, and evaluating trade modifications like adding margin or cashing in.
 pub mod util;
 
 /// The side of a trade position.
