@@ -14,10 +14,18 @@ development to live trading, with local historical data testing capabilities.
 [![Documentation Badge](https://docs.rs/quantoxide/badge.svg)](https://docs.rs/quantoxide/latest/quantoxide/)
 [![License Badge](https://img.shields.io/crates/l/quantoxide)](https://github.com/flemosr/quantoxide/blob/master/quantoxide/LICENSE)
 
-[Examples](https://github.com/flemosr/quantoxide/blob/master/quantoxide/examples) |
-[Docs](https://docs.rs/quantoxide/latest/quantoxide/)
+[**Repository**](https://github.com/flemosr/quantoxide) |
+[**Examples**](https://github.com/flemosr/quantoxide/blob/master/quantoxide/examples) |
+[**Documentation**](https://docs.rs/quantoxide/latest/quantoxide/)
 
 ## Getting Started
+
+### AI Quickstart
+
+A specialized prompt is available at
+[**QUICKSTART_PROMPT**](https://github.com/flemosr/quantoxide/blob/master/QUICKSTART_PROMPT.md).
+It guides AI agents through the complete workflow from setup to live trading, with proper version
+management and API usage patterns, reducing hallucinations and improving code quality.
 
 ### Rust Version
 
@@ -32,13 +40,9 @@ quantoxide = "<quantoxide-version>"
 
 ### Requirements
 
-A PostgreSQL database instance is required to store historical price data. 
-
-**Setup instructions and code templates are available in the
-[examples `README`](https://github.com/flemosr/quantoxide/blob/master/quantoxide/examples/README.md)**,
-which includes:
-- Quick Docker setup for PostgreSQL
-- **Ready-to-use code templates** for Trade Operators, synchronization, backtesting, and live trading
+A PostgreSQL database instance is required to store historical price data. Quick setup instructions
+are available in the
+[examples `README`](https://github.com/flemosr/quantoxide/blob/master/quantoxide/examples/README.md).
 
 ## Usage
 
