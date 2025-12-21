@@ -9,8 +9,9 @@ A Rust SDK for interacting with [LN Markets](https://lnmarkets.com/). Supports R
 [![Documentation Badge](https://docs.rs/lnm-sdk/badge.svg)](https://docs.rs/lnm-sdk/latest/lnm_sdk/)
 [![License Badge](https://img.shields.io/crates/l/lnm-sdk)](https://github.com/flemosr/quantoxide/blob/master/lnm-sdk/LICENSE)
 
-[Examples](https://github.com/flemosr/quantoxide/tree/master/lnm-sdk/examples) |
-[Docs](https://docs.rs/lnm-sdk/latest/lnm_sdk/)
+[**Repository**](https://github.com/flemosr/quantoxide/tree/master/lnm-sdk) |
+[**Examples**](https://github.com/flemosr/quantoxide/tree/master/lnm-sdk/examples) |
+[**Documentation**](https://docs.rs/lnm-sdk/latest/lnm_sdk/)
 
 ## Getting Started
 
