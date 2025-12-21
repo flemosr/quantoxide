@@ -2,14 +2,33 @@
 
 mod db;
 mod shared;
+/// Exports [`SignalActionEvaluator`] and other types related to signal evaluation.
+///
+/// [`SignalActionEvaluator`]: crate::signal::SignalActionEvaluator
 pub mod signal;
+/// Exports [`SyncEngine`] and other types related to price data synchronization.
+///
+/// [`SyncEngine`]: crate::sync::SyncEngine
 pub mod sync;
+/// Exports [`BacktestEngine`], [`LiveTradeEngine`], [`LiveTradeExecutor`], and other types related
+/// to trading execution.
+///
+/// [`BacktestEngine`]: crate::trade::BacktestEngine
+/// [`LiveTradeEngine`]: crate::trade::LiveTradeEngine
+/// [`LiveTradeExecutor`]: crate::trade::LiveTradeExecutor
 pub mod trade;
+/// Exports [`SyncTui`], [`BacktestTui`], [`LiveTui`], and other types related to Terminal User
+/// Interfaces (TUIs).
+///
+/// [`SyncTui`]: crate::tui::SyncTui
+/// [`BacktestTui`]: crate::tui::BacktestTui
+/// [`LiveTui`]: crate::tui::LiveTui
 pub mod tui;
 mod util;
 
 pub use db::Database;
 
+/// Error types returned by `quantoxide`.
 pub mod error {
     pub use super::db::error::DbError;
     pub use super::shared::error::{
@@ -57,6 +76,7 @@ pub mod error {
     pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 }
 
+/// Exports database models, shared configuration types, and selected `lnm-sdk` models.
 pub mod models {
     pub use super::db::models::{OhlcCandleRow, PriceTickRow};
     pub use super::shared::{LookbackPeriod, MinIterationInterval};
