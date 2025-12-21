@@ -16,17 +16,10 @@ development to live trading, with local historical data testing capabilities.
 
 [**Repository**](https://github.com/flemosr/quantoxide) |
 [**Examples**](https://github.com/flemosr/quantoxide/blob/master/quantoxide/examples) |
-[**Documentation**](https://docs.rs/quantoxide/latest/quantoxide/)
+[**Documentation**](https://docs.rs/quantoxide/latest/quantoxide/) |
+[**AI Quickstart Prompt**](https://raw.githubusercontent.com/flemosr/quantoxide/refs/heads/master/QUICKSTART_PROMPT.md)
 
 ## Getting Started
-
-### AI Quickstart
-
-A specialized prompt is available at
-[**QUICKSTART_PROMPT**](https://github.com/flemosr/quantoxide/blob/master/QUICKSTART_PROMPT.md)
-([raw link](https://raw.githubusercontent.com/flemosr/quantoxide/refs/heads/master/QUICKSTART_PROMPT.md)).
-It guides AI agents through the complete workflow from setup to live trading, with proper version
-management and API usage patterns, reducing hallucinations and improving code quality.
 
 ### Rust Version
 
@@ -44,6 +37,14 @@ quantoxide = "<quantoxide-version>"
 A PostgreSQL database instance is required to store historical price data. Quick setup instructions
 are available in the
 [examples `README`](https://github.com/flemosr/quantoxide/blob/master/quantoxide/examples/README.md).
+
+### AI Quickstart
+
+A specialized prompt is available at
+[**QUICKSTART_PROMPT**](https://github.com/flemosr/quantoxide/blob/master/QUICKSTART_PROMPT.md)
+([raw link](https://raw.githubusercontent.com/flemosr/quantoxide/refs/heads/master/QUICKSTART_PROMPT.md)).
+It guides AI agents through the complete workflow from setup to live trading, with proper version
+management and API usage patterns, reducing hallucinations and improving code quality.
 
 ## Usage
 
