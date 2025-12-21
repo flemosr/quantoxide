@@ -181,6 +181,5 @@ let sl = Stoploss::trailing(5.try_into()?); // 5% trailing
 
 - **Documentation:** https://docs.rs/quantoxide/latest/quantoxide/
 - **Repository:** https://github.com/flemosr/quantoxide/tree/master
-- **Examples:** https://github.com/flemosr/quantoxide/tree/master/quantoxide/examples
-- **Raw README:** https://raw.githubusercontent.com/flemosr/quantoxide/refs/heads/master/README.md
-- **MSRV:** Rust 1.88
+- **Raw main README:** https://raw.githubusercontent.com/flemosr/quantoxide/refs/heads/master/README.md
+- **Raw Examples README:** https://raw.githubusercontent.com/flemosr/quantoxide/refs/heads/master/quantoxide/examples/README.md
