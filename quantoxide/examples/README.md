@@ -38,9 +38,7 @@ To quickly set up a PostgreSQL database for running the examples:
 ```bash
 docker run -d \
   --name quantoxide-postgres \
-  -e POSTGRES_USER=admin \
   -e POSTGRES_PASSWORD=password \
-  -e POSTGRES_DB=bot_db \
   -p 5432:5432 \
   -v quantoxide-pgdata:/var/lib/postgresql \
   postgres:18.1-bookworm
@@ -48,7 +46,7 @@ docker run -d \
 
 Then the `POSTGRES_DB_URL` environment variable should be set to:
 ```
-postgres://admin:password@localhost:5432/bot_db
+postgres://postgres:password@localhost:5432/postgres
 ```
 
 Useful commands:
