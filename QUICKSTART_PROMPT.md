@@ -12,7 +12,7 @@ We are working with **quantoxide**, a Rust framework for developing, backtesting
 
 1. **Trade Operator** - Strategy logic that runs at regular intervals with access to trading state
    - Raw Operators: Process OHLC data directly and execute trades (most common)
-   - Signal Operators: Delegate OHLC processing to Signal Evaluators
+   - Signal Operators: Delegate OHLC processing to Signal Evaluators (separate components that analyze data and emit signals)
 
 2. **Synchronization** - Fetches and stores historical OHLC candle data from LN Markets into PostgreSQL (required for backtesting)
    - Backfill mode: Historical data
@@ -45,11 +45,7 @@ Follow this workflow when helping me develop a trading strategy:
 
 2. **Create a project context file (CLAUDE.md or similar)** to maintain consistency across sessions:
    - Propose creating this file after determining versions
-   - Include all essential quantoxide context from this prompt:
-     - quantoxide version, dependency versions, and Rust edition
-     - Key API patterns and validated models being used
-     - Important constraints
-     - Links to relevant documentation sections and templates
+   - Include all essential quantoxide context from this prompt, including links to relevant documentation sections and templates
    - Add project-specific sections:
      - Strategy concept, parameters, and implementation decisions
      - Backtest results, performance metrics, and refinement notes
@@ -57,8 +53,8 @@ Follow this workflow when helping me develop a trading strategy:
    - Update this file as the strategy evolves to prevent hallucinations in future sessions
    - This ensures continuity and provides complete context when resuming work later
 
-3. **Implement and start synchronization** to download historical price data:
-   - Implement a synchronization binary using `SyncEngine`
+3. **Implement and start synchronization FIRST, BEFORE DISCUSSING STRATEGY**, to download historical price data:
+   - Implement a synchronization binary using `SyncEngine`, inside the `bin` directory
    - Ask me to start the sync process in the background (downloads may take several minutes)
    - Immediately move to strategy discussion while sync runs - don't wait for it to complete
 
@@ -67,16 +63,17 @@ Follow this workflow when helping me develop a trading strategy:
    - Suggest simple strategies (Moving Average crossover, RSI, etc.)
    - Document the chosen strategy in the context file
 
-6. **Develop the Trade Operator** implementing my strategy. Ensure it compiles with `cargo check`.
+5. **Develop the Trade Operator** implementing my strategy. Ensure it compiles with `cargo check`.
 
-7. **Implement a backtest binary** (using `BacktestEngine`)
+6. **Implement a backtest binary** (using `BacktestEngine`) inside the `bin` directory
 
-8. **Wait for synchronization to complete, then backtest:**
+7. **Wait for synchronization to complete, then backtest:**
    - Run backtests, analyze results
    - Iterate and refine based on performance
    - Update the context file with backtest results and insights
 
-9. **Implement a live trading binary** (using `LiveTradeEngine`) when strategy is validated
+8. **Implement a live trading binary** when strategy is validated
+   - Using `LiveTradeEngine`, inside the `bin` directory
 
 ## Code Templates - DO NOT GUESS THE API
 
