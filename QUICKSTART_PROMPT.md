@@ -54,6 +54,7 @@ Follow this workflow when helping develop a trading strategy:
    - This ensures continuity and provides complete context when resuming work later
 
 3. **Implement and start synchronization FIRST, BEFORE DISCUSSING STRATEGY**, to download historical price data:
+   - Fetch the sync template first (see Code Templates section below)
    - Implement a synchronization binary using `SyncEngine`, inside the `bin` directory
    - Ask the user to start the sync process in the background (downloads may take several minutes)
    - Immediately move to strategy discussion while sync runs - don't wait for it to complete
@@ -63,11 +64,16 @@ Follow this workflow when helping develop a trading strategy:
    - Suggest simple strategies (Moving Average crossover, RSI, etc.)
    - Document the chosen strategy in the context file
 
-5. **Develop the Trade Operator** implementing the strategy. Ensure it compiles with `cargo check`.
+5. **Develop the Trade Operator** implementing the strategy:
+   - Fetch the appropriate operator template first (raw or signal, see Code Templates section below)
+   - Implement the operator logic
+   - Ensure it compiles with `cargo check`
 
-6. **Implement backtest binaries** (using `BacktestEngine`) inside the `bin` directory:
-   - `backtest_tui`: Interactive backtest with TUI for manual testing and analysis (use the backtest TUI template from examples)
-   - `backtest_cli`: Non-interactive backtest with CLI arguments for AI-driven automated iteration (use `backtest_direct` example as reference)
+6. **Implement backtest binaries**
+   - Fetch the backtest templates first (see Code Templates section below)
+   - Implement backtest binaries using `BacktestEngine`, inside the `bin` directory:
+     - `backtest_tui`: Interactive backtest with TUI for manual testing and analysis
+     - `backtest_cli`: Non-interactive backtest with CLI arguments for AI-driven automated iteration
 
 7. **Wait for synchronization to complete, then backtest:**
    - **For manual workflow:** Instruct the user to run `backtest_tui` for interactive testing and analysis
@@ -81,8 +87,9 @@ Follow this workflow when helping develop a trading strategy:
    - Update the context file with backtest results, parameter choices, and performance insights
    - Reference the examples README for more details on backtest modes
 
-8. **Implement a live trading TUI binary** when strategy is validated
-   - Using `LiveTradeEngine`, inside the `bin` directory
+8. **Implement a live trading TUI binary** when strategy is validated:
+   - Fetch the live trading template first (see Code Templates section below)
+   - Implement using `LiveTradeEngine`, inside the `bin` directory
 
 ## Code Templates - DO NOT GUESS THE API
 
