@@ -136,11 +136,10 @@ Each engine has two modes:
 
 3. **TradeRunning Trait** - When evaluating individual running trades:
    - Check: https://docs.rs/quantoxide/latest/quantoxide/trade/trait.TradeRunning.html
-   - Methods: `est_pl()`, `est_max_cash_in()`, `est_max_additional_margin()`
 
 4. **Validated Models** - Use strongly-typed validated models for type safety:
    - Check: https://docs.rs/quantoxide/latest/quantoxide/models/index.html
-   - Includes `OhlcCandleRow`, `Leverage`, `Quantity`, `Price`, `Margin`, `TradeSize`, `TradeSide`, etc.
+   - Includes `OhlcCandleRow`, `Leverage`, `Quantity`, `Price`, `Percentage`, `PercentageCapped`, `Margin`, `TradeSize`, `TradeSide`, etc.
    - These models provide compile-time validation and prevent invalid values
 
 5. **Trade Utilities** - Use built-in utility functions for calculations and validations:
@@ -172,18 +171,32 @@ let size = TradeSize::margin(50_000)?; // 50,000 sats collateral
 #### Stoploss Options
 
 ```rust
-use quantoxide::{models::Price, trade::Stoploss};
+use quantoxide::{models::{PercentageCapped, Price}, trade::Stoploss};
 
 // Fixed price stoploss
 let sl = Stoploss::fixed(Price::try_from(95_000.0)?);
 
 // Trailing percentage stoploss (follows price movement)
-let sl = Stoploss::trailing(5.try_into()?); // 5% trailing
+let sl = Stoploss::trailing(PercentageCapped::try_from(5)?); // 5% trailing
+```
+
+#### Price Adjustments
+
+```rust
+use quantoxide::models::{Price, Percentage, PercentageCapped};
+
+let current_price = Price::try_from(100_000.0)?;
+
+// Apply discount (reduce price by percentage)
+let discounted = current_price.apply_discount(PercentageCapped::try_from(10.0)?)?; // 90,000.0
+
+// Apply gain (increase price by percentage)
+let increased = current_price.apply_gain(Percentage::try_from(20.0)?)?; // 120,000.0
 ```
 
 ## Resources
 
 - **Documentation:** https://docs.rs/quantoxide/latest/quantoxide/
 - **Repository:** https://github.com/flemosr/quantoxide/tree/master
-- **Raw main README:** https://raw.githubusercontent.com/flemosr/quantoxide/refs/heads/master/README.md
-- **Raw Examples README:** https://raw.githubusercontent.com/flemosr/quantoxide/refs/heads/master/quantoxide/examples/README.md
+- **Main README:** https://raw.githubusercontent.com/flemosr/quantoxide/refs/heads/master/README.md
+- **Examples README (START HERE for templates):** https://raw.githubusercontent.com/flemosr/quantoxide/refs/heads/master/quantoxide/examples/README.md
