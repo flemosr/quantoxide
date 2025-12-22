@@ -16,7 +16,7 @@ use quantoxide::{
 
 // Uncomment to enable trade demo
 // use quantoxide::{
-//     models::{Leverage, TradeSize},
+//     models::{Leverage, PercentageCapped, TradeSize},
 //     trade::Stoploss,
 // };
 
@@ -111,8 +111,8 @@ impl RawOperator for RawOperatorTemplate {
         //         .open_long(
         //             TradeSize::quantity(1)?, // Size 1 USD. `TradeSize::margin` is also available
         //             Leverage::try_from(6)?,  // Leverage 6x
-        //             Some(Stoploss::trailing(5.try_into()?)), // 5% trailing stoploss
-        //             None,                    // No takeprofit
+        //             Some(Stoploss::trailing(PercentageCapped::try_from(5)?)), // 5% trailing stoploss
+        //             None,                                                     // No takeprofit
         //         )
         //         .await?;
         // }
