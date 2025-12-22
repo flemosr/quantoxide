@@ -9,7 +9,7 @@ use quantoxide::{
     Database,
     error::Result,
     sync::PriceHistoryState,
-    trade::{BacktestConfig, BacktestEngine, BacktestUpdate},
+    trade::{BacktestConfig, BacktestEngine, BacktestStatus, BacktestUpdate, TradingState},
 };
 
 #[path = "operators/mod.rs"]
@@ -19,6 +19,21 @@ mod util;
 
 use operators::raw::RawOperatorTemplate;
 use util::input;
+
+/// Prints usage information and exits.
+fn print_usage() {
+    eprintln!(
+        "Usage: cargo run --example backtest_direct -- <start_date> <end_date> [start_balance]"
+    );
+    eprintln!();
+    eprintln!("Arguments:");
+    eprintln!("  start_date      Start date in YYYY-MM-DD format");
+    eprintln!("  end_date        End date in YYYY-MM-DD format");
+    eprintln!("  start_balance   Optional starting balance in sats (default: 10000000)");
+    eprintln!();
+    eprintln!("Example:");
+    eprintln!("  cargo run --example backtest_direct -- 2025-09-01 2025-12-01 10000000");
+}
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -34,26 +49,46 @@ async fn main() -> Result<()> {
 
     let price_history_state = PriceHistoryState::evaluate(&db).await?;
 
-    println!("\n{price_history_state}\n");
+    println!("\n{price_history_state}");
 
     if price_history_state.bound_end().is_none() {
-        println!("Some price history must be available in the local database to run the backtest.");
+        println!(
+            "\nSome price history must be available in the local database to run the backtest."
+        );
         println!("Run a synchronization example first to fetch historical data.");
 
         return Ok(());
     }
 
-    println!("Please provide the backtest parameters.");
-    println!(
-        "Note: There must be data available for the lookback period, if any, of the raw operator used.\n"
-    );
+    // Parse CLI arguments (skip the first argument which is the program name)
+    let args: Vec<String> = env::args().skip(1).collect();
 
-    let start_time = input::prompt_date("Start date (YYYY-MM-DD): ")?;
+    if args.len() < 2 {
+        print_usage();
+        return Err("Insufficient arguments: start_date and end_date are required".into());
+    }
 
-    let start_balance =
-        input::prompt_balance("Start balance (sats, default: 10000000): ", 10_000_000)?;
+    let start_time = input::parse_date(&args[0]).map_err(|e| {
+        eprintln!("Error parsing start_date: {}", e);
+        print_usage();
+        e
+    })?;
 
-    let end_time = input::prompt_date("End date (YYYY-MM-DD): ")?;
+    let end_time = input::parse_date(&args[1]).map_err(|e| {
+        eprintln!("Error parsing end_date: {}", e);
+        print_usage();
+        e
+    })?;
+
+    let start_balance = if args.len() >= 3 {
+        args[2].parse::<u64>().map_err(|e| {
+            eprintln!("Error parsing start_balance: {}", e);
+            print_usage();
+            e
+        })?
+    } else {
+        10_000_000
+    };
 
     println!("\nBacktest Configuration:");
     println!("Start date: {}", start_time.format("%Y-%m-%d %H:%M %Z"));
@@ -61,10 +96,6 @@ async fn main() -> Result<()> {
     println!("End date: {}\n", end_time.format("%Y-%m-%d %H:%M %Z"));
 
     println!("Initializing `BacktestEngine`...");
-
-    // In general, no TUI logger should be provided to Trade Operators in backtests. Since many
-    // iterations will be processed per second, excessive per-iteration logging would create a
-    // severe performance bottleneck.
 
     let operator = RawOperatorTemplate::new();
 
@@ -81,19 +112,25 @@ async fn main() -> Result<()> {
     let mut backtest_rx = backtest_engine.receiver();
 
     tokio::spawn(async move {
+        let mut last_trading_state: Option<TradingState> = None;
         loop {
             match backtest_rx.recv().await {
                 Ok(backtest_update) => match backtest_update {
                     BacktestUpdate::Status(backtest_status) => {
-                        println!("\n{backtest_status}");
+                        if matches!(backtest_status, BacktestStatus::Finished) {
+                            if let Some(state) = last_trading_state {
+                                println!("\nBacktest finished.\n\nFinal {state}");
+                            }
+                            return;
+                        }
                     }
                     BacktestUpdate::TradingState(trading_state) => {
-                        println!("\n{trading_state}");
+                        last_trading_state = Some(trading_state);
                     }
                 },
                 Err(e) => {
                     eprint!("{:?}", e);
-                    break;
+                    return;
                 }
             }
         }
@@ -108,7 +145,7 @@ async fn main() -> Result<()> {
     // Delay for printing all `backtest_rx` updates
     time::sleep(Duration::from_millis(100)).await;
 
-    println!("Backtest status: {final_status}");
+    println!("\nBacktest status: {final_status}");
 
     Ok(())
 }
