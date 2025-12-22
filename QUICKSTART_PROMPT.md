@@ -24,7 +24,7 @@ We are working with **quantoxide**, a Rust framework for developing, backtesting
 
 ## Workflow
 
-Follow this workflow when helping me develop a trading strategy:
+Follow this workflow when helping develop a trading strategy:
 
 1. **Determine the correct quantoxide version and dependencies:**
    
@@ -55,15 +55,15 @@ Follow this workflow when helping me develop a trading strategy:
 
 3. **Implement and start synchronization FIRST, BEFORE DISCUSSING STRATEGY**, to download historical price data:
    - Implement a synchronization binary using `SyncEngine`, inside the `bin` directory
-   - Ask me to start the sync process in the background (downloads may take several minutes)
+   - Ask the user to start the sync process in the background (downloads may take several minutes)
    - Immediately move to strategy discussion while sync runs - don't wait for it to complete
 
 4. **While synchronization runs, discuss strategy:**
-   - Ask about my trading strategy preferences
+   - Ask about trading strategy preferences
    - Suggest simple strategies (Moving Average crossover, RSI, etc.)
    - Document the chosen strategy in the context file
 
-5. **Develop the Trade Operator** implementing my strategy. Ensure it compiles with `cargo check`.
+5. **Develop the Trade Operator** implementing the strategy. Ensure it compiles with `cargo check`.
 
 6. **Implement backtest binaries** (using `BacktestEngine`) inside the `bin` directory:
    - `backtest_tui`: Interactive backtest with TUI for manual testing and analysis (use the backtest TUI template from examples)
@@ -77,7 +77,7 @@ Follow this workflow when helping me develop a trading strategy:
      - Iterate on strategy parameters systematically
      - Log each iteration's results with parameter values
      - Stop when performance plateaus or user intervention is needed
-   - Ask me which workflow I prefer before proceeding
+   - Ask which workflow is preferred before proceeding
    - Update the context file with backtest results, parameter choices, and performance insights
    - Reference the examples README for more details on backtest modes
 
@@ -132,7 +132,7 @@ Each engine has two modes:
 - **Direct mode**: Custom update handling for integration into other UIs or LLM-friendly output (see `backtest_direct`, `sync_direct`, `live_direct` examples)
 
 **IMPORTANT:** Do NOT attempt to run TUI binaries (`*_tui`) directly. TUIs require interactive terminal control and will not work properly when run by an AI agent. Instead:
-- For TUI binaries: Implement them, then instruct me to run them
+- For TUI binaries: Implement them, then instruct the user to run them
 - For AI-driven automation: Use direct mode binaries which output to stdout
 
 ## Coding Guidelines
