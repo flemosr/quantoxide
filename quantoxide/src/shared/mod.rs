@@ -38,6 +38,30 @@ impl LookbackPeriod {
     }
 }
 
+impl TryFrom<u8> for LookbackPeriod {
+    type Error = LookbackPeriodValidationError;
+
+    fn try_from(value: u8) -> std::result::Result<Self, Self::Error> {
+        Self::try_from(value as u64)
+    }
+}
+
+impl TryFrom<u16> for LookbackPeriod {
+    type Error = LookbackPeriodValidationError;
+
+    fn try_from(value: u16) -> std::result::Result<Self, Self::Error> {
+        Self::try_from(value as u64)
+    }
+}
+
+impl TryFrom<u32> for LookbackPeriod {
+    type Error = LookbackPeriodValidationError;
+
+    fn try_from(value: u32) -> std::result::Result<Self, Self::Error> {
+        Self::try_from(value as u64)
+    }
+}
+
 impl TryFrom<u64> for LookbackPeriod {
     type Error = LookbackPeriodValidationError;
 
@@ -51,6 +75,54 @@ impl TryFrom<u64> for LookbackPeriod {
         }
 
         Ok(Self(value))
+    }
+}
+
+impl TryFrom<i8> for LookbackPeriod {
+    type Error = LookbackPeriodValidationError;
+
+    fn try_from(value: i8) -> std::result::Result<Self, Self::Error> {
+        Self::try_from(value.max(0) as u64)
+    }
+}
+
+impl TryFrom<i16> for LookbackPeriod {
+    type Error = LookbackPeriodValidationError;
+
+    fn try_from(value: i16) -> std::result::Result<Self, Self::Error> {
+        Self::try_from(value.max(0) as u64)
+    }
+}
+
+impl TryFrom<i32> for LookbackPeriod {
+    type Error = LookbackPeriodValidationError;
+
+    fn try_from(value: i32) -> std::result::Result<Self, Self::Error> {
+        Self::try_from(value.max(0) as u64)
+    }
+}
+
+impl TryFrom<i64> for LookbackPeriod {
+    type Error = LookbackPeriodValidationError;
+
+    fn try_from(value: i64) -> std::result::Result<Self, Self::Error> {
+        Self::try_from(value.max(0) as u64)
+    }
+}
+
+impl TryFrom<usize> for LookbackPeriod {
+    type Error = LookbackPeriodValidationError;
+
+    fn try_from(value: usize) -> std::result::Result<Self, Self::Error> {
+        Self::try_from(value as u64)
+    }
+}
+
+impl TryFrom<isize> for LookbackPeriod {
+    type Error = LookbackPeriodValidationError;
+
+    fn try_from(value: isize) -> std::result::Result<Self, Self::Error> {
+        Self::try_from(value.max(0) as u64)
     }
 }
 
