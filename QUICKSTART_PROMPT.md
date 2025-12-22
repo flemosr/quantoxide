@@ -65,14 +65,23 @@ Follow this workflow when helping me develop a trading strategy:
 
 5. **Develop the Trade Operator** implementing my strategy. Ensure it compiles with `cargo check`.
 
-6. **Implement a backtest binary** (using `BacktestEngine`) inside the `bin` directory
+6. **Implement backtest binaries** (using `BacktestEngine`) inside the `bin` directory:
+   - `backtest_tui`: Interactive backtest with TUI for manual testing and analysis (use the backtest TUI template from examples)
+   - `backtest_cli`: Non-interactive backtest with CLI arguments for AI-driven automated iteration (use `backtest_direct` example as reference)
 
 7. **Wait for synchronization to complete, then backtest:**
-   - Run backtests, analyze results
-   - Iterate and refine based on performance
-   - Update the context file with backtest results and insights
+   - **For manual workflow:** Instruct the user to run `backtest_tui` for interactive testing and analysis
+   - **For AI-driven iteration:** Use `backtest_cli` to automatically run multiple backtests with different parameters
+     - Non-interactive execution with results printed to stdout
+     - Define optimization objectives
+     - Iterate on strategy parameters systematically
+     - Log each iteration's results with parameter values
+     - Stop when performance plateaus or user intervention is needed
+   - Ask me which workflow I prefer before proceeding
+   - Update the context file with backtest results, parameter choices, and performance insights
+   - Reference the examples README for more details on backtest modes
 
-8. **Implement a live trading binary** when strategy is validated
+8. **Implement a live trading TUI binary** when strategy is validated
    - Using `LiveTradeEngine`, inside the `bin` directory
 
 ## Code Templates - DO NOT GUESS THE API
@@ -120,7 +129,11 @@ tokio = "<version-from-quantoxide-manifest>"
 
 Each engine has two modes:
 - **TUI mode**: Built-in terminal interface (recommended for most use cases)
-- **Direct mode**: Custom update handling for integration into other UIs or LLM-friendly output
+- **Direct mode**: Custom update handling for integration into other UIs or LLM-friendly output (see `backtest_direct`, `sync_direct`, `live_direct` examples)
+
+**IMPORTANT:** Do NOT attempt to run TUI binaries (`*_tui`) directly. TUIs require interactive terminal control and will not work properly when run by an AI agent. Instead:
+- For TUI binaries: Implement them, then instruct me to run them
+- For AI-driven automation: Use direct mode binaries which output to stdout
 
 ## Coding Guidelines
 
