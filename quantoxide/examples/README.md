@@ -73,8 +73,8 @@ cargo run --example sync_tui
 
 ### sync_direct
 
-Demonstrates direct interaction with the sync process for custom update handling. This approach 
-simplifies integration of sync updates into other UIs or processing logic.
+Demonstrates direct interaction with the sync process for custom update handling. This approach is 
+more LLM-friendly, and simplifies integration of sync updates into other UIs or processing logic.
 
 Usage:
 ```bash
@@ -107,11 +107,22 @@ cargo run --example backtest_signal_tui
 ### backtest_direct
 
 Demonstrates direct interaction with the backtest process for custom update handling. This approach
-simplifies integration of backtest updates into other UIs or processing logic.
+is more LLM-friendly, and simplifies integration of backtest updates into other UIs or processing
+logic.
 
 Usage:
 ```bash
-cargo run --example backtest_direct
+cargo run --example backtest_direct -- <start_date> <end_date> [start_balance]
+```
+
+Arguments:
+- `start_date` - Start date in YYYY-MM-DD format (required)
+- `end_date` - End date in YYYY-MM-DD format (required)
+- `start_balance` - Starting balance in sats (optional, default: 10000000)
+
+Example:
+```bash
+cargo run --example backtest_direct -- 2025-09-01 2025-12-01 10000000
 ```
 
 ## Live Trading
@@ -138,7 +149,8 @@ cargo run --example live_signal_tui
 ### live_direct
 
 Demonstrates direct interaction with the live trading process for custom update handling. This 
-approach simplifies integration of live trading updates into other UIs or processing logic.
+approach is more LLM-friendly, and simplifies integration of live trading updates into other UIs or 
+processing logic.
 
 Usage:
 ```bash
