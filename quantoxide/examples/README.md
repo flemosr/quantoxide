@@ -8,10 +8,10 @@ Direct source code links for quick reference:
 
 | Category | Raw Operator | Signal Operator / Evaluator | Direct (no TUI) |
 |----------|--------------|------------------------------|-----------------|
-| **Trade Operator Templates** | [operators/raw.rs](https://raw.githubusercontent.com/flemosr/quantoxide/master/quantoxide/examples/operators/raw.rs) | [operators/signal.rs](https://raw.githubusercontent.com/flemosr/quantoxide/master/quantoxide/examples/operators/signal.rs) / [evaluators/mod.rs](https://raw.githubusercontent.com/flemosr/quantoxide/refs/heads/master/quantoxide/examples/evaluators/mod.rs) | - |
-| **Synchronization** | [sync_tui.rs](https://raw.githubusercontent.com/flemosr/quantoxide/master/quantoxide/examples/sync_tui.rs) | - | [sync_direct.rs](https://raw.githubusercontent.com/flemosr/quantoxide/master/quantoxide/examples/sync_direct.rs) |
-| **Backtesting** | [backtest_raw_tui.rs](https://raw.githubusercontent.com/flemosr/quantoxide/master/quantoxide/examples/backtest_raw_tui.rs) | [backtest_signal_tui.rs](https://raw.githubusercontent.com/flemosr/quantoxide/master/quantoxide/examples/backtest_signal_tui.rs) | [backtest_direct.rs](https://raw.githubusercontent.com/flemosr/quantoxide/master/quantoxide/examples/backtest_direct.rs) |
-| **Live Trading** | [live_raw_tui.rs](https://raw.githubusercontent.com/flemosr/quantoxide/master/quantoxide/examples/live_raw_tui.rs) | [live_signal_tui.rs](https://raw.githubusercontent.com/flemosr/quantoxide/master/quantoxide/examples/live_signal_tui.rs) | [live_direct.rs](https://raw.githubusercontent.com/flemosr/quantoxide/master/quantoxide/examples/live_direct.rs) |
+| **Trade Operator Templates** | [operators/raw.rs](https://raw.githubusercontent.com/flemosr/quantoxide/main/quantoxide/examples/operators/raw.rs) | [operators/signal.rs](https://raw.githubusercontent.com/flemosr/quantoxide/main/quantoxide/examples/operators/signal.rs) / [evaluators/mod.rs](https://raw.githubusercontent.com/flemosr/quantoxide/refs/heads/main/quantoxide/examples/evaluators/mod.rs) | - |
+| **Synchronization** | [sync_tui.rs](https://raw.githubusercontent.com/flemosr/quantoxide/main/quantoxide/examples/sync_tui.rs) | - | [sync_direct.rs](https://raw.githubusercontent.com/flemosr/quantoxide/main/quantoxide/examples/sync_direct.rs) |
+| **Backtesting** | [backtest_raw_tui.rs](https://raw.githubusercontent.com/flemosr/quantoxide/main/quantoxide/examples/backtest_raw_tui.rs) | [backtest_signal_tui.rs](https://raw.githubusercontent.com/flemosr/quantoxide/main/quantoxide/examples/backtest_signal_tui.rs) | [backtest_direct.rs](https://raw.githubusercontent.com/flemosr/quantoxide/main/quantoxide/examples/backtest_direct.rs) |
+| **Live Trading** | [live_raw_tui.rs](https://raw.githubusercontent.com/flemosr/quantoxide/main/quantoxide/examples/live_raw_tui.rs) | [live_signal_tui.rs](https://raw.githubusercontent.com/flemosr/quantoxide/main/quantoxide/examples/live_signal_tui.rs) | [live_direct.rs](https://raw.githubusercontent.com/flemosr/quantoxide/main/quantoxide/examples/live_direct.rs) |
 
 ## Prerequisites
 
@@ -28,7 +28,7 @@ Live trading examples require:
 - `LNM_API_V3_PASSPHRASE` - The LN Markets API v3 passphrase
 
 These environment variables should be set, or a `.env` file should be added in the project root.
-A [`.env.template`](https://github.com/flemosr/quantoxide/blob/master/.env.template) file is
+A [`.env.template`](https://github.com/flemosr/quantoxide/blob/main/.env.template) file is
 available.
 
 ### Setting up PostgreSQL with Docker
