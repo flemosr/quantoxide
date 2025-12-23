@@ -14,10 +14,10 @@ development to live trading, with local historical data testing capabilities.
 [![Documentation Badge](https://docs.rs/quantoxide/badge.svg)](https://docs.rs/quantoxide/latest/quantoxide/)
 [![License Badge](https://img.shields.io/crates/l/quantoxide)](https://github.com/flemosr/quantoxide/blob/main/quantoxide/LICENSE)
 
-[**Repository**](https://github.com/flemosr/quantoxide) |
-[**Examples**](https://github.com/flemosr/quantoxide/blob/main/quantoxide/examples) |
-[**Documentation**](https://docs.rs/quantoxide/latest/quantoxide/) |
-[**AI Quickstart Prompt**](https://raw.githubusercontent.com/flemosr/quantoxide/refs/heads/main/QUICKSTART_PROMPT.md)
+[Repository](https://github.com/flemosr/quantoxide) |
+[Examples](https://github.com/flemosr/quantoxide/blob/main/quantoxide/examples) |
+[Documentation](https://docs.rs/quantoxide/latest/quantoxide/) |
+[AI Quickstart Prompt](https://raw.githubusercontent.com/flemosr/quantoxide/refs/heads/main/QUICKSTART_PROMPT.md)
 
 ## Getting Started
 
@@ -44,7 +44,7 @@ A specialized prompt is available at
 [**QUICKSTART_PROMPT**](https://github.com/flemosr/quantoxide/blob/main/QUICKSTART_PROMPT.md)
 ([raw link](https://raw.githubusercontent.com/flemosr/quantoxide/refs/heads/main/QUICKSTART_PROMPT.md)).
 
-The prompt guides AI agents through the complete workflow from setup to live trading, with proper
+This prompt guides AI agents through the complete workflow from setup to live trading, with proper
 version management and API usage patterns, reducing hallucinations and improving code quality. It is
 **strongly recommended** that its raw content be copied and pasted in a fresh session for optimal
 results.
@@ -135,8 +135,8 @@ Complete runnable examples are available in the
 directory. The snippets below demonstrate the core components of the framework.
 
 > **Note**: `println!` and other `stdout`/`stderr` outputs should be avoided when TUIs are running,
-> since they would disrupt rendering. `TuiLogger::log` should be used instead, as implemented in the
-> complete examples.
+> since they would disrupt rendering. TUI `::log` methods should be used instead, as implemented in
+> the complete examples.
 
 ### Trade Operator
 
