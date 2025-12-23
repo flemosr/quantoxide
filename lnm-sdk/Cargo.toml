@@ -1,6 +1,6 @@
 [package]
 name = "lnm-sdk"
-version = "0.2.0"
+version = "0.2.1"
 authors = ["Rafael Lemos <contact@flemosr.com>"]
 edition = "2024"
 rust-version = "1.88"
