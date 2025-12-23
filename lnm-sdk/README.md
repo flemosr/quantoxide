@@ -3,14 +3,14 @@
 A Rust SDK for interacting with [LN Markets](https://lnmarkets.com/). Supports REST API v3, REST API v2, and WebSocket API.
 
 > **Note:** This is an unofficial SDK. API v3 support is functional but not yet feature-complete. 
-> For implementation status, see the [API v3 implementation docs](https://github.com/flemosr/quantoxide/blob/master/lnm-sdk/docs/api-v3-implementation.md).
+> For implementation status, see the [API v3 implementation docs](https://github.com/flemosr/quantoxide/blob/main/lnm-sdk/docs/api-v3-implementation.md).
 
 [![Crates.io Badge](https://img.shields.io/crates/v/lnm-sdk)](https://crates.io/crates/lnm-sdk)
 [![Documentation Badge](https://docs.rs/lnm-sdk/badge.svg)](https://docs.rs/lnm-sdk/latest/lnm_sdk/)
-[![License Badge](https://img.shields.io/crates/l/lnm-sdk)](https://github.com/flemosr/quantoxide/blob/master/lnm-sdk/LICENSE)
+[![License Badge](https://img.shields.io/crates/l/lnm-sdk)](https://github.com/flemosr/quantoxide/blob/main/lnm-sdk/LICENSE)
 
-[**Repository**](https://github.com/flemosr/quantoxide/tree/master/lnm-sdk) |
-[**Examples**](https://github.com/flemosr/quantoxide/tree/master/lnm-sdk/examples) |
+[**Repository**](https://github.com/flemosr/quantoxide/tree/main/lnm-sdk) |
+[**Examples**](https://github.com/flemosr/quantoxide/tree/main/lnm-sdk/examples) |
 [**Documentation**](https://docs.rs/lnm-sdk/latest/lnm_sdk/)
 
 ## Getting Started
@@ -45,7 +45,7 @@ use lnm_sdk::api_v2::{
 ## Examples
 
 Complete runnable examples are available in the
-[`lnm-sdk/examples`](https://github.com/flemosr/quantoxide/tree/master/lnm-sdk/examples) directory. 
+[`lnm-sdk/examples`](https://github.com/flemosr/quantoxide/tree/main/lnm-sdk/examples) directory. 
 
 ### REST API v3 - Public
 
@@ -69,7 +69,7 @@ let _candles = rest
 ```
 
 For more complete public API examples, see the
-[`v3_rest_public` example](https://github.com/flemosr/quantoxide/blob/master/lnm-sdk/examples/v3_rest_public.rs).
+[`v3_rest_public` example](https://github.com/flemosr/quantoxide/blob/main/lnm-sdk/examples/v3_rest_public.rs).
 
 ### REST API v3 - Authenticated
 
@@ -132,7 +132,7 @@ let _close_order = rest.futures_cross.close_position().await?;
 ```
 
 For more complete authenticated REST API examples, see the
-[`v3_rest_auth` example](https://github.com/flemosr/quantoxide/blob/master/lnm-sdk/examples/v3_rest_auth.rs).
+[`v3_rest_auth` example](https://github.com/flemosr/quantoxide/blob/main/lnm-sdk/examples/v3_rest_auth.rs).
 
 ### WebSocket API
 
@@ -185,13 +185,13 @@ while let Ok(ws_update) = ws_rx.recv().await {
 ```
 
 For a more complete WebSocket API example, see the
-[`v2_ws` example](https://github.com/flemosr/quantoxide/blob/master/lnm-sdk/examples/v2_ws.rs).
+[`v2_ws` example](https://github.com/flemosr/quantoxide/blob/main/lnm-sdk/examples/v2_ws.rs).
 
 ## Testing
 
 Some tests require environment variables and are ignored by default. Moreover, said tests must be
 run sequentially as they depend on exchange state. The full test suite can be executed by setting
-the `LNM_API_*` variables or adding a `.env` file to the project root (a [`.env.template`](https://github.com/flemosr/quantoxide/blob/master/.env.template) file is
+the `LNM_API_*` variables or adding a `.env` file to the project root (a [`.env.template`](https://github.com/flemosr/quantoxide/blob/main/.env.template) file is
 available), and then running:
 
 ```bash
@@ -206,7 +206,7 @@ cargo test -- --include-ignored --test-threads=1
 ## License
 
 This project is licensed under the
-[Apache License (Version 2.0)](https://github.com/flemosr/quantoxide/blob/master/lnm-sdk/LICENSE).
+[Apache License (Version 2.0)](https://github.com/flemosr/quantoxide/blob/main/lnm-sdk/LICENSE).
 
 ## Contribution
 

@@ -8,11 +8,11 @@ Direct source code links for quick reference:
 
 | Category | Raw Source |
 |----------|------------|
-| **API v3 - Public Endpoints** | [v3_rest_public.rs](https://raw.githubusercontent.com/flemosr/quantoxide/master/lnm-sdk/examples/v3_rest_public.rs) |
-| **API v3 - Authenticated Endpoints** | [v3_rest_auth.rs](https://raw.githubusercontent.com/flemosr/quantoxide/master/lnm-sdk/examples/v3_rest_auth.rs) |
-| **API v2 - Public Endpoints** | [v2_rest_public.rs](https://raw.githubusercontent.com/flemosr/quantoxide/master/lnm-sdk/examples/v2_rest_public.rs) |
-| **API v2 - Authenticated Endpoints** | [v2_rest_auth.rs](https://raw.githubusercontent.com/flemosr/quantoxide/master/lnm-sdk/examples/v2_rest_auth.rs) |
-| **WebSocket API** | [v2_ws.rs](https://raw.githubusercontent.com/flemosr/quantoxide/master/lnm-sdk/examples/v2_ws.rs) |
+| **API v3 - Public Endpoints** | [v3_rest_public.rs](https://raw.githubusercontent.com/flemosr/quantoxide/main/lnm-sdk/examples/v3_rest_public.rs) |
+| **API v3 - Authenticated Endpoints** | [v3_rest_auth.rs](https://raw.githubusercontent.com/flemosr/quantoxide/main/lnm-sdk/examples/v3_rest_auth.rs) |
+| **API v2 - Public Endpoints** | [v2_rest_public.rs](https://raw.githubusercontent.com/flemosr/quantoxide/main/lnm-sdk/examples/v2_rest_public.rs) |
+| **API v2 - Authenticated Endpoints** | [v2_rest_auth.rs](https://raw.githubusercontent.com/flemosr/quantoxide/main/lnm-sdk/examples/v2_rest_auth.rs) |
+| **WebSocket API** | [v2_ws.rs](https://raw.githubusercontent.com/flemosr/quantoxide/main/lnm-sdk/examples/v2_ws.rs) |
 
 ## Prerequisites
 
@@ -30,7 +30,7 @@ API v2 authenticated examples (`v2_rest_auth`) require:
 - `LNM_API_V2_PASSPHRASE` - Your API v2 passphrase
 
 These environment variables should be set, or a `.env` file should be added in the project root.
-A [`.env.template`](https://github.com/flemosr/quantoxide/blob/master/.env.template) file is
+A [`.env.template`](https://github.com/flemosr/quantoxide/blob/main/.env.template) file is
 available.
 
 ## API v3
