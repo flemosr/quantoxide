@@ -15,7 +15,7 @@ to live trading, with local historical data testing capabilities.
 [![License Badge](https://img.shields.io/crates/l/quantoxide)](https://github.com/flemosr/quantoxide/blob/main/LICENSE)
 
 [Repository](https://github.com/flemosr/quantoxide) |
-[Examples](https://github.com/flemosr/quantoxide/blob/main/examples) |
+[Examples](https://github.com/flemosr/quantoxide/tree/main/examples) |
 [Documentation](https://docs.rs/quantoxide/latest/quantoxide/) |
 [AI Quickstart Prompt](https://raw.githubusercontent.com/flemosr/quantoxide/refs/heads/main/QUICKSTART_PROMPT.md)
 
