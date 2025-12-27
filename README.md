@@ -3,19 +3,19 @@
 A Rust framework for developing, backtesting, and deploying algorithmic trading strategies for
 Bitcoin futures.
 
-This crate is built on top of [`lnm-sdk`](https://github.com/flemosr/quantoxide/tree/main/lnm-sdk),
-using the [LN Markets](https://lnmarkets.com/) API. It provides a complete workflow from strategy
-development to live trading, with local historical data testing capabilities.
+This crate is built on top of [`lnm-sdk`](https://github.com/flemosr/lnm-sdk), using the
+[LN Markets](https://lnmarkets.com/) API. It provides a complete workflow from strategy development
+to live trading, with local historical data testing capabilities.
 
 > **Disclaimer**: This is alpha software provided "as is" without warranty of any kind. Understand
 > that bugs may result in loss of assets. Use at your own risk.
 
 [![Crates.io Badge](https://img.shields.io/crates/v/quantoxide)](https://crates.io/crates/quantoxide)
 [![Documentation Badge](https://docs.rs/quantoxide/badge.svg)](https://docs.rs/quantoxide/latest/quantoxide/)
-[![License Badge](https://img.shields.io/crates/l/quantoxide)](https://github.com/flemosr/quantoxide/blob/main/quantoxide/LICENSE)
+[![License Badge](https://img.shields.io/crates/l/quantoxide)](https://github.com/flemosr/quantoxide/blob/main/LICENSE)
 
 [Repository](https://github.com/flemosr/quantoxide) |
-[Examples](https://github.com/flemosr/quantoxide/blob/main/quantoxide/examples) |
+[Examples](https://github.com/flemosr/quantoxide/blob/main/examples) |
 [Documentation](https://docs.rs/quantoxide/latest/quantoxide/) |
 [AI Quickstart Prompt](https://raw.githubusercontent.com/flemosr/quantoxide/refs/heads/main/QUICKSTART_PROMPT.md)
 
@@ -36,7 +36,7 @@ quantoxide = "<quantoxide-version>"
 
 A PostgreSQL database instance is required to store historical price data. Quick setup instructions
 are available in the
-[examples `README`](https://github.com/flemosr/quantoxide/blob/main/quantoxide/examples/README.md).
+[examples `README`](https://github.com/flemosr/quantoxide/blob/main/examples/README.md).
 
 ### AI Quickstart
 
@@ -131,7 +131,7 @@ This project is in active development and currently has the following limitation
 ## Examples
 
 Complete runnable examples are available in the
-[`quantoxide/examples`](https://github.com/flemosr/quantoxide/tree/main/quantoxide/examples)
+[`quantoxide/examples`](https://github.com/flemosr/quantoxide/tree/main/examples)
 directory. The snippets below demonstrate the core components of the framework.
 
 > **Note**: `println!` and other `stdout`/`stderr` outputs should be avoided when TUIs are running,
@@ -174,9 +174,9 @@ impl RawOperator for MyOperator {
 ```
 
 See the
-[`operators/raw` example](https://github.com/flemosr/quantoxide/blob/main/quantoxide/examples/operators/raw.rs)
+[`operators/raw` example](https://github.com/flemosr/quantoxide/blob/main/examples/operators/raw.rs)
 for a complete template. For signal-based operators, see the
-[`operators/signal` example](https://github.com/flemosr/quantoxide/blob/main/quantoxide/examples/operators/signal.rs).
+[`operators/signal` example](https://github.com/flemosr/quantoxide/blob/main/examples/operators/signal.rs).
 
 ### Synchronization TUI
 
@@ -208,7 +208,7 @@ How far back to fetch price history data can be configured with
 </p>
 
 For a complete implementation, see the
-[`sync_tui` example](https://github.com/flemosr/quantoxide/blob/main/quantoxide/examples/sync_tui.rs).
+[`sync_tui` example](https://github.com/flemosr/quantoxide/blob/main/examples/sync_tui.rs).
 
 ### Backtesting TUI
 
@@ -246,9 +246,9 @@ backtest_tui.until_stopped().await;
 </p>
 
 For a complete implementation with a raw operator, see the
-[`backtest_raw_tui` example](https://github.com/flemosr/quantoxide/blob/main/quantoxide/examples/backtest_raw_tui.rs).
+[`backtest_raw_tui` example](https://github.com/flemosr/quantoxide/blob/main/examples/backtest_raw_tui.rs).
 Or see the
-[`backtest_signal_tui` example](https://github.com/flemosr/quantoxide/blob/main/quantoxide/examples/backtest_signal_tui.rs)
+[`backtest_signal_tui` example](https://github.com/flemosr/quantoxide/blob/main/examples/backtest_signal_tui.rs)
 for a signal-based approach.
 
 ### Live Trading TUI
@@ -288,15 +288,15 @@ live_tui.until_stopped().await;
 </p>
 
 For a complete implementation with a raw operator, see the
-[`live_raw_tui` example](https://github.com/flemosr/quantoxide/blob/main/quantoxide/examples/live_raw_tui.rs).
+[`live_raw_tui` example](https://github.com/flemosr/quantoxide/blob/main/examples/live_raw_tui.rs).
 Or see the
-[`live_signal_tui` example](https://github.com/flemosr/quantoxide/blob/main/quantoxide/examples/live_signal_tui.rs)
+[`live_signal_tui` example](https://github.com/flemosr/quantoxide/blob/main/examples/live_signal_tui.rs)
 for a signal-based approach.
 
 ## License
 
 This project is licensed under the
-[Apache License (Version 2.0)](https://github.com/flemosr/quantoxide/blob/main/quantoxide/LICENSE).
+[Apache License (Version 2.0)](https://github.com/flemosr/quantoxide/blob/main/LICENSE).
 
 ## Contribution
 
