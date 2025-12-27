@@ -30,7 +30,7 @@ Follow this workflow when helping develop a trading strategy:
    
    **Step 1:** Fetch the quantoxide Cargo.toml manifest:
    ```bash
-   curl https://raw.githubusercontent.com/flemosr/quantoxide/refs/heads/main/quantoxide/Cargo.toml
+   curl https://raw.githubusercontent.com/flemosr/quantoxide/refs/heads/main/Cargo.toml
    ```
    
    **Step 2:** Check the published version on crates.io:
@@ -99,13 +99,13 @@ Follow this workflow when helping develop a trading strategy:
 
 **Step 1:** Get the examples README (contains all template links, PostgreSQL and environment variables setup):
 ```bash
-curl https://raw.githubusercontent.com/flemosr/quantoxide/refs/heads/main/quantoxide/examples/README.md
+curl https://raw.githubusercontent.com/flemosr/quantoxide/refs/heads/main/examples/README.md
 ```
 
 **Step 2:** Fetch specific templates from URLs in the README:
 ```bash
 # Example: Fetch raw operator template
-curl https://raw.githubusercontent.com/flemosr/quantoxide/main/quantoxide/examples/operators/raw.rs
+curl https://raw.githubusercontent.com/flemosr/quantoxide/main/examples/operators/raw.rs
 ```
 
 **Step 3:** Start from templates and modify for the specific strategy. Templates include all necessary boilerplate, imports, and error handling.
@@ -219,4 +219,4 @@ let increased = current_price.apply_gain(Percentage::try_from(20.0)?)?; // 120,0
 - **Documentation:** https://docs.rs/quantoxide/latest/quantoxide/
 - **Repository:** https://github.com/flemosr/quantoxide/tree/main
 - **Main README:** https://raw.githubusercontent.com/flemosr/quantoxide/refs/heads/main/README.md
-- **Examples README (START HERE for templates):** https://raw.githubusercontent.com/flemosr/quantoxide/refs/heads/main/quantoxide/examples/README.md
+- **Examples README (START HERE for templates):** https://raw.githubusercontent.com/flemosr/quantoxide/refs/heads/main/examples/README.md
