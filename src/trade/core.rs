@@ -20,8 +20,11 @@ use lnm_sdk::api_v3::{
 };
 
 use crate::{
-    db::models::OhlcCandleRow, error::Result as GeneralResult, shared::LookbackPeriod,
-    shared::MinIterationInterval, signal::Signal, util::DateTimeExt,
+    db::models::OhlcCandleRow,
+    error::Result as GeneralResult,
+    shared::{LookbackPeriod, MinIterationInterval, OhlcResolution},
+    signal::Signal,
+    util::DateTimeExt,
 };
 
 use super::error::{TradeCoreError, TradeCoreResult, TradeExecutorResult};
@@ -1130,7 +1133,10 @@ pub trait RawOperator: Send + Sync {
     /// Sets the trade executor that should be used to execute trading operations.
     fn set_trade_executor(&mut self, trade_executor: Arc<dyn TradeExecutor>) -> GeneralResult<()>;
 
-    /// Returns the lookback period determining how much historical candlestick data is provided to
+    /// Returns the candle resolution for this operator.
+    fn resolution(&self) -> OhlcResolution;
+
+    /// Returns the lookback period determining how many candles of historical data are provided to
     /// the operator.
     fn lookback(&self) -> Option<LookbackPeriod>;
 
@@ -1154,6 +1160,12 @@ impl WrappedRawOperator {
         }))
         .map_err(|e| TradeCoreError::RawOperatorSetTradeExecutorPanicked(e.into()))?
         .map_err(|e| TradeCoreError::RawOperatorSetTradeExecutorError(e.to_string()))
+    }
+
+    pub fn resolution(&self) -> TradeCoreResult<OhlcResolution> {
+        let resolution = panic::catch_unwind(AssertUnwindSafe(|| self.0.resolution()))
+            .map_err(|e| TradeCoreError::RawOperatorResolutionPanicked(e.into()))?;
+        Ok(resolution)
     }
 
     pub fn lookback(&self) -> TradeCoreResult<Option<LookbackPeriod>> {
