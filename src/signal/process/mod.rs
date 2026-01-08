@@ -147,9 +147,7 @@ impl LiveSignalProcess {
                 // incomplete, candle.
                 let now = Utc::now();
                 let current_bucket = now.floor_to_resolution(resolution);
-                // Calculate from: go back (lookback - 1) candles from the current bucket
-                let from =
-                    current_bucket.step_back_candles(resolution, max_lookback.as_u64() as u32 - 1);
+                let from = current_bucket.step_back_candles(resolution, max_lookback.as_u64() - 1);
 
                 self.db
                     .ohlc_candles
