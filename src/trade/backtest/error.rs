@@ -5,8 +5,7 @@ use thiserror::Error;
 use tokio::task::JoinError;
 
 use crate::{
-    db::error::DbError, shared::LookbackPeriod,
-    signal::process::error::SignalProcessRecoverableError,
+    db::error::DbError, signal::process::error::SignalProcessRecoverableError,
     sync::process::sync_price_history_task::error::SyncPriceHistoryError,
 };
 
@@ -50,12 +49,6 @@ pub enum BacktestError {
     InvalidTimeRangeTooShort {
         min_duration: Duration,
         duration_hours: i64,
-    },
-
-    #[error("Buffer size {buffer_size} is incompatible with max lookback {max_lookback}")]
-    IncompatibleBufferSize {
-        buffer_size: usize,
-        max_lookback: LookbackPeriod,
     },
 
     #[error("Price History State Evaluation error: {0}")]

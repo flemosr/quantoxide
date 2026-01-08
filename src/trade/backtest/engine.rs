@@ -6,7 +6,7 @@ use tokio::sync::broadcast::{self, error::RecvError};
 
 use crate::{
     db::Database,
-    shared::{LookbackPeriod, OhlcResolution},
+    shared::Lookback,
     signal::{ConfiguredSignalEvaluator, Signal},
     sync::PriceHistoryState,
     trade::backtest::config::BacktestConfig,
@@ -178,7 +178,7 @@ impl Operator {
         }
     }
 
-    fn max_lookback(&self) -> Result<Option<LookbackPeriod>> {
+    fn max_lookback(&self) -> Result<Option<Lookback>> {
         match self {
             Operator::Signal {
                 evaluators,
@@ -186,9 +186,8 @@ impl Operator {
             } => {
                 let max_lookback = evaluators
                     .iter()
-                    .map(|(_, evaluator)| evaluator.lookback())
-                    .max()
-                    .expect("`evaluators` must not be empty");
+                    .filter_map(|(_, evaluator)| evaluator.lookback())
+                    .max_by_key(|l| l.period());
 
                 Ok(max_lookback)
             }
@@ -197,29 +196,6 @@ impl Operator {
                 raw_operator,
             } => raw_operator
                 .lookback()
-                .map_err(BacktestError::OperatorError),
-        }
-    }
-
-    fn resolution(&self) -> Result<OhlcResolution> {
-        match self {
-            Operator::Signal {
-                evaluators,
-                signal_operator: _,
-            } => {
-                // All evaluators use the same resolution.
-                let resolution = evaluators
-                    .first()
-                    .map(|(_, evaluator)| evaluator.resolution())
-                    .expect("`evaluators` must not be empty");
-
-                Ok(resolution)
-            }
-            Operator::Raw {
-                last_eval: _,
-                raw_operator,
-            } => raw_operator
-                .resolution()
                 .map_err(BacktestError::OperatorError),
         }
     }
@@ -272,21 +248,13 @@ impl BacktestEngine {
         }
 
         let max_lookback = operator.max_lookback()?;
-        let resolution = operator.resolution()?;
-
-        if max_lookback.is_some_and(|max| max.as_usize() > config.buffer_size()) {
-            return Err(BacktestError::IncompatibleBufferSize {
-                buffer_size: config.buffer_size(),
-                max_lookback: max_lookback.expect("not `None`"),
-            });
-        }
 
         let price_history_state = PriceHistoryState::evaluate(&db)
             .await
             .map_err(BacktestError::PriceHistoryStateEvaluation)?;
 
         let lookback_time = if let Some(lookback) = max_lookback {
-            start_time.step_back_candles(resolution, lookback.as_u64() - 1)
+            start_time.step_back_candles(lookback.resolution(), lookback.period().as_u64() - 1)
         } else {
             start_time
         };
@@ -376,12 +344,11 @@ impl BacktestEngine {
         let mut operator = self.operator;
 
         let max_lookback = operator.max_lookback()?;
-        let resolution = operator.resolution()?;
 
         let buffer_size = self.config.buffer_size() as i64;
 
         let lookback_minutes = max_lookback
-            .map(|lb| lb.as_u64() as i64 * resolution.as_minutes() as i64)
+            .map(|l| l.period().as_u64() as i64 * l.resolution().as_minutes() as i64)
             .unwrap_or(0);
 
         let buffer_from = self.start_time - Duration::minutes(lookback_minutes);
@@ -413,11 +380,10 @@ impl BacktestEngine {
         let mut time_cursor = start_candle.time + Duration::seconds(59);
         let mut minute_cursor_idx = start_candle_idx;
 
-        // If lookback is needed, create consolidator with lookback candles up to start position
+        // If lookback is set, create consolidator with lookback candles up to start position
         let mut consolidator = if let Some(lookback) = max_lookback {
             let initial_candles = &minute_buffer[..=start_candle_idx];
             Some(RuntimeConsolidator::new(
-                resolution,
                 lookback,
                 initial_candles,
                 time_cursor,
