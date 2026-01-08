@@ -6,8 +6,8 @@ use futures::FutureExt;
 
 use crate::{
     db::models::OhlcCandleRow,
-    error::Result as GeneralResult,
-    shared::{LookbackPeriod, MinIterationInterval},
+    error::Result,
+    shared::{LookbackPeriod, MinIterationInterval, OhlcResolution},
     util::DateTimeExt,
 };
 
@@ -96,24 +96,26 @@ pub trait SignalActionEvaluator: Send + Sync {
     /// Evaluates a series of OHLC candlesticks and returns a signal action.
     ///
     /// The candlestick slice is ordered chronologically, with the most recent candle last.
-    async fn evaluate(&self, candles: &[OhlcCandleRow]) -> GeneralResult<SignalAction>;
+    async fn evaluate(&self, candles: &[OhlcCandleRow]) -> Result<SignalAction>;
 }
 
 #[async_trait]
 impl SignalActionEvaluator for Box<dyn SignalActionEvaluator> {
-    async fn evaluate(&self, candles: &[OhlcCandleRow]) -> GeneralResult<SignalAction> {
+    async fn evaluate(&self, candles: &[OhlcCandleRow]) -> Result<SignalAction> {
         (**self).evaluate(candles).await
     }
 }
 
-/// Complete configuration for a signal evaluator including timing and lookback parameters.
+/// Complete configuration for a signal evaluator including timing, resolution, and lookback
+/// parameters.
 ///
-/// Wraps a [`SignalActionEvaluator`] with metadata controlling when evaluations occur and how much
-/// historical data is provided to the evaluator.
+/// Wraps a [`SignalActionEvaluator`] with metadata controlling when evaluations occur, what candle
+/// resolution to use, and how much historical data is provided to the evaluator.
 pub struct SignalEvaluator<T: SignalActionEvaluator> {
     name: SignalName,
-    min_iteration_interval: MinIterationInterval,
+    resolution: OhlcResolution,
     lookback: Option<LookbackPeriod>,
+    min_iteration_interval: MinIterationInterval,
     action_evaluator: T,
 }
 
@@ -121,14 +123,16 @@ impl<T: SignalActionEvaluator> SignalEvaluator<T> {
     /// Creates a new signal evaluator with the specified configuration.
     pub fn new(
         name: SignalName,
-        min_iteration_interval: MinIterationInterval,
+        resolution: OhlcResolution,
         lookback: Option<LookbackPeriod>,
+        min_iteration_interval: MinIterationInterval,
         action_evaluator: T,
     ) -> Self {
         Self {
             name,
-            min_iteration_interval,
+            resolution,
             lookback,
+            min_iteration_interval,
             action_evaluator,
         }
     }
@@ -138,7 +142,13 @@ impl<T: SignalActionEvaluator> SignalEvaluator<T> {
         &self.name
     }
 
-    /// Returns the lookback period determining how much historical data to provide for evaluation.
+    /// Returns the candle resolution for this signal evaluator.
+    pub fn resolution(&self) -> OhlcResolution {
+        self.resolution
+    }
+
+    /// Returns the lookback period determining how many candles of historical data to provide for
+    /// evaluation.
     pub fn lookback(&self) -> Option<LookbackPeriod> {
         self.lookback
     }
@@ -173,8 +183,9 @@ impl SignalEvaluator<Box<dyn SignalActionEvaluator>> {
     /// used interchangeably.
     pub fn new_boxed<E>(
         name: SignalName,
-        min_iteration_interval: MinIterationInterval,
+        resolution: OhlcResolution,
         lookback: Option<LookbackPeriod>,
+        min_iteration_interval: MinIterationInterval,
         action_evaluator: E,
     ) -> ConfiguredSignalEvaluator
     where
@@ -182,8 +193,9 @@ impl SignalEvaluator<Box<dyn SignalActionEvaluator>> {
     {
         Self::new(
             name,
-            min_iteration_interval,
+            resolution,
             lookback,
+            min_iteration_interval,
             Box::new(action_evaluator),
         )
     }
