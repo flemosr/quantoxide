@@ -79,7 +79,7 @@ pub mod error {
 /// Exports database models, shared configuration types, and selected `lnm-sdk` models.
 pub mod models {
     pub use super::db::models::{OhlcCandleRow, PriceTickRow};
-    pub use super::shared::{LookbackPeriod, MinIterationInterval};
+    pub use super::shared::{LookbackPeriod, MinIterationInterval, OhlcResolution};
 
     // Re-export selected `lnm-sdk::api_v3` models and utils for convenience
     pub use lnm_sdk::api_v3::models::{
