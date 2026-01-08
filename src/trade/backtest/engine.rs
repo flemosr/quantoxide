@@ -6,7 +6,7 @@ use tokio::sync::broadcast::{self, error::RecvError};
 
 use crate::{
     db::Database,
-    shared::LookbackPeriod,
+    shared::{LookbackPeriod, OhlcResolution},
     signal::{ConfiguredSignalEvaluator, Signal},
     sync::PriceHistoryState,
     trade::backtest::config::BacktestConfig,
@@ -19,6 +19,7 @@ use super::{
         RawOperator, SignalOperator, TradeExecutor, TradingState, WrappedRawOperator,
         WrappedSignalOperator,
     },
+    consolidator::RuntimeConsolidator,
     error::{BacktestError, Result},
     executor::SimulatedTradeExecutor,
     state::{
@@ -199,6 +200,29 @@ impl Operator {
                 .map_err(BacktestError::OperatorError),
         }
     }
+
+    fn resolution(&self) -> Result<OhlcResolution> {
+        match self {
+            Operator::Signal {
+                evaluators,
+                signal_operator: _,
+            } => {
+                // All evaluators use the same resolution.
+                let resolution = evaluators
+                    .first()
+                    .map(|(_, evaluator)| evaluator.resolution())
+                    .expect("`evaluators` must not be empty");
+
+                Ok(resolution)
+            }
+            Operator::Raw {
+                last_eval: _,
+                raw_operator,
+            } => raw_operator
+                .resolution()
+                .map_err(BacktestError::OperatorError),
+        }
+    }
 }
 
 /// Builder for configuring and executing a backtest simulation. Encapsulates the configuration,
@@ -248,6 +272,7 @@ impl BacktestEngine {
         }
 
         let max_lookback = operator.max_lookback()?;
+        let resolution = operator.resolution()?;
 
         if max_lookback.is_some_and(|max| max.as_usize() > config.buffer_size()) {
             return Err(BacktestError::IncompatibleBufferSize {
@@ -261,9 +286,7 @@ impl BacktestEngine {
             .map_err(BacktestError::PriceHistoryStateEvaluation)?;
 
         let lookback_time = if let Some(lookback) = max_lookback {
-            start_time
-                .checked_sub_signed(Duration::minutes(lookback.as_i64() - 1))
-                .ok_or(BacktestError::DateRangeBufferOutOfRange)?
+            start_time.step_back_candles(resolution, lookback.as_u64() - 1)
         } else {
             start_time
         };
@@ -353,40 +376,31 @@ impl BacktestEngine {
         let mut operator = self.operator;
 
         let max_lookback = operator.max_lookback()?;
+        let resolution = operator.resolution()?;
 
-        let buffer_size = self.config.buffer_size();
+        let buffer_size = self.config.buffer_size() as i64;
 
-        let get_buffers = |start_minute: DateTime<Utc>| {
-            let db = &self.db;
-            async move {
-                // From `::new`, `max_lookback` must be lte `buffer_size`
+        let lookback_minutes = max_lookback
+            .map(|lb| lb.as_u64() as i64 * resolution.as_minutes() as i64)
+            .unwrap_or(0);
 
-                let from = start_minute
-                    .checked_sub_signed(Duration::minutes(
-                        max_lookback.map_or(0, |l| l.as_i64() - 1),
-                    ))
-                    .ok_or(BacktestError::DateRangeBufferOutOfRange)?;
+        let buffer_from = self.start_time - Duration::minutes(lookback_minutes);
+        let buffer_to = buffer_from + Duration::minutes(buffer_size);
+        let mut minute_buffer = self
+            .db
+            .ohlc_candles
+            .get_candles(buffer_from, buffer_to)
+            .await?;
 
-                let to = from
-                    .checked_add_signed(Duration::minutes(buffer_size as i64))
-                    .ok_or(BacktestError::DateRangeBufferOutOfRange)?;
+        // Find the index of the start_time minute candle, or the next available candle
+        let start_candle_idx = minute_buffer
+            .iter()
+            .position(|c| c.time >= self.start_time)
+            .ok_or(BacktestError::UnexpectedEmptyBuffer {
+                time: self.start_time,
+            })?;
 
-                let candle_buffer = db.ohlc_candles.get_candles(from, to).await?;
-
-                // Some candles may have been skipped
-
-                let mut buffer_cursor_idx = 0;
-                while candle_buffer[buffer_cursor_idx].time < start_minute {
-                    buffer_cursor_idx += 1;
-                }
-
-                Ok::<_, BacktestError>((candle_buffer, buffer_cursor_idx))
-            }
-        };
-
-        let (mut candle_buffer, mut buffer_cursor_idx) = get_buffers(self.start_time).await?;
-
-        let start_candle = &candle_buffer[buffer_cursor_idx];
+        let start_candle = &minute_buffer[start_candle_idx];
 
         let trades_executor = Arc::new(SimulatedTradeExecutor::new(
             &self.config,
@@ -397,12 +411,31 @@ impl BacktestEngine {
         operator.set_executor(trades_executor.clone())?;
 
         let mut time_cursor = start_candle.time + Duration::seconds(59);
+        let mut minute_cursor_idx = start_candle_idx;
+
+        // If lookback is needed, create consolidator with lookback candles up to start position
+        let mut consolidator = if let Some(lookback) = max_lookback {
+            let initial_candles = &minute_buffer[..=start_candle_idx];
+            Some(RuntimeConsolidator::new(
+                resolution,
+                lookback,
+                initial_candles,
+                time_cursor,
+            )?)
+        } else {
+            None
+        };
 
         let mut send_next_update_at = time_cursor + self.config.update_interval();
 
         self.status_manager.update(BacktestStatus::Running);
 
         loop {
+            let ctx_candles = consolidator
+                .as_ref()
+                .map(|c| c.get_candles())
+                .unwrap_or(&[]);
+
             match &mut operator {
                 Operator::Signal {
                     evaluators,
@@ -416,14 +449,6 @@ impl BacktestEngine {
                         }
 
                         *last_eval = time_cursor;
-
-                        let ctx_candles = if let Some(lookback) = evaluator.lookback() {
-                            let lookback = lookback.as_usize();
-                            let start_idx = buffer_cursor_idx.saturating_sub(lookback - 1);
-                            &candle_buffer[start_idx..=buffer_cursor_idx]
-                        } else {
-                            &[]
-                        };
 
                         let signal = Signal::try_evaluate(evaluator, time_cursor, ctx_candles)
                             .await
@@ -447,18 +472,6 @@ impl BacktestEngine {
                     if time_cursor >= *last_eval + min_iteration_interval {
                         *last_eval = time_cursor;
 
-                        let lookback_opt = raw_operator
-                            .lookback()
-                            .map_err(BacktestError::OperatorError)?;
-
-                        let ctx_candles = if let Some(lookback) = lookback_opt {
-                            let lookback = lookback.as_usize();
-                            let start_idx = buffer_cursor_idx.saturating_sub(lookback - 1);
-                            &candle_buffer[start_idx..=buffer_cursor_idx]
-                        } else {
-                            &[]
-                        };
-
                         raw_operator
                             .iterate(ctx_candles)
                             .await
@@ -479,28 +492,42 @@ impl BacktestEngine {
                 send_next_update_at += self.config.update_interval();
             }
 
-            if time_cursor + Duration::minutes(1) >= self.end_time {
+            if time_cursor >= self.end_time - Duration::seconds(1) {
                 break;
             }
 
-            if buffer_cursor_idx < candle_buffer.len() - 1 {
-                buffer_cursor_idx += 1;
-            } else {
-                (candle_buffer, buffer_cursor_idx) = get_buffers(time_cursor.next_minute()).await?;
+            minute_cursor_idx += 1;
+
+            // Refetch buffer when exhausted
+            if minute_cursor_idx >= minute_buffer.len() {
+                let new_buffer_to =
+                    (time_cursor + Duration::minutes(buffer_size)).min(self.end_time);
+
+                minute_buffer = self
+                    .db
+                    .ohlc_candles
+                    .get_candles(time_cursor, new_buffer_to)
+                    .await?;
+
+                if minute_buffer.is_empty() {
+                    return Err(BacktestError::UnexpectedEmptyBuffer { time: time_cursor });
+                }
+
+                minute_cursor_idx = 0;
             }
 
-            let next_candle = &candle_buffer[buffer_cursor_idx];
+            // Advance time cursor to the end of the next candle's minute (skips gaps in data)
+            time_cursor = minute_buffer[minute_cursor_idx].time + Duration::seconds(59);
 
-            time_cursor = next_candle.time + Duration::seconds(59);
-
-            if time_cursor >= self.end_time {
-                break;
-            }
-
+            let next_minute_candle = &minute_buffer[minute_cursor_idx];
             trades_executor
-                .candle_update(next_candle)
+                .candle_update(next_minute_candle)
                 .await
                 .map_err(BacktestError::ExecutorTickUpdate)?;
+
+            if let Some(consolidator) = &mut consolidator {
+                consolidator.push(next_minute_candle)?;
+            }
         }
 
         let final_state = trades_executor

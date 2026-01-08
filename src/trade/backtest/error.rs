@@ -102,6 +102,17 @@ pub enum BacktestError {
 
     #[error("Trade executor state evaluation error: {0}")]
     ExecutorStateEvaluation(TradeExecutorError),
+
+    #[error("Unexpected empty buffer at {time}")]
+    UnexpectedEmptyBuffer { time: DateTime<Utc> },
+
+    #[error(
+        "Out-of-order candle: received candle at {candle_time} but current bucket is at {bucket_time}"
+    )]
+    OutOfOrderCandle {
+        candle_time: DateTime<Utc>,
+        bucket_time: DateTime<Utc>,
+    },
 }
 
 pub(super) type Result<T> = result::Result<T, BacktestError>;
