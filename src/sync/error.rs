@@ -4,17 +4,12 @@ use thiserror::Error;
 
 use lnm_sdk::api_v3::error::RestApiError;
 
-use crate::shared::error::LookbackPeriodValidationError;
-
 use super::{process::error::SyncProcessFatalError, state::SyncStatus};
 
 #[derive(Error, Debug)]
 pub enum SyncError {
     #[error("REST API client initialization error: {0}")]
     RestApiInit(RestApiError),
-
-    #[error(transparent)]
-    InvalidLookbackPeriod(#[from] LookbackPeriodValidationError),
 
     #[error("Sync already shutdown error")]
     SyncAlreadyShutdown,
