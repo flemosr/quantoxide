@@ -67,6 +67,13 @@ impl LiveSignalProcess {
         let mut max_lookback = None;
         let mut evaluators = Vec::with_capacity(self.evaluators.len());
 
+        // Use the resolution of the first evaluator (all evaluators must use the same resolution)
+        let resolution = self
+            .evaluators
+            .first()
+            .map(|e| e.resolution())
+            .expect("`evaluators` must not be empty");
+
         let now = Utc::now().ceil_sec();
         for evaluator in self.evaluators.iter() {
             min_iteration_interval =
@@ -136,12 +143,17 @@ impl LiveSignalProcess {
             }
 
             let candle_buffer = if let Some(max_lookback) = max_lookback {
-                let to = Utc::now().floor_minute();
-                let from = to - max_lookback.as_duration() + Duration::minutes(1);
+                // Floor current time to the resolution boundary to get the current, possibly
+                // incomplete, candle.
+                let now = Utc::now();
+                let current_bucket = now.floor_to_resolution(resolution);
+                // Calculate from: go back (lookback - 1) candles from the current bucket
+                let from =
+                    current_bucket.step_back_candles(resolution, max_lookback.as_u64() as u32 - 1);
 
                 self.db
                     .ohlc_candles
-                    .get_candles(from, to)
+                    .get_candles_consolidated(from, now, resolution)
                     .await
                     .map_err(SignalProcessRecoverableError::Db)?
             } else {
