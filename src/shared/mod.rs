@@ -80,8 +80,8 @@ impl LookbackPeriod {
     /// Minimum lookback period: 5 candles.
     pub const MIN: Self = Self(5);
 
-    /// Maximum lookback period: 1440 candles.
-    pub const MAX: Self = Self(1440);
+    /// Maximum lookback period: 200 candles.
+    pub const MAX: Self = Self(200);
 
     /// Returns the lookback period as a [`Duration`] for the given resolution.
     ///
@@ -104,22 +104,22 @@ impl LookbackPeriod {
     }
 
     /// Returns the number of candles as a `u64`.
-    pub fn as_u64(&self) -> u64 {
+    pub const fn as_u64(&self) -> u64 {
         self.0
     }
 
     /// Returns the number of candles as a `usize`.
-    pub fn as_usize(&self) -> usize {
+    pub const fn as_usize(&self) -> usize {
         self.0 as usize
     }
 
     /// Returns the number of candles as an `i64`.
-    pub fn as_i64(&self) -> i64 {
+    pub const fn as_i64(&self) -> i64 {
         self.0 as i64
     }
 
     /// Returns the number of candles as an `f64`.
-    pub fn as_f64(&self) -> f64 {
+    pub const fn as_f64(&self) -> f64 {
         self.0 as f64
     }
 }
