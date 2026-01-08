@@ -121,12 +121,7 @@ impl SyncProcess {
                 api_rest,
                 api_ws,
                 lookback,
-                resolution,
-            } => Box::pin(self.run_live_with_lookback(
-                api_rest,
-                api_ws,
-                lookback.as_duration(*resolution),
-            )),
+            } => Box::pin(self.run_live_with_lookback(api_rest, api_ws, lookback.as_duration())),
             SyncModeInt::Full { api_rest, api_ws } => Box::pin(self.run_full(api_rest, api_ws)),
         }
     }
