@@ -8,6 +8,7 @@ use tokio::{
 
 use crate::{
     db::Database,
+    shared::Lookback,
     sync::{SyncReader, SyncStatus, SyncUpdate},
     util::{AbortOnDropHandle, DateTimeExt, Never},
 };
@@ -64,22 +65,20 @@ impl LiveSignalProcess {
 
     async fn run(&self) -> ProcessResult<Never> {
         let mut min_iteration_interval = Duration::MAX;
-        let mut max_lookback = None;
+        let mut max_lookback: Option<Lookback> = None;
         let mut evaluators = Vec::with_capacity(self.evaluators.len());
-
-        // Use the resolution of the first evaluator (all evaluators must use the same resolution)
-        let resolution = self
-            .evaluators
-            .first()
-            .map(|e| e.resolution())
-            .expect("`evaluators` must not be empty");
 
         let now = Utc::now().ceil_sec();
         for evaluator in self.evaluators.iter() {
             min_iteration_interval =
                 min_iteration_interval.min(evaluator.min_iteration_interval().as_duration());
 
-            max_lookback = max_lookback.max(evaluator.lookback());
+            if let Some(lookback) = evaluator.lookback() {
+                max_lookback = Some(match max_lookback {
+                    Some(existing) if existing.period() >= lookback.period() => existing,
+                    _ => lookback,
+                });
+            }
 
             evaluators.push((now, evaluator));
         }
@@ -142,12 +141,14 @@ impl LiveSignalProcess {
                 }
             }
 
-            let candle_buffer = if let Some(max_lookback) = max_lookback {
+            let candle_buffer = if let Some(lookback) = max_lookback {
                 // Floor current time to the resolution boundary to get the current, possibly
                 // incomplete, candle.
                 let now = Utc::now();
+                let resolution = lookback.resolution();
                 let current_bucket = now.floor_to_resolution(resolution);
-                let from = current_bucket.step_back_candles(resolution, max_lookback.as_u64() - 1);
+                let from =
+                    current_bucket.step_back_candles(resolution, lookback.period().as_u64() - 1);
 
                 self.db
                     .ohlc_candles
@@ -174,7 +175,7 @@ impl LiveSignalProcess {
 
                 let start_idx = candle_buffer
                     .len()
-                    .saturating_sub(evaluator.lookback().map_or(0, |l| l.as_usize()));
+                    .saturating_sub(evaluator.lookback().map_or(0, |l| l.period().as_usize()));
                 let candles = &candle_buffer[start_idx..];
 
                 let signal = Signal::try_evaluate(evaluator, now, candles).await?;
