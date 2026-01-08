@@ -22,7 +22,7 @@ use lnm_sdk::api_v3::{
 use crate::{
     db::models::OhlcCandleRow,
     error::Result as GeneralResult,
-    shared::{LookbackPeriod, MinIterationInterval, OhlcResolution},
+    shared::{Lookback, MinIterationInterval},
     signal::Signal,
     util::DateTimeExt,
 };
@@ -1133,12 +1133,9 @@ pub trait RawOperator: Send + Sync {
     /// Sets the trade executor that should be used to execute trading operations.
     fn set_trade_executor(&mut self, trade_executor: Arc<dyn TradeExecutor>) -> GeneralResult<()>;
 
-    /// Returns the candle resolution for this operator.
-    fn resolution(&self) -> OhlcResolution;
-
-    /// Returns the lookback period determining how many candles of historical data are provided to
-    /// the operator.
-    fn lookback(&self) -> Option<LookbackPeriod>;
+    /// Returns the lookback configuration for this operator, or `None` if no historical candle
+    /// data is required.
+    fn lookback(&self) -> Option<Lookback>;
 
     /// Returns the minimum interval between successive iterations of the operator.
     fn min_iteration_interval(&self) -> MinIterationInterval;
@@ -1162,21 +1159,15 @@ impl WrappedRawOperator {
         .map_err(|e| TradeCoreError::RawOperatorSetTradeExecutorError(e.to_string()))
     }
 
-    pub fn resolution(&self) -> TradeCoreResult<OhlcResolution> {
-        let resolution = panic::catch_unwind(AssertUnwindSafe(|| self.0.resolution()))
-            .map_err(|e| TradeCoreError::RawOperatorResolutionPanicked(e.into()))?;
-        Ok(resolution)
-    }
-
-    pub fn lookback(&self) -> TradeCoreResult<Option<LookbackPeriod>> {
+    pub fn lookback(&self) -> TradeCoreResult<Option<Lookback>> {
         let lookback = panic::catch_unwind(AssertUnwindSafe(|| self.0.lookback()))
-            .map_err(|e| TradeCoreError::RawOperatorContextWindowPanicked(e.into()))?;
+            .map_err(|e| TradeCoreError::RawOperatorLookbackPanicked(e.into()))?;
         Ok(lookback)
     }
 
     pub fn min_iteration_interval(&self) -> TradeCoreResult<MinIterationInterval> {
         let interval = panic::catch_unwind(AssertUnwindSafe(|| self.0.min_iteration_interval()))
-            .map_err(|e| TradeCoreError::RawOperatorIterationIntervalPanicked(e.into()))?;
+            .map_err(|e| TradeCoreError::RawOperatorMinIterationIntervalPanicked(e.into()))?;
         Ok(interval)
     }
 

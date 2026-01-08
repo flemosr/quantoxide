@@ -72,16 +72,11 @@ pub enum TradeCoreError {
     #[error("`RawOperator::set_trade_executor` error: {0}")]
     RawOperatorSetTradeExecutorError(String),
 
-    #[error("`RawOperator::resolution` panicked: {0}")]
-    RawOperatorResolutionPanicked(PanicPayload),
+    #[error("`RawOperator::lookback` panicked: {0}")]
+    RawOperatorLookbackPanicked(PanicPayload),
 
-    // TODO: Rename
-    #[error("`RawOperator::iteration_interval_secs` panicked: {0}")]
-    RawOperatorIterationIntervalPanicked(PanicPayload),
-
-    // TODO: Rename
-    #[error("`RawOperator::context_window_secs` panicked: {0}")]
-    RawOperatorContextWindowPanicked(PanicPayload),
+    #[error("`RawOperator::min_iteration_interval` panicked: {0}")]
+    RawOperatorMinIterationIntervalPanicked(PanicPayload),
 
     #[error("`RawOperator::iterate` panicked: {0}")]
     RawOperatorIteratePanicked(PanicPayload),
