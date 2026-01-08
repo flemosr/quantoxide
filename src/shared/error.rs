@@ -4,10 +4,16 @@ use super::{LookbackPeriod, MinIterationInterval};
 
 #[derive(Error, Debug)]
 pub enum LookbackPeriodValidationError {
-    #[error("Invalid lookback period, must be at least {}", LookbackPeriod::MIN)]
+    #[error(
+        "Invalid lookback period, must be at least {} candles",
+        LookbackPeriod::MIN
+    )]
     InvalidLookbackPeriodTooShort,
 
-    #[error("Invalid lookback period, must be at most {}", LookbackPeriod::MAX)]
+    #[error(
+        "Invalid lookback period, must be at most {} candles",
+        LookbackPeriod::MAX
+    )]
     InvalidLookbackPeriodTooLong,
 }
 
