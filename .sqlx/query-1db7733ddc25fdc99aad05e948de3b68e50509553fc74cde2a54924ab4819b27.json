@@ -1,0 +1,72 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                        WITH bucketed AS (\n                            SELECT\n                                to_timestamp(FLOOR(EXTRACT(EPOCH FROM time)::BIGINT / $3) * $3) AS bucket_time,\n                                open, high, low, close, volume, created_at, updated_at, stable, time\n                            FROM ohlc_candles\n                            WHERE time >= $1 AND time <= $2\n                        )\n                        SELECT\n                            bucket_time AS \"time!\",\n                            (array_agg(open ORDER BY time ASC))[1] AS \"open!\",\n                            MAX(high) AS \"high!\",\n                            MIN(low) AS \"low!\",\n                            (array_agg(close ORDER BY time DESC))[1] AS \"close!\",\n                            SUM(volume)::BIGINT AS \"volume!\",\n                            MIN(created_at) AS \"created_at!\",\n                            MAX(updated_at) AS \"updated_at!\",\n                            BOOL_AND(stable) AND (bucket_time + $3 * INTERVAL '1 second') <= $2 AS \"stable!\"\n                        FROM bucketed\n                        GROUP BY bucket_time\n                        ORDER BY bucket_time ASC\n                    ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "time!",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 1,
+        "name": "open!",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 2,
+        "name": "high!",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 3,
+        "name": "low!",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 4,
+        "name": "close!",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 5,
+        "name": "volume!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 6,
+        "name": "created_at!",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 7,
+        "name": "updated_at!",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 8,
+        "name": "stable!",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Timestamptz",
+        "Timestamptz",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "1db7733ddc25fdc99aad05e948de3b68e50509553fc74cde2a54924ab4819b27"
+}
