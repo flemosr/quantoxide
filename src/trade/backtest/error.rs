@@ -12,6 +12,7 @@ use crate::{
 
 use super::{
     super::error::{TradeCoreError, TradeExecutorError},
+    config::MIN_BUFFER_SIZE,
     executor::error::SimulatedTradeExecutorError,
 };
 
@@ -23,7 +24,7 @@ pub enum BacktestError {
     #[error("Backtest process was already consumed")]
     ProcessAlreadyConsumed,
 
-    #[error("Buffer size must be at least 100, got {size}")]
+    #[error("Buffer size must be at least {}, got {size}", MIN_BUFFER_SIZE)]
     InvalidConfigurationBufferSize { size: usize },
 
     #[error("Maximum running quantity must be at least 1, got {max}")]

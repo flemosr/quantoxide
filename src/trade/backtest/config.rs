@@ -2,7 +2,16 @@ use chrono::Duration;
 
 use lnm_sdk::api_v3::models::PercentageCapped;
 
+use crate::shared::{LookbackPeriod, OhlcResolution};
+
 use super::error::{BacktestError, Result};
+
+/// Minimum buffer size required for consolidation.
+///
+/// Worst-case scenario: [`LookbackPeriod::MAX`] daily candles × 1440 minutes per day are needed for
+/// consolidation into a full lookback buffer.
+pub(super) const MIN_BUFFER_SIZE: usize =
+    LookbackPeriod::MAX.as_u64() as usize * OhlcResolution::OneDay.as_minutes() as usize;
 
 /// Configuration for the [`BacktestEngine`](crate::trade::BacktestEngine) controlling simulation
 /// parameters and behavior.
@@ -17,7 +26,7 @@ pub struct BacktestConfig {
 impl Default for BacktestConfig {
     fn default() -> Self {
         Self {
-            buffer_size: 1800,
+            buffer_size: MIN_BUFFER_SIZE,
             trade_max_running_qtd: 50,
             fee_perc: 0.1.try_into().expect("must be a valid `PercentageCapped`"),
             trade_tsl_step_size: PercentageCapped::MIN,
@@ -52,11 +61,11 @@ impl BacktestConfig {
         self.update_interval
     }
 
-    /// Sets the size of the candlestick buffer (minimum 100).
+    /// Sets the size of the candlestick buffer (minimum [`MIN_BUFFER_SIZE`]).
     ///
-    /// Default: `1800`
+    /// Default: [`MIN_BUFFER_SIZE`]
     pub fn with_buffer_size(mut self, size: usize) -> Result<Self> {
-        if size < 100 {
+        if size < MIN_BUFFER_SIZE {
             return Err(BacktestError::InvalidConfigurationBufferSize { size });
         }
         self.buffer_size = size;
