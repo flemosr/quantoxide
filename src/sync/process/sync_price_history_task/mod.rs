@@ -8,7 +8,7 @@ use lnm_sdk::api_v3::{
     models::{OhlcCandle, OhlcRange},
 };
 
-use crate::{db::Database, shared::LookbackPeriod};
+use crate::db::Database;
 
 use super::super::config::{SyncPriceHistoryTaskConfig, SyncProcessConfig};
 
@@ -211,9 +211,7 @@ impl SyncPriceHistoryTask {
         }
     }
 
-    pub async fn live(self, lookback: LookbackPeriod) -> Result<()> {
-        let lookback = lookback.as_duration();
-
+    pub async fn live(self, lookback: Duration) -> Result<()> {
         if lookback > self.config.price_history_reach() {
             return Err(SyncPriceHistoryError::InvalidLookbackPeriod {
                 lookback,

@@ -11,7 +11,6 @@ use lnm_sdk::{api_v2::WebSocketClient, api_v3::RestClient};
 
 use crate::{
     db::{Database, models::PriceTickRow},
-    shared::LookbackPeriod,
     util::{AbortOnDropHandle, Never},
 };
 
@@ -122,7 +121,12 @@ impl SyncProcess {
                 api_rest,
                 api_ws,
                 lookback,
-            } => Box::pin(self.run_live_with_lookback(api_rest, api_ws, *lookback)),
+                resolution,
+            } => Box::pin(self.run_live_with_lookback(
+                api_rest,
+                api_ws,
+                lookback.as_duration(*resolution),
+            )),
             SyncModeInt::Full { api_rest, api_ws } => Box::pin(self.run_full(api_rest, api_ws)),
         }
     }
@@ -219,7 +223,7 @@ impl SyncProcess {
         &self,
         api_rest: &Arc<RestClient>,
         api_ws: &Arc<WebSocketClient>,
-        lookback: LookbackPeriod,
+        lookback: Duration,
     ) -> Result<Never> {
         self.status_manager
             .update(SyncStatusNotSynced::InProgress.into());
@@ -396,7 +400,7 @@ impl SyncProcess {
         &self,
         api_rest: Arc<RestClient>,
         history_state_tx: Option<PriceHistoryStateTransmiter>,
-        lookback: LookbackPeriod,
+        lookback: Duration,
     ) -> Result<()> {
         SyncPriceHistoryTask::new(&self.config, self.db.clone(), api_rest, history_state_tx)
             .live(lookback)
