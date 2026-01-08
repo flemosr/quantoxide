@@ -1,6 +1,6 @@
 use std::{pin::Pin, sync::Arc};
 
-use chrono::{Duration, Utc};
+use chrono::Utc;
 use tokio::{
     sync::broadcast::{self, error::RecvError},
     time,
@@ -315,12 +315,19 @@ impl LiveProcess {
                 .lookback()
                 .map_err(LiveProcessRecoverableError::OperatorError)?;
 
+            let resolution = raw_operator
+                .resolution()
+                .map_err(LiveProcessRecoverableError::OperatorError)?;
+
             let candles = if let Some(lookback) = lookback {
-                let to = Utc::now().floor_minute();
-                let from = to - lookback.as_duration() + Duration::minutes(1);
+                // Floor current time to the resolution boundary to get the current, possibly
+                // incomplete, candle.
+                let now = Utc::now();
+                let current_bucket = now.floor_to_resolution(resolution);
+                let from = current_bucket.step_back_candles(resolution, lookback.as_u64() - 1);
 
                 db.ohlc_candles
-                    .get_candles(from, to)
+                    .get_candles_consolidated(from, now, resolution)
                     .await
                     .map_err(LiveProcessRecoverableError::Db)?
             } else {
