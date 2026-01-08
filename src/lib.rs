@@ -31,9 +31,7 @@ pub use db::Database;
 /// Error types returned by `quantoxide`.
 pub mod error {
     pub use super::db::error::DbError;
-    pub use super::shared::error::{
-        LookbackPeriodValidationError, MinIterationIntervalValidationError,
-    };
+    pub use super::shared::error::{MinIterationIntervalValidationError, PeriodValidationError};
     pub use super::signal::{
         error::{SignalError, SignalValidationError},
         process::error::{
@@ -79,7 +77,7 @@ pub mod error {
 /// Exports database models, shared configuration types, and selected `lnm-sdk` models.
 pub mod models {
     pub use super::db::models::{OhlcCandleRow, PriceTickRow};
-    pub use super::shared::{LookbackPeriod, MinIterationInterval, OhlcResolution};
+    pub use super::shared::{Lookback, MinIterationInterval, OhlcResolution, Period};
 
     // Re-export selected `lnm-sdk::api_v3` models and utils for convenience
     pub use lnm_sdk::api_v3::models::{

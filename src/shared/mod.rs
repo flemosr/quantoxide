@@ -4,7 +4,7 @@ use chrono::Duration;
 
 pub mod error;
 
-use error::{LookbackPeriodValidationError, MinIterationIntervalValidationError};
+use error::{MinIterationIntervalValidationError, PeriodValidationError};
 
 /// Supported OHLC resolutions for trading operations.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -67,23 +67,22 @@ impl fmt::Display for OhlcResolution {
     }
 }
 
-/// Validated lookback period specifying how many candles of historical data to provide for
-/// analysis.
+/// Validated period specifying how many candles of historical data to provide for analysis.
 ///
 /// Represents a number of candles with enforced minimum and maximum bounds. The actual time span
-/// depends on the candle resolution being used. For example, a lookback of 10 candles at 1-minute
+/// depends on the candle resolution being used. For example, a period of 10 candles at 1-minute
 /// resolution covers 10 minutes, while at 1-hour resolution it covers 10 hours.
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Eq, Ord)]
-pub struct LookbackPeriod(u64);
+pub struct Period(u64);
 
-impl LookbackPeriod {
-    /// Minimum lookback period: 5 candles.
+impl Period {
+    /// Minimum period: 5 candles.
     pub const MIN: Self = Self(5);
 
-    /// Maximum lookback period: 200 candles.
+    /// Maximum period: 200 candles.
     pub const MAX: Self = Self(200);
 
-    /// Returns the lookback period as a [`Duration`] for the given resolution.
+    /// Returns the period as a [`Duration`] for the given resolution.
     ///
     /// This calculates the time span by multiplying the number of candles by the resolution's
     /// duration in minutes.
@@ -91,12 +90,12 @@ impl LookbackPeriod {
     /// # Examples
     ///
     /// ```
-    /// use quantoxide::models::{LookbackPeriod, OhlcResolution};
+    /// use quantoxide::models::{Period, OhlcResolution};
     ///
-    /// let lookback = LookbackPeriod::try_from(10).unwrap();
+    /// let period = Period::try_from(10).unwrap();
     ///
     /// // Duration is candles * resolution in minutes
-    /// let duration = lookback.as_duration(OhlcResolution::FiveMinutes);
+    /// let duration = period.as_duration(OhlcResolution::FiveMinutes);
     /// assert_eq!(duration.num_minutes(), 50);
     /// ```
     pub fn as_duration(&self, resolution: OhlcResolution) -> Duration {
@@ -124,95 +123,95 @@ impl LookbackPeriod {
     }
 }
 
-impl TryFrom<u8> for LookbackPeriod {
-    type Error = LookbackPeriodValidationError;
+impl TryFrom<u8> for Period {
+    type Error = PeriodValidationError;
 
     fn try_from(value: u8) -> std::result::Result<Self, Self::Error> {
         Self::try_from(value as u64)
     }
 }
 
-impl TryFrom<u16> for LookbackPeriod {
-    type Error = LookbackPeriodValidationError;
+impl TryFrom<u16> for Period {
+    type Error = PeriodValidationError;
 
     fn try_from(value: u16) -> std::result::Result<Self, Self::Error> {
         Self::try_from(value as u64)
     }
 }
 
-impl TryFrom<u32> for LookbackPeriod {
-    type Error = LookbackPeriodValidationError;
+impl TryFrom<u32> for Period {
+    type Error = PeriodValidationError;
 
     fn try_from(value: u32) -> std::result::Result<Self, Self::Error> {
         Self::try_from(value as u64)
     }
 }
 
-impl TryFrom<u64> for LookbackPeriod {
-    type Error = LookbackPeriodValidationError;
+impl TryFrom<u64> for Period {
+    type Error = PeriodValidationError;
 
     fn try_from(value: u64) -> std::result::Result<Self, Self::Error> {
         if value < Self::MIN.0 {
-            return Err(LookbackPeriodValidationError::InvalidLookbackPeriodTooShort);
+            return Err(PeriodValidationError::TooShort);
         }
 
         if value > Self::MAX.0 {
-            return Err(LookbackPeriodValidationError::InvalidLookbackPeriodTooLong);
+            return Err(PeriodValidationError::TooLong);
         }
 
         Ok(Self(value))
     }
 }
 
-impl TryFrom<i8> for LookbackPeriod {
-    type Error = LookbackPeriodValidationError;
+impl TryFrom<i8> for Period {
+    type Error = PeriodValidationError;
 
     fn try_from(value: i8) -> std::result::Result<Self, Self::Error> {
         Self::try_from(value.max(0) as u64)
     }
 }
 
-impl TryFrom<i16> for LookbackPeriod {
-    type Error = LookbackPeriodValidationError;
+impl TryFrom<i16> for Period {
+    type Error = PeriodValidationError;
 
     fn try_from(value: i16) -> std::result::Result<Self, Self::Error> {
         Self::try_from(value.max(0) as u64)
     }
 }
 
-impl TryFrom<i32> for LookbackPeriod {
-    type Error = LookbackPeriodValidationError;
+impl TryFrom<i32> for Period {
+    type Error = PeriodValidationError;
 
     fn try_from(value: i32) -> std::result::Result<Self, Self::Error> {
         Self::try_from(value.max(0) as u64)
     }
 }
 
-impl TryFrom<i64> for LookbackPeriod {
-    type Error = LookbackPeriodValidationError;
+impl TryFrom<i64> for Period {
+    type Error = PeriodValidationError;
 
     fn try_from(value: i64) -> std::result::Result<Self, Self::Error> {
         Self::try_from(value.max(0) as u64)
     }
 }
 
-impl TryFrom<usize> for LookbackPeriod {
-    type Error = LookbackPeriodValidationError;
+impl TryFrom<usize> for Period {
+    type Error = PeriodValidationError;
 
     fn try_from(value: usize) -> std::result::Result<Self, Self::Error> {
         Self::try_from(value as u64)
     }
 }
 
-impl TryFrom<isize> for LookbackPeriod {
-    type Error = LookbackPeriodValidationError;
+impl TryFrom<isize> for Period {
+    type Error = PeriodValidationError;
 
     fn try_from(value: isize) -> std::result::Result<Self, Self::Error> {
         Self::try_from(value.max(0) as u64)
     }
 }
 
-impl fmt::Display for LookbackPeriod {
+impl fmt::Display for Period {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.0.fmt(f)
     }
@@ -259,5 +258,52 @@ impl TryFrom<Duration> for MinIterationInterval {
 impl fmt::Display for MinIterationInterval {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.0.fmt(f)
+    }
+}
+
+/// Historical candle data configuration specifying resolution and period.
+///
+/// Combines resolution (candle size) and period (number of candles) into a single configuration.
+/// When an operator or evaluator needs historical candle data, both values are required together.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Lookback {
+    resolution: OhlcResolution,
+    period: Period,
+}
+
+impl Lookback {
+    /// Creates a new lookback configuration with the specified resolution and period.
+    pub fn new(resolution: OhlcResolution, period: Period) -> Self {
+        Self { resolution, period }
+    }
+
+    /// Returns the candle resolution.
+    pub fn resolution(&self) -> OhlcResolution {
+        self.resolution
+    }
+
+    /// Returns the lookback period (number of candles).
+    pub fn period(&self) -> Period {
+        self.period
+    }
+
+    /// Returns the lookback as a duration.
+    pub fn as_duration(&self) -> Duration {
+        self.period.as_duration(self.resolution)
+    }
+}
+
+impl Default for Lookback {
+    fn default() -> Self {
+        Self {
+            resolution: OhlcResolution::FiveMinutes,
+            period: Period(20),
+        }
+    }
+}
+
+impl fmt::Display for Lookback {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} x {}", self.period, self.resolution)
     }
 }
