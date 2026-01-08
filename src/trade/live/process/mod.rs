@@ -315,16 +315,14 @@ impl LiveProcess {
                 .lookback()
                 .map_err(LiveProcessRecoverableError::OperatorError)?;
 
-            let resolution = raw_operator
-                .resolution()
-                .map_err(LiveProcessRecoverableError::OperatorError)?;
-
             let candles = if let Some(lookback) = lookback {
                 // Floor current time to the resolution boundary to get the current, possibly
                 // incomplete, candle.
                 let now = Utc::now();
+                let resolution = lookback.resolution();
                 let current_bucket = now.floor_to_resolution(resolution);
-                let from = current_bucket.step_back_candles(resolution, lookback.as_u64() - 1);
+                let from =
+                    current_bucket.step_back_candles(resolution, lookback.period().as_u64() - 1);
 
                 db.ohlc_candles
                     .get_candles_consolidated(from, now, resolution)
