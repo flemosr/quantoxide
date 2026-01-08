@@ -215,24 +215,18 @@ impl LiveTradeEngine {
             SyncEngine::full(&config, db.clone(), api_rest.clone(), api_ws)
         } else {
             // Find the evaluator requiring the most historical data
-            let max_lookback_evaluator = evaluators
+            let max_lookback = evaluators
                 .iter()
-                .filter_map(|evaluator| {
-                    evaluator.lookback().map(|lookback| {
-                        let duration = lookback.as_duration(evaluator.resolution());
-                        (evaluator, lookback, duration)
-                    })
-                })
-                .max_by_key(|(_, _, duration)| *duration);
+                .filter_map(|evaluator| evaluator.lookback())
+                .max_by_key(|config| config.as_duration());
 
-            match max_lookback_evaluator {
-                Some((evaluator, lookback, _)) => SyncEngine::live_with_lookback(
+            match max_lookback {
+                Some(lookback) => SyncEngine::live_with_lookback(
                     &config,
                     db.clone(),
                     api_rest.clone(),
                     api_ws,
                     lookback,
-                    evaluator.resolution(),
                 ),
                 None => SyncEngine::live_no_lookback(&config, db.clone(), api_ws),
             }
@@ -293,19 +287,13 @@ impl LiveTradeEngine {
             SyncEngine::full(&config, db.clone(), api_rest.clone(), api_ws)
         } else {
             match operator.lookback().map_err(LiveError::SetupOperatorError)? {
-                Some(lookback) => {
-                    let resolution = operator
-                        .resolution()
-                        .map_err(LiveError::SetupOperatorError)?;
-                    SyncEngine::live_with_lookback(
-                        &config,
-                        db.clone(),
-                        api_rest.clone(),
-                        api_ws,
-                        lookback,
-                        resolution,
-                    )
-                }
+                Some(lookback) => SyncEngine::live_with_lookback(
+                    &config,
+                    db.clone(),
+                    api_rest.clone(),
+                    api_ws,
+                    lookback,
+                ),
                 None => SyncEngine::live_no_lookback(&config, db.clone(), api_ws),
             }
         };
