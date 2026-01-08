@@ -41,6 +41,11 @@ impl OhlcResolution {
             Self::OneDay => 1440,
         }
     }
+
+    /// Returns the resolution duration in seconds.
+    pub const fn as_seconds(&self) -> u32 {
+        self.as_minutes() * 60
+    }
 }
 
 impl fmt::Display for OhlcResolution {
@@ -111,6 +116,11 @@ impl LookbackPeriod {
     /// Returns the number of candles as an `i64`.
     pub fn as_i64(&self) -> i64 {
         self.0 as i64
+    }
+
+    /// Returns the number of candles as an `f64`.
+    pub fn as_f64(&self) -> f64 {
+        self.0 as f64
     }
 }
 
