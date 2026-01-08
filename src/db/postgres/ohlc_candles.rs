@@ -6,6 +6,8 @@ use sqlx::{Pool, Postgres, Transaction};
 
 use lnm_sdk::api_v3::models::OhlcCandle;
 
+use crate::shared::OhlcResolution;
+
 use super::super::{
     error::{DbError, Result},
     models::OhlcCandleRow,
@@ -179,6 +181,143 @@ impl OhlcCandlesRepository for PgOhlcCandlesRepo {
         .fetch_all(self.pool())
         .await
         .map_err(DbError::Query)?;
+
+        Ok(rows)
+    }
+
+    // Candles are aggregated using:
+    // - First open price in the period
+    // - Maximum high price
+    // - Minimum low price
+    // - Last close price in the period
+    // - Sum of volumes
+    // - `stable` is true only if all constituent candles are stable AND the candle's time period
+    //   has fully elapsed (bucket_time + resolution <= to)
+    async fn get_candles_consolidated(
+        &self,
+        from: DateTime<Utc>,
+        to: DateTime<Utc>,
+        resolution: OhlcResolution,
+    ) -> Result<Vec<OhlcCandleRow>> {
+        if matches!(resolution, OhlcResolution::OneMinute) {
+            return self.get_candles(from, to).await;
+        }
+
+        let rows = match resolution {
+            OhlcResolution::OneMinute => unreachable!("handled above"),
+
+            // Sub-hourly: bucket by minutes using epoch-based calculation
+            OhlcResolution::ThreeMinutes
+            | OhlcResolution::FiveMinutes
+            | OhlcResolution::TenMinutes
+            | OhlcResolution::FifteenMinutes
+            | OhlcResolution::ThirtyMinutes
+            | OhlcResolution::FortyFiveMinutes => {
+                let resolution_seconds = resolution.as_seconds() as i64;
+                sqlx::query_as!(
+                    OhlcCandleRow,
+                    r#"
+                        WITH bucketed AS (
+                            SELECT
+                                to_timestamp(FLOOR(EXTRACT(EPOCH FROM time)::BIGINT / $3) * $3) AS bucket_time,
+                                open, high, low, close, volume, created_at, updated_at, stable, time
+                            FROM ohlc_candles
+                            WHERE time >= $1 AND time <= $2
+                        )
+                        SELECT
+                            bucket_time AS "time!",
+                            (array_agg(open ORDER BY time ASC))[1] AS "open!",
+                            MAX(high) AS "high!",
+                            MIN(low) AS "low!",
+                            (array_agg(close ORDER BY time DESC))[1] AS "close!",
+                            SUM(volume)::BIGINT AS "volume!",
+                            MIN(created_at) AS "created_at!",
+                            MAX(updated_at) AS "updated_at!",
+                            BOOL_AND(stable) AND (bucket_time + $3 * INTERVAL '1 second') <= $2 AS "stable!"
+                        FROM bucketed
+                        GROUP BY bucket_time
+                        ORDER BY bucket_time ASC
+                    "#,
+                    from,
+                    to,
+                    resolution_seconds
+                )
+                .fetch_all(self.pool())
+                .await
+                .map_err(DbError::Query)?
+            }
+
+            // Hourly resolutions: bucket by hours using epoch-based calculation
+            OhlcResolution::OneHour
+            | OhlcResolution::TwoHours
+            | OhlcResolution::ThreeHours
+            | OhlcResolution::FourHours => {
+                let resolution_seconds = resolution.as_seconds() as i64;
+                sqlx::query_as!(
+                    OhlcCandleRow,
+                    r#"
+                        WITH bucketed AS (
+                            SELECT
+                                to_timestamp(FLOOR(EXTRACT(EPOCH FROM time)::BIGINT / $3) * $3) AS bucket_time,
+                                open, high, low, close, volume, created_at, updated_at, stable, time
+                            FROM ohlc_candles
+                            WHERE time >= $1 AND time <= $2
+                        )
+                        SELECT
+                            bucket_time AS "time!",
+                            (array_agg(open ORDER BY time ASC))[1] AS "open!",
+                            MAX(high) AS "high!",
+                            MIN(low) AS "low!",
+                            (array_agg(close ORDER BY time DESC))[1] AS "close!",
+                            SUM(volume)::BIGINT AS "volume!",
+                            MIN(created_at) AS "created_at!",
+                            MAX(updated_at) AS "updated_at!",
+                            BOOL_AND(stable) AND (bucket_time + $3 * INTERVAL '1 second') <= $2 AS "stable!"
+                        FROM bucketed
+                        GROUP BY bucket_time
+                        ORDER BY bucket_time ASC
+                    "#,
+                    from,
+                    to,
+                    resolution_seconds
+                )
+                .fetch_all(self.pool())
+                .await
+                .map_err(DbError::Query)?
+            }
+
+            // Daily: bucket by day
+            OhlcResolution::OneDay => sqlx::query_as!(
+                OhlcCandleRow,
+                r#"
+                    WITH bucketed AS (
+                        SELECT
+                            date_trunc('day', time) AS bucket_time,
+                            open, high, low, close, volume, created_at, updated_at, stable, time
+                        FROM ohlc_candles
+                        WHERE time >= $1 AND time <= $2
+                    )
+                    SELECT
+                        bucket_time AS "time!",
+                        (array_agg(open ORDER BY time ASC))[1] AS "open!",
+                        MAX(high) AS "high!",
+                        MIN(low) AS "low!",
+                        (array_agg(close ORDER BY time DESC))[1] AS "close!",
+                        SUM(volume)::BIGINT AS "volume!",
+                        MIN(created_at) AS "created_at!",
+                        MAX(updated_at) AS "updated_at!",
+                        BOOL_AND(stable) AND (bucket_time + INTERVAL '1 day') <= $2 AS "stable!"
+                    FROM bucketed
+                    GROUP BY bucket_time
+                    ORDER BY bucket_time ASC
+                "#,
+                from,
+                to
+            )
+            .fetch_all(self.pool())
+            .await
+            .map_err(DbError::Query)?,
+        };
 
         Ok(rows)
     }
