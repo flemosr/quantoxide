@@ -2,7 +2,7 @@ use chrono::{DateTime, Utc};
 
 use crate::{
     db::models::OhlcCandleRow,
-    shared::{LookbackPeriod, OhlcResolution},
+    shared::{Lookback, OhlcResolution},
     util::DateTimeExt,
 };
 
@@ -84,9 +84,8 @@ impl BucketAccumulator {
 /// It keeps a buffer of completed consolidated candles and an in-progress bucket for the current
 /// time period.
 pub(super) struct RuntimeConsolidator {
-    resolution: OhlcResolution,
-    /// Maximum number of consolidated candles to keep
-    lookback: LookbackPeriod,
+    /// Lookback configuration containing resolution and period
+    lookback: Lookback,
     /// Buffer containing completed candles + current candle (if any)
     /// The last element is the current incomplete bucket when `current_bucket` is Some
     candles: Vec<OhlcCandleRow>,
@@ -97,20 +96,18 @@ pub(super) struct RuntimeConsolidator {
 impl RuntimeConsolidator {
     /// Creates a new runtime consolidator with initial historical candles.
     pub fn new(
-        resolution: OhlcResolution,
-        lookback: LookbackPeriod,
+        lookback: Lookback,
         initial_candles: &[OhlcCandleRow],
         time_cursor: DateTime<Utc>,
     ) -> Result<Self> {
         let mut consolidator = Self {
-            resolution,
             lookback,
-            candles: Vec::with_capacity(lookback.as_usize() + 1),
+            candles: Vec::with_capacity(lookback.period().as_usize() + 1),
             current_bucket: None,
         };
 
         // For 1-minute resolution, candles map 1:1. Store them directly
-        if matches!(resolution, OhlcResolution::OneMinute) {
+        if matches!(lookback.resolution(), OhlcResolution::OneMinute) {
             let mut last_time: Option<DateTime<Utc>> = None;
 
             for candle in initial_candles {
@@ -165,9 +162,9 @@ impl RuntimeConsolidator {
         }
     }
 
-    /// Trims old completed candles if we exceed lookback.
+    /// Trims old completed candles if we exceed the lookback period.
     fn trim_old_candles(&mut self) {
-        while self.completed_count() > self.lookback.as_usize() {
+        while self.completed_count() > self.lookback.period().as_usize() {
             self.candles.remove(0);
         }
     }
@@ -196,7 +193,7 @@ impl RuntimeConsolidator {
 
     /// Floors a timestamp to the start of its resolution bucket.
     fn floor_to_bucket(&self, time: DateTime<Utc>) -> DateTime<Utc> {
-        time.floor_to_resolution(self.resolution)
+        time.floor_to_resolution(self.lookback.resolution())
     }
 
     /// Pushes a new 1-minute candle into the consolidator.
@@ -243,7 +240,10 @@ impl RuntimeConsolidator {
 #[cfg(test)]
 mod tests {
     use super::*;
+
     use chrono::TimeZone;
+
+    use crate::shared::Period;
 
     fn make_candle(time: DateTime<Utc>, price: f64) -> OhlcCandleRow {
         OhlcCandleRow {
@@ -259,10 +259,11 @@ mod tests {
         }
     }
 
-    fn empty_consolidator(resolution: OhlcResolution, lookback: u64) -> RuntimeConsolidator {
+    fn empty_consolidator(resolution: OhlcResolution, period: u64) -> RuntimeConsolidator {
         let time_cursor = Utc.with_ymd_and_hms(2026, 1, 15, 0, 0, 0).unwrap();
-        let lookback = LookbackPeriod::try_from(lookback).unwrap();
-        RuntimeConsolidator::new(resolution, lookback, &[], time_cursor).unwrap()
+        let period = Period::try_from(period).unwrap();
+        let lookback = Lookback::new(resolution, period);
+        RuntimeConsolidator::new(lookback, &[], time_cursor).unwrap()
     }
 
     #[test]
@@ -351,10 +352,9 @@ mod tests {
 
         // Time cursor at 10:30 - the 10:00 bucket is incomplete
         let time_cursor = Utc.with_ymd_and_hms(2026, 1, 15, 10, 30, 0).unwrap();
-        let lookback = LookbackPeriod::try_from(10).unwrap();
-        let consolidator =
-            RuntimeConsolidator::new(OhlcResolution::OneHour, lookback, &candles, time_cursor)
-                .unwrap();
+        let period = Period::try_from(10).unwrap();
+        let lookback = Lookback::new(OhlcResolution::OneHour, period);
+        let consolidator = RuntimeConsolidator::new(lookback, &candles, time_cursor).unwrap();
 
         let result = consolidator.get_candles();
         assert_eq!(result.len(), 2);
@@ -490,10 +490,9 @@ mod tests {
 
         // Time cursor at 10:08
         let time_cursor = Utc.with_ymd_and_hms(2026, 1, 15, 10, 8, 0).unwrap();
-        let lookback = LookbackPeriod::try_from(5).unwrap();
-        let consolidator =
-            RuntimeConsolidator::new(OhlcResolution::OneMinute, lookback, &candles, time_cursor)
-                .unwrap();
+        let period = Period::try_from(5).unwrap();
+        let lookback = Lookback::new(OhlcResolution::OneMinute, period);
+        let consolidator = RuntimeConsolidator::new(lookback, &candles, time_cursor).unwrap();
 
         let result = consolidator.get_candles();
 
