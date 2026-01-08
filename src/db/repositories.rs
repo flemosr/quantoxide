@@ -6,7 +6,7 @@ use uuid::Uuid;
 
 use lnm_sdk::{api_v2::models::PriceTick, api_v3::models::OhlcCandle};
 
-use crate::trade::TradeTrailingStoploss;
+use crate::{shared::OhlcResolution, trade::TradeTrailingStoploss};
 
 use super::{
     error::Result,
@@ -63,6 +63,14 @@ pub(crate) trait OhlcCandlesRepository: Send + Sync {
         &self,
         from: DateTime<Utc>,
         to: DateTime<Utc>,
+    ) -> Result<Vec<OhlcCandleRow>>;
+
+    /// Fetches OHLC candles consolidated to the specified resolution.
+    async fn get_candles_consolidated(
+        &self,
+        from: DateTime<Utc>,
+        to: DateTime<Utc>,
+        resolution: OhlcResolution,
     ) -> Result<Vec<OhlcCandleRow>>;
 
     async fn remove_gap_flag(&self, time: DateTime<Utc>) -> Result<()>;
