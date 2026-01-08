@@ -13,7 +13,7 @@ use lnm_sdk::{api_v2::WebSocketClient, api_v3::RestClient};
 
 use crate::{
     db::Database,
-    shared::LookbackPeriod,
+    shared::{LookbackPeriod, OhlcResolution},
     sync::config::{SyncConfig, SyncControllerConfig},
     tui::{
         TuiControllerShutdown,
@@ -185,9 +185,9 @@ pub enum SyncMode {
     Backfill,
     /// Live mode: maintains real-time price feeds via WebSocket.
     ///
-    /// Optionally includes a lookback period to also fetch recent historical data before starting
-    /// the live feed.
-    Live(Option<LookbackPeriod>),
+    /// Includes a lookback period to also fetch recent historical data before starting the live
+    /// feed.
+    Live(Option<(LookbackPeriod, OhlcResolution)>),
     /// Full mode: combines both backfill and live synchronization.
     ///
     /// Fetches complete historical data and then maintains real-time price feeds.
@@ -206,10 +206,8 @@ impl SyncMode {
     }
 
     /// Creates a live sync mode with a specified lookback period in minutes.
-    pub fn live_with_lookback(minutes: u64) -> Result<Self> {
-        let lookback = LookbackPeriod::try_from(minutes)?;
-
-        Ok(SyncMode::Live(Some(lookback)))
+    pub fn live_with_lookback(lookback: LookbackPeriod, resolution: OhlcResolution) -> Self {
+        SyncMode::Live(Some((lookback, resolution)))
     }
 
     /// Creates a full sync mode (both backfill and live).
@@ -234,7 +232,13 @@ impl fmt::Display for SyncMode {
         match self {
             SyncMode::Backfill => write!(f, "Backfill"),
             SyncMode::Live(lookback_opt) => match lookback_opt {
-                Some(lookback) => write!(f, "Live (lookback: {})", lookback.as_duration()),
+                Some((lookback, resolution)) => {
+                    write!(
+                        f,
+                        "Live (lookback: {}, resolution: {})",
+                        lookback, resolution
+                    )
+                }
                 None => write!(f, "Live"),
             },
             SyncMode::Full => write!(f, "Full"),
@@ -253,6 +257,7 @@ pub(super) enum SyncModeInt {
         api_rest: Arc<RestClient>,
         api_ws: Arc<WebSocketClient>,
         lookback: LookbackPeriod,
+        resolution: OhlcResolution,
     },
     Full {
         api_rest: Arc<RestClient>,
@@ -269,7 +274,8 @@ impl From<&SyncModeInt> for SyncMode {
                 api_rest: _,
                 api_ws: _,
                 lookback,
-            } => Self::Live(Some(*lookback)),
+                resolution,
+            } => Self::Live(Some((*lookback, *resolution))),
             SyncModeInt::Full { .. } => Self::Full,
         }
     }
@@ -324,11 +330,13 @@ impl SyncEngine {
         api_rest: Arc<RestClient>,
         api_ws: Arc<WebSocketClient>,
         lookback: LookbackPeriod,
+        resolution: OhlcResolution,
     ) -> Self {
         let mode_int = SyncModeInt::LiveWithLookback {
             api_rest,
             api_ws,
             lookback,
+            resolution,
         };
 
         Self::with_mode_int(config, db, mode_int)
@@ -363,10 +371,11 @@ impl SyncEngine {
         let mode = match mode {
             SyncMode::Backfill => SyncModeInt::Backfill { api_rest },
             SyncMode::Live(lookback_opt) => match lookback_opt {
-                Some(lookback) => SyncModeInt::LiveWithLookback {
+                Some((lookback, resolution)) => SyncModeInt::LiveWithLookback {
                     api_rest,
                     api_ws,
                     lookback,
+                    resolution,
                 },
                 None => SyncModeInt::LiveNoLookback { api_ws },
             },
