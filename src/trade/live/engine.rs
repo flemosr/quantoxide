@@ -214,19 +214,25 @@ impl LiveTradeEngine {
         let sync_engine = if config.sync_mode_full() {
             SyncEngine::full(&config, db.clone(), api_rest.clone(), api_ws)
         } else {
-            let max_lookback = evaluators
+            // Find the evaluator requiring the most historical data
+            let max_lookback_evaluator = evaluators
                 .iter()
-                .map(|evaluator| evaluator.lookback())
-                .max()
-                .expect("`evaluators` can't be empty");
+                .filter_map(|evaluator| {
+                    evaluator.lookback().map(|lookback| {
+                        let duration = lookback.as_duration(evaluator.resolution());
+                        (evaluator, lookback, duration)
+                    })
+                })
+                .max_by_key(|(_, _, duration)| *duration);
 
-            match max_lookback {
-                Some(lookback) => SyncEngine::live_with_lookback(
+            match max_lookback_evaluator {
+                Some((evaluator, lookback, _)) => SyncEngine::live_with_lookback(
                     &config,
                     db.clone(),
                     api_rest.clone(),
                     api_ws,
                     lookback,
+                    evaluator.resolution(),
                 ),
                 None => SyncEngine::live_no_lookback(&config, db.clone(), api_ws),
             }
@@ -287,13 +293,19 @@ impl LiveTradeEngine {
             SyncEngine::full(&config, db.clone(), api_rest.clone(), api_ws)
         } else {
             match operator.lookback().map_err(LiveError::SetupOperatorError)? {
-                Some(lookback) => SyncEngine::live_with_lookback(
-                    &config,
-                    db.clone(),
-                    api_rest.clone(),
-                    api_ws,
-                    lookback,
-                ),
+                Some(lookback) => {
+                    let resolution = operator
+                        .resolution()
+                        .map_err(LiveError::SetupOperatorError)?;
+                    SyncEngine::live_with_lookback(
+                        &config,
+                        db.clone(),
+                        api_rest.clone(),
+                        api_ws,
+                        lookback,
+                        resolution,
+                    )
+                }
                 None => SyncEngine::live_no_lookback(&config, db.clone(), api_ws),
             }
         };
