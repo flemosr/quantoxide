@@ -186,17 +186,17 @@ impl LiveSignalEngine {
             return Err(SignalValidationError::EmptyEvaluatorsVec.into());
         }
 
-        let first_resolution = evaluators[0].resolution();
-        if let Some(mismatched) = evaluators
+        let mut resolutions = evaluators
             .iter()
-            .skip(1)
-            .find(|e| e.resolution() != first_resolution)
-        {
-            return Err(SignalValidationError::MismatchedEvaluatorResolutions(
-                first_resolution,
-                mismatched.resolution(),
-            )
-            .into());
+            .filter_map(|e| e.lookback().map(|l| l.resolution()));
+        if let Some(first_resolution) = resolutions.next() {
+            if let Some(mismatched_resolution) = resolutions.find(|r| *r != first_resolution) {
+                return Err(SignalValidationError::MismatchedEvaluatorResolutions(
+                    first_resolution,
+                    mismatched_resolution,
+                )
+                .into());
+            }
         }
 
         let (update_tx, _) = broadcast::channel::<LiveSignalUpdate>(1_000);
