@@ -2,6 +2,8 @@ use std::{result, sync::Arc};
 
 use thiserror::Error;
 
+use crate::shared::OhlcResolution;
+
 use super::{process::error::SignalProcessFatalError, state::LiveSignalStatus};
 
 #[derive(Error, Debug)]
@@ -11,6 +13,9 @@ pub enum SignalValidationError {
 
     #[error("At least one signal evaluator must be provided")]
     EmptyEvaluatorsVec,
+
+    #[error("All evaluators must use the same resolution, found {0} and {1}")]
+    MismatchedEvaluatorResolutions(OhlcResolution, OhlcResolution),
 }
 
 pub type ValidationResult<T> = result::Result<T, SignalValidationError>;

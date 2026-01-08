@@ -186,6 +186,19 @@ impl LiveSignalEngine {
             return Err(SignalValidationError::EmptyEvaluatorsVec.into());
         }
 
+        let first_resolution = evaluators[0].resolution();
+        if let Some(mismatched) = evaluators
+            .iter()
+            .skip(1)
+            .find(|e| e.resolution() != first_resolution)
+        {
+            return Err(SignalValidationError::MismatchedEvaluatorResolutions(
+                first_resolution,
+                mismatched.resolution(),
+            )
+            .into());
+        }
+
         let (update_tx, _) = broadcast::channel::<LiveSignalUpdate>(1_000);
 
         let status_manager = LiveSignalStatusManager::new(update_tx.clone());
