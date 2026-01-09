@@ -212,13 +212,6 @@ impl SyncPriceHistoryTask {
     }
 
     pub async fn live(self, lookback: Duration) -> Result<()> {
-        if lookback > self.config.price_history_reach() {
-            return Err(SyncPriceHistoryError::InvalidLookbackPeriod {
-                lookback,
-                price_history_reach: self.config.price_history_reach(),
-            });
-        }
-
         let history_state = PriceHistoryState::evaluate(&self.db).await?;
         self.handle_history_update(&history_state).await?;
 
