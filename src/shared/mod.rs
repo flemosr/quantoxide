@@ -79,8 +79,8 @@ impl Period {
     /// Minimum period: 5 candles.
     pub const MIN: Self = Self(5);
 
-    /// Maximum period: 200 candles.
-    pub const MAX: Self = Self(200);
+    /// Maximum period: 500 candles.
+    pub const MAX: Self = Self(500);
 
     /// Returns the period as a [`Duration`] for the given resolution.
     ///
