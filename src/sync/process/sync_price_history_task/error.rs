@@ -1,6 +1,6 @@
 use std::{num::NonZeroU64, result};
 
-use chrono::{DateTime, Duration, Utc};
+use chrono::{DateTime, Utc};
 use thiserror::Error;
 
 use lnm_sdk::api_v3::error::RestApiError;
@@ -30,18 +30,10 @@ pub enum SyncPriceHistoryError {
     #[error("[Db] {0}")]
     Db(#[from] DbError),
 
-    #[error("UnreachableDbGap error: gap {gap}, reach {reach}")]
+    #[error("Unreachable gap detected in the database. Gap at {gap}, configured reach at {reach}")]
     UnreachableDbGap {
         gap: DateTime<Utc>,
         reach: DateTime<Utc>,
-    },
-
-    #[error(
-        "Live lookback period {lookback} must be lte `price_history_reach` {price_history_reach}"
-    )]
-    InvalidLookbackPeriod {
-        lookback: Duration,
-        price_history_reach: Duration,
     },
 
     #[error("Price history state `range_from` ({range_from}) can't be gte `range_to` ({range_to})")]
