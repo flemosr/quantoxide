@@ -9,7 +9,7 @@ use async_trait::async_trait;
 
 use quantoxide::{
     error::Result,
-    models::{Lookback, MinIterationInterval, OhlcCandleRow},
+    models::{Lookback, MinIterationInterval, OhlcCandleRow, OhlcResolution},
     signal::{
         ConfiguredSignalEvaluator, SignalAction, SignalActionEvaluator, SignalEvaluator, SignalName,
     },
@@ -33,10 +33,11 @@ impl SignalEvaluatorTemplate {
 
     pub fn configure(self) -> ConfiguredSignalEvaluator {
         let name = SignalName::new("my-sinal-name").expect("name is valid");
-        let lookback = Lookback::default(); // 5-minute candles with 20 candle lookback
+        // Use 15-minute candles with a 10-candle period
+        let lookback = Some(Lookback::new(OhlcResolution::FifteenMinutes, 10).expect("is valid"));
         let min_iteration_interval = MinIterationInterval::MIN; // Minimum iteration interval of 5 seconds
 
-        SignalEvaluator::new_boxed(name, Some(lookback), min_iteration_interval, self)
+        SignalEvaluator::new_boxed(name, lookback, min_iteration_interval, self)
     }
 
     #[allow(dead_code)]
