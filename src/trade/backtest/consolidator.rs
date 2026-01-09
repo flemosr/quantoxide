@@ -243,8 +243,6 @@ mod tests {
 
     use chrono::TimeZone;
 
-    use crate::shared::Period;
-
     fn make_candle(time: DateTime<Utc>, price: f64) -> OhlcCandleRow {
         OhlcCandleRow {
             time,
@@ -261,8 +259,7 @@ mod tests {
 
     fn empty_consolidator(resolution: OhlcResolution, period: u64) -> RuntimeConsolidator {
         let time_cursor = Utc.with_ymd_and_hms(2026, 1, 15, 0, 0, 0).unwrap();
-        let period = Period::try_from(period).unwrap();
-        let lookback = Lookback::new(resolution, period);
+        let lookback = Lookback::new(resolution, period).unwrap();
         RuntimeConsolidator::new(lookback, &[], time_cursor).unwrap()
     }
 
@@ -352,8 +349,7 @@ mod tests {
 
         // Time cursor at 10:30 - the 10:00 bucket is incomplete
         let time_cursor = Utc.with_ymd_and_hms(2026, 1, 15, 10, 30, 0).unwrap();
-        let period = Period::try_from(10).unwrap();
-        let lookback = Lookback::new(OhlcResolution::OneHour, period);
+        let lookback = Lookback::new(OhlcResolution::OneHour, 10).unwrap();
         let consolidator = RuntimeConsolidator::new(lookback, &candles, time_cursor).unwrap();
 
         let result = consolidator.get_candles();
@@ -490,8 +486,7 @@ mod tests {
 
         // Time cursor at 10:08
         let time_cursor = Utc.with_ymd_and_hms(2026, 1, 15, 10, 8, 0).unwrap();
-        let period = Period::try_from(5).unwrap();
-        let lookback = Lookback::new(OhlcResolution::OneMinute, period);
+        let lookback = Lookback::new(OhlcResolution::OneMinute, 5).unwrap();
         let consolidator = RuntimeConsolidator::new(lookback, &candles, time_cursor).unwrap();
 
         let result = consolidator.get_candles();
