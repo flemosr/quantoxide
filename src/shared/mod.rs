@@ -273,8 +273,14 @@ pub struct Lookback {
 
 impl Lookback {
     /// Creates a new lookback configuration with the specified resolution and period.
-    pub fn new(resolution: OhlcResolution, period: Period) -> Self {
-        Self { resolution, period }
+    pub fn new<P, E>(resolution: OhlcResolution, period: P) -> Result<Self, E>
+    where
+        P: TryInto<Period, Error = E>,
+    {
+        Ok(Self {
+            resolution,
+            period: period.try_into()?,
+        })
     }
 
     /// Returns the candle resolution.
