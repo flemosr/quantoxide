@@ -9,7 +9,7 @@ use async_trait::async_trait;
 
 use quantoxide::{
     error::Result,
-    models::{Lookback, MinIterationInterval, OhlcCandleRow},
+    models::{Lookback, MinIterationInterval, OhlcCandleRow, OhlcResolution},
     trade::{RawOperator, TradeExecutor, TradingState},
     tui::TuiLogger,
 };
@@ -66,7 +66,9 @@ impl RawOperator for RawOperatorTemplate {
 
     fn lookback(&self) -> Option<Lookback> {
         // None // Return no candles
-        Some(Lookback::default()) // 5-minute candles with 20 candle lookback
+
+        // Use 15-minute candles with a 10-candle period
+        Some(Lookback::new(OhlcResolution::FifteenMinutes, 10).expect("is valid"))
     }
 
     fn min_iteration_interval(&self) -> MinIterationInterval {
