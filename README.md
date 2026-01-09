@@ -125,8 +125,6 @@ This project is in active development and currently has the following limitation
   [funding fees](https://docs.lnmarkets.com/resources/futures/#funding-fees) into account**. This
   will generally overstate the returns of long positions held across funding events, and understate
   the returns of short positions.
-- **Only candles with 1-minute resolution are currently supported** by Trade Operators and Signal
-  Evaluators (additional resolutions planned).
   
 ## Examples
 
@@ -143,7 +141,7 @@ directory. The snippets below demonstrate the core components of the framework.
 ```rust,ignore
 use quantoxide::{
     error::Result,
-    models::{LookbackPeriod, MinIterationInterval, OhlcCandleRow},
+    models::{Lookback, MinIterationInterval, OhlcCandleRow, OhlcResolution},
     trade::{RawOperator, TradeExecutor},
 };
 
@@ -153,8 +151,9 @@ use quantoxide::{
 impl RawOperator for MyOperator {
     // ...
     
-    fn lookback(&self) -> Option<LookbackPeriod> {
-        Some(LookbackPeriod::try_from(10).expect("is valid")) // Last 10 candles (1 min resolution)
+    fn lookback(&self) -> Option<Lookback> {
+        // Use 15-minute candles with a 10-candle period
+        Some(Lookback::new(OhlcResolution::FifteenMinutes, 10).expect("is valid"))
     }
 
     fn min_iteration_interval(&self) -> MinIterationInterval {
