@@ -1,3 +1,4 @@
+use chrono::Duration;
 use thiserror::Error;
 
 use super::{MinIterationInterval, Period};
@@ -20,14 +21,16 @@ pub enum PeriodValidationError {
 #[derive(Error, Debug)]
 pub enum MinIterationIntervalValidationError {
     #[error(
-        "Invalid minimum iteration interval, must be at least {}",
-        MinIterationInterval::MIN
+        "Invalid minimum iteration interval, must be at least {}. Value: {}s",
+        MinIterationInterval::MIN,
+        value.num_seconds()
     )]
-    InvalidMinIterationIntervalTooShort,
+    TooShort { value: Duration },
 
     #[error(
-        "Invalid minimum iteration interval, must be at most {}",
-        MinIterationInterval::MAX
+        "Invalid minimum iteration interval, must be at most {}. Value: {}s",
+        MinIterationInterval::MAX,
+        value.num_seconds()
     )]
-    InvalidMinIterationIntervalTooLong,
+    TooLong { value: Duration },
 }

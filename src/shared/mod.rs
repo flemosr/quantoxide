@@ -244,11 +244,11 @@ impl TryFrom<Duration> for MinIterationInterval {
 
     fn try_from(value: Duration) -> Result<Self, Self::Error> {
         if value < Self::MIN.0 {
-            return Err(MinIterationIntervalValidationError::InvalidMinIterationIntervalTooShort);
+            return Err(MinIterationIntervalValidationError::TooShort { value });
         }
 
         if value > Self::MAX.0 {
-            return Err(MinIterationIntervalValidationError::InvalidMinIterationIntervalTooLong);
+            return Err(MinIterationIntervalValidationError::TooLong { value });
         }
 
         Ok(Self(value))
