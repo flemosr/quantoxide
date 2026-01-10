@@ -129,7 +129,6 @@ tokio = "<version-from-quantoxide-manifest>"
 
 - Only **isolated margin futures** are supported (no cross margin)
 - Backtesting **does not account for funding fees** (overstates long returns, understates short returns)
-- Only **1-minute candle resolution** is currently supported
 - This is **alpha software** - bugs may result in loss of assets
 
 ## TUI vs Direct Mode
