@@ -170,6 +170,7 @@ Each engine has two modes:
 - Use TUI `::log` methods instead of `println!` when TUIs are running
 - Include proper error handling with `Result<()>`
 - Database schema auto-initializes on first `Database::new()` call
+- **CRUCIAL:** When instructing the user to create an `.env` file, add a `.env.template` as reference and ensure `.gitignore` excludes `.env`
 
 ### Quick Reference
 
