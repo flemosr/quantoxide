@@ -133,7 +133,7 @@ impl SyncPriceHistoryTask {
         Ok(candles)
     }
 
-    async fn partial_download(&self, download_range: DownloadRange) -> Result<bool> {
+    async fn partial_download(&self, download_range: DownloadRange) -> Result<()> {
         let new_candles = self.get_new_ohlc_candles(download_range).await?;
 
         self.db
@@ -141,7 +141,27 @@ impl SyncPriceHistoryTask {
             .add_candles(download_range.to(), &new_candles)
             .await?;
 
-        Ok(!new_candles.is_empty())
+        if new_candles.is_empty() {
+            match download_range {
+                DownloadRange::LowerBound { to } => {
+                    // No new entries available before lower bound. Invalid reach config.
+                    return Err(
+                        SyncPriceHistoryError::ApiCandlesNotAvailableBeforeHistoryStart {
+                            history_start: to,
+                        },
+                    );
+                }
+                DownloadRange::Gap { from: _, to } => {
+                    // No new candles before `to` are currently available, so the gap flag should
+                    // be temporarily removed. Missing candles will be flagged by
+                    // `flag_missing_candles` next time it runs.
+                    self.db.ohlc_candles.remove_gap_flag(to).await?;
+                }
+                DownloadRange::Latest | DownloadRange::UpperBound { from: _ } => {}
+            }
+        }
+
+        Ok(())
     }
 
     async fn handle_history_update(&self, new_history_state: &PriceHistoryState) -> Result<()> {
@@ -168,27 +188,7 @@ impl SyncPriceHistoryTask {
         loop {
             let download_range = history_state.next_download_range(true)?;
 
-            let new_entries_received = self.partial_download(download_range).await?;
-
-            if !new_entries_received {
-                match download_range {
-                    DownloadRange::LowerBound { to } => {
-                        // No new entries available before lower bound. Invalid reach config.
-                        return Err(
-                            SyncPriceHistoryError::ApiCandlesNotAvailableBeforeHistoryStart {
-                                history_start: to,
-                            },
-                        );
-                    }
-                    DownloadRange::Gap { from: _, to } => {
-                        // No new entries before `to` are currently available, so the gap flag
-                        // should be temporarily removed. Missing candles will be flagged by
-                        // `flag_missing_candles` next time it runs.
-                        self.db.ohlc_candles.remove_gap_flag(to).await?;
-                    }
-                    DownloadRange::Latest | DownloadRange::UpperBound { from: _ } => {}
-                }
-            }
+            self.partial_download(download_range).await?;
 
             history_state =
                 PriceHistoryState::evaluate_with_reach(&self.db, self.config.price_history_reach())
