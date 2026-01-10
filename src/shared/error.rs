@@ -4,11 +4,17 @@ use super::{MinIterationInterval, Period};
 
 #[derive(Error, Debug)]
 pub enum PeriodValidationError {
-    #[error("Invalid period, must be at least {} candles", Period::MIN)]
-    TooShort,
+    #[error(
+        "Invalid period, must be at least {} candles. Value: {value}",
+        Period::MIN
+    )]
+    TooShort { value: u64 },
 
-    #[error("Invalid period, must be at most {} candles", Period::MAX)]
-    TooLong,
+    #[error(
+        "Invalid period, must be at most {} candles. Value: {value}",
+        Period::MAX
+    )]
+    TooLong { value: u64 },
 }
 
 #[derive(Error, Debug)]

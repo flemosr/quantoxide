@@ -152,11 +152,11 @@ impl TryFrom<u64> for Period {
 
     fn try_from(value: u64) -> std::result::Result<Self, Self::Error> {
         if value < Self::MIN.0 {
-            return Err(PeriodValidationError::TooShort);
+            return Err(PeriodValidationError::TooShort { value });
         }
 
         if value > Self::MAX.0 {
-            return Err(PeriodValidationError::TooLong);
+            return Err(PeriodValidationError::TooLong { value });
         }
 
         Ok(Self(value))
