@@ -166,6 +166,12 @@ Each engine has two modes:
    - Provides functions for PnL calculations, position sizing, margin requirements, etc.
    - Avoid reimplementing common trading calculations
 
+6. **MinIterationInterval vs OhlcResolution** - These serve different purposes; do NOT match them naively:
+   - `OhlcResolution`: The candle timeframe for your strategy (e.g., 4h candles)
+   - `MinIterationInterval`: The minimum wait time between iteration cycles (range: 5 seconds to 1 hour)
+   - Use a `MinIterationInterval` that is a small fraction of the `OhlcResolution`, to ensure signals are captured early
+   - The last candle may not be finalized; use `trading_state.last_tick_time()` to assess how much of the candle's time bucket has elapsed and judge its validity accordingly
+
 **General coding practices:**
 - Use TUI `::log` methods instead of `println!` when TUIs are running
 - Include proper error handling with `Result<()>`
