@@ -1186,6 +1186,22 @@ impl From<Box<dyn RawOperator>> for WrappedRawOperator {
 }
 
 pub(super) trait TradeRunningExt: TradeRunning {
+    /// Calculates the price that must be reached to trigger a trailing stoploss update.
+    ///
+    /// For the stoploss to only trail in the favorable direction (UP for longs, DOWN for shorts),
+    /// we must use division rather than multiplication in the trigger formula.
+    ///
+    /// For longs, when the trigger fires we calculate: `new_sl = trigger_price × (1 - tsl)`
+    /// We want to guarantee: `new_sl >= curr_sl × (1 + step)`
+    ///
+    /// Solving for the trigger price:
+    ///   `trigger_price × (1 - tsl) >= curr_sl × (1 + step)`
+    ///   `trigger_price >= curr_sl × (1 + step) / (1 - tsl)`
+    ///
+    /// Note: We must use division `/ (1 - tsl)` rather than the simpler multiplication
+    /// `× (1 + tsl)`, in order to guarantee that `new_sl >= next_stoploss`. Rounding errors
+    /// from other methods may compound over updates, causing the stoploss to drift and
+    /// potentially cross the liquidation price.
     fn next_stoploss_update_trigger(
         &self,
         tsl_step_size: PercentageCapped,
@@ -1215,10 +1231,11 @@ pub(super) trait TradeRunningExt: TradeRunning {
                             gain: tsl_step_size.into(),
                             e,
                         })?;
-                next_stoploss.apply_gain(trade_tsl.into()).map_err(|e| {
-                    TradeCoreError::InvalidPriceApplyGain {
-                        price: next_stoploss,
-                        gain: trade_tsl.into(),
+                let tsl_factor = 1.0 - trade_tsl.as_f64() / 100.0;
+                let trigger_price = next_stoploss.as_f64() / tsl_factor;
+                Price::round_up(trigger_price).map_err(|e| {
+                    TradeCoreError::InvalidPriceRounding {
+                        price: trigger_price,
                         e,
                     }
                 })?
@@ -1231,13 +1248,14 @@ pub(super) trait TradeRunningExt: TradeRunning {
                         e,
                     }
                 })?;
-                next_stoploss
-                    .apply_discount(trade_tsl.into())
-                    .map_err(|e| TradeCoreError::InvalidPriceApplyDiscount {
-                        price: next_stoploss,
-                        discount: trade_tsl.into(),
+                let tsl_factor = 1.0 + trade_tsl.as_f64() / 100.0;
+                let trigger_price = next_stoploss.as_f64() / tsl_factor;
+                Price::round_down(trigger_price).map_err(|e| {
+                    TradeCoreError::InvalidPriceRounding {
+                        price: trigger_price,
                         e,
-                    })?
+                    }
+                })?
             }
         };
 
