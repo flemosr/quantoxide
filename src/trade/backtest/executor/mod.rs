@@ -158,20 +158,42 @@ impl SimulatedTradeExecutor {
                 let market_price = Price::round(candle.close)
                     .map_err(SimulatedTradeExecutorError::TickUpdatePriceValidation)?;
 
+                // Use candle.high for longs and candle.low for shorts
                 let new_stoploss = match trade.side() {
-                    TradeSide::Buy if market_price >= next_stoploss_update_trigger => {
-                        let new_stoploss = market_price
-                            .apply_discount(trade_tsl.into())
+                    TradeSide::Buy => {
+                        let highest_price = Price::round(candle.high)
                             .map_err(SimulatedTradeExecutorError::TickUpdatePriceValidation)?;
-                        Some(new_stoploss)
+                        if highest_price >= next_stoploss_update_trigger {
+                            let new_stoploss = highest_price
+                                .apply_discount(trade_tsl.into())
+                                .map_err(SimulatedTradeExecutorError::TickUpdatePriceValidation)?;
+
+                            if new_stoploss < market_price {
+                                Some(new_stoploss)
+                            } else {
+                                None
+                            }
+                        } else {
+                            None
+                        }
                     }
-                    TradeSide::Sell if market_price <= next_stoploss_update_trigger => {
-                        let new_stoploss = market_price
-                            .apply_gain(trade_tsl.into())
+                    TradeSide::Sell => {
+                        let lowest_price = Price::round(candle.low)
                             .map_err(SimulatedTradeExecutorError::TickUpdatePriceValidation)?;
-                        Some(new_stoploss)
+                        if lowest_price <= next_stoploss_update_trigger {
+                            let new_stoploss = lowest_price
+                                .apply_gain(trade_tsl.into())
+                                .map_err(SimulatedTradeExecutorError::TickUpdatePriceValidation)?;
+
+                            if new_stoploss > market_price {
+                                Some(new_stoploss)
+                            } else {
+                                None
+                            }
+                        } else {
+                            None
+                        }
                     }
-                    _ => None,
                 };
 
                 if let Some(new_stoploss) = new_stoploss {
