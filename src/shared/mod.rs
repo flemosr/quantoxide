@@ -227,10 +227,14 @@ pub struct MinIterationInterval(Duration);
 impl MinIterationInterval {
     pub const MIN: Self = Self(Duration::seconds(5));
 
-    pub const MAX: Self = Self(Duration::minutes(10));
+    pub const MAX: Self = Self(Duration::hours(1));
 
     pub fn seconds(secs: u64) -> Result<Self, MinIterationIntervalValidationError> {
         Self::try_from(Duration::seconds(secs as i64))
+    }
+
+    pub fn minutes(mins: u64) -> Result<Self, MinIterationIntervalValidationError> {
+        Self::try_from(Duration::minutes(mins as i64))
     }
 
     /// Returns the minimum iteration interval as a [`Duration`].
