@@ -88,6 +88,7 @@ impl RawOperator for RawOperatorTemplate {
         // To access the current trading state:
 
         let trading_state: TradingState = trade_executor.trading_state().await?;
+        let iteration_time = trading_state.last_tick_time();
         let balance = trading_state.balance();
         let market_price = trading_state.market_price();
         let running_trades_map = trading_state.running_map();
