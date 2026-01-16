@@ -1072,14 +1072,14 @@ pub trait TradeExecutor: Send + Sync {
     /// Closes a specific trade by its ID.
     async fn close_trade(&self, trade_id: Uuid) -> TradeExecutorResult<()>;
 
-    /// Closes all long positions.
-    async fn close_longs(&self) -> TradeExecutorResult<()>;
+    /// Closes all long positions. Returns the UUIDs of the closed trades.
+    async fn close_longs(&self) -> TradeExecutorResult<Vec<Uuid>>;
 
-    /// Closes all short positions.
-    async fn close_shorts(&self) -> TradeExecutorResult<()>;
+    /// Closes all short positions. Returns the UUIDs of the closed trades.
+    async fn close_shorts(&self) -> TradeExecutorResult<Vec<Uuid>>;
 
-    /// Closes all open positions (both long and short).
-    async fn close_all(&self) -> TradeExecutorResult<()>;
+    /// Closes all open positions (both long and short). Returns the UUIDs of the closed trades.
+    async fn close_all(&self) -> TradeExecutorResult<Vec<Uuid>>;
 
     /// Returns the current trading state including balance, positions, and metrics.
     async fn trading_state(&self) -> TradeExecutorResult<TradingState>;
