@@ -181,7 +181,7 @@ impl LiveTradeExecutor {
         Ok(trade_id)
     }
 
-    async fn close_trades(&self, side: TradeSide) -> ExecutorActionResult<()> {
+    async fn close_trades(&self, side: TradeSide) -> ExecutorActionResult<Vec<Uuid>> {
         let locked_ready_state = self.state_manager.try_lock_ready_state().await?;
 
         let mut new_trading_session = locked_ready_state.trading_session().to_owned();
@@ -193,8 +193,10 @@ impl LiveTradeExecutor {
             }
         }
 
-        // Process in batches of 1
-        for chunk in to_close.chunks(1) {
+        let mut all_closed_ids = Vec::with_capacity(to_close.len());
+
+        // Process in batches of 3
+        for chunk in to_close.chunks(3) {
             let close_futures = chunk
                 .iter()
                 .map(|&trade_id| self.api.close_trade(trade_id))
@@ -222,13 +224,15 @@ impl LiveTradeExecutor {
                 .running_trades
                 .remove_running_trades(closed_ids.as_slice())
                 .await?;
+
+            all_closed_ids.extend(closed_ids);
         }
 
         locked_ready_state
             .update_trading_session(new_trading_session)
             .await;
 
-        Ok(())
+        Ok(all_closed_ids)
     }
 
     fn try_consume_handle(&self) -> Option<AbortOnDropHandle<()>> {
@@ -419,17 +423,15 @@ impl TradeExecutor for LiveTradeExecutor {
         Ok(())
     }
 
-    async fn close_longs(&self) -> TradeExecutorResult<()> {
-        self.close_trades(TradeSide::Buy).await?;
-        Ok(())
+    async fn close_longs(&self) -> TradeExecutorResult<Vec<Uuid>> {
+        Ok(self.close_trades(TradeSide::Buy).await?)
     }
 
-    async fn close_shorts(&self) -> TradeExecutorResult<()> {
-        self.close_trades(TradeSide::Sell).await?;
-        Ok(())
+    async fn close_shorts(&self) -> TradeExecutorResult<Vec<Uuid>> {
+        Ok(self.close_trades(TradeSide::Sell).await?)
     }
 
-    async fn close_all(&self) -> TradeExecutorResult<()> {
+    async fn close_all(&self) -> TradeExecutorResult<Vec<Uuid>> {
         let locked_ready_state = self.state_manager.try_lock_ready_state().await?;
 
         let mut new_trading_session = locked_ready_state.trading_session().to_owned();
@@ -439,7 +441,11 @@ impl TradeExecutor for LiveTradeExecutor {
 
         new_trading_session.close_trades(&closed_trades)?;
 
+        let mut closed_ids = Vec::with_capacity(closed_trades.len());
+
         for closed_trade in closed_trades {
+            closed_ids.push(closed_trade.id());
+
             // Ignore no-receiver errors
             let _ = self
                 .update_tx
@@ -450,7 +456,7 @@ impl TradeExecutor for LiveTradeExecutor {
             .update_trading_session(new_trading_session)
             .await;
 
-        Ok(())
+        Ok(closed_ids)
     }
 
     async fn trading_state(&self) -> TradeExecutorResult<TradingState> {
