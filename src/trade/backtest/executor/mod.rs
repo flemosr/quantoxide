@@ -224,7 +224,7 @@ impl SimulatedTradeExecutor {
         Ok(())
     }
 
-    async fn close_running(&self, close: Close) -> SimulatedTradeExecutorResult<()> {
+    async fn close_running(&self, close: Close) -> SimulatedTradeExecutorResult<Vec<Uuid>> {
         let mut state_guard = self.state.lock().await;
 
         let time = state_guard.time;
@@ -236,7 +236,9 @@ impl SimulatedTradeExecutor {
         let mut new_closed_len = state_guard.closed_len;
         let mut new_closed_fees = state_guard.closed_fees;
 
-        let mut close_trade = |trade: Arc<SimulatedTradeRunning>| {
+        let mut closed_ids = Vec::new();
+
+        let mut close_trade = |trade: &Arc<SimulatedTradeRunning>| {
             let closed_trade = trade.to_closed(self.config.fee_perc(), time, market_price);
 
             new_balance += closed_trade.margin().as_i64() + closed_trade.maintenance_margin()
@@ -246,6 +248,8 @@ impl SimulatedTradeExecutor {
             new_realized_pl += closed_trade.pl();
             new_closed_len += 1;
             new_closed_fees += closed_trade.opening_fee() + closed_trade.closing_fee();
+
+            trade.id()
         };
 
         let mut new_trigger = PriceTrigger::new();
@@ -260,7 +264,8 @@ impl SimulatedTradeExecutor {
             };
 
             if should_be_closed {
-                close_trade(trade.clone());
+                let trade_id = close_trade(trade);
+                closed_ids.push(trade_id);
             } else {
                 new_trigger
                     .update(
@@ -283,7 +288,7 @@ impl SimulatedTradeExecutor {
         state_guard.closed_len = new_closed_len;
         state_guard.closed_fees = new_closed_fees;
 
-        Ok(())
+        Ok(closed_ids)
     }
 
     async fn create_running(
@@ -428,19 +433,16 @@ impl TradeExecutor for SimulatedTradeExecutor {
         Ok(())
     }
 
-    async fn close_longs(&self) -> TradeExecutorResult<()> {
-        self.close_running(TradeSide::Buy.into()).await?;
-        Ok(())
+    async fn close_longs(&self) -> TradeExecutorResult<Vec<Uuid>> {
+        Ok(self.close_running(TradeSide::Buy.into()).await?)
     }
 
-    async fn close_shorts(&self) -> TradeExecutorResult<()> {
-        self.close_running(TradeSide::Sell.into()).await?;
-        Ok(())
+    async fn close_shorts(&self) -> TradeExecutorResult<Vec<Uuid>> {
+        Ok(self.close_running(TradeSide::Sell.into()).await?)
     }
 
-    async fn close_all(&self) -> TradeExecutorResult<()> {
-        self.close_running(Close::All).await?;
-        Ok(())
+    async fn close_all(&self) -> TradeExecutorResult<Vec<Uuid>> {
+        Ok(self.close_running(Close::All).await?)
     }
 
     async fn trading_state(&self) -> TradeExecutorResult<TradingState> {
