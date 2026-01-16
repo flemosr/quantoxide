@@ -3,6 +3,7 @@
 use std::env;
 
 use dotenv::dotenv;
+use serde_json::json;
 use tokio::time::{self, Duration};
 
 use quantoxide::{
@@ -120,6 +121,22 @@ async fn main() -> Result<()> {
                         if matches!(backtest_status, BacktestStatus::Finished) {
                             if let Some(state) = last_trading_state {
                                 println!("\nBacktest finished.\n\nFinal {state}");
+
+                                let final_net_value = state.total_net_value();
+                                let pnl = final_net_value as i64 - start_balance as i64;
+                                let pnl_pct = (pnl as f64 / start_balance as f64) * 100.0;
+
+                                let summary = json!({
+                                    "backtest_summary": {
+                                        "start_balance_sats": start_balance,
+                                        "final_net_value_sats": final_net_value,
+                                        "pnl_sats": pnl,
+                                        "pnl_percent": format!("{:.2}", pnl_pct),
+                                        "profitable": pnl > 0,
+                                    }
+                                });
+                                let summary = serde_json::to_string_pretty(&summary).unwrap();
+                                println!("\n{summary}");
                             }
                             return;
                         }
