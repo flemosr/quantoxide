@@ -115,7 +115,7 @@ impl LiveTradeExecutor {
         leverage: Leverage,
         stoploss: Option<Stoploss>,
         takeprofit: Option<Price>,
-    ) -> ExecutorActionResult<()> {
+    ) -> ExecutorActionResult<Uuid> {
         let locked_ready_state = self.state_manager.try_lock_ready_state().await?;
 
         let market_price = self.get_estimated_market_price().await?;
@@ -163,9 +163,11 @@ impl LiveTradeExecutor {
             .create_new_trade(side, size, leverage, stoploss_price, takeprofit)
             .await?;
 
+        let trade_id = trade.id();
+
         self.db
             .running_trades
-            .add_running_trade(trade.id(), trade_tsl)
+            .add_running_trade(trade_id, trade_tsl)
             .await?;
 
         let mut new_trading_session = locked_ready_state.trading_session().to_owned();
@@ -176,7 +178,7 @@ impl LiveTradeExecutor {
             .update_trading_session(new_trading_session)
             .await;
 
-        Ok(())
+        Ok(trade_id)
     }
 
     async fn close_trades(&self, side: TradeSide) -> ExecutorActionResult<()> {
@@ -299,10 +301,10 @@ impl TradeExecutor for LiveTradeExecutor {
         leverage: Leverage,
         stoploss: Option<Stoploss>,
         takeprofit: Option<Price>,
-    ) -> TradeExecutorResult<()> {
-        self.open_trade(TradeSide::Buy, size, leverage, stoploss, takeprofit)
-            .await?;
-        Ok(())
+    ) -> TradeExecutorResult<Uuid> {
+        Ok(self
+            .open_trade(TradeSide::Buy, size, leverage, stoploss, takeprofit)
+            .await?)
     }
 
     async fn open_short(
@@ -311,10 +313,10 @@ impl TradeExecutor for LiveTradeExecutor {
         leverage: Leverage,
         stoploss: Option<Stoploss>,
         takeprofit: Option<Price>,
-    ) -> TradeExecutorResult<()> {
-        self.open_trade(TradeSide::Sell, size, leverage, stoploss, takeprofit)
-            .await?;
-        Ok(())
+    ) -> TradeExecutorResult<Uuid> {
+        Ok(self
+            .open_trade(TradeSide::Sell, size, leverage, stoploss, takeprofit)
+            .await?)
     }
 
     async fn add_margin(&self, trade_id: Uuid, amount: NonZeroU64) -> TradeExecutorResult<()> {
