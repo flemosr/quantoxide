@@ -11,7 +11,8 @@ use quantoxide::{
     error::Result,
     models::{Lookback, MinIterationInterval, OhlcCandleRow, OhlcResolution},
     signal::{
-        ConfiguredSignalEvaluator, SignalAction, SignalActionEvaluator, SignalEvaluator, SignalName,
+        ConfiguredSignalEvaluator, SignalAction, SignalActionEvaluator, SignalEvaluator,
+        SignalExtra, SignalName,
     },
     tui::TuiLogger,
 };
@@ -52,31 +53,41 @@ impl SignalEvaluatorTemplate {
 #[async_trait]
 impl SignalActionEvaluator for SignalEvaluatorTemplate {
     #[allow(unused_variables)]
-    async fn evaluate(&self, candles: &[OhlcCandleRow]) -> Result<SignalAction> {
+    async fn evaluate(
+        &self,
+        candles: &[OhlcCandleRow],
+    ) -> Result<(SignalAction, Option<SignalExtra>)> {
         // If a TUI `logger` was provided, it can be used to log info in the interface
         // self.log("Logging in the TUI".into()).await?;
         //
         // NOTE: `println!` and other `stdout`/`stderr` outputs should be avoided when using TUIs,
         // as they would disrupt rendering.
 
-        // Evaluate candles return a signal action
+        // Evaluate candles and return a signal action with optional extra data
 
         let Some(last_candle) = candles.last() else {
             return Err("no candles were provided".into());
         };
 
-        // Ok(SignalAction::Buy {
+        // Example: Return action without extra data
+        // Ok((SignalAction::Buy {
         //     price: last_candle.close,
         //     strength: u8::MAX,
-        // })
+        // }, None))
 
-        // Ok(SignalAction::Sell {
+        // Example: Return action with extra data (e.g., calculated ATR for dynamic SL/TP)
+        // let mut extra = SignalExtra::new();
+        // extra.insert("atr".into(), "500.0".into());
+        // extra.insert("sl_pct".into(), "2.5".into());
+        // extra.insert("tp_pct".into(), "5.0".into());
+        //
+        // Ok((SignalAction::Sell {
         //     price: last_candle.close,
         //     strength: u8::MAX,
-        // })
+        // }, Some(extra)))
 
-        // Ok(SignalAction::Hold)
+        // Ok((SignalAction::Hold, None))
 
-        Ok(SignalAction::Wait)
+        Ok((SignalAction::Wait, None))
     }
 }
