@@ -45,6 +45,9 @@ pub enum ExecutorActionError {
     #[error("Price Trigger update error")]
     PriceTriggerUpdate(TradeCoreError),
 
+    #[error("Closed history update error")]
+    ClosedHistoryUpdate(TradeCoreError),
+
     #[error("Updated trades {trade_ids:?} not running")]
     UpdatedTradesNotRunning { trade_ids: Vec<Uuid> },
 

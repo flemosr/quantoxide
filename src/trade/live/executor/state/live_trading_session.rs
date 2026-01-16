@@ -14,8 +14,8 @@ use crate::db::Database;
 
 use super::super::super::{
     super::core::{
-        DynRunningTradesMap, PriceTrigger, RunningTradesMap, TradeRunningExt,
-        TradeTrailingStoploss, TradingState,
+        DynClosedTradeHistory, DynRunningTradesMap, PriceTrigger, RunningTradesMap,
+        TradeRunningExt, TradeTrailingStoploss, TradingState,
     },
     executor::{
         WrappedRestClient,
@@ -60,7 +60,7 @@ pub(in crate::trade) struct LiveTradingSession {
     trigger: PriceTrigger,
     running_map: DynRunningTradesMap,
     realized_pl: i64,
-    closed_len: usize,
+    closed_history: Arc<DynClosedTradeHistory>,
     closed_fees: u64,
 }
 
@@ -101,7 +101,10 @@ impl LiveTradingSession {
             trigger: PriceTrigger::NotSet,
             running_map: RunningTradesMap::new(),
             realized_pl: prev_trading_session.as_ref().map_or(0, |ps| ps.realized_pl),
-            closed_len: prev_trading_session.as_ref().map_or(0, |ps| ps.closed_len),
+            closed_history: prev_trading_session.as_ref().map_or_else(
+                || Arc::new(DynClosedTradeHistory::new_dyn()),
+                |ps| ps.closed_history.clone(),
+            ),
             closed_fees: prev_trading_session.as_ref().map_or(0, |ps| ps.closed_fees),
         };
 
@@ -395,27 +398,31 @@ impl LiveTradingSession {
         let mut new_trigger = PriceTrigger::NotSet;
         let mut new_balance = self.balance as i64;
         let mut new_realized_pl = self.realized_pl;
-        let mut new_closed_len = self.closed_len;
         let mut new_closed_fees = self.closed_fees;
+        let closed_history = Arc::make_mut(&mut self.closed_history);
 
-        for (trade, trade_tsl) in self.running_map.trades_desc() {
-            if let Some(closed_trade) = closed_map.remove(&trade.id()) {
-                new_balance += trade.margin().as_i64() + trade.maintenance_margin()
+        for (runnning_trade, trade_tsl) in self.running_map.trades_desc() {
+            if let Some(closed_trade) = closed_map.remove(&runnning_trade.id()) {
+                new_balance += runnning_trade.margin().as_i64()
+                    + runnning_trade.maintenance_margin()
                     - closed_trade.closing_fee() as i64
                     + closed_trade.pl();
 
                 new_realized_pl += closed_trade.pl();
-                new_closed_len += 1;
                 new_closed_fees += closed_trade.opening_fee() + closed_trade.closing_fee();
+
+                closed_history
+                    .add_arc(Arc::new(closed_trade.clone()))
+                    .map_err(ExecutorActionError::ClosedHistoryUpdate)?;
 
                 continue;
             }
 
             new_trigger
-                .update(self.tsl_step_size, trade.as_ref(), *trade_tsl)
+                .update(self.tsl_step_size, runnning_trade.as_ref(), *trade_tsl)
                 .map_err(ExecutorActionError::PriceTriggerUpdate)?;
 
-            new_running_map.add(trade.clone(), *trade_tsl);
+            new_running_map.add(runnning_trade.clone(), *trade_tsl);
         }
 
         self.last_trade_time = new_last_trade_time;
@@ -423,7 +430,6 @@ impl LiveTradingSession {
         self.running_map = new_running_map;
         self.balance = new_balance.max(0) as u64;
         self.realized_pl = new_realized_pl;
-        self.closed_len = new_closed_len;
         self.closed_fees = new_closed_fees;
 
         Ok(())
@@ -443,7 +449,7 @@ impl From<LiveTradingSession> for TradingState {
             value.last_trade_time,
             value.running_map,
             value.realized_pl,
-            value.closed_len,
+            value.closed_history,
             value.closed_fees,
         )
     }
