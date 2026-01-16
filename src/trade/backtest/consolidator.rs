@@ -102,7 +102,7 @@ impl RuntimeConsolidator {
     ) -> Result<Self> {
         let mut consolidator = Self {
             lookback,
-            candles: Vec::with_capacity(lookback.period().as_usize() + 1),
+            candles: Vec::with_capacity(lookback.period().as_usize()),
             current_bucket: None,
         };
 
@@ -137,6 +137,7 @@ impl RuntimeConsolidator {
                     bucket.add_candle(candle);
                     consolidator.candles.push(bucket.to_candle_row(false));
                     consolidator.current_bucket = Some(bucket);
+                    consolidator.trim_old_candles();
                 }
             }
             return Ok(consolidator);
@@ -153,18 +154,9 @@ impl RuntimeConsolidator {
         Ok(consolidator)
     }
 
-    /// Returns the number of completed candles (excluding current bucket).
-    fn completed_count(&self) -> usize {
-        if self.current_bucket.is_some() {
-            self.candles.len().saturating_sub(1)
-        } else {
-            self.candles.len()
-        }
-    }
-
-    /// Trims old completed candles if we exceed the lookback period.
+    /// Trims old candles if we exceed the lookback period.
     fn trim_old_candles(&mut self) {
-        while self.completed_count() > self.lookback.period().as_usize() {
+        while self.candles.len() > self.lookback.period().as_usize() {
             self.candles.remove(0);
         }
     }
@@ -227,6 +219,7 @@ impl RuntimeConsolidator {
         new_bucket.add_candle(candle);
         self.candles.push(new_bucket.to_candle_row(false));
         self.current_bucket = Some(new_bucket);
+        self.trim_old_candles();
 
         Ok(())
     }
@@ -377,8 +370,7 @@ mod tests {
         let base_time = Utc.with_ymd_and_hms(2026, 1, 15, 10, 0, 0).unwrap();
 
         // Push candles across 7 buckets (0, 5, 10, 15, 20, 25, 30 minutes)
-        // When we push minute 30, the 25-minute bucket is finalized, giving us 6 completed buckets.
-        // With lookback=5, we keep 5 completed + 1 current = 6 total.
+        // With lookback=5, we keep exactly 5 candles total (including in-progress).
         for i in 0..7 {
             consolidator
                 .push(&make_candle(
@@ -390,22 +382,22 @@ mod tests {
 
         let candles = consolidator.get_candles();
 
-        // 6 completed buckets (10:00 through 10:25) with lookback=5 means
-        // 10:00 is trimmed, leaving 10:05, 10:10, 10:15, 10:20, 10:25 completed + 10:30 current
-        assert_eq!(candles.len(), 6);
+        // With lookback=5, we keep exactly 5 candles: 4 completed + 1 current
+        // 10:00, 10:05 are trimmed, leaving 10:10, 10:15, 10:20, 10:25 completed + 10:30 current
+        assert_eq!(candles.len(), 5);
 
-        // First candle should be at 10:05 (10:00 was trimmed)
+        // First candle should be at 10:10 (10:00 and 10:05 were trimmed)
         assert_eq!(
             candles[0].time,
-            Utc.with_ymd_and_hms(2026, 1, 15, 10, 5, 0).unwrap()
+            Utc.with_ymd_and_hms(2026, 1, 15, 10, 10, 0).unwrap()
         );
 
         // Last candle should be the current bucket at 10:30
         assert_eq!(
-            candles[5].time,
+            candles[4].time,
             Utc.with_ymd_and_hms(2026, 1, 15, 10, 30, 0).unwrap()
         );
-        assert!(!candles[5].stable);
+        assert!(!candles[4].stable);
     }
 
     #[test]
@@ -491,16 +483,15 @@ mod tests {
 
         let result = consolidator.get_candles();
 
-        // Should have up to lookback (5) completed + 1 current = 6 candles max
-        // But we only have 9 candles up to 10:08, so after trimming to 5 completed:
-        // Completed: 10:03, 10:04, 10:05, 10:06, 10:07 (5 candles)
+        // With lookback=5, we keep exactly 5 candles total (including in-progress):
+        // Completed: 10:04, 10:05, 10:06, 10:07 (4 candles)
         // Current: 10:08 (1 candle)
-        assert_eq!(result.len(), 6);
+        assert_eq!(result.len(), 5);
 
         // All but last should be stable
-        for candle in &result[..5] {
+        for candle in &result[..4] {
             assert!(candle.stable);
         }
-        assert!(!result[5].stable); // Current is unstable
+        assert!(!result[4].stable); // Current is unstable
     }
 }
