@@ -14,8 +14,8 @@ use crate::db::Database;
 
 use super::super::super::{
     super::core::{
-        DynClosedTradeHistory, DynRunningTradesMap, PriceTrigger, RunningTradesMap,
-        TradeRunningExt, TradeTrailingStoploss, TradingState,
+        ClosedTradeHistory, DynRunningTradesMap, PriceTrigger, RunningTradesMap, TradeRunningExt,
+        TradeTrailingStoploss, TradingState,
     },
     executor::{
         WrappedRestClient,
@@ -60,7 +60,7 @@ pub(in crate::trade) struct LiveTradingSession {
     trigger: PriceTrigger,
     running_map: DynRunningTradesMap,
     realized_pl: i64,
-    closed_history: Arc<DynClosedTradeHistory>,
+    closed_history: Arc<ClosedTradeHistory>,
     closed_fees: u64,
 }
 
@@ -102,7 +102,7 @@ impl LiveTradingSession {
             running_map: RunningTradesMap::new(),
             realized_pl: prev_trading_session.as_ref().map_or(0, |ps| ps.realized_pl),
             closed_history: prev_trading_session.as_ref().map_or_else(
-                || Arc::new(DynClosedTradeHistory::new_dyn()),
+                || Arc::new(ClosedTradeHistory::new()),
                 |ps| ps.closed_history.clone(),
             ),
             closed_fees: prev_trading_session.as_ref().map_or(0, |ps| ps.closed_fees),
@@ -412,7 +412,7 @@ impl LiveTradingSession {
                 new_closed_fees += closed_trade.opening_fee() + closed_trade.closing_fee();
 
                 closed_history
-                    .add_arc(Arc::new(closed_trade.clone()))
+                    .add(Arc::new(closed_trade.clone()))
                     .map_err(ExecutorActionError::ClosedHistoryUpdate)?;
 
                 continue;

@@ -12,8 +12,8 @@ use crate::db::models::OhlcCandleRow;
 use super::{
     super::{
         core::{
-            DynClosedTradeHistory, PriceTrigger, RunningTradesMap, Stoploss, TradeClosed,
-            TradeCore, TradeExecutor, TradeRunning, TradeRunningExt, TradingState,
+            ClosedTradeHistory, PriceTrigger, RunningTradesMap, Stoploss, TradeClosed, TradeCore,
+            TradeExecutor, TradeRunning, TradeRunningExt, TradingState,
         },
         error::TradeExecutorResult,
     },
@@ -46,7 +46,7 @@ struct SimulatedTradeExecutorState {
     trigger: PriceTrigger,
     running_map: RunningTradesMap<SimulatedTradeRunning>,
     realized_pl: i64,
-    closed_history: Arc<DynClosedTradeHistory>,
+    closed_history: Arc<ClosedTradeHistory>,
     closed_fees: u64,
 }
 
@@ -69,7 +69,7 @@ impl SimulatedTradeExecutor {
             trigger: PriceTrigger::new(),
             running_map: RunningTradesMap::new(),
             realized_pl: 0,
-            closed_history: Arc::new(DynClosedTradeHistory::new_dyn()),
+            closed_history: Arc::new(ClosedTradeHistory::new()),
             closed_fees: 0,
         };
 
@@ -223,7 +223,7 @@ impl SimulatedTradeExecutor {
             let closed_history = Arc::make_mut(&mut state_guard.closed_history);
             for closed_trade in closed_trades {
                 closed_history
-                    .add_arc(closed_trade)
+                    .add(closed_trade)
                     .map_err(SimulatedTradeExecutorError::ClosedHistoryUpdate)?;
             }
         }
@@ -294,7 +294,7 @@ impl SimulatedTradeExecutor {
             let closed_history = Arc::make_mut(&mut state_guard.closed_history);
             for closed_trade in closed_trades {
                 closed_history
-                    .add_arc(closed_trade)
+                    .add(closed_trade)
                     .map_err(SimulatedTradeExecutorError::ClosedHistoryUpdate)?;
             }
         }

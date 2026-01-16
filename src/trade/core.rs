@@ -539,7 +539,7 @@ pub struct TradingState {
     running_map: DynRunningTradesMap,
     running_stats: OnceLock<RunningStats>,
     realized_pl: i64,
-    closed_history: Arc<DynClosedTradeHistory>,
+    closed_history: Arc<ClosedTradeHistory>,
     closed_fees: u64,
 }
 
@@ -552,7 +552,7 @@ impl TradingState {
         last_trade_time: Option<DateTime<Utc>>,
         running_map: DynRunningTradesMap,
         realized_pl: i64,
-        closed_history: Arc<DynClosedTradeHistory>,
+        closed_history: Arc<ClosedTradeHistory>,
         closed_fees: u64,
     ) -> Self {
         Self {
@@ -700,7 +700,7 @@ impl TradingState {
     }
 
     /// Returns a reference to the closed trade history.
-    pub fn closed_history(&self) -> &Arc<DynClosedTradeHistory> {
+    pub fn closed_history(&self) -> &Arc<ClosedTradeHistory> {
         &self.closed_history
     }
 
@@ -848,41 +848,18 @@ impl fmt::Display for TradingState {
 }
 
 /// A chronologically ordered collection of closed trades. Stores completed trades indexed by
-/// creation time and UUID for historical analysis and reporting.
-pub struct ClosedTradeHistory<T: TradeClosed + ?Sized>(BTreeMap<(DateTime<Utc>, Uuid), Arc<T>>);
+/// creation time and UUID. Uses dynamic dispatch to support heterogeneous trade types.
+pub struct ClosedTradeHistory(BTreeMap<(DateTime<Utc>, Uuid), Arc<dyn TradeClosed>>);
 
-/// Type alias for a dynamically dispatched closed trade history.
-pub type DynClosedTradeHistory = ClosedTradeHistory<dyn TradeClosed>;
-
-impl<T: TradeClosed> ClosedTradeHistory<T> {
+impl ClosedTradeHistory {
     /// Creates a new empty closed trade history.
     pub fn new() -> Self {
         Self(BTreeMap::new())
     }
 
-    /// Adds a closed trade to the history. Returns an error if the trade is not properly closed.
-    pub fn add(&mut self, trade: T) -> TradeCoreResult<()> {
-        if !trade.closed() || trade.exit_price().is_none() || trade.closed_ts().is_none() {
-            return Err(TradeCoreError::TradeNotClosed {
-                trade_id: trade.id(),
-            });
-        }
-
-        self.0
-            .insert((trade.creation_ts(), trade.id()), Arc::new(trade));
-        Ok(())
-    }
-}
-
-impl DynClosedTradeHistory {
-    /// Creates a new empty dynamically dispatched closed trade history.
-    pub(super) fn new_dyn() -> Self {
-        Self(BTreeMap::new())
-    }
-
     /// Adds a closed trade (as Arc) to the history. Returns an error if the trade is not properly
     /// closed.
-    pub(super) fn add_arc(&mut self, trade: Arc<dyn TradeClosed>) -> TradeCoreResult<()> {
+    pub(super) fn add(&mut self, trade: Arc<dyn TradeClosed>) -> TradeCoreResult<()> {
         if !trade.closed() || trade.exit_price().is_none() || trade.closed_ts().is_none() {
             return Err(TradeCoreError::TradeNotClosed {
                 trade_id: trade.id(),
@@ -892,9 +869,7 @@ impl DynClosedTradeHistory {
         self.0.insert((trade.creation_ts(), trade.id()), trade);
         Ok(())
     }
-}
 
-impl<T: TradeClosed + ?Sized> ClosedTradeHistory<T> {
     /// Returns `true` if the history contains no trades.
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
@@ -906,12 +881,12 @@ impl<T: TradeClosed + ?Sized> ClosedTradeHistory<T> {
     }
 
     /// Returns an iterator over trades in ascending chronological order (oldest first).
-    pub fn iter(&self) -> impl Iterator<Item = &Arc<T>> {
+    pub fn iter(&self) -> impl Iterator<Item = &Arc<dyn TradeClosed>> {
         self.0.values()
     }
 
     /// Returns an iterator over trades in descending chronological order (newest first).
-    pub fn iter_desc(&self) -> impl Iterator<Item = &Arc<T>> {
+    pub fn iter_desc(&self) -> impl Iterator<Item = &Arc<dyn TradeClosed>> {
         self.0.values().rev()
     }
 
@@ -979,19 +954,19 @@ impl<T: TradeClosed + ?Sized> ClosedTradeHistory<T> {
     }
 }
 
-impl<T: TradeClosed + ?Sized> Clone for ClosedTradeHistory<T> {
+impl Clone for ClosedTradeHistory {
     fn clone(&self) -> Self {
         Self(self.0.clone())
     }
 }
 
-impl<T: TradeClosed> Default for ClosedTradeHistory<T> {
+impl Default for ClosedTradeHistory {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<T: TradeClosed + ?Sized> fmt::Debug for ClosedTradeHistory<T> {
+impl fmt::Debug for ClosedTradeHistory {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ClosedTradeHistory")
             .field("len", &self.0.len())

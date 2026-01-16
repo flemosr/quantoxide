@@ -9,9 +9,9 @@ pub use backtest::{
     state::{BacktestReceiver, BacktestStatus, BacktestUpdate},
 };
 pub use core::{
-    ClosedTradeHistory, DynClosedTradeHistory, DynRunningTradesMap, RawOperator, RunningTradesMap,
-    SignalOperator, Stoploss, TradeClosed, TradeExecutor, TradeReference, TradeRunning,
-    TradeTrailingStoploss, TradingState,
+    ClosedTradeHistory, DynRunningTradesMap, RawOperator, RunningTradesMap, SignalOperator,
+    Stoploss, TradeClosed, TradeExecutor, TradeReference, TradeRunning, TradeTrailingStoploss,
+    TradingState,
 };
 pub use live::{
     config::{LiveTradeConfig, LiveTradeExecutorConfig},
