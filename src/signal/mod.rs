@@ -8,7 +8,7 @@ mod state;
 pub use config::LiveSignalConfig;
 pub use core::{
     ConfiguredSignalEvaluator, Signal, SignalAction, SignalActionEvaluator, SignalEvaluator,
-    SignalName,
+    SignalExtra, SignalName,
 };
 pub use engine::{LiveSignalController, LiveSignalEngine};
 pub use state::{

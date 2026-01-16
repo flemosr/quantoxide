@@ -1,4 +1,4 @@
-use std::{fmt, panic::AssertUnwindSafe};
+use std::{collections::HashMap, fmt, panic::AssertUnwindSafe};
 
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
@@ -10,6 +10,10 @@ use crate::{
     shared::{Lookback, MinIterationInterval},
     util::DateTimeExt,
 };
+
+/// Extra data associated with a signal, allowing evaluators to pass calculated values
+/// (like ATR, indicator values, dynamic SL/TP percentages, etc.) to signal operators.
+pub type SignalExtra = HashMap<String, String>;
 
 use super::{
     error::{SignalValidationError, ValidationResult},
@@ -93,15 +97,24 @@ impl fmt::Display for SignalAction {
 /// data to produce trading signals.
 #[async_trait]
 pub trait SignalActionEvaluator: Send + Sync {
-    /// Evaluates a series of OHLC candlesticks and returns a signal action.
+    /// Evaluates a series of OHLC candlesticks and returns a signal action with optional extra data.
     ///
     /// The candlestick slice is ordered chronologically, with the most recent candle last.
-    async fn evaluate(&self, candles: &[OhlcCandleRow]) -> Result<SignalAction>;
+    ///
+    /// The optional [`SignalExtra`] allows evaluators to pass calculated values (like ATR, indicator
+    /// values, dynamic SL/TP percentages, etc.) to the signal operator.
+    async fn evaluate(
+        &self,
+        candles: &[OhlcCandleRow],
+    ) -> Result<(SignalAction, Option<SignalExtra>)>;
 }
 
 #[async_trait]
 impl SignalActionEvaluator for Box<dyn SignalActionEvaluator> {
-    async fn evaluate(&self, candles: &[OhlcCandleRow]) -> Result<SignalAction> {
+    async fn evaluate(
+        &self,
+        candles: &[OhlcCandleRow],
+    ) -> Result<(SignalAction, Option<SignalExtra>)> {
         (**self).evaluate(candles).await
     }
 }
@@ -153,7 +166,7 @@ impl<T: SignalActionEvaluator> SignalEvaluator<T> {
     pub async fn evaluate(
         &self,
         candles: &[OhlcCandleRow],
-    ) -> ProcessRecoverableResult<SignalAction> {
+    ) -> ProcessRecoverableResult<(SignalAction, Option<SignalExtra>)> {
         FutureExt::catch_unwind(AssertUnwindSafe(self.action_evaluator.evaluate(candles)))
             .await
             .map_err(|e| SignalProcessRecoverableError::EvaluatePanicked(e.into()))?
@@ -192,13 +205,14 @@ impl SignalEvaluator<Box<dyn SignalActionEvaluator>> {
 
 /// A timestamped trading signal produced by a named signal evaluator.
 ///
-/// Signals combine the evaluation result with metadata about when it was generated and which
+/// Signals combine the evaluation result with information about when it was generated and which
 /// evaluator produced it.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Signal {
-    time: DateTime<Utc>,
     name: SignalName,
+    time: DateTime<Utc>,
     action: SignalAction,
+    extra: Option<SignalExtra>,
 }
 
 impl Signal {
@@ -207,18 +221,14 @@ impl Signal {
         time: DateTime<Utc>,
         candles: &[OhlcCandleRow],
     ) -> ProcessRecoverableResult<Self> {
-        let signal_action = evaluator.evaluate(candles).await?;
+        let (action, extra) = evaluator.evaluate(candles).await?;
 
         Ok(Signal {
             time,
             name: evaluator.name().clone(),
-            action: signal_action,
+            action,
+            extra,
         })
-    }
-
-    /// Returns the timestamp when this signal was generated.
-    pub fn time(&self) -> DateTime<Utc> {
-        self.time
     }
 
     /// Returns the name of the signal evaluator that produced this signal.
@@ -226,9 +236,22 @@ impl Signal {
         &self.name
     }
 
+    /// Returns the timestamp when this signal was generated.
+    pub fn time(&self) -> DateTime<Utc> {
+        self.time
+    }
+
     /// Returns the [`SignalAction`] corresponding to the signal.
     pub fn action(&self) -> SignalAction {
         self.action
+    }
+
+    /// Returns optional extra data passed by the signal evaluator.
+    ///
+    /// Extra data allows evaluators to pass calculated values (like ATR, indicator values,
+    /// dynamic SL/TP percentages, etc.) to signal operators.
+    pub fn extra(&self) -> Option<&SignalExtra> {
+        self.extra.as_ref()
     }
 
     /// Returns a formatted string representation of the signal data for display purposes.
