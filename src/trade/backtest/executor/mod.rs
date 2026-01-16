@@ -293,7 +293,7 @@ impl SimulatedTradeExecutor {
         leverage: Leverage,
         stoploss: Option<Stoploss>,
         takeprofit: Option<Price>,
-    ) -> SimulatedTradeExecutorResult<()> {
+    ) -> SimulatedTradeExecutorResult<Uuid> {
         let mut state_guard = self.state.lock().await;
 
         let market_price = Price::round(state_guard.market_price)
@@ -341,6 +341,8 @@ impl SimulatedTradeExecutor {
 
         state_guard.last_trade_time = trade.market_filled_ts();
 
+        let trade_id = trade.id();
+
         state_guard
             .trigger
             .update(
@@ -351,7 +353,7 @@ impl SimulatedTradeExecutor {
             .map_err(SimulatedTradeExecutorError::PriceTriggerUpdate)?;
         state_guard.running_map.add(trade, trade_tsl);
 
-        Ok(())
+        Ok(trade_id)
     }
 }
 
@@ -363,10 +365,10 @@ impl TradeExecutor for SimulatedTradeExecutor {
         leverage: Leverage,
         stoploss: Option<Stoploss>,
         takeprofit: Option<Price>,
-    ) -> TradeExecutorResult<()> {
-        self.create_running(TradeSide::Buy, size, leverage, stoploss, takeprofit)
-            .await?;
-        Ok(())
+    ) -> TradeExecutorResult<Uuid> {
+        Ok(self
+            .create_running(TradeSide::Buy, size, leverage, stoploss, takeprofit)
+            .await?)
     }
 
     async fn open_short(
@@ -375,10 +377,10 @@ impl TradeExecutor for SimulatedTradeExecutor {
         leverage: Leverage,
         stoploss: Option<Stoploss>,
         takeprofit: Option<Price>,
-    ) -> TradeExecutorResult<()> {
-        self.create_running(TradeSide::Sell, size, leverage, stoploss, takeprofit)
-            .await?;
-        Ok(())
+    ) -> TradeExecutorResult<Uuid> {
+        Ok(self
+            .create_running(TradeSide::Sell, size, leverage, stoploss, takeprofit)
+            .await?)
     }
 
     async fn add_margin(&self, trade_id: Uuid, amount: NonZeroU64) -> TradeExecutorResult<()> {
