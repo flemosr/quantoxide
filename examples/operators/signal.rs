@@ -98,7 +98,7 @@ impl SignalOperator for SignalOperatorTemplate {
         // Uncomment to enable trade demo
         // // If there are no running trades and balance is gte 6000 sats, open a long trade
         // if running_trades_map.is_empty() && balance >= 6_000 {
-        //     trade_executor
+        //     let trade_id = trade_executor
         //         .open_long(
         //             TradeSize::quantity(1)?, // Size 1 USD. `TradeSize::margin` is also available
         //             Leverage::try_from(6)?,  // Leverage 6x
