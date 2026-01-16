@@ -539,7 +539,7 @@ pub struct TradingState {
     running_map: DynRunningTradesMap,
     running_stats: OnceLock<RunningStats>,
     realized_pl: i64,
-    closed_len: usize,
+    closed_history: Arc<DynClosedTradeHistory>,
     closed_fees: u64,
 }
 
@@ -552,7 +552,7 @@ impl TradingState {
         last_trade_time: Option<DateTime<Utc>>,
         running_map: DynRunningTradesMap,
         realized_pl: i64,
-        closed_len: usize,
+        closed_history: Arc<DynClosedTradeHistory>,
         closed_fees: u64,
     ) -> Self {
         Self {
@@ -563,7 +563,7 @@ impl TradingState {
             running_map,
             running_stats: OnceLock::new(),
             realized_pl,
-            closed_len,
+            closed_history,
             closed_fees,
         }
     }
@@ -699,9 +699,14 @@ impl TradingState {
         self.realized_pl
     }
 
+    /// Returns a reference to the closed trade history.
+    pub fn closed_history(&self) -> &Arc<DynClosedTradeHistory> {
+        &self.closed_history
+    }
+
     /// Returns the number of closed trades.
     pub fn closed_len(&self) -> usize {
-        self.closed_len
+        self.closed_history.len()
     }
 
     /// Returns the total fees paid for closed trades (in satoshis).
@@ -711,7 +716,7 @@ impl TradingState {
 
     /// Returns the net profit/loss of closed trades after fees (in satoshis).
     pub fn closed_net_pl(&self) -> i64 {
-        self.realized_pl - self.closed_fees as i64
+        self.realized_pl - self.closed_fees() as i64
     }
 
     /// Returns the total profit/loss combining both running and realized P/L (in satoshis).
@@ -721,7 +726,7 @@ impl TradingState {
 
     /// Returns the total fees across both running and closed trades (in satoshis).
     pub fn fees(&self) -> u64 {
-        self.running_fees() + self.closed_fees
+        self.running_fees() + self.closed_fees()
     }
 
     /// Returns a formatted string containing a comprehensive summary of the trading state including
@@ -762,7 +767,7 @@ impl TradingState {
         result.push_str(&format!("  total_margin: {}\n", self.running_margin()));
         result.push_str(&format!("realized_pl: {}\n", self.realized_pl));
         result.push_str("closed_positions:\n");
-        result.push_str(&format!("  trades: {}\n", self.closed_len));
+        result.push_str(&format!("  trades: {}\n", self.closed_len()));
         result.push_str(&format!("  fees: {}", self.closed_fees));
 
         result
@@ -974,9 +979,23 @@ impl<T: TradeClosed + ?Sized> ClosedTradeHistory<T> {
     }
 }
 
+impl<T: TradeClosed + ?Sized> Clone for ClosedTradeHistory<T> {
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
+    }
+}
+
 impl<T: TradeClosed> Default for ClosedTradeHistory<T> {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl<T: TradeClosed + ?Sized> fmt::Debug for ClosedTradeHistory<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ClosedTradeHistory")
+            .field("len", &self.0.len())
+            .finish()
     }
 }
 
