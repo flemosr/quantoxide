@@ -12,8 +12,8 @@ use crate::db::models::OhlcCandleRow;
 use super::{
     super::{
         core::{
-            PriceTrigger, RunningTradesMap, Stoploss, TradeClosed, TradeCore, TradeExecutor,
-            TradeRunning, TradeRunningExt, TradingState,
+            DynClosedTradeHistory, PriceTrigger, RunningTradesMap, Stoploss, TradeClosed,
+            TradeCore, TradeExecutor, TradeRunning, TradeRunningExt, TradingState,
         },
         error::TradeExecutorResult,
     },
@@ -46,7 +46,7 @@ struct SimulatedTradeExecutorState {
     trigger: PriceTrigger,
     running_map: RunningTradesMap<SimulatedTradeRunning>,
     realized_pl: i64,
-    closed_len: usize,
+    closed_history: Arc<DynClosedTradeHistory>,
     closed_fees: u64,
 }
 
@@ -69,7 +69,7 @@ impl SimulatedTradeExecutor {
             trigger: PriceTrigger::new(),
             running_map: RunningTradesMap::new(),
             realized_pl: 0,
-            closed_len: 0,
+            closed_history: Arc::new(DynClosedTradeHistory::new_dyn()),
             closed_fees: 0,
         };
 
@@ -105,22 +105,9 @@ impl SimulatedTradeExecutor {
 
         let mut new_balance = state_guard.balance as i64;
         let mut new_realized_pl = state_guard.realized_pl;
-        let mut new_closed_len = state_guard.closed_len;
         let mut new_closed_fees = state_guard.closed_fees;
         let mut new_last_trade_time = state_guard.last_trade_time;
-
-        let mut close_trade = |trade: &SimulatedTradeRunning, close_price: Price| {
-            let closed_trade = trade.to_closed(self.config.fee_perc(), candle.time, close_price);
-
-            new_balance += closed_trade.margin().as_i64() + closed_trade.maintenance_margin()
-                - closed_trade.closing_fee() as i64
-                + closed_trade.pl();
-
-            new_realized_pl += closed_trade.pl();
-            new_closed_len += 1;
-            new_closed_fees += closed_trade.opening_fee() + closed_trade.closing_fee();
-            new_last_trade_time = Some(time);
-        };
+        let mut closed_trades: Vec<Arc<dyn TradeClosed>> = Vec::new();
 
         let mut new_trigger = PriceTrigger::new();
         let mut new_running_map = RunningTradesMap::new();
@@ -136,14 +123,34 @@ impl SimulatedTradeExecutor {
             if let Some(trade_min) = trade_min_opt
                 && candle.low <= trade_min.as_f64()
             {
-                close_trade(trade.as_ref(), trade_min);
+                let closed_trade = trade.to_closed(self.config.fee_perc(), candle.time, trade_min);
+
+                new_balance += closed_trade.margin().as_i64() + closed_trade.maintenance_margin()
+                    - closed_trade.closing_fee() as i64
+                    + closed_trade.pl();
+
+                new_realized_pl += closed_trade.pl();
+                new_closed_fees += closed_trade.opening_fee() + closed_trade.closing_fee();
+                new_last_trade_time = Some(time);
+
+                closed_trades.push(closed_trade);
                 continue;
             }
 
             if let Some(trade_max) = trade_max_opt
                 && candle.high >= trade_max.as_f64()
             {
-                close_trade(trade.as_ref(), trade_max);
+                let closed_trade = trade.to_closed(self.config.fee_perc(), candle.time, trade_max);
+
+                new_balance += closed_trade.margin().as_i64() + closed_trade.maintenance_margin()
+                    - closed_trade.closing_fee() as i64
+                    + closed_trade.pl();
+
+                new_realized_pl += closed_trade.pl();
+                new_closed_fees += closed_trade.opening_fee() + closed_trade.closing_fee();
+                new_last_trade_time = Some(time);
+
+                closed_trades.push(closed_trade);
                 continue;
             }
 
@@ -211,13 +218,22 @@ impl SimulatedTradeExecutor {
             new_running_map.add(trade.clone(), *trade_tsl_opt);
         }
 
+        // Add closed trades to history after the loop to avoid borrow conflicts
+        if !closed_trades.is_empty() {
+            let closed_history = Arc::make_mut(&mut state_guard.closed_history);
+            for closed_trade in closed_trades {
+                closed_history
+                    .add_arc(closed_trade)
+                    .map_err(SimulatedTradeExecutorError::ClosedHistoryUpdate)?;
+            }
+        }
+
         state_guard.balance = new_balance;
 
         state_guard.trigger = new_trigger;
         state_guard.running_map = new_running_map;
 
         state_guard.realized_pl = new_realized_pl;
-        state_guard.closed_len = new_closed_len;
         state_guard.closed_fees = new_closed_fees;
         state_guard.last_trade_time = new_last_trade_time;
 
@@ -233,24 +249,10 @@ impl SimulatedTradeExecutor {
 
         let mut new_balance = state_guard.balance as i64;
         let mut new_realized_pl = state_guard.realized_pl;
-        let mut new_closed_len = state_guard.closed_len;
         let mut new_closed_fees = state_guard.closed_fees;
 
         let mut closed_ids = Vec::new();
-
-        let mut close_trade = |trade: &Arc<SimulatedTradeRunning>| {
-            let closed_trade = trade.to_closed(self.config.fee_perc(), time, market_price);
-
-            new_balance += closed_trade.margin().as_i64() + closed_trade.maintenance_margin()
-                - closed_trade.closing_fee() as i64
-                + closed_trade.pl();
-
-            new_realized_pl += closed_trade.pl();
-            new_closed_len += 1;
-            new_closed_fees += closed_trade.opening_fee() + closed_trade.closing_fee();
-
-            trade.id()
-        };
+        let mut closed_trades: Vec<Arc<dyn TradeClosed>> = Vec::new();
 
         let mut new_trigger = PriceTrigger::new();
         let mut new_running_map = RunningTradesMap::new();
@@ -264,8 +266,17 @@ impl SimulatedTradeExecutor {
             };
 
             if should_be_closed {
-                let trade_id = close_trade(trade);
-                closed_ids.push(trade_id);
+                let closed_trade = trade.to_closed(self.config.fee_perc(), time, market_price);
+
+                new_balance += closed_trade.margin().as_i64() + closed_trade.maintenance_margin()
+                    - closed_trade.closing_fee() as i64
+                    + closed_trade.pl();
+
+                new_realized_pl += closed_trade.pl();
+                new_closed_fees += closed_trade.opening_fee() + closed_trade.closing_fee();
+
+                closed_ids.push(trade.id());
+                closed_trades.push(closed_trade);
             } else {
                 new_trigger
                     .update(
@@ -278,6 +289,16 @@ impl SimulatedTradeExecutor {
             }
         }
 
+        // Add closed trades to history after the loop to avoid borrow conflicts
+        if !closed_trades.is_empty() {
+            let closed_history = Arc::make_mut(&mut state_guard.closed_history);
+            for closed_trade in closed_trades {
+                closed_history
+                    .add_arc(closed_trade)
+                    .map_err(SimulatedTradeExecutorError::ClosedHistoryUpdate)?;
+            }
+        }
+
         state_guard.balance = new_balance;
 
         state_guard.last_trade_time = Some(state_guard.time);
@@ -285,7 +306,6 @@ impl SimulatedTradeExecutor {
         state_guard.running_map = new_running_map;
 
         state_guard.realized_pl = new_realized_pl;
-        state_guard.closed_len = new_closed_len;
         state_guard.closed_fees = new_closed_fees;
 
         Ok(closed_ids)
@@ -455,7 +475,7 @@ impl TradeExecutor for SimulatedTradeExecutor {
             state_guard.last_trade_time,
             state_guard.running_map.clone().into_dyn(),
             state_guard.realized_pl,
-            state_guard.closed_len,
+            state_guard.closed_history.clone(),
             state_guard.closed_fees,
         );
 

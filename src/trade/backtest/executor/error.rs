@@ -50,6 +50,9 @@ pub enum SimulatedTradeExecutorError {
 
     #[error("Stoploss evaluation error")]
     StoplossEvaluation(TradeCoreError),
+
+    #[error("Closed history update error")]
+    ClosedHistoryUpdate(TradeCoreError),
 }
 
 pub type SimulatedTradeExecutorResult<T> = result::Result<T, SimulatedTradeExecutorError>;
