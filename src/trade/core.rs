@@ -1044,24 +1044,24 @@ impl From<TradeTrailingStoploss> for Percentage {
 #[async_trait]
 pub trait TradeExecutor: Send + Sync {
     /// Opens a new long position with the specified size, leverage, and optional risk management
-    /// parameters.
+    /// parameters. Returns the UUID of the created trade.
     async fn open_long(
         &self,
         size: TradeSize,
         leverage: Leverage,
         stoploss: Option<Stoploss>,
         takeprofit: Option<Price>,
-    ) -> TradeExecutorResult<()>;
+    ) -> TradeExecutorResult<Uuid>;
 
     /// Opens a new short position with the specified size, leverage, and optional risk management
-    /// parameters.
+    /// parameters. Returns the UUID of the created trade.
     async fn open_short(
         &self,
         size: TradeSize,
         leverage: Leverage,
         stoploss: Option<Stoploss>,
         takeprofit: Option<Price>,
-    ) -> TradeExecutorResult<()>;
+    ) -> TradeExecutorResult<Uuid>;
 
     /// Adds margin to an existing trade, reducing its leverage.
     async fn add_margin(&self, trade_id: Uuid, amount: NonZeroU64) -> TradeExecutorResult<()>;
