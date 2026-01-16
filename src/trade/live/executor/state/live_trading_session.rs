@@ -219,7 +219,7 @@ impl LiveTradingSession {
         let mut updated_trades = HashMap::new();
         let mut close_results = Vec::new();
 
-        for chunk in to_update.chunks(1) {
+        for chunk in to_update.chunks(3) {
             let update_futures = chunk
                 .iter()
                 .map(|&(trade_id, new_stoploss)| api.update_trade_stoploss(trade_id, new_stoploss))
