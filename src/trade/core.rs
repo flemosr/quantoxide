@@ -849,12 +849,19 @@ impl fmt::Display for TradingState {
 
 /// A chronologically ordered collection of closed trades. Stores completed trades indexed by
 /// creation time and UUID. Uses dynamic dispatch to support heterogeneous trade types.
-pub struct ClosedTradeHistory(BTreeMap<(DateTime<Utc>, Uuid), Arc<dyn TradeClosed>>);
+pub struct ClosedTradeHistory {
+    trades: BTreeMap<(DateTime<Utc>, Uuid), Arc<dyn TradeClosed>>,
+    /// Maps UUID to creation timestamp for O(1) lookups by trade ID.
+    uuid_index: HashMap<Uuid, DateTime<Utc>>,
+}
 
 impl ClosedTradeHistory {
     /// Creates a new empty closed trade history.
     pub fn new() -> Self {
-        Self(BTreeMap::new())
+        Self {
+            trades: BTreeMap::new(),
+            uuid_index: HashMap::new(),
+        }
     }
 
     /// Adds a closed trade (as Arc) to the history. Returns an error if the trade is not properly
@@ -866,34 +873,43 @@ impl ClosedTradeHistory {
             });
         }
 
-        self.0.insert((trade.creation_ts(), trade.id()), trade);
+        let id = trade.id();
+        let creation_ts = trade.creation_ts();
+        self.trades.insert((creation_ts, id), trade);
+        self.uuid_index.insert(id, creation_ts);
         Ok(())
+    }
+
+    /// Returns a reference to the trade with the given UUID, if it exists.
+    pub fn get(&self, id: Uuid) -> Option<&Arc<dyn TradeClosed>> {
+        let creation_ts = self.uuid_index.get(&id)?;
+        self.trades.get(&(*creation_ts, id))
     }
 
     /// Returns `true` if the history contains no trades.
     pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
+        self.trades.is_empty()
     }
 
     /// Returns the number of closed trades in the history.
     pub fn len(&self) -> usize {
-        self.0.len()
+        self.trades.len()
     }
 
     /// Returns an iterator over trades in ascending chronological order (oldest first).
     pub fn iter(&self) -> impl Iterator<Item = &Arc<dyn TradeClosed>> {
-        self.0.values()
+        self.trades.values()
     }
 
     /// Returns an iterator over trades in descending chronological order (newest first).
     pub fn iter_desc(&self) -> impl Iterator<Item = &Arc<dyn TradeClosed>> {
-        self.0.values().rev()
+        self.trades.values().rev()
     }
 
     /// Returns a formatted table displaying all closed trades with their entry/exit details,
     /// profit/loss, and fees.
     pub fn to_table(&self) -> String {
-        if self.0.is_empty() {
+        if self.trades.is_empty() {
             return "No closed trades.".to_string();
         }
 
@@ -915,7 +931,7 @@ impl ClosedTradeHistory {
 
         table.push_str(&format!("\n{}", "-".repeat(137)));
 
-        for trade in self.0.values().rev() {
+        for trade in self.trades.values().rev() {
             let creation_time = trade
                 .creation_ts()
                 .with_timezone(&chrono::Local)
@@ -956,7 +972,10 @@ impl ClosedTradeHistory {
 
 impl Clone for ClosedTradeHistory {
     fn clone(&self) -> Self {
-        Self(self.0.clone())
+        Self {
+            trades: self.trades.clone(),
+            uuid_index: self.uuid_index.clone(),
+        }
     }
 }
 
@@ -969,7 +988,7 @@ impl Default for ClosedTradeHistory {
 impl fmt::Debug for ClosedTradeHistory {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ClosedTradeHistory")
-            .field("len", &self.0.len())
+            .field("len", &self.trades.len())
             .finish()
     }
 }
