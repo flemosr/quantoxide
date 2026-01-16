@@ -6,10 +6,7 @@ use tokio::{
     task::JoinError,
 };
 
-use crate::{
-    sync::error::SyncError,
-    trade::{error::TradeCoreError, live::error::LiveError},
-};
+use crate::{sync::error::SyncError, trade::live::error::LiveError};
 
 use super::{TuiStatus, backtest::BacktestUiMessage, live::LiveUiMessage, sync::SyncUiMessage};
 
@@ -75,9 +72,6 @@ pub enum TuiError {
 
     #[error("Live TUI send failed: {0}")]
     LiveTuiSendFailed(Box<SendError<LiveUiMessage>>),
-
-    #[error("Live handle closed trade failed: {0}")]
-    LiveHandleClosedTradeFailed(TradeCoreError),
 
     #[error("Live recv error: {0}")]
     LiveRecv(RecvError),

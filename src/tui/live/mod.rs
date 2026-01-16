@@ -10,7 +10,7 @@ use tokio::{
 };
 
 use crate::{
-    trade::{ClosedTradeHistory, LiveTradeEngine, LiveTradeReceiver, LiveTradeUpdate},
+    trade::{LiveTradeEngine, LiveTradeReceiver, LiveTradeUpdate},
     util::AbortOnDropHandle,
 };
 
@@ -132,8 +132,8 @@ impl LiveTui {
                 };
 
             let mut running_trades_table = "No running trades.".to_string();
-            let mut closed_trade_history = ClosedTradeHistory::new();
-            let mut closed_trades_table = closed_trade_history.to_table();
+            let mut closed_trades_table = "No closed trades.".to_string();
+            let mut closed_len = 0;
 
             let mut handle_live_update = async |live_update: LiveTradeUpdate| -> Result<()> {
                 match live_update {
@@ -155,14 +155,15 @@ impl LiveTui {
 
                         running_trades_table = trading_state.running_trades_table();
 
+                        if trading_state.closed_len() > closed_len {
+                            closed_len = trading_state.closed_len();
+                            closed_trades_table = trading_state.closed_history().to_table();
+                        }
+
                         send_trades_update(&running_trades_table, &closed_trades_table).await?;
                     }
-                    LiveTradeUpdate::ClosedTrade(closed_trade) => {
-                        closed_trade_history.add(closed_trade).map_err(TuiError::LiveHandleClosedTradeFailed)?;
-
-                        closed_trades_table = closed_trade_history.to_table();
-
-                        send_trades_update(&running_trades_table, &closed_trades_table).await?;
+                    LiveTradeUpdate::ClosedTrade(trade) => {
+                        send_ui_msg(LiveUiMessage::LogEntry(format!("Closed Trade: {trade}"))).await?;
                     }
                 }
 
