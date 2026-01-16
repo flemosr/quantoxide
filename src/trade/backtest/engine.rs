@@ -416,7 +416,12 @@ impl BacktestEngine {
 
                         *last_eval = time_cursor;
 
-                        let signal = Signal::try_evaluate(evaluator, time_cursor, ctx_candles)
+                        let start_idx = ctx_candles.len().saturating_sub(
+                            evaluator.lookback().map_or(0, |l| l.period().as_usize()),
+                        );
+                        let eval_candles = &ctx_candles[start_idx..];
+
+                        let signal = Signal::try_evaluate(evaluator, time_cursor, eval_candles)
                             .await
                             .map_err(BacktestError::SignalEvaluationError)?;
 
