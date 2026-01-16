@@ -429,15 +429,6 @@ impl<T: TradeRunning + ?Sized> RunningTradesMap<T> {
             .and_then(|creation_ts| self.trades.get_mut(&(*creation_ts, id)))
     }
 
-    /// Returns a reference to the trade and its trailing stoploss metadata for the given trade
-    /// reference.
-    pub fn get(
-        &self,
-        trade_ref: &TradeReference,
-    ) -> Option<&(Arc<T>, Option<TradeTrailingStoploss>)> {
-        self.trades.get(trade_ref)
-    }
-
     /// Returns an iterator over trade references and their data in ascending chronological order
     /// (oldest first).
     pub fn iter(
@@ -852,7 +843,7 @@ impl fmt::Display for TradingState {
 pub struct ClosedTradeHistory {
     trades: BTreeMap<(DateTime<Utc>, Uuid), Arc<dyn TradeClosed>>,
     /// Maps UUID to creation timestamp for O(1) lookups by trade ID.
-    uuid_index: HashMap<Uuid, DateTime<Utc>>,
+    id_to_time: HashMap<Uuid, DateTime<Utc>>,
 }
 
 impl ClosedTradeHistory {
@@ -860,7 +851,7 @@ impl ClosedTradeHistory {
     pub fn new() -> Self {
         Self {
             trades: BTreeMap::new(),
-            uuid_index: HashMap::new(),
+            id_to_time: HashMap::new(),
         }
     }
 
@@ -876,13 +867,13 @@ impl ClosedTradeHistory {
         let id = trade.id();
         let creation_ts = trade.creation_ts();
         self.trades.insert((creation_ts, id), trade);
-        self.uuid_index.insert(id, creation_ts);
+        self.id_to_time.insert(id, creation_ts);
         Ok(())
     }
 
     /// Returns a reference to the trade with the given UUID, if it exists.
-    pub fn get(&self, id: Uuid) -> Option<&Arc<dyn TradeClosed>> {
-        let creation_ts = self.uuid_index.get(&id)?;
+    pub fn get_by_id(&self, id: Uuid) -> Option<&Arc<dyn TradeClosed>> {
+        let creation_ts = self.id_to_time.get(&id)?;
         self.trades.get(&(*creation_ts, id))
     }
 
@@ -974,7 +965,7 @@ impl Clone for ClosedTradeHistory {
     fn clone(&self) -> Self {
         Self {
             trades: self.trades.clone(),
-            uuid_index: self.uuid_index.clone(),
+            id_to_time: self.id_to_time.clone(),
         }
     }
 }
