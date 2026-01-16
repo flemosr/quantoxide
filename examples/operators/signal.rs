@@ -83,7 +83,13 @@ impl SignalOperator for SignalOperatorTemplate {
         let running_trades_map = trading_state.running_map();
         // Additional information is available, see the `TradingState` docs
 
-        // Evaluate candles. Perform trading operations via trade executor
+        // Access extra data passed by the signal evaluator (e.g., dynamic SL/TP percentages)
+        if let Some(extra) = signal.extra() {
+            let sl_pct = extra.get("sl_pct").and_then(|s| s.parse::<f64>().ok());
+            let tp_pct = extra.get("tp_pct").and_then(|s| s.parse::<f64>().ok());
+        }
+
+        // Perform trading operations via trade executor
 
         // Iterate over running trades
         for ((creation_time, trade_id), (trade, tsl)) in running_trades_map {
