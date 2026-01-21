@@ -5,9 +5,9 @@ use chrono::{DateTime, Duration, Utc};
 use tokio::sync::broadcast::{self, error::RecvError};
 
 use crate::{
-    db::Database,
+    db::{Database, models::OhlcCandleRow},
     shared::Lookback,
-    signal::{ConfiguredSignalEvaluator, Signal},
+    signal::{Signal, SignalEvaluator, WrappedSignalEvaluator},
     sync::PriceHistoryState,
     trade::backtest::config::BacktestConfig,
     tui::{TuiControllerShutdown, error::Result as TuiResult},
@@ -16,7 +16,7 @@ use crate::{
 
 use super::{
     super::core::{
-        RawOperator, SignalOperator, TradeExecutor, TradingState, WrappedRawOperator,
+        Raw, RawOperator, SignalOperator, TradeExecutor, TradingState, WrappedRawOperator,
         WrappedSignalOperator,
     },
     consolidator::RuntimeConsolidator,
@@ -120,10 +120,94 @@ impl TuiControllerShutdown for BacktestController {
     }
 }
 
-enum Operator {
+/// Pending operator state before starting.
+enum OperatorPending<S: Signal> {
     Signal {
-        evaluators: Vec<(DateTime<Utc>, ConfiguredSignalEvaluator)>,
-        signal_operator: WrappedSignalOperator,
+        evaluators: Vec<Box<dyn SignalEvaluator<S>>>,
+        signal_operator: WrappedSignalOperator<S>,
+    },
+    Raw {
+        raw_operator: WrappedRawOperator,
+    },
+}
+
+impl<S: Signal> OperatorPending<S> {
+    fn signal(
+        evaluators: Vec<Box<dyn SignalEvaluator<S>>>,
+        signal_operator: WrappedSignalOperator<S>,
+    ) -> Self {
+        Self::Signal {
+            evaluators,
+            signal_operator,
+        }
+    }
+
+    fn raw(raw_operator: WrappedRawOperator) -> Self {
+        Self::Raw { raw_operator }
+    }
+
+    fn max_lookback(&self) -> Result<Option<Lookback>> {
+        match self {
+            OperatorPending::Signal { evaluators, .. } => {
+                let lookbacks: Vec<_> = evaluators
+                    .iter()
+                    .filter_map(|e| match e.lookback() {
+                        Some(lb) => Some(Ok(lb)),
+                        None => None,
+                    })
+                    .collect::<Result<_>>()?;
+
+                Ok(lookbacks.into_iter().max_by_key(|l| l.as_duration()))
+            }
+            OperatorPending::Raw { raw_operator } => raw_operator
+                .lookback()
+                .map_err(BacktestError::OperatorError),
+        }
+    }
+
+    fn start(
+        self,
+        start_time: DateTime<Utc>,
+        trade_executor: Arc<dyn TradeExecutor>,
+    ) -> Result<OperatorRunning<S>> {
+        match self {
+            OperatorPending::Signal {
+                evaluators,
+                mut signal_operator,
+            } => {
+                signal_operator
+                    .set_trade_executor(trade_executor)
+                    .map_err(BacktestError::SetTradeExecutor)?;
+
+                let evaluators = evaluators
+                    .into_iter()
+                    .map(|ev| (start_time, WrappedSignalEvaluator::new(ev)))
+                    .collect();
+
+                Ok(OperatorRunning::Signal {
+                    evaluators,
+                    signal_operator,
+                })
+            }
+            OperatorPending::Raw { mut raw_operator } => {
+                raw_operator
+                    .set_trade_executor(trade_executor)
+                    .map_err(BacktestError::SetTradeExecutor)?;
+
+                Ok(OperatorRunning::Raw {
+                    last_eval: start_time,
+                    raw_operator,
+                })
+            }
+        }
+    }
+}
+
+/// Running operator state.
+enum OperatorRunning<S: Signal> {
+    Signal {
+        evaluators: Vec<(DateTime<Utc>, WrappedSignalEvaluator<S>)>,
+        signal_operator: WrappedSignalOperator<S>,
     },
     Raw {
         last_eval: DateTime<Utc>,
@@ -131,83 +215,98 @@ enum Operator {
     },
 }
 
-impl Operator {
-    fn signal(
-        start_time: DateTime<Utc>,
-        evaluators: Vec<ConfiguredSignalEvaluator>,
-        signal_operator: WrappedSignalOperator,
-    ) -> Self {
-        Self::Signal {
-            evaluators: evaluators
-                .into_iter()
-                .map(|evaluator| (start_time, evaluator))
-                .collect(),
-            signal_operator,
-        }
-    }
-
-    fn raw(start_time: DateTime<Utc>, raw_operator: WrappedRawOperator) -> Self {
-        Self::Raw {
-            last_eval: start_time,
-            raw_operator,
-        }
-    }
-
-    fn set_executor(&mut self, trade_executor: Arc<dyn TradeExecutor>) -> Result<()> {
+impl<S: Signal> OperatorRunning<S> {
+    async fn iterate(
+        &mut self,
+        time_cursor: DateTime<Utc>,
+        ctx_candles: &[OhlcCandleRow],
+    ) -> Result<()> {
         match self {
-            Operator::Signal {
-                evaluators: _,
-                signal_operator: operator,
-            } => {
-                operator
-                    .set_trade_executor(trade_executor)
-                    .map_err(BacktestError::SetTradeExecutor)?;
-
-                Ok(())
-            }
-            Operator::Raw {
-                last_eval: _,
-                raw_operator,
-            } => {
-                raw_operator
-                    .set_trade_executor(trade_executor)
-                    .map_err(BacktestError::SetTradeExecutor)?;
-
-                Ok(())
-            }
-        }
-    }
-
-    fn max_lookback(&self) -> Result<Option<Lookback>> {
-        match self {
-            Operator::Signal {
+            OperatorRunning::Signal {
                 evaluators,
-                signal_operator: _,
-            } => {
-                let max_lookback = evaluators
-                    .iter()
-                    .filter_map(|(_, evaluator)| evaluator.lookback())
-                    .max_by_key(|l| l.period());
-
-                Ok(max_lookback)
-            }
-            Operator::Raw {
-                last_eval: _,
+                signal_operator,
+            } => Self::iterate_signal(evaluators, signal_operator, time_cursor, ctx_candles).await,
+            OperatorRunning::Raw {
+                last_eval,
                 raw_operator,
-            } => raw_operator
-                .lookback()
-                .map_err(BacktestError::OperatorError),
+            } => Self::iterate_raw(last_eval, raw_operator, time_cursor, ctx_candles).await,
         }
+    }
+
+    async fn iterate_signal(
+        evaluators: &mut [(DateTime<Utc>, WrappedSignalEvaluator<S>)],
+        signal_operator: &WrappedSignalOperator<S>,
+        time_cursor: DateTime<Utc>,
+        ctx_candles: &[OhlcCandleRow],
+    ) -> Result<()> {
+        for (last_eval, evaluator) in evaluators {
+            let min_interval = evaluator
+                .min_iteration_interval()
+                .map_err(BacktestError::SignalEvaluationError)?;
+            if time_cursor < *last_eval + min_interval.as_duration() {
+                continue;
+            }
+
+            *last_eval = time_cursor;
+
+            let eval_candles = match evaluator
+                .lookback()
+                .map_err(BacktestError::SignalEvaluationError)?
+            {
+                Some(lookback) => {
+                    let start_idx = ctx_candles
+                        .len()
+                        .saturating_sub(lookback.period().as_usize());
+                    &ctx_candles[start_idx..]
+                }
+                None => &[],
+            };
+
+            let signal = evaluator
+                .evaluate(eval_candles)
+                .await
+                .map_err(BacktestError::SignalEvaluationError)?;
+
+            signal_operator
+                .process_signal(&signal)
+                .await
+                .map_err(BacktestError::SignalProcessingError)?;
+        }
+
+        Ok(())
+    }
+
+    async fn iterate_raw(
+        last_eval: &mut DateTime<Utc>,
+        raw_operator: &WrappedRawOperator,
+        time_cursor: DateTime<Utc>,
+        ctx_candles: &[OhlcCandleRow],
+    ) -> Result<()> {
+        let min_iteration_interval = raw_operator
+            .min_iteration_interval()
+            .map_err(BacktestError::OperatorError)?
+            .as_duration();
+
+        if time_cursor >= *last_eval + min_iteration_interval {
+            *last_eval = time_cursor;
+
+            raw_operator
+                .iterate(ctx_candles)
+                .await
+                .map_err(BacktestError::OperatorError)?;
+        }
+
+        Ok(())
     }
 }
 
 /// Builder for configuring and executing a backtest simulation. Encapsulates the configuration,
 /// database connection, operator, and time range for the backtest. The simulation is started when
 /// [`start`](Self::start) is called, returning a [`BacktestController`] for monitoring progress.
-pub struct BacktestEngine {
+pub struct BacktestEngine<S: Signal> {
     config: BacktestConfig,
     db: Arc<Database>,
-    operator: Operator,
+    operator_pending: OperatorPending<S>,
     start_time: DateTime<Utc>,
     start_balance: u64,
     end_time: DateTime<Utc>,
@@ -215,11 +314,38 @@ pub struct BacktestEngine {
     update_tx: BacktestTransmiter,
 }
 
-impl BacktestEngine {
+impl<S: Signal> BacktestEngine<S> {
+    /// Creates a new backtest engine using signal-based evaluation. Signal evaluators generate
+    /// trading signals that are processed by the signal operator to execute trading actions.
+    ///
+    /// The generic parameter `S` ensures type safety between evaluators and operator. They must
+    /// produce and consume the same signal type.
+    pub async fn with_signal_operator(
+        config: BacktestConfig,
+        db: Arc<Database>,
+        evaluators: Vec<Box<dyn SignalEvaluator<S>>>,
+        signal_operator: Box<dyn SignalOperator<S>>,
+        start_time: DateTime<Utc>,
+        start_balance: u64,
+        end_time: DateTime<Utc>,
+    ) -> Result<Self> {
+        let operator_pending = OperatorPending::signal(evaluators, signal_operator.into());
+
+        Self::new(
+            config,
+            db,
+            operator_pending,
+            start_time,
+            start_balance,
+            end_time,
+        )
+        .await
+    }
+
     async fn new(
         config: BacktestConfig,
         db: Arc<Database>,
-        operator: Operator,
+        operator_pending: OperatorPending<S>,
         start_time: DateTime<Utc>,
         start_balance: u64,
         end_time: DateTime<Utc>,
@@ -247,7 +373,7 @@ impl BacktestEngine {
             });
         }
 
-        let max_lookback = operator.max_lookback()?;
+        let max_lookback = operator_pending.max_lookback()?;
 
         let price_history_state = PriceHistoryState::evaluate(&db)
             .await
@@ -278,44 +404,13 @@ impl BacktestEngine {
         Ok(Self {
             config,
             db,
-            operator,
+            operator_pending,
             start_time,
             start_balance,
             end_time,
             status_manager,
             update_tx,
         })
-    }
-
-    /// Creates a new backtest engine using signal-based evaluation. Signal evaluators generate
-    /// trading signals that are processed by the signal operator to execute trading actions.
-    pub async fn with_signal_operator(
-        config: BacktestConfig,
-        db: Arc<Database>,
-        evaluators: Vec<ConfiguredSignalEvaluator>,
-        signal_operator: Box<dyn SignalOperator>,
-        start_time: DateTime<Utc>,
-        start_balance: u64,
-        end_time: DateTime<Utc>,
-    ) -> Result<Self> {
-        let operator = Operator::signal(start_time, evaluators, signal_operator.into());
-
-        Self::new(config, db, operator, start_time, start_balance, end_time).await
-    }
-
-    /// Creates a new backtest engine using a raw operator. The raw operator directly implements
-    /// trading logic without intermediate signal generation.
-    pub async fn with_raw_operator(
-        config: BacktestConfig,
-        db: Arc<Database>,
-        raw_operator: Box<dyn RawOperator>,
-        start_time: DateTime<Utc>,
-        start_balance: u64,
-        end_time: DateTime<Utc>,
-    ) -> Result<Self> {
-        let operator = Operator::raw(start_time, raw_operator.into());
-
-        Self::new(config, db, operator, start_time, start_balance, end_time).await
     }
 
     /// Returns the start time of the backtest simulation period.
@@ -341,9 +436,7 @@ impl BacktestEngine {
     async fn run(self) -> Result<TradingState> {
         self.status_manager.update(BacktestStatus::Starting);
 
-        let mut operator = self.operator;
-
-        let max_lookback = operator.max_lookback()?;
+        let max_lookback = self.operator_pending.max_lookback()?;
 
         let buffer_size = self.config.buffer_size() as i64;
 
@@ -375,7 +468,9 @@ impl BacktestEngine {
             self.start_balance,
         ));
 
-        operator.set_executor(trades_executor.clone())?;
+        let mut operator = self
+            .operator_pending
+            .start(self.start_time, trades_executor.clone())?;
 
         let mut time_cursor = start_candle.time + Duration::seconds(59);
         let mut minute_cursor_idx = start_candle_idx;
@@ -402,54 +497,7 @@ impl BacktestEngine {
                 .map(|c| c.get_candles())
                 .unwrap_or(&[]);
 
-            match &mut operator {
-                Operator::Signal {
-                    evaluators,
-                    signal_operator,
-                } => {
-                    for (last_eval, evaluator) in evaluators {
-                        if time_cursor
-                            < *last_eval + evaluator.min_iteration_interval().as_duration()
-                        {
-                            continue;
-                        }
-
-                        *last_eval = time_cursor;
-
-                        let start_idx = ctx_candles.len().saturating_sub(
-                            evaluator.lookback().map_or(0, |l| l.period().as_usize()),
-                        );
-                        let eval_candles = &ctx_candles[start_idx..];
-
-                        let signal = Signal::try_evaluate(evaluator, time_cursor, eval_candles)
-                            .await
-                            .map_err(BacktestError::SignalEvaluationError)?;
-
-                        signal_operator
-                            .process_signal(&signal)
-                            .await
-                            .map_err(BacktestError::SignalProcessingError)?;
-                    }
-                }
-                Operator::Raw {
-                    last_eval,
-                    raw_operator,
-                } => {
-                    let min_iteration_interval = raw_operator
-                        .min_iteration_interval()
-                        .map_err(BacktestError::OperatorError)?
-                        .as_duration();
-
-                    if time_cursor >= *last_eval + min_iteration_interval {
-                        *last_eval = time_cursor;
-
-                        raw_operator
-                            .iterate(ctx_candles)
-                            .await
-                            .map_err(BacktestError::OperatorError)?;
-                    }
-                }
-            }
+            operator.iterate(time_cursor, ctx_candles).await?;
 
             if time_cursor >= send_next_update_at {
                 let trades_state = trades_executor
@@ -533,5 +581,30 @@ impl BacktestEngine {
         .into();
 
         BacktestController::new(handle, status_manager)
+    }
+}
+
+impl BacktestEngine<Raw> {
+    /// Creates a new backtest engine using a raw operator. The raw operator directly implements
+    /// trading logic without intermediate signal generation.
+    pub async fn with_raw_operator(
+        config: BacktestConfig,
+        db: Arc<Database>,
+        raw_operator: Box<dyn RawOperator>,
+        start_time: DateTime<Utc>,
+        start_balance: u64,
+        end_time: DateTime<Utc>,
+    ) -> Result<Self> {
+        let operator_pending = OperatorPending::raw(raw_operator.into());
+
+        Self::new(
+            config,
+            db,
+            operator_pending,
+            start_time,
+            start_balance,
+            end_time,
+        )
+        .await
     }
 }
