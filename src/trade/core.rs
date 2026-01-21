@@ -1135,21 +1135,28 @@ pub trait TradeExecutor: Send + Sync {
     async fn trading_state(&self) -> TradeExecutorResult<TradingState>;
 }
 
-/// Trait for processing trading signals and making trading decisions. Signal operators receive
-/// evaluated signals and determine when to open, close, or modify positions.
+/// Trait for processing trading signals and making trading decisions.
+///
+/// Signal operators receive evaluated signals and determine when to open, close, or modify
+/// positions. The type parameter `S` represents the signal type that this operator handles.
+///
+/// # Type Parameter
+///
+/// * `S` - The signal type this operator processes. This should match the signal type produced by
+///   the evaluators being used.
 #[async_trait]
-pub trait SignalOperator: Send + Sync {
+pub trait SignalOperator<S: Signal>: Send + Sync {
     /// Sets the trade executor that should be used to execute trading operations.
     fn set_trade_executor(&mut self, trade_executor: Arc<dyn TradeExecutor>) -> GeneralResult<()>;
 
     /// Processes a trading signal and executes trading actions via the [`TradeExecutor`] that was
     /// set.
-    async fn process_signal(&self, signal: &Signal) -> GeneralResult<()>;
+    async fn process_signal(&self, signal: &S) -> GeneralResult<()>;
 }
 
-pub(super) struct WrappedSignalOperator(Box<dyn SignalOperator>);
+pub(crate) struct WrappedSignalOperator<S: Signal>(Box<dyn SignalOperator<S>>);
 
-impl WrappedSignalOperator {
+impl<S: Signal> WrappedSignalOperator<S> {
     pub fn set_trade_executor(
         &mut self,
         trade_executor: Arc<dyn TradeExecutor>,
@@ -1161,7 +1168,7 @@ impl WrappedSignalOperator {
         .map_err(|e| TradeCoreError::SignalOperatorSetTradeExecutorError(e.to_string()))
     }
 
-    pub async fn process_signal(&self, signal: &Signal) -> TradeCoreResult<()> {
+    pub async fn process_signal(&self, signal: &S) -> TradeCoreResult<()> {
         FutureExt::catch_unwind(AssertUnwindSafe(self.0.process_signal(signal)))
             .await
             .map_err(|e| TradeCoreError::SignalOperatorProcessSignalPanicked(e.into()))?
@@ -1169,9 +1176,19 @@ impl WrappedSignalOperator {
     }
 }
 
-impl From<Box<dyn SignalOperator>> for WrappedSignalOperator {
-    fn from(value: Box<dyn SignalOperator>) -> Self {
+impl<S: Signal> From<Box<dyn SignalOperator<S>>> for WrappedSignalOperator<S> {
+    fn from(value: Box<dyn SignalOperator<S>>) -> Self {
         Self(value)
+    }
+}
+
+/// Placeholder signal type for raw operators that don't use signals.
+#[derive(Debug, Clone, Copy)]
+pub struct Raw;
+
+impl fmt::Display for Raw {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Raw")
     }
 }
 
