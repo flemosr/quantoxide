@@ -4,7 +4,7 @@ use super::*;
 
 use chrono::Duration;
 
-use lnm_sdk::api_v3::models::{Leverage, PercentageCapped, Quantity};
+use lnm_sdk::api_v3::models::{ClientId, Leverage, PercentageCapped, Quantity};
 
 fn next_candle(prev: &OhlcCandleRow, price: f64) -> OhlcCandleRow {
     OhlcCandleRow::new_simple(prev.time + Duration::minutes(1), price, prev.volume)
@@ -63,8 +63,9 @@ async fn test_simulated_trade_executor_long_profit() -> TradeExecutorResult<()> 
     let stoploss = Some(Stoploss::fixed(stoploss_price));
     let takeprofit = Some(Price::bounded(105_000.));
 
+    let client_id = ClientId::try_from("test-long-profit-001").ok();
     let opened_trade_id = executor
-        .open_long(size, leverage, stoploss, takeprofit)
+        .open_long(size, leverage, stoploss, takeprofit, client_id.clone())
         .await?;
 
     let state = executor.trading_state().await?;
@@ -84,6 +85,9 @@ async fn test_simulated_trade_executor_long_profit() -> TradeExecutorResult<()> 
     assert_eq!(state.realized_pl(), 0);
     assert_eq!(state.closed_len(), 0);
     assert_eq!(state.closed_fees(), 0);
+
+    let (running_trade, _) = state.running_map().get_by_id(opened_trade_id).unwrap();
+    assert_eq!(running_trade.client_id(), client_id.as_ref());
 
     // Step 4: Update price to 101_000
 
@@ -135,6 +139,9 @@ async fn test_simulated_trade_executor_long_profit() -> TradeExecutorResult<()> 
     assert_eq!(state.closed_len(), 1);
     assert!(state.closed_fees() > 0);
 
+    let closed_trade = state.closed_history().get_by_id(opened_trade_id).unwrap();
+    assert_eq!(closed_trade.client_id(), client_id.as_ref());
+
     Ok(())
 }
 
@@ -172,7 +179,7 @@ async fn test_simulated_trade_executor_long_loss() -> TradeExecutorResult<()> {
     let takeprofit = None;
 
     let opened_trade_id = executor
-        .open_long(size, leverage, stoploss, takeprofit)
+        .open_long(size, leverage, stoploss, takeprofit, None)
         .await?;
 
     let state = executor.trading_state().await?;
@@ -268,8 +275,9 @@ async fn test_simulated_trade_executor_short_profit() -> TradeExecutorResult<()>
     let stoploss = Some(Stoploss::fixed(stoploss_price));
     let takeprofit = Some(Price::bounded(96_000.));
 
+    let client_id = ClientId::try_from("test-short-profit-001").ok();
     let opened_trade_id = executor
-        .open_short(size, leverage, stoploss, takeprofit)
+        .open_short(size, leverage, stoploss, takeprofit, client_id.clone())
         .await?;
 
     let state = executor.trading_state().await?;
@@ -290,6 +298,9 @@ async fn test_simulated_trade_executor_short_profit() -> TradeExecutorResult<()>
     assert_eq!(state.realized_pl(), 0);
     assert_eq!(state.closed_len(), 0);
     assert_eq!(state.closed_fees(), 0);
+
+    let (running_trade, _) = state.running_map().get_by_id(opened_trade_id).unwrap();
+    assert_eq!(running_trade.client_id(), client_id.as_ref());
 
     // Step 3: Update price to 98_000 (2% drop)
 
@@ -337,6 +348,9 @@ async fn test_simulated_trade_executor_short_profit() -> TradeExecutorResult<()>
     assert_eq!(state.closed_len(), 1);
     assert!(state.closed_fees() > 0);
 
+    let closed_trade = state.closed_history().get_by_id(opened_trade_id).unwrap();
+    assert_eq!(closed_trade.client_id(), client_id.as_ref());
+
     Ok(())
 }
 
@@ -374,7 +388,7 @@ async fn test_simulated_trade_executor_short_loss() -> TradeExecutorResult<()> {
     let takeprofit = Some(Price::bounded(98_000.));
 
     let opened_trade_id = executor
-        .open_short(size, leverage, stoploss, takeprofit)
+        .open_short(size, leverage, stoploss, takeprofit, None)
         .await?;
 
     let state = executor.trading_state().await?;
@@ -454,7 +468,7 @@ async fn test_simulated_trade_executor_trailing_stoploss_long() {
     // Open long position with trailing stop-loss
 
     let opened_trade_id = executor
-        .open_long(size, leverage, stoploss, takeprofit)
+        .open_long(size, leverage, stoploss, takeprofit, None)
         .await
         .unwrap();
 
@@ -536,7 +550,7 @@ async fn test_simulated_trade_executor_trailing_stoploss_short() {
     // Open short position with trailing stop-loss
 
     let opened_trade_id = executor
-        .open_short(size, leverage, stoploss, takeprofit)
+        .open_short(size, leverage, stoploss, takeprofit, None)
         .await
         .unwrap();
 
@@ -635,7 +649,7 @@ async fn test_simulated_trade_executor_partial_cash_in_short_profit() -> TradeEx
     let takeprofit = None;
 
     let opened_trade_id = executor
-        .open_short(size, leverage, stoploss, takeprofit)
+        .open_short(size, leverage, stoploss, takeprofit, None)
         .await?;
 
     let state = executor.trading_state().await?;
@@ -758,7 +772,7 @@ async fn test_simulated_trade_executor_full_cash_in_short_profit() -> TradeExecu
     let takeprofit = None;
 
     let opened_trade_id = executor
-        .open_short(size, leverage, stoploss, takeprofit)
+        .open_short(size, leverage, stoploss, takeprofit, None)
         .await?;
 
     let state = executor.trading_state().await?;
@@ -881,7 +895,7 @@ async fn test_simulated_trade_executor_add_margin_short_loss() -> TradeExecutorR
     let takeprofit = Some(Price::bounded(98_000.));
 
     let opened_trade_id = executor
-        .open_short(size, leverage, stoploss, takeprofit)
+        .open_short(size, leverage, stoploss, takeprofit, None)
         .await?;
 
     let state = executor.trading_state().await?;
