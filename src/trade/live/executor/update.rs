@@ -186,6 +186,7 @@ impl WrappedRestClient {
         leverage: Leverage,
         stoploss: Option<Price>,
         takeprofit: Option<Price>,
+        client_id: Option<ClientId>,
     ) -> ExecutorActionResult<Trade> {
         self.send_order_update(LiveTradeExecutorUpdateOrder::CreateNewTrade {
             side,
@@ -193,6 +194,7 @@ impl WrappedRestClient {
             leverage,
             stoploss,
             takeprofit,
+            client_id: client_id.clone(),
         });
 
         self.api_rest
@@ -204,7 +206,7 @@ impl WrappedRestClient {
                 TradeExecution::Market,
                 stoploss,
                 takeprofit,
-                None,
+                client_id,
             )
             .await
             .map_err(ExecutorActionError::RestApi)
