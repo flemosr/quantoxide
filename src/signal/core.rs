@@ -1,62 +1,50 @@
-use std::{fmt, panic::AssertUnwindSafe};
+use std::{
+    fmt,
+    panic::{self, AssertUnwindSafe},
+};
 
 use async_trait::async_trait;
-use chrono::{DateTime, Utc};
 use futures::FutureExt;
 
 use crate::{
-    db::models::OhlcCandleRow,
-    error::Result,
-    shared::{Lookback, MinIterationInterval},
-    util::DateTimeExt,
+    db::models::OhlcCandleRow, error::Result, shared::Lookback, shared::MinIterationInterval,
 };
 
-use super::{
-    error::{SignalValidationError, ValidationResult},
-    process::error::{ProcessRecoverableResult, SignalProcessRecoverableError},
-};
+use super::process::error::{ProcessRecoverableResult, SignalProcessRecoverableError};
 
-/// A validated identifier for a signal evaluator.
+/// Marker trait for signal types that can be used with the signal framework.
 ///
-/// Signal names must be non-empty strings and are used to identify and distinguish different
-/// signal evaluators within the system.
-#[derive(Debug, Clone)]
-pub struct SignalName(String);
+/// This trait bundles the common constraints required for signal types:
+/// - `Send + Sync`: Safe to share across threads
+/// - `Clone`: Can be duplicated for broadcasting
+/// - `Display`: Can be formatted for logging
+/// - `'static`: No borrowed references
+///
+/// A blanket implementation is provided for all types meeting these constraints, so this trait
+/// doesn't need to be implemented manually.
+///
+/// # Example
+///
+/// ```
+/// # use std::fmt;
+/// # use chrono::{DateTime, Utc};
+/// #[derive(Debug, Clone)]
+/// pub struct MySignal {
+///     pub time: DateTime<Utc>,
+///     // ...
+/// }
+///
+/// impl fmt::Display for MySignal {
+///     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+///         write!(f, "{}", self.time)
+///     }
+/// }
+///
+/// // MySignal: Signal is satisfied automatically
+/// ```
+pub trait Signal: Send + Sync + Clone + fmt::Display + 'static {}
 
-impl SignalName {
-    /// Creates a new signal name from a string, validating that it is non-empty.
-    pub fn new<S>(name: S) -> ValidationResult<Self>
-    where
-        S: Into<String>,
-    {
-        let name = name.into();
-
-        if name.is_empty() {
-            return Err(SignalValidationError::InvalidSignalNameEmptyString);
-        }
-
-        Ok(Self(name))
-    }
-
-    /// Returns the signal name as a string slice.
-    pub fn as_str(&self) -> &str {
-        self.0.as_str()
-    }
-}
-
-impl fmt::Display for SignalName {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
-impl PartialEq for SignalName {
-    fn eq(&self, other: &Self) -> bool {
-        self.0 == other.0
-    }
-}
-
-impl Eq for SignalName {}
+impl<T> Signal for T where T: Send + Sync + Clone + fmt::Display + 'static {}
 
 /// Represents a trading signal action with associated price and strength information.
 ///
