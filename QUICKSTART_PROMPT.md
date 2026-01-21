@@ -11,8 +11,8 @@ We are working with **quantoxide**, a Rust framework for developing, backtesting
 **quantoxide** has four core components:
 
 1. **Trade Operator** - Strategy logic that runs at regular intervals with access to trading state
-   - Raw Operators: Process OHLC data directly and execute trades (most common)
-   - Signal Operators: Delegate OHLC processing to Signal Evaluators (separate components that analyze data and emit signals)
+   - Raw Operators: Process OHLC data and execute trades within a single component (recommended for single-strategy use cases)
+   - Signal Operators: Delegate OHLC processing to Signal Evaluators, enabling multi-signal strategies or running multiple strategies in parallel
 
 2. **Synchronization** - Fetches and stores historical OHLC candle data from LN Markets into PostgreSQL (required for backtesting)
    - Backfill mode: Historical data
