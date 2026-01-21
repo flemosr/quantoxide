@@ -110,50 +110,44 @@ impl From<SignalProcessFatalError> for LiveSignalStatus {
 /// These updates are broadcast to subscribers and include status changes and newly generated
 /// trading signals.
 #[derive(Debug, Clone)]
-pub enum LiveSignalUpdate {
+pub enum LiveSignalUpdate<S: Signal> {
     /// Signal process status has changed.
     Status(LiveSignalStatus),
     /// A new trading signal has been generated.
-    Signal(Signal),
+    Signal(S),
 }
 
-impl From<LiveSignalStatus> for LiveSignalUpdate {
+impl<S: Signal> From<LiveSignalStatus> for LiveSignalUpdate<S> {
     fn from(value: LiveSignalStatus) -> Self {
         Self::Status(value)
     }
 }
 
-impl From<Signal> for LiveSignalUpdate {
-    fn from(value: Signal) -> Self {
-        Self::Signal(value)
-    }
-}
-
-pub(super) type LiveSignalTransmiter = broadcast::Sender<LiveSignalUpdate>;
+pub(crate) type LiveSignalTransmiter<S> = broadcast::Sender<LiveSignalUpdate<S>>;
 
 /// Receiver for subscribing to [`LiveSignalUpdate`]s.
-pub type LiveSignalReceiver = broadcast::Receiver<LiveSignalUpdate>;
+pub type LiveSignalReceiver<S> = broadcast::Receiver<LiveSignalUpdate<S>>;
 
 /// Trait for reading signal evaluation status and subscribing to updates.
 ///
 /// Provides a read-only interface to the signal process state without the ability to control or
 /// modify it.
-pub trait LiveSignalReader: Send + Sync + 'static {
+pub trait LiveSignalReader<S: Signal>: Send + Sync + 'static {
     /// Creates a new [`LiveSignalReceiver`] for subscribing to signal updates.
-    fn update_receiver(&self) -> LiveSignalReceiver;
+    fn update_receiver(&self) -> LiveSignalReceiver<S>;
 
     /// Returns the current [`LiveSignalStatus`] as a snapshot.
     fn status_snapshot(&self) -> LiveSignalStatus;
 }
 
 #[derive(Debug)]
-pub(super) struct LiveSignalStatusManager {
+pub(crate) struct LiveSignalStatusManager<S: Signal> {
     status: Mutex<LiveSignalStatus>,
-    update_tx: LiveSignalTransmiter,
+    update_tx: LiveSignalTransmiter<S>,
 }
 
-impl LiveSignalStatusManager {
-    pub fn new(update_tx: LiveSignalTransmiter) -> Arc<Self> {
+impl<S: Signal> LiveSignalStatusManager<S> {
+    pub fn new(update_tx: LiveSignalTransmiter<S>) -> Arc<Self> {
         let status = Mutex::new(LiveSignalStatusNotRunning::NotInitiated.into());
 
         Arc::new(Self { status, update_tx })
@@ -174,8 +168,8 @@ impl LiveSignalStatusManager {
     }
 }
 
-impl LiveSignalReader for LiveSignalStatusManager {
-    fn update_receiver(&self) -> LiveSignalReceiver {
+impl<S: Signal> LiveSignalReader<S> for LiveSignalStatusManager<S> {
+    fn update_receiver(&self) -> LiveSignalReceiver<S> {
         self.update_tx.subscribe()
     }
 
