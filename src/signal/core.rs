@@ -46,196 +46,128 @@ pub trait Signal: Send + Sync + Clone + fmt::Display + 'static {}
 
 impl<T> Signal for T where T: Send + Sync + Clone + fmt::Display + 'static {}
 
-/// Represents a trading signal action with associated price and strength information.
+/// Trait for implementing custom signal evaluation logic.
 ///
-/// Signal actions are the core output of signal evaluators, indicating what trading decision should
-/// be made based on market analysis.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum SignalAction {
-    /// Indicates a buy opportunity with the suggested entry price and signal strength (0-100).
-    Buy { price: f64, strength: u8 },
-    /// Indicates a sell opportunity with the suggested exit price and signal strength (0-100).
-    Sell { price: f64, strength: u8 },
-    /// Indicates the current position should be maintained without action.
-    Hold,
-    /// Indicates that no action should be taken.
-    Wait,
-}
-
-impl fmt::Display for SignalAction {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Buy { price, strength } => {
-                write!(f, "Buy(price: {:.1}, strength: {})", price, strength)
-            }
-            Self::Sell { price, strength } => {
-                write!(f, "Sell(price: {:.1}, strength: {})", price, strength)
-            }
-            Self::Hold => write!(f, "Hold"),
-            Self::Wait => write!(f, "Wait"),
-        }
-    }
-}
-
-/// Trait for implementing custom signal evaluation logic. Signal evaluators analyze candlestick
-/// data to produce trading signals.
-#[async_trait]
-pub trait SignalActionEvaluator: Send + Sync {
-    /// Evaluates a series of OHLC candlesticks and returns a signal action.
-    ///
-    /// The candlestick slice is ordered chronologically, with the most recent candle last.
-    async fn evaluate(&self, candles: &[OhlcCandleRow]) -> Result<SignalAction>;
-}
-
-#[async_trait]
-impl SignalActionEvaluator for Box<dyn SignalActionEvaluator> {
-    async fn evaluate(&self, candles: &[OhlcCandleRow]) -> Result<SignalAction> {
-        (**self).evaluate(candles).await
-    }
-}
-
-/// Complete configuration for a signal evaluator including timing and candle data parameters.
+/// Signal evaluators analyze candlestick data to produce trading signals of type `S`. Evaluators
+/// are designed to be reusable building blocks that can be composed into different operators.
 ///
-/// Wraps a [`SignalActionEvaluator`] with metadata controlling when evaluations occur and what
-/// candle data is provided to the evaluator.
-pub struct SignalEvaluator<T: SignalActionEvaluator> {
-    name: SignalName,
-    lookback: Option<Lookback>,
-    min_iteration_interval: MinIterationInterval,
-    action_evaluator: T,
-}
-
-impl<T: SignalActionEvaluator> SignalEvaluator<T> {
-    /// Creates a new signal evaluator with the specified configuration.
-    pub fn new(
-        name: SignalName,
-        lookback: Option<Lookback>,
-        min_iteration_interval: MinIterationInterval,
-        action_evaluator: T,
-    ) -> Self {
-        Self {
-            name,
-            lookback,
-            min_iteration_interval,
-            action_evaluator,
-        }
-    }
-
-    /// Returns the name identifier for this signal evaluator.
-    pub fn name(&self) -> &SignalName {
-        &self.name
-    }
-
-    /// Returns the lookback configuration for this signal evaluator, or `None` if no historical
+/// # Type Parameter
+///
+/// * `S` - The signal type this evaluator produces. For reusable evaluators, this is typically
+///   constrained with `where YourSignal: Into<S>` to allow conversion to any target type.
+///
+/// # Example
+///
+/// ```
+/// # use std::fmt;
+/// # use chrono::{DateTime, Utc};
+/// use quantoxide::{
+///     error::Result,
+///     models::{
+///         Lookback, MinIterationInterval, OhlcCandleRow, OhlcResolution
+///     },
+///     signal::{Signal, SignalEvaluator},
+/// };
+///
+/// // Define the evaluator's native signal type
+/// #[derive(Debug, Clone)]
+/// pub struct MaCrossSignal {
+///     pub time: DateTime<Utc>,
+///     pub fast_ma: f64,
+///     pub slow_ma: f64,
+/// }
+///
+/// impl fmt::Display for MaCrossSignal {
+///     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+///         write!(f, "MaCross at {}: fast={:.2}, slow={:.2}", self.time, self.fast_ma, self.slow_ma)
+///     }
+/// }
+///
+/// // Evaluator struct is not generic, only the trait impl is
+/// pub struct MaCrossEvaluator {
+///     fast_period: usize,
+///     slow_period: usize,
+/// }
+///
+/// impl MaCrossEvaluator {
+///     pub fn new(fast_period: usize, slow_period: usize) -> Box<Self> {
+///         Box::new(Self { fast_period, slow_period })
+///     }
+/// }
+///
+/// #[async_trait::async_trait]
+/// impl<S: Signal> SignalEvaluator<S> for MaCrossEvaluator
+/// where
+///     MaCrossSignal: Into<S>,
+/// {
+///     fn lookback(&self) -> Option<Lookback> {
+///         Some(Lookback::new(OhlcResolution::FifteenMinutes, self.slow_period as u64)
+///             .expect("valid lookback"))
+///     }
+///
+///     fn min_iteration_interval(&self) -> MinIterationInterval {
+///         MinIterationInterval::MIN
+///     }
+///
+///     async fn evaluate(&self, candles: &[OhlcCandleRow]) -> Result<S> {
+///         let signal = MaCrossSignal {
+///             time: Utc::now(),
+///             fast_ma: 20.0, // Calculate actual MA
+///             slow_ma: 100.0,
+///         };
+///
+///         Ok(signal.into()) // Convert to target type
+///     }
+/// }
+/// ```
+#[async_trait]
+pub trait SignalEvaluator<S: Signal>: Send + Sync {
+    /// Returns the candle resolution and count needed for evaluation, or `None` if no historical
     /// candle data is required.
-    pub fn lookback(&self) -> Option<Lookback> {
-        self.lookback
-    }
+    ///
+    /// The framework uses this to fetch the appropriate historical candles before calling
+    /// [`evaluate`](Self::evaluate). When `None` is returned, an empty slice is provided to
+    /// `evaluate`.
+    fn lookback(&self) -> Option<Lookback>;
 
     /// Returns the minimum interval between successive evaluations.
-    pub fn min_iteration_interval(&self) -> MinIterationInterval {
-        self.min_iteration_interval
+    ///
+    /// The framework will not call [`evaluate`](Self::evaluate) more frequently than this interval.
+    fn min_iteration_interval(&self) -> MinIterationInterval;
+
+    /// Evaluates a series of OHLC candlesticks and returns a signal.
+    ///
+    /// The candlestick slice is ordered chronologically, with the most recent candle last.
+    /// The number of candles provided is determined by the [`lookback`](Self::lookback)
+    /// configuration.
+    async fn evaluate(&self, candles: &[OhlcCandleRow]) -> Result<S>;
+}
+
+/// Internal wrapper that provides panic protection for signal evaluators.
+pub(crate) struct WrappedSignalEvaluator<S: Signal>(Box<dyn SignalEvaluator<S>>);
+
+impl<S: Signal> WrappedSignalEvaluator<S> {
+    pub fn new(evaluator: Box<dyn SignalEvaluator<S>>) -> Self {
+        Self(evaluator)
     }
 
-    /// Evaluates candlestick data using the configured action evaluator with panic protection.
-    pub async fn evaluate(
-        &self,
-        candles: &[OhlcCandleRow],
-    ) -> ProcessRecoverableResult<SignalAction> {
-        FutureExt::catch_unwind(AssertUnwindSafe(self.action_evaluator.evaluate(candles)))
+    /// Returns the lookback configuration with panic protection.
+    pub fn lookback(&self) -> ProcessRecoverableResult<Option<Lookback>> {
+        panic::catch_unwind(AssertUnwindSafe(|| self.0.lookback()))
+            .map_err(|e| SignalProcessRecoverableError::LookbackPanicked(e.into()))
+    }
+
+    /// Returns the minimum iteration interval with panic protection.
+    pub fn min_iteration_interval(&self) -> ProcessRecoverableResult<MinIterationInterval> {
+        panic::catch_unwind(AssertUnwindSafe(|| self.0.min_iteration_interval()))
+            .map_err(|e| SignalProcessRecoverableError::MinIterationIntervalPanicked(e.into()))
+    }
+
+    /// Evaluates candlestick data with panic protection.
+    pub async fn evaluate(&self, candles: &[OhlcCandleRow]) -> ProcessRecoverableResult<S> {
+        FutureExt::catch_unwind(AssertUnwindSafe(self.0.evaluate(candles)))
             .await
             .map_err(|e| SignalProcessRecoverableError::EvaluatePanicked(e.into()))?
             .map_err(|e| SignalProcessRecoverableError::EvaluateError(e.to_string()))
-    }
-}
-
-/// Type alias for a signal evaluator using dynamic dispatch.
-///
-/// This allows signal evaluators with different concrete types to be stored together in
-/// collections.
-pub type ConfiguredSignalEvaluator = SignalEvaluator<Box<dyn SignalActionEvaluator>>;
-
-impl SignalEvaluator<Box<dyn SignalActionEvaluator>> {
-    /// Creates a new boxed signal evaluator from any implementation of [`SignalActionEvaluator`].
-    ///
-    /// This constructor enables type erasure, allowing evaluators of different concrete types to be
-    /// used interchangeably.
-    pub fn new_boxed<E>(
-        name: SignalName,
-        lookback: Option<Lookback>,
-        min_iteration_interval: MinIterationInterval,
-        action_evaluator: E,
-    ) -> ConfiguredSignalEvaluator
-    where
-        E: SignalActionEvaluator + 'static,
-    {
-        Self::new(
-            name,
-            lookback,
-            min_iteration_interval,
-            Box::new(action_evaluator),
-        )
-    }
-}
-
-/// A timestamped trading signal produced by a named signal evaluator.
-///
-/// Signals combine the evaluation result with metadata about when it was generated and which
-/// evaluator produced it.
-#[derive(Debug, Clone, PartialEq)]
-pub struct Signal {
-    time: DateTime<Utc>,
-    name: SignalName,
-    action: SignalAction,
-}
-
-impl Signal {
-    pub(crate) async fn try_evaluate(
-        evaluator: &ConfiguredSignalEvaluator,
-        time: DateTime<Utc>,
-        candles: &[OhlcCandleRow],
-    ) -> ProcessRecoverableResult<Self> {
-        let signal_action = evaluator.evaluate(candles).await?;
-
-        Ok(Signal {
-            time,
-            name: evaluator.name().clone(),
-            action: signal_action,
-        })
-    }
-
-    /// Returns the timestamp when this signal was generated.
-    pub fn time(&self) -> DateTime<Utc> {
-        self.time
-    }
-
-    /// Returns the name of the signal evaluator that produced this signal.
-    pub fn name(&self) -> &SignalName {
-        &self.name
-    }
-
-    /// Returns the [`SignalAction`] corresponding to the signal.
-    pub fn action(&self) -> SignalAction {
-        self.action
-    }
-
-    /// Returns a formatted string representation of the signal data for display purposes.
-    pub fn as_data_str(&self) -> String {
-        format!(
-            "time: {}\nname: {}\naction: {}",
-            self.time.format_local_secs(),
-            self.name,
-            self.action
-        )
-    }
-}
-
-impl fmt::Display for Signal {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Signal:")?;
-        for line in self.as_data_str().lines() {
-            write!(f, "\n  {line}")?;
-        }
-        Ok(())
     }
 }
