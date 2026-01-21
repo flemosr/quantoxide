@@ -10,6 +10,7 @@ use tokio::{
 };
 
 use crate::{
+    signal::Signal,
     trade::{BacktestEngine, BacktestReceiver, BacktestUpdate, TradingState},
     util::AbortOnDropHandle,
 };
@@ -181,7 +182,7 @@ impl BacktestTui {
     /// updates. It can only be called once per TUI instance.
     ///
     /// Returns an error if a backtest engine has already been coupled.
-    pub async fn couple(&self, engine: BacktestEngine) -> Result<()> {
+    pub async fn couple<S: Signal>(&self, engine: BacktestEngine<S>) -> Result<()> {
         if self.backtest_controller.initialized() {
             return Err(TuiError::BacktestEngineAlreadyCoupled);
         }
