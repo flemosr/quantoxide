@@ -151,10 +151,7 @@ impl<S: Signal> OperatorPending<S> {
             OperatorPending::Signal { evaluators, .. } => {
                 let lookbacks: Vec<_> = evaluators
                     .iter()
-                    .filter_map(|e| match e.lookback() {
-                        Some(lb) => Some(Ok(lb)),
-                        None => None,
-                    })
+                    .filter_map(|e| e.lookback().map(Ok))
                     .collect::<Result<_>>()?;
 
                 Ok(lookbacks.into_iter().max_by_key(|l| l.as_duration()))
