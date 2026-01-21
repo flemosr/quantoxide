@@ -4,21 +4,22 @@ use thiserror::Error;
 
 use crate::shared::OhlcResolution;
 
-use super::{process::error::SignalProcessFatalError, state::LiveSignalStatus};
+use super::{
+    process::error::{SignalProcessFatalError, SignalProcessRecoverableError},
+    state::LiveSignalStatus,
+};
 
 #[derive(Error, Debug)]
 pub enum SignalValidationError {
-    #[error("`SignalName` cannot be an empty `String`")]
-    InvalidSignalNameEmptyString,
-
     #[error("At least one signal evaluator must be provided")]
     EmptyEvaluatorsVec,
+
+    #[error(transparent)]
+    LookbackPanicked(#[from] SignalProcessRecoverableError),
 
     #[error("All evaluators must use the same resolution, found {0} and {1}")]
     MismatchedEvaluatorResolutions(OhlcResolution, OhlcResolution),
 }
-
-pub type ValidationResult<T> = result::Result<T, SignalValidationError>;
 
 #[derive(Error, Debug)]
 pub enum SignalError {

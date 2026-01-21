@@ -8,16 +8,20 @@ use tokio::{
 use crate::{
     db::Database,
     signal::{
+        SignalEvaluator,
         config::{LiveSignalConfig, LiveSignalControllerConfig},
         error::SignalValidationError,
-        process::{LiveSignalProcess, error::SignalProcessFatalError},
+        process::{
+            LiveSignalProcess,
+            error::{ProcessRecoverableResult, SignalProcessFatalError},
+        },
     },
     sync::SyncReader,
     util::AbortOnDropHandle,
 };
 
 use super::{
-    core::ConfiguredSignalEvaluator,
+    core::{Signal, WrappedSignalEvaluator},
     error::{Result, SignalError},
     state::{
         LiveSignalReader, LiveSignalReceiver, LiveSignalStatus, LiveSignalStatusManager,
@@ -31,19 +35,19 @@ use super::{
 /// perform graceful shutdown operations. It holds a handle to the running signal task and
 /// coordinates shutdown signals.
 #[derive(Debug)]
-pub struct LiveSignalController {
+pub struct LiveSignalController<S: Signal> {
     config: LiveSignalControllerConfig,
     handle: Mutex<Option<AbortOnDropHandle<()>>>,
     shutdown_tx: broadcast::Sender<()>,
-    status_manager: Arc<LiveSignalStatusManager>,
+    status_manager: Arc<LiveSignalStatusManager<S>>,
 }
 
-impl LiveSignalController {
+impl<S: Signal> LiveSignalController<S> {
     fn new(
         config: &LiveSignalConfig,
         handle: AbortOnDropHandle<()>,
         shutdown_tx: broadcast::Sender<()>,
-        status_manager: Arc<LiveSignalStatusManager>,
+        status_manager: Arc<LiveSignalStatusManager<S>>,
     ) -> Arc<Self> {
         Arc::new(Self {
             config: config.into(),
@@ -55,13 +59,13 @@ impl LiveSignalController {
 
     /// Returns a [`LiveSignalReader`](crate::signal::LiveSignalReader) interface for accessing
     /// signal status and updates.
-    pub fn reader(&self) -> Arc<dyn LiveSignalReader> {
+    pub fn reader(&self) -> Arc<dyn LiveSignalReader<S>> {
         self.status_manager.clone()
     }
 
     /// Creates a new [`LiveSignalReceiver`] for subscribing to signal status updates and new
     /// signals.
-    pub fn update_receiver(&self) -> LiveSignalReceiver {
+    pub fn update_receiver(&self) -> LiveSignalReceiver<S> {
         self.status_manager.update_receiver()
     }
 
@@ -165,41 +169,53 @@ impl LiveSignalController {
 /// `LiveSignalEngine` encapsulates the configuration, database connection, sync reader, and signal
 /// evaluators. The signal process is spawned when [`start`](Self::start) is called, and a
 /// [`LiveSignalController`] is returned for monitoring and management.
-pub struct LiveSignalEngine {
+pub struct LiveSignalEngine<S: Signal> {
     config: LiveSignalConfig,
     db: Arc<Database>,
     sync_reader: Arc<dyn SyncReader>,
-    evaluators: Arc<Vec<ConfiguredSignalEvaluator>>,
-    status_manager: Arc<LiveSignalStatusManager>,
-    update_tx: LiveSignalTransmiter,
+    evaluators: Vec<WrappedSignalEvaluator<S>>,
+    status_manager: Arc<LiveSignalStatusManager<S>>,
+    update_tx: LiveSignalTransmiter<S>,
 }
 
-impl LiveSignalEngine {
+impl<S: Signal> LiveSignalEngine<S> {
     /// Creates a new live signal engine with the specified configuration and signal evaluators.
     pub fn new(
         config: impl Into<LiveSignalConfig>,
         db: Arc<Database>,
         sync_reader: Arc<dyn SyncReader>,
-        evaluators: Arc<Vec<ConfiguredSignalEvaluator>>,
+        evaluators: Vec<Box<dyn SignalEvaluator<S>>>,
     ) -> Result<Self> {
         if evaluators.is_empty() {
             return Err(SignalValidationError::EmptyEvaluatorsVec.into());
         }
 
-        let mut resolutions = evaluators
+        // Wrap evaluators first to enable panic protection during validation
+        let evaluators: Vec<_> = evaluators
+            .into_iter()
+            .map(WrappedSignalEvaluator::new)
+            .collect();
+
+        // Validate resolution consistency. Evaluators with lookback must use the same resolution.
+        let resolutions: Vec<_> = evaluators
             .iter()
-            .filter_map(|e| e.lookback().map(|l| l.resolution()));
-        if let Some(first_resolution) = resolutions.next() {
-            if let Some(mismatched_resolution) = resolutions.find(|r| *r != first_resolution) {
-                return Err(SignalValidationError::MismatchedEvaluatorResolutions(
-                    first_resolution,
-                    mismatched_resolution,
-                )
-                .into());
-            }
+            .filter_map(|e| e.lookback().transpose())
+            .collect::<ProcessRecoverableResult<Vec<_>>>()
+            .map_err(SignalValidationError::LookbackPanicked)?
+            .into_iter()
+            .map(|l| l.resolution())
+            .collect();
+        if let Some(first_resolution) = resolutions.first()
+            && let Some(mismatched) = resolutions.iter().find(|r| *r != first_resolution)
+        {
+            return Err(SignalValidationError::MismatchedEvaluatorResolutions(
+                *first_resolution,
+                *mismatched,
+            )
+            .into());
         }
 
-        let (update_tx, _) = broadcast::channel::<LiveSignalUpdate>(1_000);
+        let (update_tx, _) = broadcast::channel::<LiveSignalUpdate<S>>(1_000);
 
         let status_manager = LiveSignalStatusManager::new(update_tx.clone());
 
@@ -214,12 +230,12 @@ impl LiveSignalEngine {
     }
 
     /// Returns a reader interface for accessing signal status and updates.
-    pub fn reader(&self) -> Arc<dyn LiveSignalReader> {
+    pub fn reader(&self) -> Arc<dyn LiveSignalReader<S>> {
         self.status_manager.clone()
     }
 
     /// Creates a new receiver for subscribing to signal status updates and new signals.
-    pub fn update_receiver(&self) -> LiveSignalReceiver {
+    pub fn update_receiver(&self) -> LiveSignalReceiver<S> {
         self.status_manager.update_receiver()
     }
 
@@ -231,7 +247,7 @@ impl LiveSignalEngine {
     /// Starts the signal evaluation process and returns a [`LiveSignalController`] for managing it.
     ///
     /// This consumes the engine and spawns the signal task in the background.
-    pub fn start(self) -> Arc<LiveSignalController> {
+    pub fn start(self) -> Arc<LiveSignalController<S>> {
         let (shutdown_tx, _) = broadcast::channel::<()>(1);
 
         let handle = LiveSignalProcess::spawn(
