@@ -5,7 +5,7 @@ use chrono::{DateTime, Duration, Utc};
 use tokio::sync::Mutex;
 use uuid::Uuid;
 
-use lnm_sdk::api_v3::models::{Leverage, Price, TradeSide, TradeSize};
+use lnm_sdk::api_v3::models::{ClientId, Leverage, Price, TradeSide, TradeSize};
 
 use crate::db::models::OhlcCandleRow;
 
@@ -318,6 +318,7 @@ impl SimulatedTradeExecutor {
         leverage: Leverage,
         stoploss: Option<Stoploss>,
         takeprofit: Option<Price>,
+        client_id: Option<ClientId>,
     ) -> SimulatedTradeExecutorResult<Uuid> {
         let mut state_guard = self.state.lock().await;
 
@@ -347,6 +348,7 @@ impl SimulatedTradeExecutor {
             stoploss_price,
             takeprofit,
             self.config.fee_perc(),
+            client_id,
         )?;
 
         let balance_delta = trade.margin().as_i64() + trade.maintenance_margin();
@@ -390,9 +392,17 @@ impl TradeExecutor for SimulatedTradeExecutor {
         leverage: Leverage,
         stoploss: Option<Stoploss>,
         takeprofit: Option<Price>,
+        client_id: Option<ClientId>,
     ) -> TradeExecutorResult<Uuid> {
         Ok(self
-            .create_running(TradeSide::Buy, size, leverage, stoploss, takeprofit)
+            .create_running(
+                TradeSide::Buy,
+                size,
+                leverage,
+                stoploss,
+                takeprofit,
+                client_id,
+            )
             .await?)
     }
 
@@ -402,9 +412,17 @@ impl TradeExecutor for SimulatedTradeExecutor {
         leverage: Leverage,
         stoploss: Option<Stoploss>,
         takeprofit: Option<Price>,
+        client_id: Option<ClientId>,
     ) -> TradeExecutorResult<Uuid> {
         Ok(self
-            .create_running(TradeSide::Sell, size, leverage, stoploss, takeprofit)
+            .create_running(
+                TradeSide::Sell,
+                size,
+                leverage,
+                stoploss,
+                takeprofit,
+                client_id,
+            )
             .await?)
     }
 
