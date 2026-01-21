@@ -10,7 +10,7 @@ use lnm_sdk::{api_v2::WebSocketClient, api_v3::RestClient};
 
 use crate::{
     db::Database,
-    signal::{ConfiguredSignalEvaluator, LiveSignalEngine},
+    signal::{LiveSignalEngine, Signal, SignalEvaluator},
     sync::SyncEngine,
     tui::{
         TuiControllerShutdown,
@@ -20,7 +20,7 @@ use crate::{
 };
 
 use super::{
-    super::core::{RawOperator, SignalOperator, WrappedRawOperator},
+    super::core::{Raw, RawOperator, SignalOperator, WrappedRawOperator},
     config::{LiveTradeConfig, LiveTradeControllerConfig},
     error::{LiveError, Result},
     executor::LiveTradeExecutorLauncher,
@@ -31,25 +31,25 @@ use super::{
     },
     state::{
         LiveTradeReader, LiveTradeReceiver, LiveTradeStatus, LiveTradeStatusManager,
-        LiveTradeTransmiter, LiveTradeUpdate,
+        LiveTradeUpdate,
     },
 };
 
 /// Controller for managing and monitoring a running live trading process. Provides an interface to
 /// monitor status, receive updates, and perform graceful shutdown operations.
-pub struct LiveTradeController {
+pub struct LiveTradeController<S: Signal> {
     config: LiveTradeControllerConfig,
     process_handle: Mutex<Option<AbortOnDropHandle<LiveProcessFatalResult<()>>>>,
     shutdown_tx: broadcast::Sender<()>,
-    status_manager: Arc<LiveTradeStatusManager>,
+    status_manager: Arc<LiveTradeStatusManager<S>>,
 }
 
-impl LiveTradeController {
+impl<S: Signal> LiveTradeController<S> {
     fn new(
         config: &LiveTradeConfig,
         process_handle: AbortOnDropHandle<LiveProcessFatalResult<()>>,
         shutdown_tx: broadcast::Sender<()>,
-        status_manager: Arc<LiveTradeStatusManager>,
+        status_manager: Arc<LiveTradeStatusManager<S>>,
     ) -> Arc<Self> {
         Arc::new(Self {
             config: config.into(),
@@ -60,12 +60,12 @@ impl LiveTradeController {
     }
 
     /// Returns a [`LiveTradeReader`] interface for accessing live status and updates.
-    pub fn reader(&self) -> Arc<dyn LiveTradeReader> {
+    pub fn reader(&self) -> Arc<dyn LiveTradeReader<S>> {
         self.status_manager.clone()
     }
 
     /// Creates a new [`LiveTradeReceiver`] for subscribing to live trading status and updates.
-    pub fn update_receiver(&self) -> LiveTradeReceiver {
+    pub fn update_receiver(&self) -> LiveTradeReceiver<S> {
         self.status_manager.update_receiver()
     }
 
@@ -165,7 +165,7 @@ impl LiveTradeController {
 }
 
 #[async_trait]
-impl TuiControllerShutdown for LiveTradeController {
+impl<S: Signal> TuiControllerShutdown for LiveTradeController<S> {
     async fn tui_shutdown(&self) -> TuiResult<()> {
         self.shutdown().await.map_err(TuiError::LiveShutdownFailed)
     }
@@ -174,18 +174,20 @@ impl TuiControllerShutdown for LiveTradeController {
 /// Builder for configuring and starting a live trading engine. Encapsulates the configuration,
 /// database connection, API clients, sync engine, trade executor, and operator. The live trading
 /// process is started when [`start`](Self::start) is called, returning a [`LiveTradeController`].
-pub struct LiveTradeEngine {
+pub struct LiveTradeEngine<S: Signal> {
     config: LiveTradeConfig,
     sync_engine: SyncEngine,
     trade_executor_launcher: LiveTradeExecutorLauncher,
-    operator_pending: OperatorPending,
-    status_manager: Arc<LiveTradeStatusManager>,
-    update_tx: LiveTradeTransmiter,
+    operator_pending: OperatorPending<S>,
+    status_manager: Arc<LiveTradeStatusManager<S>>,
 }
 
-impl LiveTradeEngine {
+impl<S: Signal> LiveTradeEngine<S> {
     /// Creates a new live trading engine using signal-based evaluation. Signal evaluators generate
     /// trading signals that are processed by the signal operator to execute trading actions.
+    ///
+    /// The generic parameter `S` ensures type safety between evaluators and operator. They must
+    /// produce and consume the same signal type.
     #[allow(clippy::too_many_arguments)]
     pub fn with_signal_operator(
         config: LiveTradeConfig,
@@ -194,8 +196,8 @@ impl LiveTradeEngine {
         api_key: impl ToString,
         api_secret: impl ToString,
         api_passphrase: impl ToString,
-        evaluators: Vec<ConfiguredSignalEvaluator>,
-        operator: Box<dyn SignalOperator>,
+        evaluators: Vec<Box<dyn SignalEvaluator<S>>>,
+        operator: Box<dyn SignalOperator<S>>,
     ) -> Result<Self> {
         if evaluators.is_empty() {
             return Err(LiveError::EmptyEvaluatorsVec);
@@ -218,7 +220,7 @@ impl LiveTradeEngine {
             let max_lookback = evaluators
                 .iter()
                 .filter_map(|evaluator| evaluator.lookback())
-                .max_by_key(|config| config.as_duration());
+                .max_by_key(|lookback| lookback.as_duration());
 
             match max_lookback {
                 Some(lookback) => SyncEngine::live_with_lookback(
@@ -232,13 +234,9 @@ impl LiveTradeEngine {
             }
         };
 
-        let signal_engine = LiveSignalEngine::new(
-            &config,
-            db.clone(),
-            sync_engine.reader(),
-            Arc::new(evaluators),
-        )
-        .map_err(LiveError::LaunchLiveSignalEngine)?;
+        let signal_engine =
+            LiveSignalEngine::new(&config, db.clone(), sync_engine.reader(), evaluators)
+                .map_err(LiveError::LaunchLiveSignalEngine)?;
 
         let operator_pending = OperatorPending::signal(signal_engine, operator.into());
 
@@ -246,9 +244,9 @@ impl LiveTradeEngine {
             LiveTradeExecutorLauncher::new(&config, db, api_rest, sync_engine.reader())
                 .map_err(LiveError::SetupExecutor)?;
 
-        let (update_tx, _) = broadcast::channel::<LiveTradeUpdate>(1_000);
+        let (update_tx, _) = broadcast::channel::<LiveTradeUpdate<S>>(1_000);
 
-        let status_manager = LiveTradeStatusManager::new(update_tx.clone());
+        let status_manager = LiveTradeStatusManager::new(update_tx);
 
         Ok(Self {
             config,
@@ -256,10 +254,50 @@ impl LiveTradeEngine {
             trade_executor_launcher,
             operator_pending,
             status_manager,
-            update_tx,
         })
     }
 
+    /// Returns a [`LiveTradeReader`] interface for accessing live status and updates.
+    pub fn reader(&self) -> Arc<dyn LiveTradeReader<S>> {
+        self.status_manager.clone()
+    }
+
+    /// Creates a new [`LiveTradeReceiver`] for subscribing to live trading status and updates.
+    pub fn update_receiver(&self) -> LiveTradeReceiver<S> {
+        self.status_manager.update_receiver()
+    }
+
+    /// Returns the current [`LiveTradeStatus`]s as a snapshot.
+    pub fn status_snapshot(&self) -> LiveTradeStatus {
+        self.status_manager.status_snapshot()
+    }
+
+    /// Starts the live trading process and returns a [`LiveTradeController`] for managing it. This
+    /// consumes the engine and spawns the live trading task in the background.
+    pub async fn start(self) -> Result<Arc<LiveTradeController<S>>> {
+        let (shutdown_tx, _) = broadcast::channel::<()>(1);
+
+        let process_handle = LiveProcess::spawn(
+            &self.config,
+            shutdown_tx.clone(),
+            self.sync_engine,
+            self.operator_pending,
+            self.trade_executor_launcher,
+            self.status_manager.clone(),
+        );
+
+        let controller = LiveTradeController::new(
+            &self.config,
+            process_handle,
+            shutdown_tx,
+            self.status_manager,
+        );
+
+        Ok(controller)
+    }
+}
+
+impl LiveTradeEngine<Raw> {
     /// Creates a new live trading engine using a raw operator. The raw operator directly implements
     /// trading logic without intermediate signal generation.
     pub fn with_raw_operator(
@@ -304,9 +342,9 @@ impl LiveTradeEngine {
             LiveTradeExecutorLauncher::new(&config, db, api_rest, sync_engine.reader())
                 .map_err(LiveError::SetupExecutor)?;
 
-        let (update_tx, _) = broadcast::channel::<LiveTradeUpdate>(1_000);
+        let (update_tx, _) = broadcast::channel::<LiveTradeUpdate<Raw>>(1_000);
 
-        let status_manager = LiveTradeStatusManager::new(update_tx.clone());
+        let status_manager = LiveTradeStatusManager::new(update_tx);
 
         Ok(Self {
             config,
@@ -314,47 +352,6 @@ impl LiveTradeEngine {
             trade_executor_launcher,
             operator_pending,
             status_manager,
-            update_tx,
         })
-    }
-
-    /// Returns a [`LiveTradeReader`] interface for accessing live status and updates.
-    pub fn reader(&self) -> Arc<dyn LiveTradeReader> {
-        self.status_manager.clone()
-    }
-
-    /// Creates a new [`LiveTradeReceiver`] for subscribing to live trading status and updates.
-    pub fn update_receiver(&self) -> LiveTradeReceiver {
-        self.status_manager.update_receiver()
-    }
-
-    /// Returns the current [`LiveTradeStatus`]s as a snapshot.
-    pub fn status_snapshot(&self) -> LiveTradeStatus {
-        self.status_manager.status_snapshot()
-    }
-
-    /// Starts the live trading process and returns a [`LiveTradeController`] for managing it. This
-    /// consumes the engine and spawns the live trading task in the background.
-    pub async fn start(self) -> Result<Arc<LiveTradeController>> {
-        let (shutdown_tx, _) = broadcast::channel::<()>(1);
-
-        let process_handle = LiveProcess::spawn(
-            &self.config,
-            shutdown_tx.clone(),
-            self.sync_engine,
-            self.operator_pending,
-            self.trade_executor_launcher,
-            self.status_manager.clone(),
-            self.update_tx,
-        );
-
-        let controller = LiveTradeController::new(
-            &self.config,
-            process_handle,
-            shutdown_tx,
-            self.status_manager,
-        );
-
-        Ok(controller)
     }
 }
