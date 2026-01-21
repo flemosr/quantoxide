@@ -177,7 +177,7 @@ impl RawOperator for MyOperator {
 See the
 [`operators/raw` example](https://github.com/flemosr/quantoxide/blob/main/examples/operators/raw.rs)
 for a complete template. For signal-based operators, see the
-[`operators/signal` example](https://github.com/flemosr/quantoxide/blob/main/examples/operators/signal.rs).
+[`operators/signal` example](https://github.com/flemosr/quantoxide/blob/main/examples/operators/signal/mod.rs).
 
 ### Synchronization TUI
 
