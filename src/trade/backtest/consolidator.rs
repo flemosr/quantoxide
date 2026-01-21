@@ -116,13 +116,13 @@ impl RuntimeConsolidator {
                 }
 
                 // Check ordering
-                if let Some(prev_time) = last_time {
-                    if candle.time < prev_time {
-                        return Err(BacktestError::OutOfOrderCandle {
-                            candle_time: candle.time,
-                            bucket_time: prev_time,
-                        });
-                    }
+                if let Some(prev_time) = last_time
+                    && candle.time < prev_time
+                {
+                    return Err(BacktestError::OutOfOrderCandle {
+                        candle_time: candle.time,
+                        bucket_time: prev_time,
+                    });
                 }
                 last_time = Some(candle.time);
 
