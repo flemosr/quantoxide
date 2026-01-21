@@ -5,7 +5,7 @@ use uuid::Uuid;
 
 use lnm_sdk::api_v3::{
     RestClient,
-    models::{Account, Leverage, Price, Trade, TradeExecution, TradeSide, TradeSize},
+    models::{Account, ClientId, Leverage, Price, Trade, TradeExecution, TradeSide, TradeSize},
 };
 
 use super::{
@@ -23,6 +23,7 @@ pub enum LiveTradeExecutorUpdateOrder {
         leverage: Leverage,
         stoploss: Option<Price>,
         takeprofit: Option<Price>,
+        client_id: Option<ClientId>,
     },
     UpdateTradeStoploss {
         id: Uuid,
@@ -52,6 +53,7 @@ impl fmt::Display for LiveTradeExecutorUpdateOrder {
                 leverage,
                 stoploss,
                 takeprofit,
+                client_id,
             } => {
                 let fmt_price_opt = |price_opt: &Option<Price>| {
                     price_opt
@@ -59,14 +61,17 @@ impl fmt::Display for LiveTradeExecutorUpdateOrder {
                         .unwrap_or_else(|| "N/A".to_string())
                 };
 
+                let client_id_str = client_id.as_ref().map(|id| id.as_str()).unwrap_or("N/A");
+
                 write!(
                     f,
-                    "Create New Trade:\n  side: {}\n  size: {}\n  leverage: {}\n  stoploss: {}\n  takeprofit: {}",
+                    "Create New Trade:\n  side: {}\n  size: {}\n  leverage: {}\n  stoploss: {}\n  takeprofit: {}\n  client_id: {}",
                     side,
                     size,
                     leverage,
                     fmt_price_opt(stoploss),
-                    fmt_price_opt(takeprofit)
+                    fmt_price_opt(takeprofit),
+                    client_id_str
                 )
             }
             Self::UpdateTradeStoploss { id, stoploss } => {
