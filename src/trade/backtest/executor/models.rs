@@ -244,15 +244,15 @@ impl TradeCore for SimulatedTradeRunning {
         None
     }
 
-    fn creation_ts(&self) -> DateTime<Utc> {
+    fn created_at(&self) -> DateTime<Utc> {
         self.entry_time
     }
 
-    fn market_filled_ts(&self) -> Option<DateTime<Utc>> {
+    fn filled_at(&self) -> Option<DateTime<Utc>> {
         Some(self.entry_time)
     }
 
-    fn closed_ts(&self) -> Option<DateTime<Utc>> {
+    fn closed_at(&self) -> Option<DateTime<Utc>> {
         None
     }
 
@@ -342,15 +342,15 @@ impl TradeCore for SimulatedTradeClosed {
         Some(self.close_price)
     }
 
-    fn creation_ts(&self) -> DateTime<Utc> {
+    fn created_at(&self) -> DateTime<Utc> {
         self.entry_time
     }
 
-    fn market_filled_ts(&self) -> Option<DateTime<Utc>> {
+    fn filled_at(&self) -> Option<DateTime<Utc>> {
         Some(self.entry_time)
     }
 
-    fn closed_ts(&self) -> Option<DateTime<Utc>> {
+    fn closed_at(&self) -> Option<DateTime<Utc>> {
         Some(self.close_time)
     }
 

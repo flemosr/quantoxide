@@ -76,13 +76,13 @@ pub trait TradeCore: Send + Sync + fmt::Debug + 'static {
     fn exit_price(&self) -> Option<Price>;
 
     /// Returns the timestamp when the trade was created.
-    fn creation_ts(&self) -> DateTime<Utc>;
+    fn created_at(&self) -> DateTime<Utc>;
 
     /// Returns the timestamp when the trade was filled, if applicable.
-    fn market_filled_ts(&self) -> Option<DateTime<Utc>>;
+    fn filled_at(&self) -> Option<DateTime<Utc>>;
 
     /// Returns the timestamp when the trade was closed, if applicable.
-    fn closed_ts(&self) -> Option<DateTime<Utc>>;
+    fn closed_at(&self) -> Option<DateTime<Utc>>;
 
     /// Returns `true` if the trade has been closed.
     fn closed(&self) -> bool;
@@ -141,18 +141,15 @@ impl TradeCore for Trade {
         self.exit_price()
     }
 
-    // FIXME
-    fn creation_ts(&self) -> DateTime<Utc> {
+    fn created_at(&self) -> DateTime<Utc> {
         self.created_at()
     }
 
-    // FIXME
-    fn market_filled_ts(&self) -> Option<DateTime<Utc>> {
+    fn filled_at(&self) -> Option<DateTime<Utc>> {
         self.filled_at()
     }
 
-    // FIXME
-    fn closed_ts(&self) -> Option<DateTime<Utc>> {
+    fn closed_at(&self) -> Option<DateTime<Utc>> {
         self.closed_at()
     }
 
@@ -398,9 +395,9 @@ impl<T: TradeRunning + ?Sized> RunningTradesMap<T> {
     }
 
     pub(super) fn add(&mut self, trade: Arc<T>, trade_tsl: Option<TradeTrailingStoploss>) {
-        self.id_to_time.insert(trade.id(), trade.creation_ts());
+        self.id_to_time.insert(trade.id(), trade.created_at());
         self.trades
-            .insert((trade.creation_ts(), trade.id()), (trade, trade_tsl));
+            .insert((trade.created_at(), trade.id()), (trade, trade_tsl));
     }
 
     /// Returns the number of trades in the map.
@@ -793,7 +790,7 @@ impl TradingState {
 
         for (trade, tsl) in self.running_map.trades_desc() {
             let creation_time = trade
-                .creation_ts()
+                .created_at()
                 .with_timezone(&chrono::Local)
                 .format("%y-%m-%d %H:%M");
             let stoploss_str = trade
@@ -858,16 +855,16 @@ impl ClosedTradeHistory {
     /// Adds a closed trade (as Arc) to the history. Returns an error if the trade is not properly
     /// closed.
     pub(super) fn add(&mut self, trade: Arc<dyn TradeClosed>) -> TradeCoreResult<()> {
-        if !trade.closed() || trade.exit_price().is_none() || trade.closed_ts().is_none() {
+        if !trade.closed() || trade.exit_price().is_none() || trade.closed_at().is_none() {
             return Err(TradeCoreError::TradeNotClosed {
                 trade_id: trade.id(),
             });
         }
 
         let id = trade.id();
-        let creation_ts = trade.creation_ts();
-        self.trades.insert((creation_ts, id), trade);
-        self.id_to_time.insert(id, creation_ts);
+        let created_at = trade.created_at();
+        self.trades.insert((created_at, id), trade);
+        self.id_to_time.insert(id, created_at);
         Ok(())
     }
 
@@ -924,7 +921,7 @@ impl ClosedTradeHistory {
 
         for trade in self.trades.values().rev() {
             let creation_time = trade
-                .creation_ts()
+                .created_at()
                 .with_timezone(&chrono::Local)
                 .format("%y-%m-%d %H:%M");
 
@@ -933,8 +930,8 @@ impl ClosedTradeHistory {
                 .exit_price()
                 .expect("`closed` trade must have `exit_price`");
             let exit_time = trade
-                .closed_ts()
-                .expect("`closed` trade must have `closed_ts`")
+                .closed_at()
+                .expect("`closed` trade must have `closed_at`")
                 .with_timezone(&chrono::Local)
                 .format("%y-%m-%d %H:%M");
 

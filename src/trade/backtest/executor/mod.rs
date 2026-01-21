@@ -364,7 +364,7 @@ impl SimulatedTradeExecutor {
             + trade.maintenance_margin() as i64
             + trade.opening_fee() as i64;
 
-        state_guard.last_trade_time = trade.market_filled_ts();
+        state_guard.last_trade_time = trade.filled_at();
 
         let trade_id = trade.id();
 
