@@ -10,6 +10,12 @@ use crate::{db::error::DbError, sync::process::error::SyncProcessFatalError, uti
 
 #[derive(Error, Debug)]
 pub enum SignalProcessRecoverableError {
+    #[error("`SignalEvaluator::lookback` panicked: {0}")]
+    LookbackPanicked(PanicPayload),
+
+    #[error("`SignalEvaluator::min_iteration_interval` panicked: {0}")]
+    MinIterationIntervalPanicked(PanicPayload),
+
     #[error("`SignalEvaluator::evaluate` panicked: {0}")]
     EvaluatePanicked(PanicPayload),
 

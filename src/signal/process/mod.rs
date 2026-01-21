@@ -15,8 +15,10 @@ use crate::{
 
 use super::{
     config::{LiveSignalConfig, LiveSignalProcessConfig},
-    core::{ConfiguredSignalEvaluator, Signal},
-    state::{LiveSignalStatusManager, LiveSignalStatusNotRunning, LiveSignalTransmiter},
+    core::{Signal, WrappedSignalEvaluator},
+    state::{
+        LiveSignalStatusManager, LiveSignalStatusNotRunning, LiveSignalTransmiter, LiveSignalUpdate,
+    },
 };
 
 pub(crate) mod error;
@@ -25,25 +27,25 @@ use error::{
     ProcessResult, SignalProcessError, SignalProcessFatalError, SignalProcessRecoverableError,
 };
 
-pub(super) struct LiveSignalProcess {
+pub(super) struct LiveSignalProcess<S: Signal> {
     config: LiveSignalProcessConfig,
     db: Arc<Database>,
-    evaluators: Arc<Vec<ConfiguredSignalEvaluator>>,
+    evaluators: Vec<WrappedSignalEvaluator<S>>,
     shutdown_tx: broadcast::Sender<()>,
     sync_reader: Arc<dyn SyncReader>,
-    status_manager: Arc<LiveSignalStatusManager>,
-    update_tx: LiveSignalTransmiter,
+    status_manager: Arc<LiveSignalStatusManager<S>>,
+    update_tx: LiveSignalTransmiter<S>,
 }
 
-impl LiveSignalProcess {
+impl<S: Signal> LiveSignalProcess<S> {
     pub fn spawn(
         config: &LiveSignalConfig,
         db: Arc<Database>,
-        evaluators: Arc<Vec<ConfiguredSignalEvaluator>>,
+        evaluators: Vec<WrappedSignalEvaluator<S>>,
         shutdown_tx: broadcast::Sender<()>,
         sync_reader: Arc<dyn SyncReader>,
-        status_manager: Arc<LiveSignalStatusManager>,
-        update_tx: LiveSignalTransmiter,
+        status_manager: Arc<LiveSignalStatusManager<S>>,
+        update_tx: LiveSignalTransmiter<S>,
     ) -> AbortOnDropHandle<()> {
         let config = config.into();
 
@@ -71,12 +73,12 @@ impl LiveSignalProcess {
         let now = Utc::now().ceil_sec();
         for evaluator in self.evaluators.iter() {
             min_iteration_interval =
-                min_iteration_interval.min(evaluator.min_iteration_interval().as_duration());
+                min_iteration_interval.min(evaluator.min_iteration_interval()?.as_duration());
 
-            if let Some(lookback) = evaluator.lookback() {
+            if let Some(lb) = evaluator.lookback()? {
                 max_lookback = Some(match max_lookback {
-                    Some(existing) if existing.period() >= lookback.period() => existing,
-                    _ => lookback,
+                    Some(existing) if existing.as_duration() >= lb.as_duration() => existing,
+                    _ => lb,
                 });
             }
 
@@ -162,25 +164,30 @@ impl LiveSignalProcess {
             next_eval = DateTime::<Utc>::MAX_UTC;
 
             for (last_eval, evaluator) in evaluators.iter_mut() {
-                if now < *last_eval + evaluator.min_iteration_interval().as_duration() {
+                if now < *last_eval + evaluator.min_iteration_interval()?.as_duration() {
                     continue;
                 }
 
                 *last_eval = now;
 
-                let evaluator_next_eval = now + evaluator.min_iteration_interval().as_duration();
+                let evaluator_next_eval = now + evaluator.min_iteration_interval()?.as_duration();
                 if evaluator_next_eval < next_eval {
                     next_eval = evaluator_next_eval;
                 }
 
-                let start_idx = candle_buffer
-                    .len()
-                    .saturating_sub(evaluator.lookback().map_or(0, |l| l.period().as_usize()));
-                let candles = &candle_buffer[start_idx..];
+                let candles = match evaluator.lookback()? {
+                    Some(lookback) => {
+                        let start_idx = candle_buffer
+                            .len()
+                            .saturating_sub(lookback.period().as_usize());
+                        &candle_buffer[start_idx..]
+                    }
+                    None => &[],
+                };
 
-                let signal = Signal::try_evaluate(evaluator, now, candles).await?;
+                let signal = evaluator.evaluate(candles).await?;
 
-                let _ = self.update_tx.send(signal.into());
+                let _ = self.update_tx.send(LiveSignalUpdate::Signal(signal));
             }
         }
     }
