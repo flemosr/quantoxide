@@ -93,11 +93,11 @@ impl From<LiveProcessFatalError> for LiveTradeStatus {
 /// Update events emitted during live trading including status changes, signals, orders, trading
 /// state, and closed trades.
 #[derive(Clone)]
-pub enum LiveTradeUpdate {
+pub enum LiveTradeUpdate<S: Signal> {
     /// Live trading status changed.
     Status(LiveTradeStatus),
     /// A trading signal was generated.
-    Signal(Signal),
+    Signal(S),
     /// A trade order operation was sent to the exchange.
     Order(LiveTradeExecutorUpdateOrder),
     /// The trading state was updated.
@@ -106,53 +106,46 @@ pub enum LiveTradeUpdate {
     ClosedTrade(Trade),
 }
 
-impl From<LiveTradeStatus> for LiveTradeUpdate {
+impl<S: Signal> From<LiveTradeStatus> for LiveTradeUpdate<S> {
     fn from(value: LiveTradeStatus) -> Self {
         Self::Status(value)
     }
 }
 
-impl From<LiveTradeExecutorUpdateOrder> for LiveTradeUpdate {
+impl<S: Signal> From<LiveTradeExecutorUpdateOrder> for LiveTradeUpdate<S> {
     fn from(value: LiveTradeExecutorUpdateOrder) -> Self {
         Self::Order(value)
     }
 }
 
-impl From<Signal> for LiveTradeUpdate {
-    fn from(value: Signal) -> Self {
-        Self::Signal(value)
-    }
-}
-
-impl From<TradingState> for LiveTradeUpdate {
+impl<S: Signal> From<TradingState> for LiveTradeUpdate<S> {
     fn from(value: TradingState) -> Self {
         Self::TradingState(value)
     }
 }
 
-pub(super) type LiveTradeTransmiter = broadcast::Sender<LiveTradeUpdate>;
+pub(super) type LiveTradeTransmitter<S> = broadcast::Sender<LiveTradeUpdate<S>>;
 
 /// Receiver for subscribing to [`LiveTradeUpdate`]s including status changes, signals, orders, and
 /// closed trades.
-pub type LiveTradeReceiver = broadcast::Receiver<LiveTradeUpdate>;
+pub type LiveTradeReceiver<S> = broadcast::Receiver<LiveTradeUpdate<S>>;
 
 /// Trait for reading live trading status and subscribing to updates.
-pub trait LiveTradeReader: Send + Sync + 'static {
+pub trait LiveTradeReader<S: Signal>: Send + Sync + 'static {
     /// Creates a new [`LiveTradeReceiver`] for subscribing to live trading updates.
-    fn update_receiver(&self) -> LiveTradeReceiver;
+    fn update_receiver(&self) -> LiveTradeReceiver<S>;
 
     /// Returns the current [`LiveTradeStatus`] as a snapshot.
     fn status_snapshot(&self) -> LiveTradeStatus;
 }
 
-#[derive(Debug)]
-pub(super) struct LiveTradeStatusManager {
+pub(crate) struct LiveTradeStatusManager<S: Signal> {
     status: Mutex<LiveTradeStatus>,
-    update_tx: LiveTradeTransmiter,
+    update_tx: LiveTradeTransmitter<S>,
 }
 
-impl LiveTradeStatusManager {
-    pub fn new(update_tx: LiveTradeTransmiter) -> Arc<Self> {
+impl<S: Signal> LiveTradeStatusManager<S> {
+    pub fn new(update_tx: LiveTradeTransmitter<S>) -> Arc<Self> {
         let status = Mutex::new(LiveTradeStatus::NotInitiated);
 
         Arc::new(Self { status, update_tx })
@@ -175,6 +168,7 @@ impl LiveTradeStatusManager {
             .lock()
             .expect("`LiveTradeStatusManager` mutex can't be poisoned")
     }
+
     pub fn update(&self, new_status: LiveTradeStatus) {
         let status_guard = self.lock_status();
 
@@ -190,10 +184,14 @@ impl LiveTradeStatusManager {
 
         self.update_status_guard(status_guard, new_status);
     }
+
+    pub fn transmitter(&self) -> &LiveTradeTransmitter<S> {
+        &self.update_tx
+    }
 }
 
-impl LiveTradeReader for LiveTradeStatusManager {
-    fn update_receiver(&self) -> LiveTradeReceiver {
+impl<S: Signal> LiveTradeReader<S> for LiveTradeStatusManager<S> {
+    fn update_receiver(&self) -> LiveTradeReceiver<S> {
         self.update_tx.subscribe()
     }
 
