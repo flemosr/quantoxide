@@ -9,7 +9,7 @@ pub use backtest::{
     state::{BacktestReceiver, BacktestStatus, BacktestUpdate},
 };
 pub use core::{
-    ClosedTradeHistory, DynRunningTradesMap, RawOperator, RunningTradesMap, SignalOperator,
+    ClosedTradeHistory, DynRunningTradesMap, Raw, RawOperator, RunningTradesMap, SignalOperator,
     Stoploss, TradeClosed, TradeExecutor, TradeReference, TradeRunning, TradeTrailingStoploss,
     TradingState,
 };
