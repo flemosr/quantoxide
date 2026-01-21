@@ -86,6 +86,9 @@ pub trait TradeCore: Send + Sync + fmt::Debug + 'static {
 
     /// Returns `true` if the trade has been closed.
     fn closed(&self) -> bool;
+
+    /// Returns the client-provided identifier for this trade, if set.
+    fn client_id(&self) -> Option<&str>;
 }
 
 impl TradeCore for Trade {
@@ -155,6 +158,10 @@ impl TradeCore for Trade {
 
     fn closed(&self) -> bool {
         self.closed()
+    }
+
+    fn client_id(&self) -> Option<&str> {
+        self.client_id().map(|s| s.as_str())
     }
 }
 
