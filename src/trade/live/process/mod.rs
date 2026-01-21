@@ -1,27 +1,23 @@
-use std::{pin::Pin, sync::Arc};
+use std::sync::Arc;
 
-use chrono::Utc;
 use tokio::{
     sync::broadcast::{self, error::RecvError},
     time,
 };
 
 use crate::{
-    db::Database,
-    signal::{LiveSignalController, LiveSignalStatus, LiveSignalUpdate},
-    sync::{SyncController, SyncEngine, SyncReader, SyncStatus, SyncUpdate},
-    util::{AbortOnDropHandle, DateTimeExt, Never},
+    signal::Signal,
+    sync::{SyncController, SyncEngine},
+    util::AbortOnDropHandle,
 };
 
 use super::{
-    super::core::{WrappedRawOperator, WrappedSignalOperator},
     config::{LiveProcessConfig, LiveTradeConfig},
     executor::{
         LiveTradeExecutor, LiveTradeExecutorLauncher,
-        state::{LiveTradeExecutorStatus, LiveTradeExecutorStatusNotReady},
         update::{LiveTradeExecutorReceiver, LiveTradeExecutorUpdate},
     },
-    state::{LiveTradeStatus, LiveTradeStatusManager, LiveTradeTransmiter, LiveTradeUpdate},
+    state::{LiveTradeStatus, LiveTradeStatusManager, LiveTradeTransmitter, LiveTradeUpdate},
 };
 
 pub(crate) mod error;
@@ -29,30 +25,29 @@ pub(in crate::trade) mod operator;
 
 use error::{
     LiveProcessError, LiveProcessFatalError, LiveProcessFatalResult, LiveProcessRecoverableError,
-    Result,
 };
+
 use operator::{OperatorPending, OperatorRunning};
 
-pub(super) struct LiveProcess {
+pub(super) struct LiveProcess<S: Signal> {
     config: LiveProcessConfig,
     shutdown_tx: broadcast::Sender<()>,
     sync_controller: Arc<SyncController>,
-    operator_running: OperatorRunning,
+    operator_running: OperatorRunning<S>,
     executor_updates_handle: AbortOnDropHandle<()>,
     trade_executor: Arc<LiveTradeExecutor>,
-    status_manager: Arc<LiveTradeStatusManager>,
-    update_tx: LiveTradeTransmiter,
+    status_manager: Arc<LiveTradeStatusManager<S>>,
+    update_tx: LiveTradeTransmitter<S>,
 }
 
-impl LiveProcess {
+impl<S: Signal> LiveProcess<S> {
     pub fn spawn(
         config: &LiveTradeConfig,
         shutdown_tx: broadcast::Sender<()>,
         sync_engine: SyncEngine,
-        operator_pending: OperatorPending,
+        operator_pending: OperatorPending<S>,
         trade_executor_launcher: LiveTradeExecutorLauncher,
-        status_manager: Arc<LiveTradeStatusManager>,
-        update_tx: LiveTradeTransmiter,
+        status_manager: Arc<LiveTradeStatusManager<S>>,
     ) -> AbortOnDropHandle<LiveProcessFatalResult<()>> {
         let config = config.into();
 
@@ -60,6 +55,8 @@ impl LiveProcess {
             let sync_controller = sync_engine.start();
 
             let executor_rx = trade_executor_launcher.update_receiver();
+
+            let update_tx = status_manager.transmitter().clone();
 
             let executor_updates_handle = Self::spawn_executor_update_handler(
                 status_manager.clone(),
@@ -79,7 +76,7 @@ impl LiveProcess {
                 }
             };
 
-            let operator_running = match operator_pending.start(trade_executor.clone()).await {
+            let operator_running = match operator_pending.start(trade_executor.clone()) {
                 Ok(op) => op,
                 Err(e) => {
                     status_manager.update(e.into());
@@ -104,15 +101,15 @@ impl LiveProcess {
     }
 
     fn spawn_executor_update_handler(
-        status_manager: Arc<LiveTradeStatusManager>,
-        update_tx: LiveTradeTransmiter,
+        status_manager: Arc<LiveTradeStatusManager<S>>,
+        update_tx: LiveTradeTransmitter<S>,
         mut executor_rx: LiveTradeExecutorReceiver,
     ) -> AbortOnDropHandle<()> {
         tokio::spawn(async move {
             loop {
                 match executor_rx.recv().await {
                     Ok(executor_update) => match executor_update {
-                        LiveTradeExecutorUpdate::Status(_) => {} // Handled in `run_operator`
+                        LiveTradeExecutorUpdate::Status(_) => {} // Handled in operator runner
                         LiveTradeExecutorUpdate::Order(executor_update_order) => {
                             let _ = update_tx.send(executor_update_order.into());
                         }
@@ -137,9 +134,6 @@ impl LiveProcess {
         .into()
     }
 
-    // Only possibily returns errors if they took place during shutdown.
-    // Other `LiveProcessFatalError`s will result in `Ok` and should be accessed
-    // via `LiveTradeStatus`.
     async fn recovery_loop(self) -> LiveProcessFatalResult<()> {
         self.status_manager.update(LiveTradeStatus::Starting);
 
@@ -147,11 +141,14 @@ impl LiveProcess {
 
         loop {
             let live_process_error = tokio::select! {
-                Err(e) = self.run_operator() => e,
+                Err(e) = self.operator_running.run(
+                    &self.config,
+                    &self.trade_executor,
+                    &self.status_manager,
+                    &self.update_tx,
+                ) => e,
                 shutdown_res = shutdown_rx.recv() => {
                     let Err(e) = shutdown_res else {
-                        // Shutdown signal received
-
                         return self.shutdown().await;
                     };
 
@@ -169,14 +166,10 @@ impl LiveProcess {
                 }
             }
 
-            // Handle shutdown signals while waiting for `restart_interval`
-
             tokio::select! {
-                _ = time::sleep(self.config.restart_interval()) => {} // Loop restarts
+                _ = time::sleep(self.config.restart_interval()) => {}
                 shutdown_res = shutdown_rx.recv() => {
                     let Err(e) = shutdown_res else {
-                        // Shutdown signal received
-
                         return self.shutdown().await;
                     };
 
@@ -191,237 +184,6 @@ impl LiveProcess {
         }
     }
 
-    fn run_operator(&self) -> Pin<Box<dyn Future<Output = Result<Never>> + Send + '_>> {
-        match &self.operator_running {
-            OperatorRunning::Raw {
-                db,
-                sync_reader,
-                raw_operator,
-            } => Box::pin(self.handle_raw_entries(db, sync_reader.as_ref(), raw_operator)),
-            OperatorRunning::Signal {
-                signal_controller,
-                signal_operator,
-            } => Box::pin(self.handle_signals(signal_controller, signal_operator)),
-        }
-    }
-
-    async fn handle_raw_entries(
-        &self,
-        db: &Database,
-        sync_reader: &dyn SyncReader,
-        raw_operator: &WrappedRawOperator,
-    ) -> Result<Never> {
-        let mut last_eval = Utc::now();
-
-        loop {
-            let min_iteration_interval = raw_operator
-                .min_iteration_interval()
-                .map_err(LiveProcessRecoverableError::OperatorError)?
-                .as_duration();
-
-            let target_exec = (last_eval + min_iteration_interval).ceil_sec();
-            let now = Utc::now();
-
-            if now < target_exec {
-                let wait_duration = (target_exec - now).to_std().expect("valid duration");
-                time::sleep(wait_duration).await;
-            }
-
-            if let SyncStatus::NotSynced(sync_status_not_synced) = sync_reader.status_snapshot() {
-                self.status_manager
-                    .update(LiveTradeStatus::WaitingForSync(sync_status_not_synced));
-
-                let mut sync_rx = sync_reader.update_receiver();
-                loop {
-                    tokio::select! {
-                        sync_update_result = sync_rx.recv() => {
-                            match sync_update_result {
-                                Ok(sync_update) => match sync_update {
-                                    SyncUpdate::Status(sync_status) => match sync_status {
-                                        SyncStatus::NotSynced(sync_status_not_synced) => {
-                                            self.status_manager.update(
-                                                LiveTradeStatus::WaitingForSync(sync_status_not_synced)
-                                            );
-                                        }
-                                        SyncStatus::Synced => break,
-                                        SyncStatus::Terminated(err) => {
-                                            return Err(LiveProcessFatalError::SyncProcessTerminated(err).into());
-                                        }
-                                        SyncStatus::ShutdownInitiated | SyncStatus::Shutdown => {
-                                            return Err(LiveProcessFatalError::SyncProcessShutdown.into());
-                                        }
-                                    },
-                                    SyncUpdate::PriceTick(_) => break,
-                                    SyncUpdate::PriceHistoryState(_) => {
-                                        // TODO: Improve feedback on price history updates
-                                        // Sync may take a long time when `sync_mode_full: true`
-                                    }
-                                },
-                                Err(RecvError::Lagged(skipped)) => {
-                                    return Err(LiveProcessRecoverableError::SyncRecvLagged { skipped }.into());
-                                },
-                                Err(RecvError::Closed) => {
-                                    return Err(LiveProcessFatalError::SyncRecvClosed.into());
-                                }
-                            }
-                        }
-                        _ = time::sleep(self.config.sync_update_timeout()) => {
-                            if matches!(sync_reader.status_snapshot(), SyncStatus::Synced) {
-                                break;
-                            }
-                        }
-                    }
-                }
-
-                continue;
-            }
-
-            last_eval = Utc::now();
-
-            let tex_state = self.trade_executor.state_snapshot().await;
-            let tex_status = tex_state.status();
-
-            match tex_status {
-                LiveTradeExecutorStatus::Ready => {
-                    self.status_manager
-                        .update_if_not_running(LiveTradeStatus::Running);
-                }
-                LiveTradeExecutorStatus::NotReady(tex_status_not_ready) => {
-                    match tex_status_not_ready {
-                        LiveTradeExecutorStatusNotReady::Terminated(e) => {
-                            return Err(LiveProcessFatalError::ExecutorProcessTerminated(
-                                e.clone(),
-                            )
-                            .into());
-                        }
-                        LiveTradeExecutorStatusNotReady::ShutdownInitiated
-                        | LiveTradeExecutorStatusNotReady::Shutdown => {
-                            return Err(LiveProcessFatalError::ExecutorProcessShutdown.into());
-                        }
-                        LiveTradeExecutorStatusNotReady::Starting
-                        | LiveTradeExecutorStatusNotReady::WaitingForSync(_)
-                        | LiveTradeExecutorStatusNotReady::Failed(_) => {
-                            self.status_manager
-                                .update(LiveTradeStatus::WaitingTradeExecutor(
-                                    tex_status_not_ready.clone(),
-                                ));
-                            continue;
-                        }
-                    }
-                }
-            }
-
-            let lookback = raw_operator
-                .lookback()
-                .map_err(LiveProcessRecoverableError::OperatorError)?;
-
-            let candles = if let Some(lookback) = lookback {
-                // Floor current time to the resolution boundary to get the current, possibly
-                // incomplete, candle.
-                let now = Utc::now();
-                let resolution = lookback.resolution();
-                let current_bucket = now.floor_to_resolution(resolution);
-                let from =
-                    current_bucket.step_back_candles(resolution, lookback.period().as_u64() - 1);
-
-                db.ohlc_candles
-                    .get_candles_consolidated(from, now, resolution)
-                    .await
-                    .map_err(LiveProcessRecoverableError::Db)?
-            } else {
-                Vec::new()
-            };
-
-            raw_operator
-                .iterate(candles.as_slice())
-                .await
-                .map_err(LiveProcessRecoverableError::OperatorError)?;
-        }
-    }
-
-    async fn handle_signals(
-        &self,
-        signal_controller: &LiveSignalController,
-        signal_operator: &WrappedSignalOperator,
-    ) -> Result<Never> {
-        loop {
-            match signal_controller.update_receiver().recv().await {
-                Ok(signal_update) => match signal_update {
-                    LiveSignalUpdate::Status(signal_status) => match signal_status {
-                        LiveSignalStatus::NotRunning(signal_status_not_running) => {
-                            self.status_manager
-                                .update(LiveTradeStatus::WaitingForSignal(
-                                    signal_status_not_running,
-                                ));
-                        }
-                        LiveSignalStatus::Running => {}
-                        LiveSignalStatus::Terminated(err) => {
-                            return Err(
-                                LiveProcessFatalError::LiveSignalProcessTerminated(err).into()
-                            );
-                        }
-                        LiveSignalStatus::ShutdownInitiated | LiveSignalStatus::Shutdown => {
-                            return Err(LiveProcessFatalError::LiveSignalProcessShutdown.into());
-                        }
-                    },
-                    LiveSignalUpdate::Signal(new_signal) => {
-                        let tex_state = self.trade_executor.state_snapshot().await;
-                        let tex_status = tex_state.status();
-
-                        match tex_status {
-                            LiveTradeExecutorStatus::Ready => {
-                                self.status_manager
-                                    .update_if_not_running(LiveTradeStatus::Running);
-                            }
-                            LiveTradeExecutorStatus::NotReady(tex_status_not_ready) => {
-                                match tex_status_not_ready {
-                                    LiveTradeExecutorStatusNotReady::Terminated(e) => {
-                                        return Err(
-                                            LiveProcessFatalError::ExecutorProcessTerminated(
-                                                e.clone(),
-                                            )
-                                            .into(),
-                                        );
-                                    }
-                                    LiveTradeExecutorStatusNotReady::ShutdownInitiated
-                                    | LiveTradeExecutorStatusNotReady::Shutdown => {
-                                        return Err(
-                                            LiveProcessFatalError::ExecutorProcessShutdown.into()
-                                        );
-                                    }
-                                    LiveTradeExecutorStatusNotReady::Starting
-                                    | LiveTradeExecutorStatusNotReady::WaitingForSync(_)
-                                    | LiveTradeExecutorStatusNotReady::Failed(_) => {
-                                        self.status_manager.update(
-                                            LiveTradeStatus::WaitingTradeExecutor(
-                                                tex_status_not_ready.clone(),
-                                            ),
-                                        );
-                                        continue;
-                                    }
-                                }
-                            }
-                        }
-
-                        // Send Signal update
-                        let _ = self.update_tx.send(new_signal.clone().into());
-
-                        signal_operator
-                            .process_signal(&new_signal)
-                            .await
-                            .map_err(LiveProcessRecoverableError::OperatorError)?;
-                    }
-                },
-                Err(RecvError::Lagged(skipped)) => {
-                    return Err(LiveProcessRecoverableError::SignalRecvLagged { skipped }.into());
-                }
-                Err(RecvError::Closed) => {
-                    return Err(LiveProcessFatalError::SignalRecvClosed.into());
-                }
-            }
-        }
-    }
-
     async fn shutdown(self) -> LiveProcessFatalResult<()> {
         self.executor_updates_handle.abort();
 
@@ -431,11 +193,7 @@ impl LiveProcess {
             .await
             .map_err(LiveProcessFatalError::ExecutorShutdownError);
 
-        let signal_shutdown_res = match self.operator_running.signal_controller() {
-            Some(signal_controller) => signal_controller.shutdown().await,
-            None => Ok(()),
-        }
-        .map_err(LiveProcessFatalError::LiveSignalShutdown);
+        let operator_shutdown_res = self.operator_running.shutdown().await;
 
         let sync_shutdown_res = self
             .sync_controller
@@ -444,7 +202,7 @@ impl LiveProcess {
             .map_err(LiveProcessFatalError::SyncShutdown);
 
         executor_shutdown_res
-            .and(signal_shutdown_res)
+            .and(operator_shutdown_res)
             .and(sync_shutdown_res)
     }
 }
