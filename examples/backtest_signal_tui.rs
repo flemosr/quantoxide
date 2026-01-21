@@ -13,15 +13,14 @@ use quantoxide::{
     tui::{BacktestTui, TuiConfig},
 };
 
-#[path = "evaluators/mod.rs"]
-mod evaluators;
 #[path = "operators/mod.rs"]
 mod operators;
 #[path = "util/mod.rs"]
 mod util;
 
-use evaluators::SignalEvaluatorTemplate;
-use operators::signal::SignalOperatorTemplate;
+use operators::signal::{
+    SignalTemplate, SingleSignalOperatorTemplate, evaluators::SignalEvaluatorTemplate,
+};
 use util::input;
 
 #[tokio::main]
@@ -77,9 +76,8 @@ async fn main() -> Result<()> {
     // backtests. Since many iterations will be processed per second, excessive per-iteration
     // logging would create a severe performance bottleneck.
 
-    let evaluators = vec![SignalEvaluatorTemplate::new().configure()];
-
-    let operator = SignalOperatorTemplate::new();
+    let evaluators = vec![SignalEvaluatorTemplate::new::<SignalTemplate>()];
+    let operator = SingleSignalOperatorTemplate::new();
 
     let backtest_engine = BacktestEngine::with_signal_operator(
         BacktestConfig::default(),
