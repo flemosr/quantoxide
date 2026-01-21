@@ -81,8 +81,9 @@ pub mod models {
 
     // Re-export selected `lnm-sdk::api_v3` models and utils for convenience
     pub use lnm_sdk::api_v3::models::{
-        Leverage, Margin, Percentage, PercentageCapped, Price, Quantity, SATS_PER_BTC, Trade,
-        TradeExecution, TradeExecutionType, TradeSide, TradeSize, TradeStatus, Uuid, trade_util,
+        ClientId, Leverage, Margin, Percentage, PercentageCapped, Price, Quantity, SATS_PER_BTC,
+        Trade, TradeExecution, TradeExecutionType, TradeSide, TradeSize, TradeStatus, Uuid,
+        trade_util,
     };
 }
 
