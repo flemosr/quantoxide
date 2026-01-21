@@ -2,9 +2,9 @@
 
 mod db;
 mod shared;
-/// Exports [`SignalActionEvaluator`] and other types related to signal evaluation.
+/// Exports [`SignalEvaluator`] and other types related to signal evaluation.
 ///
-/// [`SignalActionEvaluator`]: crate::signal::SignalActionEvaluator
+/// [`SignalEvaluator`]: crate::signal::SignalEvaluator
 pub mod signal;
 /// Exports [`SyncEngine`] and other types related to price data synchronization.
 ///
