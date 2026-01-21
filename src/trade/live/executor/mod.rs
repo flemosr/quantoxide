@@ -17,7 +17,7 @@ use uuid::Uuid;
 
 use lnm_sdk::api_v3::{
     RestClient,
-    models::{Leverage, PercentageCapped, Price, TradeSide, TradeSize, trade_util},
+    models::{ClientId, Leverage, PercentageCapped, Price, TradeSide, TradeSize, trade_util},
 };
 
 use crate::{
@@ -115,6 +115,7 @@ impl LiveTradeExecutor {
         leverage: Leverage,
         stoploss: Option<Stoploss>,
         takeprofit: Option<Price>,
+        client_id: Option<ClientId>,
     ) -> ExecutorActionResult<Uuid> {
         let locked_ready_state = self.state_manager.try_lock_ready_state().await?;
 
@@ -160,7 +161,7 @@ impl LiveTradeExecutor {
 
         let trade = self
             .api
-            .create_new_trade(side, size, leverage, stoploss_price, takeprofit)
+            .create_new_trade(side, size, leverage, stoploss_price, takeprofit, client_id)
             .await?;
 
         let trade_id = trade.id();
@@ -305,9 +306,17 @@ impl TradeExecutor for LiveTradeExecutor {
         leverage: Leverage,
         stoploss: Option<Stoploss>,
         takeprofit: Option<Price>,
+        client_id: Option<ClientId>,
     ) -> TradeExecutorResult<Uuid> {
         Ok(self
-            .open_trade(TradeSide::Buy, size, leverage, stoploss, takeprofit)
+            .open_trade(
+                TradeSide::Buy,
+                size,
+                leverage,
+                stoploss,
+                takeprofit,
+                client_id,
+            )
             .await?)
     }
 
@@ -317,9 +326,17 @@ impl TradeExecutor for LiveTradeExecutor {
         leverage: Leverage,
         stoploss: Option<Stoploss>,
         takeprofit: Option<Price>,
+        client_id: Option<ClientId>,
     ) -> TradeExecutorResult<Uuid> {
         Ok(self
-            .open_trade(TradeSide::Sell, size, leverage, stoploss, takeprofit)
+            .open_trade(
+                TradeSide::Sell,
+                size,
+                leverage,
+                stoploss,
+                takeprofit,
+                client_id,
+            )
             .await?)
     }
 
