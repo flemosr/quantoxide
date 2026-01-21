@@ -24,9 +24,9 @@ use quantoxide::{
 //     trade::Stoploss,
 // };
 
-pub mod evaluators;
+pub mod evaluator;
 
-pub use evaluators::{SignalAction, SignalTemplate};
+pub use evaluator::{SignalAction, SignalTemplate};
 
 /// Example of a simple operator that handles a single signal type directly.
 ///

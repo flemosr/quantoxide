@@ -16,7 +16,7 @@ use quantoxide::{
 mod operators;
 
 use operators::signal::{
-    MultiSignalOperatorTemplate, SupportedSignal, evaluators::SignalEvaluatorTemplate,
+    MultiSignalOperatorTemplate, SupportedSignal, evaluator::SignalEvaluatorTemplate,
 };
 
 #[tokio::main]

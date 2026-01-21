@@ -19,7 +19,7 @@ mod operators;
 mod util;
 
 use operators::signal::{
-    SignalTemplate, SingleSignalOperatorTemplate, evaluators::SignalEvaluatorTemplate,
+    SignalTemplate, SingleSignalOperatorTemplate, evaluator::SignalEvaluatorTemplate,
 };
 use util::input;
 
