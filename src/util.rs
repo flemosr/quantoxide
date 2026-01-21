@@ -22,8 +22,6 @@ pub(crate) trait DateTimeExt {
 
     fn is_round_minute(&self) -> bool;
 
-    fn format_local_secs(&self) -> String;
-
     fn format_local_millis(&self) -> String;
 
     /// Floors this timestamp to the start of its resolution bucket.
@@ -55,11 +53,6 @@ impl DateTimeExt for DateTime<Utc> {
 
     fn is_round_minute(&self) -> bool {
         *self == self.floor_minute()
-    }
-
-    fn format_local_secs(&self) -> String {
-        let local_time = self.with_timezone(&Local);
-        local_time.format("%Y-%m-%d %H:%M:%S (%Z)").to_string()
     }
 
     fn format_local_millis(&self) -> String {
