@@ -12,13 +12,12 @@ use quantoxide::{
     tui::{LiveTui, TuiConfig},
 };
 
-#[path = "evaluators/mod.rs"]
-mod evaluators;
 #[path = "operators/mod.rs"]
 mod operators;
 
-use evaluators::SignalEvaluatorTemplate;
-use operators::signal::SignalOperatorTemplate;
+use operators::signal::{
+    MultiSignalOperatorTemplate, SupportedSignal, evaluators::SignalEvaluatorTemplate,
+};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -44,8 +43,10 @@ async fn main() -> Result<()> {
         .await?;
 
     // Pass TUI logger to Signal Evaluator and Trade Operator
-    let evaluator = SignalEvaluatorTemplate::with_logger(live_tui.as_logger()).configure();
-    let operator = SignalOperatorTemplate::with_logger(live_tui.as_logger());
+    let evaluators = vec![SignalEvaluatorTemplate::with_logger::<SupportedSignal>(
+        live_tui.as_logger(),
+    )];
+    let operator = MultiSignalOperatorTemplate::with_logger(live_tui.as_logger());
 
     let live_engine = LiveTradeEngine::with_signal_operator(
         LiveTradeConfig::default(),
@@ -54,7 +55,7 @@ async fn main() -> Result<()> {
         key,
         secret,
         passphrase,
-        vec![evaluator], // Multiple evaluators can run in parallel
+        evaluators, // Multiple evaluators can run in parallel
         operator,
     )?;
 
