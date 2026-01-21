@@ -54,8 +54,8 @@ async fn main() -> Result<()> {
                     LiveTradeUpdate::Status(live_status) => {
                         println!("{live_status}");
                     }
-                    LiveTradeUpdate::Signal(signal) => {
-                        println!("{signal}");
+                    LiveTradeUpdate::Signal(_) => {
+                        // Raw operators don't produce signals
                     }
                     LiveTradeUpdate::ClosedTrade(closed_trade) => {
                         println!("{closed_trade}");
