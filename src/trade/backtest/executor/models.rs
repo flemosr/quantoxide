@@ -4,7 +4,7 @@ use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
 use lnm_sdk::api_v3::models::{
-    Leverage, Margin, PercentageCapped, Price, Quantity, TradeSide, TradeSize, trade_util,
+    ClientId, Leverage, Margin, PercentageCapped, Price, Quantity, TradeSide, TradeSize, trade_util,
 };
 
 use super::{
@@ -27,6 +27,7 @@ pub(super) struct SimulatedTradeRunning {
     takeprofit: Option<Price>,
     entry_time: DateTime<Utc>,
     entry_price: Price,
+    client_id: Option<ClientId>,
 }
 
 impl SimulatedTradeRunning {
@@ -40,6 +41,7 @@ impl SimulatedTradeRunning {
         stoploss: Option<Price>,
         takeprofit: Option<Price>,
         fee_perc: PercentageCapped,
+        client_id: Option<ClientId>,
     ) -> SimulatedTradeExecutorResult<Arc<Self>> {
         let (quantity, margin, liquidation, opening_fee, closing_fee_reserved) =
             trade_util::evaluate_open_trade_params(
@@ -67,6 +69,7 @@ impl SimulatedTradeRunning {
             takeprofit,
             entry_time,
             entry_price,
+            client_id,
         }))
     }
 
@@ -98,6 +101,7 @@ impl SimulatedTradeRunning {
             liquidation: self.liquidation,
             opening_fee: self.opening_fee,
             closing_fee_reserved: self.closing_fee_reserved,
+            client_id: self.client_id.clone(),
         }))
     }
 
@@ -125,6 +129,7 @@ impl SimulatedTradeRunning {
             liquidation: new_liquidation,
             opening_fee: self.opening_fee,
             closing_fee_reserved: self.closing_fee_reserved,
+            client_id: self.client_id.clone(),
         }))
     }
 
@@ -159,6 +164,7 @@ impl SimulatedTradeRunning {
             liquidation: new_liquidation,
             opening_fee: self.opening_fee,
             closing_fee_reserved: self.closing_fee_reserved,
+            client_id: self.client_id.clone(),
         }))
     }
 
@@ -187,6 +193,7 @@ impl SimulatedTradeRunning {
             opening_fee: self.opening_fee,
             closing_fee_reserved: self.closing_fee_reserved,
             closing_fee,
+            client_id: self.client_id.clone(),
         })
     }
 }
@@ -259,6 +266,10 @@ impl TradeCore for SimulatedTradeRunning {
     fn closed(&self) -> bool {
         false
     }
+
+    fn client_id(&self) -> Option<&ClientId> {
+        self.client_id.as_ref()
+    }
 }
 
 impl crate::sealed::Sealed for SimulatedTradeRunning {}
@@ -287,6 +298,7 @@ pub(super) struct SimulatedTradeClosed {
     opening_fee: u64,
     closing_fee_reserved: u64,
     closing_fee: u64,
+    client_id: Option<ClientId>,
 }
 
 impl TradeCore for SimulatedTradeClosed {
@@ -356,6 +368,10 @@ impl TradeCore for SimulatedTradeClosed {
 
     fn closed(&self) -> bool {
         true
+    }
+
+    fn client_id(&self) -> Option<&ClientId> {
+        self.client_id.as_ref()
     }
 }
 
