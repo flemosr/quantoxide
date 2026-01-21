@@ -60,9 +60,11 @@ intervals, has access to the current trading state, and can perform trading oper
 `TradeExecutor`.
 
 Trade operators can be implemented in two ways:
-- **Raw operators** process OHLC data directly and execute trades (recommended for most use cases)
-- **Signal-based operators** delegate OHLC processing to a Signal Evaluator and only handle signal
-  interpretation and trade execution (useful for separating analysis from trading logic)
+- **Raw operators** process OHLC data and execute trades within a single component. Recommended
+  for straightforward, single-strategy use cases.
+- **Signal-based operators** delegate OHLC processing to Signal Evaluators and handle signal
+  interpretation and trade execution. Useful for separating analysis from trading logic, enabling
+  strategies that incorporate multiple signals, or running multiple strategies in parallel.
 
 ### Synchronization
 
