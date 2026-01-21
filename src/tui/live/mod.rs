@@ -10,6 +10,7 @@ use tokio::{
 };
 
 use crate::{
+    signal::Signal,
     trade::{LiveTradeEngine, LiveTradeReceiver, LiveTradeUpdate},
     util::AbortOnDropHandle,
 };
@@ -111,69 +112,90 @@ impl LiveTui {
         self.status_manager.status()
     }
 
-    fn spawn_live_update_listener(
+    fn spawn_live_update_listener<S: Signal>(
         status_manager: Arc<TuiStatusManager<LiveTuiView>>,
-        mut live_rx: LiveTradeReceiver,
+        mut live_rx: LiveTradeReceiver<S>,
         ui_tx: mpsc::Sender<LiveUiMessage>,
     ) -> AbortOnDropHandle<()> {
         tokio::spawn(async move {
-            let send_ui_msg = async |ui_msg: LiveUiMessage| -> Result<()> {
+            async fn send_ui_msg(
+                ui_tx: &mpsc::Sender<LiveUiMessage>,
+                ui_msg: LiveUiMessage,
+            ) -> Result<()> {
                 ui_tx
                     .send(ui_msg)
                     .await
                     .map_err(|e| TuiError::LiveTuiSendFailed(Box::new(e)))
-            };
+            }
 
-            let send_trades_update =
-                async |running_trades_table: &str, closed_trades_table: &str| -> Result<()> {
-                    let tables = format!("\nRunning Trades\n\n{running_trades_table}\n\n\nClosed Trades\n\n{closed_trades_table}");
-
-                    send_ui_msg(LiveUiMessage::TradesUpdate(tables)).await
-                };
-
-            let mut running_trades_table = "No running trades.".to_string();
+            let mut running_trades_table;
             let mut closed_trades_table = "No closed trades.".to_string();
             let mut closed_len = 0;
-
-            let mut handle_live_update = async |live_update: LiveTradeUpdate| -> Result<()> {
-                match live_update {
-                    LiveTradeUpdate::Status(live_status) => {
-                        send_ui_msg(LiveUiMessage::LogEntry(format!("Live status: {live_status}"))).await?;
-
-                    }
-                    LiveTradeUpdate::Signal(signal) => {
-                        send_ui_msg(LiveUiMessage::LogEntry(signal.to_string())).await?;
-                    }
-                    LiveTradeUpdate::Order(order) => {
-                        send_ui_msg(LiveUiMessage::LogEntry(format!("Order: {order}"))).await?;
-                    }
-                    LiveTradeUpdate::TradingState(trading_state) => {
-                        send_ui_msg(LiveUiMessage::SummaryUpdate(format!(
-                            "\n{}",
-                            trading_state.summary()
-                        ))).await?;
-
-                        running_trades_table = trading_state.running_trades_table();
-
-                        if trading_state.closed_len() > closed_len {
-                            closed_len = trading_state.closed_len();
-                            closed_trades_table = trading_state.closed_history().to_table();
-                        }
-
-                        send_trades_update(&running_trades_table, &closed_trades_table).await?;
-                    }
-                    LiveTradeUpdate::ClosedTrade(trade) => {
-                        send_ui_msg(LiveUiMessage::LogEntry(format!("Closed Trade: {trade}"))).await?;
-                    }
-                }
-
-                Ok(())
-            };
 
             loop {
                 match live_rx.recv().await {
                     Ok(live_update) => {
-                        if let Err(e) = handle_live_update(live_update).await {
+                        let result = match live_update {
+                            LiveTradeUpdate::Status(live_status) => {
+                                send_ui_msg(
+                                    &ui_tx,
+                                    LiveUiMessage::LogEntry(format!("Live status: {live_status}")),
+                                )
+                                .await
+                            }
+                            LiveTradeUpdate::Signal(signal) => {
+                                let signal_str = signal.to_string();
+                                if !signal_str.is_empty() {
+                                    send_ui_msg(&ui_tx, LiveUiMessage::LogEntry(signal_str)).await
+                                } else {
+                                    Ok(())
+                                }
+                            }
+                            LiveTradeUpdate::Order(order) => {
+                                send_ui_msg(
+                                    &ui_tx,
+                                    LiveUiMessage::LogEntry(format!("Order: {order}")),
+                                )
+                                .await
+                            }
+                            LiveTradeUpdate::TradingState(trading_state) => {
+                                let summary_result = send_ui_msg(
+                                    &ui_tx,
+                                    LiveUiMessage::SummaryUpdate(format!(
+                                        "\n{}",
+                                        trading_state.summary()
+                                    )),
+                                )
+                                .await;
+
+                                if summary_result.is_err() {
+                                    summary_result
+                                } else {
+                                    running_trades_table = trading_state.running_trades_table();
+
+                                    if trading_state.closed_len() > closed_len {
+                                        closed_len = trading_state.closed_len();
+                                        closed_trades_table =
+                                            trading_state.closed_history().to_table();
+                                    }
+
+                                    let tables = format!(
+                                        "\nRunning Trades\n\n{running_trades_table}\n\n\nClosed Trades\n\n{closed_trades_table}"
+                                    );
+
+                                    send_ui_msg(&ui_tx, LiveUiMessage::TradesUpdate(tables)).await
+                                }
+                            }
+                            LiveTradeUpdate::ClosedTrade(trade) => {
+                                send_ui_msg(
+                                    &ui_tx,
+                                    LiveUiMessage::LogEntry(format!("Closed Trade: {trade}")),
+                                )
+                                .await
+                            }
+                        };
+
+                        if let Err(e) = result {
                             status_manager.set_crashed(e);
                             return;
                         }
@@ -181,7 +203,9 @@ impl LiveTui {
                     Err(RecvError::Lagged(skipped)) => {
                         let log_msg = format!("Live updates lagged by {skipped} messages");
 
-                        if let Err(e) = send_ui_msg(LiveUiMessage::LogEntry(log_msg)).await {
+                        if let Err(e) =
+                            send_ui_msg(&ui_tx, LiveUiMessage::LogEntry(log_msg)).await
+                        {
                             status_manager.set_crashed(e);
                             return;
                         }
@@ -213,7 +237,7 @@ impl LiveTui {
     ///
     /// Returns an error if a live trade engine has already been coupled or if the engine fails to
     /// start.
-    pub async fn couple(&self, engine: LiveTradeEngine) -> Result<()> {
+    pub async fn couple<S: Signal>(&self, engine: LiveTradeEngine<S>) -> Result<()> {
         if self.live_controller.initialized() {
             return Err(TuiError::LiveTradeEngineAlreadyCoupled);
         }
