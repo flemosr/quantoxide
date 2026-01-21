@@ -123,7 +123,7 @@ impl TuiControllerShutdown for BacktestController {
 /// Pending operator state before starting.
 enum OperatorPending<S: Signal> {
     Signal {
-        evaluators: Vec<Box<dyn SignalEvaluator<S>>>,
+        evaluators: Vec<WrappedSignalEvaluator<S>>,
         signal_operator: WrappedSignalOperator<S>,
     },
     Raw {
@@ -137,7 +137,10 @@ impl<S: Signal> OperatorPending<S> {
         signal_operator: WrappedSignalOperator<S>,
     ) -> Self {
         Self::Signal {
-            evaluators,
+            evaluators: evaluators
+                .into_iter()
+                .map(WrappedSignalEvaluator::new)
+                .collect(),
             signal_operator,
         }
     }
@@ -151,7 +154,11 @@ impl<S: Signal> OperatorPending<S> {
             OperatorPending::Signal { evaluators, .. } => {
                 let lookbacks: Vec<_> = evaluators
                     .iter()
-                    .filter_map(|e| e.lookback().map(Ok))
+                    .filter_map(|e| {
+                        e.lookback()
+                            .map_err(BacktestError::SignalEvaluationError)
+                            .transpose()
+                    })
                     .collect::<Result<_>>()?;
 
                 Ok(lookbacks.into_iter().max_by_key(|l| l.as_duration()))
@@ -176,10 +183,7 @@ impl<S: Signal> OperatorPending<S> {
                     .set_trade_executor(trade_executor)
                     .map_err(BacktestError::SetTradeExecutor)?;
 
-                let evaluators = evaluators
-                    .into_iter()
-                    .map(|ev| (start_time, WrappedSignalEvaluator::new(ev)))
-                    .collect();
+                let evaluators = evaluators.into_iter().map(|ev| (start_time, ev)).collect();
 
                 Ok(OperatorRunning::Signal {
                     evaluators,
