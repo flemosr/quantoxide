@@ -14,8 +14,8 @@ use uuid::Uuid;
 use lnm_sdk::api_v3::{
     error::TradeValidationError,
     models::{
-        Leverage, Margin, Percentage, PercentageCapped, Price, Quantity, Trade, TradeSide,
-        TradeSize, trade_util,
+        ClientId, Leverage, Margin, Percentage, PercentageCapped, Price, Quantity, Trade,
+        TradeSide, TradeSize, trade_util,
     },
 };
 
@@ -88,7 +88,7 @@ pub trait TradeCore: Send + Sync + fmt::Debug + 'static {
     fn closed(&self) -> bool;
 
     /// Returns the client-provided identifier for this trade, if set.
-    fn client_id(&self) -> Option<&str>;
+    fn client_id(&self) -> Option<&ClientId>;
 }
 
 impl TradeCore for Trade {
@@ -160,8 +160,8 @@ impl TradeCore for Trade {
         self.closed()
     }
 
-    fn client_id(&self) -> Option<&str> {
-        self.client_id().map(|s| s.as_str())
+    fn client_id(&self) -> Option<&ClientId> {
+        self.client_id()
     }
 }
 
@@ -1105,6 +1105,7 @@ pub trait TradeExecutor: Send + Sync {
         leverage: Leverage,
         stoploss: Option<Stoploss>,
         takeprofit: Option<Price>,
+        client_id: Option<ClientId>,
     ) -> TradeExecutorResult<Uuid>;
 
     /// Opens a new short position with the specified size, leverage, and optional risk management
@@ -1115,6 +1116,7 @@ pub trait TradeExecutor: Send + Sync {
         leverage: Leverage,
         stoploss: Option<Stoploss>,
         takeprofit: Option<Price>,
+        client_id: Option<ClientId>,
     ) -> TradeExecutorResult<Uuid>;
 
     /// Adds margin to an existing trade, reducing its leverage.
