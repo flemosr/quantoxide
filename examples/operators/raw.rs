@@ -115,6 +115,7 @@ impl RawOperator for RawOperatorTemplate {
         //             Leverage::try_from(6)?,  // Leverage 6x
         //             Some(Stoploss::trailing(PercentageCapped::try_from(5)?)), // 5% trailing stoploss
         //             None,                                                     // No takeprofit
+        //             None,                                                     // No client_id
         //         )
         //         .await?;
         // }
