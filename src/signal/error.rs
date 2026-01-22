@@ -2,7 +2,7 @@ use std::{result, sync::Arc};
 
 use thiserror::Error;
 
-use crate::{shared::OhlcResolution, util::PanicPayload};
+use crate::util::PanicPayload;
 
 use super::{process::error::SignalProcessFatalError, state::LiveSignalStatus};
 
@@ -27,9 +27,6 @@ pub(crate) type SignalEvaluatorResult<T> = result::Result<T, SignalEvaluatorErro
 pub enum SignalOperatorError {
     #[error("At least one signal evaluator must be provided")]
     EmptyEvaluatorsVec,
-
-    #[error("All evaluators must use the same resolution, found {0} and {1}")]
-    MismatchedEvaluatorResolutions(OhlcResolution, OhlcResolution),
 }
 
 #[derive(Error, Debug)]

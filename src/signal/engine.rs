@@ -187,30 +187,10 @@ impl<S: Signal> LiveSignalEngine<S> {
             return Err(SignalOperatorError::EmptyEvaluatorsVec).map_err(SignalError::Operator);
         }
 
-        // Wrap evaluators first to enable panic protection during validation
         let evaluators: Vec<_> = evaluators
             .into_iter()
             .map(WrappedSignalEvaluator::new)
             .collect();
-
-        // Validate resolution consistency. Evaluators with lookback must use the same resolution.
-        let resolutions: Vec<_> = evaluators
-            .iter()
-            .filter_map(|e| e.lookback().map_err(SignalError::Evaluator).transpose())
-            .collect::<Result<Vec<_>>>()?
-            .into_iter()
-            .map(|l| l.resolution())
-            .collect();
-
-        if let Some(first_resolution) = resolutions.first()
-            && let Some(mismatched) = resolutions.iter().find(|r| *r != first_resolution)
-        {
-            return Err(SignalOperatorError::MismatchedEvaluatorResolutions(
-                *first_resolution,
-                *mismatched,
-            ))
-            .map_err(SignalError::Operator);
-        }
 
         let (update_tx, _) = broadcast::channel::<LiveSignalUpdate<S>>(1_000);
 
