@@ -145,8 +145,9 @@ impl<S: Signal> OperatorPending<S> {
         signal_operator: WrappedSignalOperator<S>,
     ) -> Result<Self> {
         if evaluators.is_empty() {
-            return Err(SignalOperatorError::EmptyEvaluatorsVec)
-                .map_err(BacktestError::SignalOperator);
+            return Err(BacktestError::SignalOperator(
+                SignalOperatorError::EmptyEvaluatorsVec,
+            ));
         }
 
         let evaluators: Vec<_> = evaluators
