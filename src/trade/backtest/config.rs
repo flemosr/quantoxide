@@ -1,5 +1,3 @@
-use chrono::Duration;
-
 use lnm_sdk::api_v3::models::PercentageCapped;
 
 use crate::shared::{OhlcResolution, Period};
@@ -20,7 +18,6 @@ pub struct BacktestConfig {
     trade_max_running_qtd: usize,
     fee_perc: PercentageCapped,
     trade_tsl_step_size: PercentageCapped,
-    update_interval: Duration,
 }
 
 impl Default for BacktestConfig {
@@ -30,7 +27,6 @@ impl Default for BacktestConfig {
             trade_max_running_qtd: 50,
             fee_perc: 0.1.try_into().expect("must be a valid `PercentageCapped`"),
             trade_tsl_step_size: PercentageCapped::MIN,
-            update_interval: Duration::days(1),
         }
     }
 }
@@ -54,11 +50,6 @@ impl BacktestConfig {
     /// Returns the step size for trailing stoploss adjustments during simulation.
     pub fn trailing_stoploss_step_size(&self) -> PercentageCapped {
         self.trade_tsl_step_size
-    }
-
-    /// Returns the interval (of simulated time) between status updates during the backtest run.
-    pub fn update_interval(&self) -> Duration {
-        self.update_interval
     }
 
     /// Sets the size of the candlestick buffer (minimum [`MIN_BUFFER_SIZE`]).
@@ -99,15 +90,6 @@ impl BacktestConfig {
         trade_tsl_step_size: PercentageCapped,
     ) -> Self {
         self.trade_tsl_step_size = trade_tsl_step_size;
-        self
-    }
-
-    /// Sets the interval in hours (of simulated time) between status updates during the backtest
-    /// run.
-    ///
-    /// Default: `24` hours (1 day)
-    pub fn with_update_interval(mut self, hours: u32) -> Self {
-        self.update_interval = Duration::hours(hours as i64);
         self
     }
 }
