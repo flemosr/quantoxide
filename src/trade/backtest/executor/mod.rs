@@ -60,10 +60,10 @@ impl SimulatedTradeExecutor {
         config: impl Into<SimulatedTradeExecutorConfig>,
         start_candle: &OhlcCandleRow,
         start_balance: u64,
-    ) -> Self {
+    ) -> Arc<Self> {
         let initial_state = SimulatedTradeExecutorState {
-            time: start_candle.time + Duration::seconds(59),
-            market_price: start_candle.close,
+            time: start_candle.time,
+            market_price: start_candle.open,
             balance: start_balance as i64,
             last_trade_time: None,
             trigger: PriceTrigger::new(),
@@ -73,10 +73,25 @@ impl SimulatedTradeExecutor {
             closed_fees: 0,
         };
 
-        Self {
+        Arc::new(Self {
             config: config.into(),
             state: Arc::new(Mutex::new(initial_state)),
+        })
+    }
+
+    /// Updates only the time, assuming no market price changes.
+    pub async fn update_time(&self, time: DateTime<Utc>) -> SimulatedTradeExecutorResult<()> {
+        let mut state_guard = self.state.lock().await;
+
+        if time < state_guard.time {
+            return Err(SimulatedTradeExecutorError::TimeSequenceViolation {
+                new_time: time,
+                current_time: state_guard.time,
+            });
         }
+
+        state_guard.time = time;
+        Ok(())
     }
 
     pub async fn candle_update(&self, candle: &OhlcCandleRow) -> SimulatedTradeExecutorResult<()> {
