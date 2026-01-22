@@ -1,12 +1,15 @@
-use std::sync::{Arc, Mutex};
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex},
+};
 
 use async_trait::async_trait;
 use chrono::{DateTime, Duration, Utc};
 use tokio::sync::broadcast::{self, error::RecvError};
 
 use crate::{
-    db::{Database, models::OhlcCandleRow},
-    shared::Lookback,
+    db::Database,
+    shared::{Lookback, OhlcResolution, Period},
     signal::{Signal, SignalEvaluator, WrappedSignalEvaluator, error::SignalOperatorError},
     sync::PriceHistoryState,
     trade::backtest::config::BacktestConfig,
@@ -18,7 +21,7 @@ use super::{
     super::core::{
         Raw, RawOperator, SignalOperator, TradeExecutor, WrappedRawOperator, WrappedSignalOperator,
     },
-    consolidator::RuntimeConsolidator,
+    consolidator::MultiResolutionConsolidator,
     error::{BacktestError, Result},
     executor::SimulatedTradeExecutor,
     state::{
@@ -124,9 +127,15 @@ enum OperatorPending<S: Signal> {
     Signal {
         evaluators: Vec<WrappedSignalEvaluator<S>>,
         signal_operator: WrappedSignalOperator<S>,
+        /// Max period per resolution
+        resolution_to_max_period: HashMap<OhlcResolution, Period>,
+        max_lookback: Option<Lookback>,
     },
     Raw {
         raw_operator: WrappedRawOperator,
+        /// Max period per resolution
+        resolution_to_max_period: HashMap<OhlcResolution, Period>,
+        max_lookback: Option<Lookback>,
     },
 }
 
@@ -145,56 +154,76 @@ impl<S: Signal> OperatorPending<S> {
             .map(WrappedSignalEvaluator::new)
             .collect();
 
-        // Validate resolution consistency. Evaluators with lookback must use the same resolution.
-        let resolutions: Vec<_> = evaluators
-            .iter()
-            .filter_map(|e| {
-                e.lookback()
-                    .map_err(BacktestError::SignalEvaluator)
-                    .transpose()
-            })
-            .collect::<Result<Vec<_>>>()?
-            .into_iter()
-            .map(|l| l.resolution())
-            .collect();
+        let mut resolution_map: HashMap<OhlcResolution, Period> = HashMap::new();
+        let mut max_lookback: Option<Lookback> = None;
 
-        if let Some(first_resolution) = resolutions.first()
-            && let Some(mismatched) = resolutions.iter().find(|r| *r != first_resolution)
-        {
-            return Err(SignalOperatorError::MismatchedEvaluatorResolutions(
-                *first_resolution,
-                *mismatched,
-            ))
-            .map_err(BacktestError::SignalOperator);
+        for evaluator in &evaluators {
+            if let Some(lookback) = evaluator
+                .lookback()
+                .map_err(BacktestError::SignalEvaluator)?
+            {
+                resolution_map
+                    .entry(lookback.resolution())
+                    .and_modify(|existing| {
+                        if lookback.period() > *existing {
+                            *existing = lookback.period();
+                        }
+                    })
+                    .or_insert(lookback.period());
+
+                if max_lookback
+                    .is_none_or(|existing| existing.as_duration() < lookback.as_duration())
+                {
+                    max_lookback = Some(lookback);
+                }
+            }
         }
 
         Ok(Self::Signal {
             evaluators,
             signal_operator,
+            resolution_to_max_period: resolution_map,
+            max_lookback,
         })
     }
 
-    fn raw(raw_operator: WrappedRawOperator) -> Self {
-        Self::Raw { raw_operator }
+    fn raw(raw_operator: WrappedRawOperator) -> Result<Self> {
+        let lookback = raw_operator
+            .lookback()
+            .map_err(BacktestError::OperatorError)?;
+
+        let (resolution_map, max_lookback) = if let Some(lb) = lookback {
+            let mut map = HashMap::new();
+            map.insert(lb.resolution(), lb.period());
+            (map, Some(lb))
+        } else {
+            (HashMap::new(), None)
+        };
+
+        Ok(Self::Raw {
+            raw_operator,
+            resolution_to_max_period: resolution_map,
+            max_lookback,
+        })
     }
 
-    fn max_lookback(&self) -> Result<Option<Lookback>> {
+    fn resolution_to_max_period(&self) -> &HashMap<OhlcResolution, Period> {
         match self {
-            OperatorPending::Signal { evaluators, .. } => {
-                let lookbacks: Vec<_> = evaluators
-                    .iter()
-                    .filter_map(|e| {
-                        e.lookback()
-                            .map_err(BacktestError::SignalEvaluator)
-                            .transpose()
-                    })
-                    .collect::<Result<_>>()?;
+            OperatorPending::Signal {
+                resolution_to_max_period,
+                ..
+            } => resolution_to_max_period,
+            OperatorPending::Raw {
+                resolution_to_max_period,
+                ..
+            } => resolution_to_max_period,
+        }
+    }
 
-                Ok(lookbacks.into_iter().max_by_key(|l| l.as_duration()))
-            }
-            OperatorPending::Raw { raw_operator } => raw_operator
-                .lookback()
-                .map_err(BacktestError::OperatorError),
+    fn max_lookback(&self) -> Option<Lookback> {
+        match self {
+            OperatorPending::Signal { max_lookback, .. } => *max_lookback,
+            OperatorPending::Raw { max_lookback, .. } => *max_lookback,
         }
     }
 
@@ -207,6 +236,7 @@ impl<S: Signal> OperatorPending<S> {
             OperatorPending::Signal {
                 evaluators,
                 mut signal_operator,
+                ..
             } => {
                 signal_operator
                     .set_trade_executor(trade_executor)
@@ -219,7 +249,9 @@ impl<S: Signal> OperatorPending<S> {
                     signal_operator,
                 })
             }
-            OperatorPending::Raw { mut raw_operator } => {
+            OperatorPending::Raw {
+                mut raw_operator, ..
+            } => {
                 raw_operator
                     .set_trade_executor(trade_executor)
                     .map_err(BacktestError::SetTradeExecutor)?;
@@ -236,6 +268,7 @@ impl<S: Signal> OperatorPending<S> {
 /// Running operator state.
 enum OperatorRunning<S: Signal> {
     Signal {
+        /// (last_eval_time, evaluator)
         evaluators: Vec<(DateTime<Utc>, WrappedSignalEvaluator<S>)>,
         signal_operator: WrappedSignalOperator<S>,
     },
@@ -249,17 +282,17 @@ impl<S: Signal> OperatorRunning<S> {
     async fn iterate(
         &mut self,
         time_cursor: DateTime<Utc>,
-        ctx_candles: &[OhlcCandleRow],
+        consolidator: Option<&MultiResolutionConsolidator>,
     ) -> Result<()> {
         match self {
             OperatorRunning::Signal {
                 evaluators,
                 signal_operator,
-            } => Self::iterate_signal(evaluators, signal_operator, time_cursor, ctx_candles).await,
+            } => Self::iterate_signal(evaluators, signal_operator, time_cursor, consolidator).await,
             OperatorRunning::Raw {
                 last_eval,
                 raw_operator,
-            } => Self::iterate_raw(last_eval, raw_operator, time_cursor, ctx_candles).await,
+            } => Self::iterate_raw(last_eval, raw_operator, time_cursor, consolidator).await,
         }
     }
 
@@ -267,7 +300,7 @@ impl<S: Signal> OperatorRunning<S> {
         evaluators: &mut [(DateTime<Utc>, WrappedSignalEvaluator<S>)],
         signal_operator: &WrappedSignalOperator<S>,
         time_cursor: DateTime<Utc>,
-        ctx_candles: &[OhlcCandleRow],
+        consolidator: Option<&MultiResolutionConsolidator>,
     ) -> Result<()> {
         for (last_eval, evaluator) in evaluators {
             let min_iteration_interval = evaluator
@@ -281,14 +314,16 @@ impl<S: Signal> OperatorRunning<S> {
 
             *last_eval = time_cursor;
 
-            let eval_candles = match evaluator
+            let lookback = evaluator
                 .lookback()
-                .map_err(BacktestError::SignalEvaluator)?
-            {
-                Some(lookback) => {
-                    let start_idx = ctx_candles
-                        .len()
-                        .saturating_sub(lookback.period().as_usize());
+                .map_err(BacktestError::SignalEvaluator)?;
+
+            let eval_candles = match lookback {
+                Some(lb) => {
+                    let ctx_candles = consolidator
+                        .and_then(|c| c.get_candles(lb.resolution()))
+                        .expect("must not be `None` when evaluator has lookback");
+                    let start_idx = ctx_candles.len().saturating_sub(lb.period().as_usize());
                     &ctx_candles[start_idx..]
                 }
                 None => &[],
@@ -312,7 +347,7 @@ impl<S: Signal> OperatorRunning<S> {
         last_eval: &mut DateTime<Utc>,
         raw_operator: &WrappedRawOperator,
         time_cursor: DateTime<Utc>,
-        ctx_candles: &[OhlcCandleRow],
+        consolidator: Option<&MultiResolutionConsolidator>,
     ) -> Result<()> {
         let min_iteration_interval = raw_operator
             .min_iteration_interval()
@@ -321,6 +356,17 @@ impl<S: Signal> OperatorRunning<S> {
 
         if time_cursor >= *last_eval + min_iteration_interval {
             *last_eval = time_cursor;
+
+            let lookback = raw_operator
+                .lookback()
+                .map_err(BacktestError::OperatorError)?;
+
+            let ctx_candles = match lookback {
+                Some(lb) => consolidator
+                    .and_then(|c| c.get_candles(lb.resolution()))
+                    .expect("must not be `None` when evaluator has lookback"),
+                None => &[],
+            };
 
             raw_operator
                 .iterate(ctx_candles)
@@ -405,7 +451,7 @@ impl<S: Signal> BacktestEngine<S> {
             });
         }
 
-        let max_lookback = operator_pending.max_lookback()?;
+        let max_lookback = operator_pending.max_lookback();
 
         let price_history_state = PriceHistoryState::evaluate(&db)
             .await
@@ -468,15 +514,15 @@ impl<S: Signal> BacktestEngine<S> {
     async fn run(self) -> Result<()> {
         self.status_manager.update(BacktestStatus::Starting);
 
-        let max_lookback = self.operator_pending.max_lookback()?;
-
         let buffer_size = self.config.buffer_size() as i64;
 
-        let lookback_minutes = max_lookback
-            .map(|l| l.period().as_u64() as i64 * l.resolution().as_minutes() as i64)
-            .unwrap_or(0);
+        let max_lookback = self
+            .operator_pending
+            .max_lookback()
+            .map(|lb| lb.as_duration())
+            .unwrap_or(Duration::zero());
 
-        let buffer_from = self.start_time - Duration::minutes(lookback_minutes);
+        let buffer_from = self.start_time - max_lookback;
         let buffer_to = buffer_from + Duration::minutes(buffer_size);
         let mut minute_buffer = self
             .db
@@ -497,6 +543,8 @@ impl<S: Signal> BacktestEngine<S> {
         let trades_executor =
             SimulatedTradeExecutor::new(&self.config, start_candle, self.start_balance);
 
+        let resolution_to_max_period = self.operator_pending.resolution_to_max_period().clone();
+
         let mut operator = self
             .operator_pending
             .start(self.start_time, trades_executor.clone())?;
@@ -504,11 +552,10 @@ impl<S: Signal> BacktestEngine<S> {
         let mut time_cursor = start_candle.time + Duration::seconds(59);
         let mut minute_cursor_idx = start_candle_idx;
 
-        // If lookback is set, create consolidator with lookback candles up to start position
-        let mut consolidator = if let Some(lookback) = max_lookback {
+        let mut consolidator = if !resolution_to_max_period.is_empty() {
             let initial_candles = &minute_buffer[..=start_candle_idx];
-            Some(RuntimeConsolidator::new(
-                lookback,
+            Some(MultiResolutionConsolidator::new(
+                resolution_to_max_period,
                 initial_candles,
                 time_cursor,
             )?)
@@ -529,12 +576,7 @@ impl<S: Signal> BacktestEngine<S> {
         self.status_manager.update(BacktestStatus::Running);
 
         loop {
-            let ctx_candles = consolidator
-                .as_ref()
-                .map(|c| c.get_candles())
-                .unwrap_or(&[]);
-
-            operator.iterate(time_cursor, ctx_candles).await?;
+            operator.iterate(time_cursor, consolidator.as_ref()).await?;
 
             if time_cursor >= send_next_update_at {
                 // Report trading state as midnight UTC of each backtested day
@@ -627,7 +669,7 @@ impl BacktestEngine<Raw> {
         start_balance: u64,
         end_time: DateTime<Utc>,
     ) -> Result<Self> {
-        let operator_pending = OperatorPending::raw(raw_operator.into());
+        let operator_pending = OperatorPending::raw(raw_operator.into())?;
 
         Self::new(
             config,
