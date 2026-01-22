@@ -1,8 +1,10 @@
+use std::collections::HashMap;
+
 use chrono::{DateTime, Utc};
 
 use crate::{
     db::models::OhlcCandleRow,
-    shared::{Lookback, OhlcResolution},
+    shared::{Lookback, OhlcResolution, Period},
     util::DateTimeExt,
 };
 
@@ -227,6 +229,41 @@ impl RuntimeConsolidator {
     /// Returns the consolidated candles including the current incomplete bucket.
     pub fn get_candles(&self) -> &[OhlcCandleRow] {
         &self.candles
+    }
+}
+
+/// Manages multiple [`RuntimeConsolidator`] instances for different resolutions.
+pub(super) struct MultiResolutionConsolidator(HashMap<OhlcResolution, RuntimeConsolidator>);
+
+impl MultiResolutionConsolidator {
+    pub fn new(
+        resolution_to_max_period: HashMap<OhlcResolution, Period>,
+        initial_candles: &[OhlcCandleRow],
+        time_cursor: DateTime<Utc>,
+    ) -> Result<Self> {
+        let mut consolidators = HashMap::new();
+
+        for (resolution, max_period) in resolution_to_max_period {
+            let lookback = Lookback::new(resolution, max_period).expect("is valid");
+            let consolidator = RuntimeConsolidator::new(lookback, initial_candles, time_cursor)?;
+
+            consolidators.insert(resolution, consolidator);
+        }
+
+        Ok(Self(consolidators))
+    }
+
+    /// Pushes a 1-minute candle to all consolidators.
+    pub fn push(&mut self, candle: &OhlcCandleRow) -> Result<()> {
+        for consolidator in self.0.values_mut() {
+            consolidator.push(candle)?;
+        }
+        Ok(())
+    }
+
+    /// Gets candles for a specific resolution, if available.
+    pub fn get_candles(&self, resolution: OhlcResolution) -> Option<&[OhlcCandleRow]> {
+        self.0.get(&resolution).map(|c| c.get_candles())
     }
 }
 
