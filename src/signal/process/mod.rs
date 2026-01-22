@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use chrono::{DateTime, Duration, Utc};
 use tokio::{
@@ -7,8 +7,8 @@ use tokio::{
 };
 
 use crate::{
-    db::Database,
-    shared::Lookback,
+    db::{Database, models::OhlcCandleRow},
+    shared::{OhlcResolution, Period},
     sync::{SyncReader, SyncStatus, SyncUpdate},
     util::{AbortOnDropHandle, DateTimeExt, Never},
 };
@@ -26,6 +26,22 @@ pub(crate) mod error;
 use error::{
     ProcessResult, SignalProcessError, SignalProcessFatalError, SignalProcessRecoverableError,
 };
+
+/// Groups evaluators that share the same OHLC resolution.
+struct ResolutionGroup {
+    max_period: Period,
+    /// (last_eval_time, evaluator_index, period)
+    evaluators: Vec<(DateTime<Utc>, usize, Period)>,
+}
+
+impl ResolutionGroup {
+    fn new(initial_period: Period) -> Self {
+        Self {
+            max_period: initial_period,
+            evaluators: Vec::new(),
+        }
+    }
+}
 
 pub(super) struct LiveSignalProcess<S: Signal> {
     config: LiveSignalProcessConfig,
@@ -67,11 +83,12 @@ impl<S: Signal> LiveSignalProcess<S> {
 
     async fn run(&self) -> ProcessResult<Never> {
         let mut min_iteration_interval = Duration::MAX;
-        let mut max_lookback: Option<Lookback> = None;
-        let mut evaluators = Vec::with_capacity(self.evaluators.len());
+
+        let mut resolution_groups: HashMap<OhlcResolution, ResolutionGroup> = HashMap::new();
+        let mut no_lookback_evaluators: Vec<(DateTime<Utc>, usize)> = Vec::new();
 
         let now = Utc::now().ceil_sec();
-        for evaluator in self.evaluators.iter() {
+        for (idx, evaluator) in self.evaluators.iter().enumerate() {
             min_iteration_interval = min_iteration_interval.min(
                 evaluator
                     .min_iteration_interval()
@@ -79,27 +96,33 @@ impl<S: Signal> LiveSignalProcess<S> {
                     .as_duration(),
             );
 
-            if let Some(lb) = evaluator
+            match evaluator
                 .lookback()
                 .map_err(SignalProcessFatalError::Evaluator)?
             {
-                max_lookback = Some(match max_lookback {
-                    Some(existing) if existing.as_duration() >= lb.as_duration() => existing,
-                    _ => lb,
-                });
-            }
+                Some(lookback) => {
+                    let group = resolution_groups
+                        .entry(lookback.resolution())
+                        .or_insert_with(|| ResolutionGroup::new(lookback.period()));
 
-            evaluators.push((now, evaluator));
+                    if lookback.period() > group.max_period {
+                        group.max_period = lookback.period();
+                    }
+
+                    group.evaluators.push((now, idx, lookback.period()));
+                }
+                None => {
+                    no_lookback_evaluators.push((now, idx));
+                }
+            }
         }
 
         let mut next_eval = now + min_iteration_interval;
 
         loop {
-            let mut now = Utc::now();
-            if now < next_eval {
-                let wait_duration = (next_eval - now).to_std().expect("valid duration");
+            if Utc::now() < next_eval {
+                let wait_duration = (next_eval - Utc::now()).to_std().expect("valid duration");
                 time::sleep(wait_duration).await;
-                now = next_eval;
             }
 
             if !matches!(self.sync_reader.status_snapshot(), SyncStatus::Synced) {
@@ -150,58 +173,84 @@ impl<S: Signal> LiveSignalProcess<S> {
                 }
             }
 
-            let candle_buffer = if let Some(lookback) = max_lookback {
-                // Floor current time to the resolution boundary to get the current, possibly
-                // incomplete, candle.
-                let now = Utc::now();
-                let resolution = lookback.resolution();
-                let current_bucket = now.floor_to_resolution(resolution);
-                let from =
-                    current_bucket.step_back_candles(resolution, lookback.period().as_u64() - 1);
+            let now = Utc::now();
+            let mut candle_buffers: HashMap<OhlcResolution, Vec<OhlcCandleRow>> = HashMap::new();
 
-                self.db
+            for (resolution, group) in &resolution_groups {
+                let current_bucket = now.floor_to_resolution(*resolution);
+                let from =
+                    current_bucket.step_back_candles(*resolution, group.max_period.as_u64() - 1);
+
+                let candles = self
+                    .db
                     .ohlc_candles
-                    .get_candles_consolidated(from, now, resolution)
+                    .get_candles_consolidated(from, now, *resolution)
                     .await
-                    .map_err(SignalProcessRecoverableError::Db)?
-            } else {
-                Vec::new()
-            };
+                    .map_err(SignalProcessRecoverableError::Db)?;
+
+                candle_buffers.insert(*resolution, candles);
+            }
 
             next_eval = DateTime::<Utc>::MAX_UTC;
 
-            for (last_eval, evaluator) in evaluators.iter_mut() {
-                let min_iteration_interval = evaluator
+            for (resolution, group) in resolution_groups.iter_mut() {
+                let candle_buffer = candle_buffers
+                    .get(resolution)
+                    .map(|v| v.as_slice())
+                    .expect("resolution must be available");
+
+                for (last_eval, evaluator_idx, period) in group.evaluators.iter_mut() {
+                    let evaluator = &self.evaluators[*evaluator_idx];
+
+                    let eval_interval = evaluator
+                        .min_iteration_interval()
+                        .map_err(SignalProcessFatalError::Evaluator)?
+                        .as_duration();
+
+                    if now < *last_eval + eval_interval {
+                        continue;
+                    }
+
+                    *last_eval = now;
+
+                    let evaluator_next_eval = now + eval_interval;
+                    if evaluator_next_eval < next_eval {
+                        next_eval = evaluator_next_eval;
+                    }
+
+                    let start_idx = candle_buffer.len().saturating_sub(period.as_usize());
+                    let candles = &candle_buffer[start_idx..];
+
+                    let signal = evaluator
+                        .evaluate(candles)
+                        .await
+                        .map_err(SignalProcessRecoverableError::Evaluator)?;
+
+                    let _ = self.update_tx.send(LiveSignalUpdate::Signal(signal));
+                }
+            }
+
+            for (last_eval, evaluator_idx) in no_lookback_evaluators.iter_mut() {
+                let evaluator = &self.evaluators[*evaluator_idx];
+
+                let eval_interval = evaluator
                     .min_iteration_interval()
                     .map_err(SignalProcessFatalError::Evaluator)?
                     .as_duration();
 
-                if now < *last_eval + min_iteration_interval {
+                if now < *last_eval + eval_interval {
                     continue;
                 }
 
                 *last_eval = now;
 
-                let evaluator_next_eval = now + min_iteration_interval;
+                let evaluator_next_eval = now + eval_interval;
                 if evaluator_next_eval < next_eval {
                     next_eval = evaluator_next_eval;
                 }
 
-                let candles = match evaluator
-                    .lookback()
-                    .map_err(SignalProcessFatalError::Evaluator)?
-                {
-                    Some(lookback) => {
-                        let start_idx = candle_buffer
-                            .len()
-                            .saturating_sub(lookback.period().as_usize());
-                        &candle_buffer[start_idx..]
-                    }
-                    None => &[],
-                };
-
                 let signal = evaluator
-                    .evaluate(candles)
+                    .evaluate(&[])
                     .await
                     .map_err(SignalProcessRecoverableError::Evaluator)?;
 
