@@ -21,9 +21,9 @@ async fn test_simulated_trade_executor_long_profit() -> TradeExecutorResult<()> 
     let executor = SimulatedTradeExecutor::new(config, &candle, start_balance);
 
     let state = executor.trading_state().await?;
-    assert_eq!(state.last_tick_time(), candle.time + Duration::seconds(59));
+    assert_eq!(state.last_tick_time(), candle.time);
     assert_eq!(state.balance(), start_balance);
-    assert_eq!(state.market_price().as_f64(), candle.close);
+    assert_eq!(state.market_price().as_f64(), candle.open);
     assert_eq!(state.last_trade_time(), None);
     assert_eq!(state.running_long_len(), 0);
     assert_eq!(state.running_long_margin(), 0);
@@ -156,9 +156,9 @@ async fn test_simulated_trade_executor_long_loss() -> TradeExecutorResult<()> {
     let executor = SimulatedTradeExecutor::new(config, &candle, start_balance);
 
     let state = executor.trading_state().await?;
-    assert_eq!(state.last_tick_time(), candle.time + Duration::seconds(59));
+    assert_eq!(state.last_tick_time(), candle.time);
     assert_eq!(state.balance(), start_balance);
-    assert_eq!(state.market_price().as_f64(), candle.close);
+    assert_eq!(state.market_price().as_f64(), candle.open);
     assert_eq!(state.last_trade_time(), None);
     assert_eq!(state.running_long_len(), 0);
     assert_eq!(state.running_long_margin(), 0);
@@ -183,10 +183,10 @@ async fn test_simulated_trade_executor_long_loss() -> TradeExecutorResult<()> {
         .await?;
 
     let state = executor.trading_state().await?;
-    let exp_trade_time = candle.time + Duration::seconds(59);
+    let exp_trade_time = candle.time;
     let expected_balance = start_balance - state.running_long_margin() - state.running_fees();
 
-    assert_eq!(state.last_tick_time(), candle.time + Duration::seconds(59));
+    assert_eq!(state.last_tick_time(), candle.time);
     assert_eq!(state.balance(), expected_balance);
     assert_eq!(state.last_trade_time(), Some(exp_trade_time));
     assert!(state.running_map().get_by_id(opened_trade_id).is_some());
@@ -253,9 +253,9 @@ async fn test_simulated_trade_executor_short_profit() -> TradeExecutorResult<()>
     let executor = SimulatedTradeExecutor::new(config, &candle, start_balance);
 
     let state = executor.trading_state().await?;
-    assert_eq!(state.last_tick_time(), candle.time + Duration::seconds(59));
+    assert_eq!(state.last_tick_time(), candle.time);
     assert_eq!(state.balance(), start_balance);
-    assert_eq!(state.market_price().as_f64(), candle.close);
+    assert_eq!(state.market_price().as_f64(), candle.open);
     assert_eq!(state.last_trade_time(), None);
     assert_eq!(state.running_long_len(), 0);
     assert_eq!(state.running_long_margin(), 0);
@@ -281,13 +281,13 @@ async fn test_simulated_trade_executor_short_profit() -> TradeExecutorResult<()>
         .await?;
 
     let state = executor.trading_state().await?;
-    let exp_trade_time = candle.time + Duration::seconds(59);
+    let exp_trade_time = candle.time;
     let expected_balance = start_balance - state.running_short_margin() - state.running_fees();
 
-    assert_eq!(state.last_tick_time(), candle.time + Duration::seconds(59));
+    assert_eq!(state.last_tick_time(), candle.time);
     assert_eq!(state.balance(), expected_balance);
     assert_eq!(state.last_trade_time(), Some(exp_trade_time));
-    assert_eq!(state.market_price().as_f64(), candle.close);
+    assert_eq!(state.market_price().as_f64(), candle.open);
     assert_eq!(state.running_long_len(), 0);
     assert_eq!(state.running_long_margin(), 0);
     assert!(state.running_map().get_by_id(opened_trade_id).is_some());
@@ -365,9 +365,9 @@ async fn test_simulated_trade_executor_short_loss() -> TradeExecutorResult<()> {
     let executor = SimulatedTradeExecutor::new(config, &candle, start_balance);
 
     let state = executor.trading_state().await?;
-    assert_eq!(state.last_tick_time(), candle.time + Duration::seconds(59));
+    assert_eq!(state.last_tick_time(), candle.time);
     assert_eq!(state.balance(), start_balance);
-    assert_eq!(state.market_price().as_f64(), candle.close);
+    assert_eq!(state.market_price().as_f64(), candle.open);
     assert_eq!(state.last_trade_time(), None);
     assert_eq!(state.running_long_len(), 0);
     assert_eq!(state.running_long_margin(), 0);
@@ -392,10 +392,10 @@ async fn test_simulated_trade_executor_short_loss() -> TradeExecutorResult<()> {
         .await?;
 
     let state = executor.trading_state().await?;
-    let exp_trade_time = candle.time + Duration::seconds(59);
+    let exp_trade_time = candle.time;
     let expected_balance = start_balance - state.running_short_margin() - state.running_fees();
 
-    assert_eq!(state.last_tick_time(), candle.time + Duration::seconds(59));
+    assert_eq!(state.last_tick_time(), candle.time);
     assert_eq!(state.balance(), expected_balance);
     assert_eq!(state.last_trade_time(), Some(exp_trade_time));
     assert!(state.running_map().get_by_id(opened_trade_id).is_some());
@@ -477,10 +477,10 @@ async fn test_simulated_trade_executor_trailing_stoploss_long() {
         panic!("must have trade");
     };
 
-    assert_eq!(state.last_tick_time(), candle.time + Duration::seconds(59));
+    assert_eq!(state.last_tick_time(), candle.time);
     let expected_balance = start_balance - state.running_long_margin() - state.running_fees();
     assert_eq!(state.balance(), expected_balance);
-    assert_eq!(state.market_price().as_f64(), candle.close);
+    assert_eq!(state.market_price().as_f64(), candle.open);
     assert_eq!(state.running_long_len(), 1);
     assert_eq!(state.running_short_len(), 0);
     assert_eq!(state.closed_len(), 0);
@@ -559,10 +559,10 @@ async fn test_simulated_trade_executor_trailing_stoploss_short() {
         panic!("must have trade");
     };
 
-    assert_eq!(state.last_tick_time(), candle.time + Duration::seconds(59));
+    assert_eq!(state.last_tick_time(), candle.time);
     let expected_balance = start_balance - state.running_short_margin() - state.running_fees();
     assert_eq!(state.balance(), expected_balance);
-    assert_eq!(state.market_price().as_f64(), candle.close);
+    assert_eq!(state.market_price().as_f64(), candle.open);
     assert_eq!(state.running_long_len(), 0);
     assert_eq!(state.running_short_len(), 1);
     assert_eq!(state.closed_len(), 0);
@@ -627,9 +627,9 @@ async fn test_simulated_trade_executor_partial_cash_in_short_profit() -> TradeEx
     let executor = SimulatedTradeExecutor::new(config, &candle, start_balance);
 
     let state = executor.trading_state().await?;
-    assert_eq!(state.last_tick_time(), candle.time + Duration::seconds(59));
+    assert_eq!(state.last_tick_time(), candle.time);
     assert_eq!(state.balance(), start_balance);
-    assert_eq!(state.market_price().as_f64(), candle.close);
+    assert_eq!(state.market_price().as_f64(), candle.open);
     assert_eq!(state.last_trade_time(), None);
     assert_eq!(state.running_long_len(), 0);
     assert_eq!(state.running_long_margin(), 0);
@@ -653,13 +653,13 @@ async fn test_simulated_trade_executor_partial_cash_in_short_profit() -> TradeEx
         .await?;
 
     let state = executor.trading_state().await?;
-    let exp_trade_time = candle.time + Duration::seconds(59);
+    let exp_trade_time = candle.time;
     let expected_balance = start_balance - state.running_short_margin() - state.running_fees();
 
-    assert_eq!(state.last_tick_time(), candle.time + Duration::seconds(59));
+    assert_eq!(state.last_tick_time(), candle.time);
     assert_eq!(state.balance(), expected_balance);
     assert_eq!(state.last_trade_time(), Some(exp_trade_time));
-    assert_eq!(state.market_price().as_f64(), candle.close);
+    assert_eq!(state.market_price().as_f64(), candle.open);
     assert_eq!(state.running_long_len(), 0);
     assert_eq!(state.running_long_margin(), 0);
     assert!(state.running_map().get_by_id(opened_trade_id).is_some());
@@ -750,9 +750,9 @@ async fn test_simulated_trade_executor_full_cash_in_short_profit() -> TradeExecu
     let executor = SimulatedTradeExecutor::new(config, &candle, start_balance);
 
     let state = executor.trading_state().await?;
-    assert_eq!(state.last_tick_time(), candle.time + Duration::seconds(59));
+    assert_eq!(state.last_tick_time(), candle.time);
     assert_eq!(state.balance(), start_balance);
-    assert_eq!(state.market_price().as_f64(), candle.close);
+    assert_eq!(state.market_price().as_f64(), candle.open);
     assert_eq!(state.last_trade_time(), None);
     assert_eq!(state.running_long_len(), 0);
     assert_eq!(state.running_long_margin(), 0);
@@ -776,13 +776,13 @@ async fn test_simulated_trade_executor_full_cash_in_short_profit() -> TradeExecu
         .await?;
 
     let state = executor.trading_state().await?;
-    let exp_trade_time = candle.time + Duration::seconds(59);
+    let exp_trade_time = candle.time;
     let expected_balance = start_balance - state.running_short_margin() - state.running_fees();
 
-    assert_eq!(state.last_tick_time(), candle.time + Duration::seconds(59));
+    assert_eq!(state.last_tick_time(), candle.time);
     assert_eq!(state.balance(), expected_balance);
     assert_eq!(state.last_trade_time(), Some(exp_trade_time));
-    assert_eq!(state.market_price().as_f64(), candle.close);
+    assert_eq!(state.market_price().as_f64(), candle.open);
     assert_eq!(state.running_long_len(), 0);
     assert_eq!(state.running_long_margin(), 0);
     assert!(state.running_map().get_by_id(opened_trade_id).is_some());
@@ -872,9 +872,9 @@ async fn test_simulated_trade_executor_add_margin_short_loss() -> TradeExecutorR
     let executor = SimulatedTradeExecutor::new(config, &candle, start_balance);
 
     let state = executor.trading_state().await?;
-    assert_eq!(state.last_tick_time(), candle.time + Duration::seconds(59));
+    assert_eq!(state.last_tick_time(), candle.time);
     assert_eq!(state.balance(), start_balance);
-    assert_eq!(state.market_price().as_f64(), candle.close);
+    assert_eq!(state.market_price().as_f64(), candle.open);
     assert_eq!(state.last_trade_time(), None);
     assert_eq!(state.running_long_len(), 0);
     assert_eq!(state.running_long_margin(), 0);
@@ -899,10 +899,10 @@ async fn test_simulated_trade_executor_add_margin_short_loss() -> TradeExecutorR
         .await?;
 
     let state = executor.trading_state().await?;
-    let exp_trade_time = candle.time + Duration::seconds(59);
+    let exp_trade_time = candle.time;
     let expected_balance = start_balance - state.running_short_margin() - state.running_fees();
 
-    assert_eq!(state.last_tick_time(), candle.time + Duration::seconds(59));
+    assert_eq!(state.last_tick_time(), candle.time);
     assert_eq!(state.balance(), expected_balance);
     assert_eq!(state.last_trade_time(), Some(exp_trade_time));
     assert!(state.running_map().get_by_id(opened_trade_id).is_some());
