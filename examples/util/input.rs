@@ -2,7 +2,11 @@
 
 #![allow(unused)]
 
-use std::io::{self, Write};
+use std::{
+    collections::HashMap,
+    env,
+    io::{self, Write},
+};
 
 use chrono::{DateTime, NaiveDate, TimeZone, Utc};
 
@@ -62,4 +66,29 @@ pub fn prompt_balance(prompt: &str, default: u64) -> Result<u64> {
             }
         }
     }
+}
+
+/// Parses command line arguments into a HashMap.
+/// Supports `--key value` pairs, where keys without values get an empty string.
+pub fn parse_args() -> HashMap<String, String> {
+    let args: Vec<String> = env::args().skip(1).collect();
+    let mut map = HashMap::new();
+
+    let mut i = 0;
+    while i < args.len() {
+        if args[i].starts_with("--") {
+            let key = args[i][2..].to_string();
+            if i + 1 < args.len() && !args[i + 1].starts_with("--") {
+                map.insert(key, args[i + 1].clone());
+                i += 2;
+            } else {
+                map.insert(key, String::new());
+                i += 1;
+            }
+        } else {
+            i += 1;
+        }
+    }
+
+    map
 }
