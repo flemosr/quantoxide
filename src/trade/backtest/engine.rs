@@ -463,11 +463,8 @@ impl<S: Signal> BacktestEngine<S> {
 
         let start_candle = &minute_buffer[start_candle_idx];
 
-        let trades_executor = Arc::new(SimulatedTradeExecutor::new(
-            &self.config,
-            start_candle,
-            self.start_balance,
-        ));
+        let trades_executor =
+            SimulatedTradeExecutor::new(&self.config, start_candle, self.start_balance);
 
         let mut operator = self
             .operator_pending
@@ -488,7 +485,15 @@ impl<S: Signal> BacktestEngine<S> {
             None
         };
 
-        let mut send_next_update_at = time_cursor + self.config.update_interval();
+        // Send initial trading state at start_time (midnight UTC)
+        let initial_state = trades_executor
+            .trading_state()
+            .await
+            .map_err(BacktestError::ExecutorStateEvaluation)?;
+        let _ = self.update_tx.send(initial_state.into());
+
+        // Next update will be at end of day (23:59:59), reported as midnight of following day
+        let mut send_next_update_at = time_cursor + Duration::days(1);
 
         self.status_manager.update(BacktestStatus::Running);
 
@@ -501,6 +506,12 @@ impl<S: Signal> BacktestEngine<S> {
             operator.iterate(time_cursor, ctx_candles).await?;
 
             if time_cursor >= send_next_update_at {
+                // Report trading state as midnight UTC of each backtested day
+                let update_time = send_next_update_at + Duration::seconds(1);
+                trades_executor
+                    .update_time(update_time)
+                    .await
+                    .map_err(BacktestError::ExecutorTickUpdate)?;
                 let trades_state = trades_executor
                     .trading_state()
                     .await
@@ -509,7 +520,7 @@ impl<S: Signal> BacktestEngine<S> {
                 // Ignore no-receivers errors
                 let _ = self.update_tx.send(trades_state.into());
 
-                send_next_update_at += self.config.update_interval();
+                send_next_update_at += Duration::days(1);
             }
 
             if time_cursor >= self.end_time - Duration::seconds(1) {
