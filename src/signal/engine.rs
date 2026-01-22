@@ -184,7 +184,7 @@ impl<S: Signal> LiveSignalEngine<S> {
         evaluators: Vec<Box<dyn SignalEvaluator<S>>>,
     ) -> Result<Self> {
         if evaluators.is_empty() {
-            return Err(SignalOperatorError::EmptyEvaluatorsVec).map_err(SignalError::Operator);
+            return Err(SignalError::Operator(SignalOperatorError::EmptyEvaluatorsVec));
         }
 
         let evaluators: Vec<_> = evaluators
