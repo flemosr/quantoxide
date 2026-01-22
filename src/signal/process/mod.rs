@@ -72,10 +72,17 @@ impl<S: Signal> LiveSignalProcess<S> {
 
         let now = Utc::now().ceil_sec();
         for evaluator in self.evaluators.iter() {
-            min_iteration_interval =
-                min_iteration_interval.min(evaluator.min_iteration_interval()?.as_duration());
+            min_iteration_interval = min_iteration_interval.min(
+                evaluator
+                    .min_iteration_interval()
+                    .map_err(SignalProcessFatalError::Evaluator)?
+                    .as_duration(),
+            );
 
-            if let Some(lb) = evaluator.lookback()? {
+            if let Some(lb) = evaluator
+                .lookback()
+                .map_err(SignalProcessFatalError::Evaluator)?
+            {
                 max_lookback = Some(match max_lookback {
                     Some(existing) if existing.as_duration() >= lb.as_duration() => existing,
                     _ => lb,
@@ -164,18 +171,26 @@ impl<S: Signal> LiveSignalProcess<S> {
             next_eval = DateTime::<Utc>::MAX_UTC;
 
             for (last_eval, evaluator) in evaluators.iter_mut() {
-                if now < *last_eval + evaluator.min_iteration_interval()?.as_duration() {
+                let min_iteration_interval = evaluator
+                    .min_iteration_interval()
+                    .map_err(SignalProcessFatalError::Evaluator)?
+                    .as_duration();
+
+                if now < *last_eval + min_iteration_interval {
                     continue;
                 }
 
                 *last_eval = now;
 
-                let evaluator_next_eval = now + evaluator.min_iteration_interval()?.as_duration();
+                let evaluator_next_eval = now + min_iteration_interval;
                 if evaluator_next_eval < next_eval {
                     next_eval = evaluator_next_eval;
                 }
 
-                let candles = match evaluator.lookback()? {
+                let candles = match evaluator
+                    .lookback()
+                    .map_err(SignalProcessFatalError::Evaluator)?
+                {
                     Some(lookback) => {
                         let start_idx = candle_buffer
                             .len()
@@ -185,7 +200,10 @@ impl<S: Signal> LiveSignalProcess<S> {
                     None => &[],
                 };
 
-                let signal = evaluator.evaluate(candles).await?;
+                let signal = evaluator
+                    .evaluate(candles)
+                    .await
+                    .map_err(SignalProcessRecoverableError::Evaluator)?;
 
                 let _ = self.update_tx.send(LiveSignalUpdate::Signal(signal));
             }
