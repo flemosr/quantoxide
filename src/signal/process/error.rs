@@ -6,21 +6,15 @@ use tokio::{
     task::JoinError,
 };
 
-use crate::{db::error::DbError, sync::process::error::SyncProcessFatalError, util::PanicPayload};
+use crate::{
+    db::error::DbError, signal::error::SignalEvaluatorError,
+    sync::process::error::SyncProcessFatalError,
+};
 
 #[derive(Error, Debug)]
 pub enum SignalProcessRecoverableError {
-    #[error("`SignalEvaluator::lookback` panicked: {0}")]
-    LookbackPanicked(PanicPayload),
-
-    #[error("`SignalEvaluator::min_iteration_interval` panicked: {0}")]
-    MinIterationIntervalPanicked(PanicPayload),
-
-    #[error("`SignalEvaluator::evaluate` panicked: {0}")]
-    EvaluatePanicked(PanicPayload),
-
-    #[error("`SignalEvaluator::evaluate` error: {0}")]
-    EvaluateError(String),
+    #[error(transparent)]
+    Evaluator(SignalEvaluatorError),
 
     #[error("[Db] {0}")]
     Db(#[from] DbError),
@@ -29,10 +23,11 @@ pub enum SignalProcessRecoverableError {
     SyncRecvLagged { skipped: u64 },
 }
 
-pub(crate) type ProcessRecoverableResult<T> = result::Result<T, SignalProcessRecoverableError>;
-
 #[derive(Error, Debug)]
 pub enum SignalProcessFatalError {
+    #[error(transparent)]
+    Evaluator(SignalEvaluatorError),
+
     #[error("`Sync` process (dependency) was shutdown")]
     SyncProcessShutdown,
 

@@ -2,20 +2,31 @@ use std::{result, sync::Arc};
 
 use thiserror::Error;
 
-use crate::shared::OhlcResolution;
+use crate::{shared::OhlcResolution, util::PanicPayload};
 
-use super::{
-    process::error::{SignalProcessFatalError, SignalProcessRecoverableError},
-    state::LiveSignalStatus,
-};
+use super::{process::error::SignalProcessFatalError, state::LiveSignalStatus};
 
 #[derive(Error, Debug)]
-pub enum SignalValidationError {
+pub enum SignalEvaluatorError {
+    #[error("`SignalEvaluator::lookback` panicked: {0}")]
+    LookbackPanicked(PanicPayload),
+
+    #[error("`SignalEvaluator::min_iteration_interval` panicked: {0}")]
+    MinIterationIntervalPanicked(PanicPayload),
+
+    #[error("`SignalEvaluator::evaluate` panicked: {0}")]
+    EvaluatePanicked(PanicPayload),
+
+    #[error("`SignalEvaluator::evaluate` error: {0}")]
+    EvaluateError(String),
+}
+
+pub(crate) type SignalEvaluatorResult<T> = result::Result<T, SignalEvaluatorError>;
+
+#[derive(Error, Debug)]
+pub enum SignalOperatorError {
     #[error("At least one signal evaluator must be provided")]
     EmptyEvaluatorsVec,
-
-    #[error(transparent)]
-    LookbackPanicked(#[from] SignalProcessRecoverableError),
 
     #[error("All evaluators must use the same resolution, found {0} and {1}")]
     MismatchedEvaluatorResolutions(OhlcResolution, OhlcResolution),
@@ -24,7 +35,10 @@ pub enum SignalValidationError {
 #[derive(Error, Debug)]
 pub enum SignalError {
     #[error(transparent)]
-    SignalValidation(#[from] SignalValidationError),
+    Evaluator(SignalEvaluatorError),
+
+    #[error(transparent)]
+    Operator(SignalOperatorError),
 
     #[error("Live Signal process already shutdown error")]
     LiveSignalAlreadyShutdown,
