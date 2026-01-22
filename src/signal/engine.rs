@@ -10,11 +10,8 @@ use crate::{
     signal::{
         SignalEvaluator,
         config::{LiveSignalConfig, LiveSignalControllerConfig},
-        error::SignalValidationError,
-        process::{
-            LiveSignalProcess,
-            error::{ProcessRecoverableResult, SignalProcessFatalError},
-        },
+        error::SignalOperatorError,
+        process::{LiveSignalProcess, error::SignalProcessFatalError},
     },
     sync::SyncReader,
     util::AbortOnDropHandle,
@@ -187,7 +184,7 @@ impl<S: Signal> LiveSignalEngine<S> {
         evaluators: Vec<Box<dyn SignalEvaluator<S>>>,
     ) -> Result<Self> {
         if evaluators.is_empty() {
-            return Err(SignalValidationError::EmptyEvaluatorsVec.into());
+            return Err(SignalOperatorError::EmptyEvaluatorsVec).map_err(SignalError::Operator);
         }
 
         // Wrap evaluators first to enable panic protection during validation
@@ -199,20 +196,20 @@ impl<S: Signal> LiveSignalEngine<S> {
         // Validate resolution consistency. Evaluators with lookback must use the same resolution.
         let resolutions: Vec<_> = evaluators
             .iter()
-            .filter_map(|e| e.lookback().transpose())
-            .collect::<ProcessRecoverableResult<Vec<_>>>()
-            .map_err(SignalValidationError::LookbackPanicked)?
+            .filter_map(|e| e.lookback().map_err(SignalError::Evaluator).transpose())
+            .collect::<Result<Vec<_>>>()?
             .into_iter()
             .map(|l| l.resolution())
             .collect();
+
         if let Some(first_resolution) = resolutions.first()
             && let Some(mismatched) = resolutions.iter().find(|r| *r != first_resolution)
         {
-            return Err(SignalValidationError::MismatchedEvaluatorResolutions(
+            return Err(SignalOperatorError::MismatchedEvaluatorResolutions(
                 *first_resolution,
                 *mismatched,
-            )
-            .into());
+            ))
+            .map_err(SignalError::Operator);
         }
 
         let (update_tx, _) = broadcast::channel::<LiveSignalUpdate<S>>(1_000);
