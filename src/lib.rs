@@ -33,7 +33,7 @@ pub mod error {
     pub use super::db::error::DbError;
     pub use super::shared::error::{MinIterationIntervalValidationError, PeriodValidationError};
     pub use super::signal::{
-        error::{SignalError, SignalValidationError},
+        error::{SignalError, SignalEvaluatorError, SignalOperatorError},
         process::error::{
             SignalProcessError, SignalProcessFatalError, SignalProcessRecoverableError,
         },
