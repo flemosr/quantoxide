@@ -7,7 +7,7 @@ use tokio::sync::broadcast::{self, error::RecvError};
 use crate::{
     db::{Database, models::OhlcCandleRow},
     shared::Lookback,
-    signal::{Signal, SignalEvaluator, WrappedSignalEvaluator},
+    signal::{Signal, SignalEvaluator, WrappedSignalEvaluator, error::SignalOperatorError},
     sync::PriceHistoryState,
     trade::backtest::config::BacktestConfig,
     tui::{TuiControllerShutdown, error::Result as TuiResult},
@@ -134,14 +134,44 @@ impl<S: Signal> OperatorPending<S> {
     fn signal(
         evaluators: Vec<Box<dyn SignalEvaluator<S>>>,
         signal_operator: WrappedSignalOperator<S>,
-    ) -> Self {
-        Self::Signal {
-            evaluators: evaluators
-                .into_iter()
-                .map(WrappedSignalEvaluator::new)
-                .collect(),
-            signal_operator,
+    ) -> Result<Self> {
+        if evaluators.is_empty() {
+            return Err(SignalOperatorError::EmptyEvaluatorsVec)
+                .map_err(BacktestError::SignalOperator);
         }
+
+        let evaluators: Vec<_> = evaluators
+            .into_iter()
+            .map(WrappedSignalEvaluator::new)
+            .collect();
+
+        // Validate resolution consistency. Evaluators with lookback must use the same resolution.
+        let resolutions: Vec<_> = evaluators
+            .iter()
+            .filter_map(|e| {
+                e.lookback()
+                    .map_err(BacktestError::SignalEvaluator)
+                    .transpose()
+            })
+            .collect::<Result<Vec<_>>>()?
+            .into_iter()
+            .map(|l| l.resolution())
+            .collect();
+
+        if let Some(first_resolution) = resolutions.first()
+            && let Some(mismatched) = resolutions.iter().find(|r| *r != first_resolution)
+        {
+            return Err(SignalOperatorError::MismatchedEvaluatorResolutions(
+                *first_resolution,
+                *mismatched,
+            ))
+            .map_err(BacktestError::SignalOperator);
+        }
+
+        Ok(Self::Signal {
+            evaluators,
+            signal_operator,
+        })
     }
 
     fn raw(raw_operator: WrappedRawOperator) -> Self {
@@ -155,7 +185,7 @@ impl<S: Signal> OperatorPending<S> {
                     .iter()
                     .filter_map(|e| {
                         e.lookback()
-                            .map_err(BacktestError::SignalEvaluationError)
+                            .map_err(BacktestError::SignalEvaluator)
                             .transpose()
                     })
                     .collect::<Result<_>>()?;
@@ -240,10 +270,12 @@ impl<S: Signal> OperatorRunning<S> {
         ctx_candles: &[OhlcCandleRow],
     ) -> Result<()> {
         for (last_eval, evaluator) in evaluators {
-            let min_interval = evaluator
+            let min_iteration_interval = evaluator
                 .min_iteration_interval()
-                .map_err(BacktestError::SignalEvaluationError)?;
-            if time_cursor < *last_eval + min_interval.as_duration() {
+                .map_err(BacktestError::SignalEvaluator)?
+                .as_duration();
+
+            if time_cursor < *last_eval + min_iteration_interval {
                 continue;
             }
 
@@ -251,7 +283,7 @@ impl<S: Signal> OperatorRunning<S> {
 
             let eval_candles = match evaluator
                 .lookback()
-                .map_err(BacktestError::SignalEvaluationError)?
+                .map_err(BacktestError::SignalEvaluator)?
             {
                 Some(lookback) => {
                     let start_idx = ctx_candles
@@ -265,7 +297,7 @@ impl<S: Signal> OperatorRunning<S> {
             let signal = evaluator
                 .evaluate(eval_candles)
                 .await
-                .map_err(BacktestError::SignalEvaluationError)?;
+                .map_err(BacktestError::SignalEvaluator)?;
 
             signal_operator
                 .process_signal(&signal)
@@ -329,7 +361,7 @@ impl<S: Signal> BacktestEngine<S> {
         start_balance: u64,
         end_time: DateTime<Utc>,
     ) -> Result<Self> {
-        let operator_pending = OperatorPending::signal(evaluators, signal_operator.into());
+        let operator_pending = OperatorPending::signal(evaluators, signal_operator.into())?;
 
         Self::new(
             config,

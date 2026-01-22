@@ -5,7 +5,8 @@ use thiserror::Error;
 use tokio::task::JoinError;
 
 use crate::{
-    db::error::DbError, signal::process::error::SignalProcessRecoverableError,
+    db::error::DbError,
+    signal::error::{SignalEvaluatorError, SignalOperatorError},
     sync::process::sync_price_history_task::error::SyncPriceHistoryError,
 };
 
@@ -81,8 +82,11 @@ pub enum BacktestError {
     #[error("[Db] {0}")]
     Db(#[from] DbError),
 
-    #[error("Signal evaluation error: {0}")]
-    SignalEvaluationError(SignalProcessRecoverableError),
+    #[error(transparent)]
+    SignalEvaluator(SignalEvaluatorError),
+
+    #[error(transparent)]
+    SignalOperator(SignalOperatorError),
 
     #[error("Signal processing error: {0}")]
     SignalProcessingError(TradeCoreError),
