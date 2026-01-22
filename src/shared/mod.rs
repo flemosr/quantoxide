@@ -7,7 +7,7 @@ pub mod error;
 use error::{MinIterationIntervalValidationError, PeriodValidationError};
 
 /// Supported OHLC resolutions for trading operations.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum OhlcResolution {
     OneMinute,
     ThreeMinutes,
