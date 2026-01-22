@@ -16,8 +16,7 @@ use crate::{
 
 use super::{
     super::core::{
-        Raw, RawOperator, SignalOperator, TradeExecutor, TradingState, WrappedRawOperator,
-        WrappedSignalOperator,
+        Raw, RawOperator, SignalOperator, TradeExecutor, WrappedRawOperator, WrappedSignalOperator,
     },
     consolidator::RuntimeConsolidator,
     error::{BacktestError, Result},
@@ -434,7 +433,7 @@ impl<S: Signal> BacktestEngine<S> {
         self.status_manager.receiver()
     }
 
-    async fn run(self) -> Result<TradingState> {
+    async fn run(self) -> Result<()> {
         self.status_manager.update(BacktestStatus::Starting);
 
         let max_lookback = self.operator_pending.max_lookback()?;
@@ -493,7 +492,7 @@ impl<S: Signal> BacktestEngine<S> {
         let _ = self.update_tx.send(initial_state.into());
 
         // Next update will be at end of day (23:59:59), reported as midnight of following day
-        let mut send_next_update_at = time_cursor + Duration::days(1);
+        let mut send_next_update_at = self.start_time + Duration::days(1) - Duration::seconds(1);
 
         self.status_manager.update(BacktestStatus::Running);
 
@@ -561,12 +560,7 @@ impl<S: Signal> BacktestEngine<S> {
             }
         }
 
-        let final_state = trades_executor
-            .trading_state()
-            .await
-            .map_err(BacktestError::ExecutorStateEvaluation)?;
-
-        Ok(final_state)
+        Ok(())
     }
 
     /// Starts the backtest simulation and returns a [`BacktestController`] for managing it. This
@@ -576,15 +570,9 @@ impl<S: Signal> BacktestEngine<S> {
 
         let handle = tokio::spawn(async move {
             let status_manager = self.status_manager.clone();
-            let update_tx = self.update_tx.clone();
 
             let final_backtest_state = match self.run().await {
-                Ok(final_trade_state) => {
-                    // Ignore no-receivers errors
-                    let _ = update_tx.send(final_trade_state.into());
-
-                    BacktestStatus::Finished
-                }
+                Ok(_) => BacktestStatus::Finished,
                 Err(e) => BacktestStatus::Failed(Arc::new(e)),
             };
 
