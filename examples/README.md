@@ -112,17 +112,21 @@ logic.
 
 Usage:
 ```bash
-cargo run --example backtest_direct -- <start_date> <end_date> [start_balance]
+cargo run --example backtest_direct -- --start <DATE> --end <DATE> [OPTIONS]
 ```
 
-Arguments:
-- `start_date` - Start date in YYYY-MM-DD format (required)
-- `end_date` - End date in YYYY-MM-DD format (required)
-- `start_balance` - Starting balance in sats (optional, default: 10000000)
+Required:
+- `--start <DATE>` - Start date in YYYY-MM-DD format
+- `--end <DATE>` - End date in YYYY-MM-DD format
+
+Options:
+- `--balance <SATS>` - Starting balance in sats (default: 10000000)
+- `--rfr-sats <RATE>` - Annual risk-free rate for sats as decimal (default: 0.0)
+- `--rfr-usd <RATE>` - Annual risk-free rate for USD as decimal (default: 0.0)
 
 Example:
 ```bash
-cargo run --example backtest_direct -- 2025-09-01 2025-12-01 10000000
+cargo run --example backtest_direct -- --start 2025-09-01 --end 2025-12-01 --balance 10000000 --rfr-sats 0.0 --rfr-usd 0.05
 ```
 
 ## Live Trading

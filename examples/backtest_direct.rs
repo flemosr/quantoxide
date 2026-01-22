@@ -9,6 +9,7 @@ use tokio::time::{self, Duration};
 use quantoxide::{
     Database,
     error::Result,
+    models::SATS_PER_BTC,
     sync::PriceHistoryState,
     trade::{BacktestConfig, BacktestEngine, BacktestStatus, BacktestUpdate, TradingState},
 };
@@ -24,16 +25,22 @@ use util::input;
 /// Prints usage information and exits.
 fn print_usage() {
     eprintln!(
-        "Usage: cargo run --example backtest_direct -- <start_date> <end_date> [start_balance]"
+        "Usage: cargo run --example backtest_direct -- --start <DATE> --end <DATE> [OPTIONS]"
     );
     eprintln!();
-    eprintln!("Arguments:");
-    eprintln!("  start_date      Start date in YYYY-MM-DD format");
-    eprintln!("  end_date        End date in YYYY-MM-DD format");
-    eprintln!("  start_balance   Optional starting balance in sats (default: 10000000)");
+    eprintln!("Required:");
+    eprintln!("  --start <DATE>       Start date in YYYY-MM-DD format");
+    eprintln!("  --end <DATE>         End date in YYYY-MM-DD format");
+    eprintln!();
+    eprintln!("Options:");
+    eprintln!("  --balance <SATS>     Starting balance in sats (default: 10000000)");
+    eprintln!("  --rfr-sats <RATE>    Annual risk-free rate for sats as decimal (default: 0.0)");
+    eprintln!("  --rfr-usd <RATE>     Annual risk-free rate for USD as decimal (default: 0.0)");
     eprintln!();
     eprintln!("Example:");
-    eprintln!("  cargo run --example backtest_direct -- 2025-09-01 2025-12-01 10000000");
+    eprintln!(
+        "  cargo run --example backtest_direct -- --start 2025-09-01 --end 2025-12-01 --balance 10000000 --rfr-sats 0.0 --rfr-usd 0.05"
+    );
 }
 
 #[tokio::main]
@@ -61,39 +68,62 @@ async fn main() -> Result<()> {
         return Ok(());
     }
 
-    // Parse CLI arguments (skip the first argument which is the program name)
-    let args: Vec<String> = env::args().skip(1).collect();
+    let args = input::parse_args();
 
-    if args.len() < 2 {
+    let Some(start_str) = args.get("start") else {
         print_usage();
-        return Err("Insufficient arguments: start_date and end_date are required".into());
-    }
+        return Err("Missing required argument: --start".into());
+    };
 
-    let start_time = input::parse_date(&args[0]).map_err(|e| {
-        eprintln!("Error parsing start_date: {}", e);
+    let Some(end_str) = args.get("end") else {
         print_usage();
-        e
-    })?;
+        return Err("Missing required argument: --end".into());
+    };
 
-    let end_time = input::parse_date(&args[1]).map_err(|e| {
-        eprintln!("Error parsing end_date: {}", e);
+    let start_time = input::parse_date(start_str).map_err(|e| {
+        eprintln!("Error parsing --start: {}", e);
         print_usage();
         e
     })?;
 
-    let start_balance = if args.len() >= 3 {
-        args[2].parse::<u64>().map_err(|e| {
-            eprintln!("Error parsing start_balance: {}", e);
+    let end_time = input::parse_date(end_str).map_err(|e| {
+        eprintln!("Error parsing --end: {}", e);
+        print_usage();
+        e
+    })?;
+
+    let start_balance = match args.get("balance") {
+        Some(v) => v.parse::<u64>().map_err(|e| {
+            eprintln!("Error parsing --balance: {}", e);
             print_usage();
             e
-        })?
-    } else {
-        10_000_000
+        })?,
+        None => 10_000_000,
+    };
+
+    let rfr_sats = match args.get("rfr-sats") {
+        Some(v) => v.parse::<f64>().map_err(|e| {
+            eprintln!("Error parsing --rfr-sats: {}", e);
+            print_usage();
+            e
+        })?,
+        None => 0.0,
+    };
+
+    let rfr_usd = match args.get("rfr-usd") {
+        Some(v) => v.parse::<f64>().map_err(|e| {
+            eprintln!("Error parsing --rfr-usd: {}", e);
+            print_usage();
+            e
+        })?,
+        None => 0.0,
     };
 
     println!("\nBacktest Configuration:");
     println!("Start date: {}", start_time.format("%Y-%m-%d %H:%M %Z"));
     println!("Start balance: {}", start_balance);
+    println!("Risk-free rate (sats): {:.2}%", rfr_sats * 100.0);
+    println!("Risk-free rate (USD): {:.2}%", rfr_usd * 100.0);
     println!("End date: {}\n", end_time.format("%Y-%m-%d %H:%M %Z"));
 
     println!("Initializing `BacktestEngine`...");
@@ -114,27 +144,61 @@ async fn main() -> Result<()> {
 
     tokio::spawn(async move {
         let mut last_trading_state: Option<TradingState> = None;
+        let mut start_market_price: Option<f64> = None;
+        let mut daily_net_values_sats: Vec<f64> = Vec::new();
+        let mut daily_net_values_usd: Vec<f64> = Vec::new();
+
         loop {
             match backtest_rx.recv().await {
                 Ok(backtest_update) => match backtest_update {
                     BacktestUpdate::Status(backtest_status) => {
                         if matches!(backtest_status, BacktestStatus::Finished) {
                             if let Some(state) = last_trading_state {
-                                println!("\nBacktest finished.\n\nFinal {state}");
+                                println!("\nFinal {state}");
 
-                                let final_net_value = state.total_net_value();
-                                let pnl = final_net_value as i64 - start_balance as i64;
-                                let pnl_pct = (pnl as f64 / start_balance as f64) * 100.0;
+                                let final_net_value_sats = state.total_net_value();
+                                let final_market_price = state.market_price().as_f64();
+
+                                let start_price = start_market_price.unwrap_or(final_market_price);
+                                let start_balance_usd =
+                                    start_balance as f64 * start_price / SATS_PER_BTC as f64;
+                                let final_net_value_usd = final_net_value_sats as f64
+                                    * final_market_price
+                                    / SATS_PER_BTC as f64;
+
+                                let pnl_sats = final_net_value_sats as i64 - start_balance as i64;
+                                let pnl_sats_pct = (pnl_sats as f64 / start_balance as f64) * 100.0;
+                                let pnl_usd = final_net_value_usd - start_balance_usd;
+                                let pnl_usd_pct = (pnl_usd / start_balance_usd) * 100.0;
+
+                                let sharpe_sats =
+                                    calculate_sharpe_ratio(&daily_net_values_sats, rfr_sats);
+                                let sharpe_usd =
+                                    calculate_sharpe_ratio(&daily_net_values_usd, rfr_usd);
+
+                                let format_sharpe = |s: Option<f64>| match s {
+                                    Some(v) => format!("{:.4}", v),
+                                    None => "N/A".to_string(),
+                                };
 
                                 let summary = json!({
                                     "backtest_summary": {
+                                        "start_market_price": format!("{:.2}", start_price),
+                                        "final_market_price": format!("{:.2}", final_market_price),
                                         "start_balance_sats": start_balance,
-                                        "final_net_value_sats": final_net_value,
-                                        "pnl_sats": pnl,
-                                        "pnl_percent": format!("{:.2}", pnl_pct),
-                                        "profitable": pnl > 0,
+                                        "start_balance_usd": format!("{:.2}", start_balance_usd),
+                                        "final_net_value_sats": final_net_value_sats,
+                                        "final_net_value_usd": format!("{:.2}", final_net_value_usd),
+                                        "pnl_sats": pnl_sats,
+                                        "pnl_sats_percent": format!("{:.2}", pnl_sats_pct),
+                                        "pnl_usd": format!("{:.2}", pnl_usd),
+                                        "pnl_usd_percent": format!("{:.2}", pnl_usd_pct),
+                                        "daily_data_points": daily_net_values_sats.len(),
+                                        "sharpe_sats": format_sharpe(sharpe_sats),
+                                        "sharpe_usd": format_sharpe(sharpe_usd),
                                     }
                                 });
+
                                 let summary = serde_json::to_string_pretty(&summary).unwrap();
                                 println!("\n{summary}");
                             }
@@ -142,6 +206,19 @@ async fn main() -> Result<()> {
                         }
                     }
                     BacktestUpdate::TradingState(trading_state) => {
+                        // Backtest updates correspond to midnight (UTC) of each day of the period
+
+                        if start_market_price.is_none() {
+                            start_market_price = Some(trading_state.market_price().as_f64());
+                        }
+
+                        let net_value_sats = trading_state.total_net_value() as f64;
+                        let market_price = trading_state.market_price().as_f64();
+                        let net_value_usd = net_value_sats * market_price / SATS_PER_BTC as f64;
+
+                        daily_net_values_sats.push(net_value_sats);
+                        daily_net_values_usd.push(net_value_usd);
+
                         last_trading_state = Some(trading_state);
                     }
                 },
@@ -165,4 +242,40 @@ async fn main() -> Result<()> {
     println!("\nBacktest status: {final_status}");
 
     Ok(())
+}
+
+/// Calculate annualized Sharpe ratio from daily net values.
+/// Assumes 365 trading days per year. Returns `None` if there is insufficient data.
+fn calculate_sharpe_ratio(daily_values: &[f64], annual_risk_free_rate: f64) -> Option<f64> {
+    if daily_values.len() < 3 {
+        return None;
+    }
+
+    let returns: Vec<f64> = daily_values
+        .windows(2)
+        .filter(|w| w[0] != 0.0)
+        .map(|w| (w[1] - w[0]) / w[0])
+        .collect();
+
+    if returns.len() < 2 {
+        return None;
+    }
+
+    let mean_return = returns.iter().sum::<f64>() / returns.len() as f64;
+    let daily_risk_free_rate = annual_risk_free_rate / 365.0;
+    let excess_return = mean_return - daily_risk_free_rate;
+
+    let variance = returns
+        .iter()
+        .map(|r| (r - mean_return).powi(2))
+        .sum::<f64>()
+        / returns.len() as f64;
+    let std_dev = variance.sqrt();
+
+    if std_dev == 0.0 {
+        return None;
+    }
+
+    // Annualize
+    Some((excess_return / std_dev) * 365.0_f64.sqrt())
 }
