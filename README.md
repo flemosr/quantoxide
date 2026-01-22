@@ -250,7 +250,10 @@ For a complete implementation with a raw operator, see the
 [`backtest_raw_tui` example](https://github.com/flemosr/quantoxide/blob/main/examples/backtest_raw_tui.rs).
 Or see the
 [`backtest_signal_tui` example](https://github.com/flemosr/quantoxide/blob/main/examples/backtest_signal_tui.rs)
-for a signal-based approach.
+for a signal-based approach. For direct interaction without the TUI, see the
+[`backtest_direct` example](https://github.com/flemosr/quantoxide/blob/main/examples/backtest_direct.rs),
+which outputs JSON metrics (PnL, Sharpe ratios, etc) suitable for programmatic or AI-assisted
+optimizations.
 
 ### Live Trading TUI
 
