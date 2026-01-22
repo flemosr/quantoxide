@@ -10,7 +10,7 @@ use crate::{
     db::models::OhlcCandleRow, error::Result, shared::Lookback, shared::MinIterationInterval,
 };
 
-use super::process::error::{ProcessRecoverableResult, SignalProcessRecoverableError};
+use super::error::{SignalEvaluatorError, SignalEvaluatorResult};
 
 /// Marker trait for signal types that can be used with the signal framework.
 ///
@@ -152,22 +152,22 @@ impl<S: Signal> WrappedSignalEvaluator<S> {
     }
 
     /// Returns the lookback configuration with panic protection.
-    pub fn lookback(&self) -> ProcessRecoverableResult<Option<Lookback>> {
+    pub fn lookback(&self) -> SignalEvaluatorResult<Option<Lookback>> {
         panic::catch_unwind(AssertUnwindSafe(|| self.0.lookback()))
-            .map_err(|e| SignalProcessRecoverableError::LookbackPanicked(e.into()))
+            .map_err(|e| SignalEvaluatorError::LookbackPanicked(e.into()))
     }
 
     /// Returns the minimum iteration interval with panic protection.
-    pub fn min_iteration_interval(&self) -> ProcessRecoverableResult<MinIterationInterval> {
+    pub fn min_iteration_interval(&self) -> SignalEvaluatorResult<MinIterationInterval> {
         panic::catch_unwind(AssertUnwindSafe(|| self.0.min_iteration_interval()))
-            .map_err(|e| SignalProcessRecoverableError::MinIterationIntervalPanicked(e.into()))
+            .map_err(|e| SignalEvaluatorError::MinIterationIntervalPanicked(e.into()))
     }
 
     /// Evaluates candlestick data with panic protection.
-    pub async fn evaluate(&self, candles: &[OhlcCandleRow]) -> ProcessRecoverableResult<S> {
+    pub async fn evaluate(&self, candles: &[OhlcCandleRow]) -> SignalEvaluatorResult<S> {
         FutureExt::catch_unwind(AssertUnwindSafe(self.0.evaluate(candles)))
             .await
-            .map_err(|e| SignalProcessRecoverableError::EvaluatePanicked(e.into()))?
-            .map_err(|e| SignalProcessRecoverableError::EvaluateError(e.to_string()))
+            .map_err(|e| SignalEvaluatorError::EvaluatePanicked(e.into()))?
+            .map_err(|e| SignalEvaluatorError::EvaluateError(e.to_string()))
     }
 }
