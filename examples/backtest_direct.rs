@@ -156,6 +156,9 @@ async fn main() -> Result<()> {
                             if let Some(state) = last_trading_state {
                                 println!("\nFinal {state}");
 
+                                let trade_count =
+                                    state.closed_history().len() + state.running_map().len();
+
                                 let final_net_value_sats = state.total_net_value();
                                 let final_market_price = state.market_price().as_f64();
 
@@ -185,6 +188,7 @@ async fn main() -> Result<()> {
                                     "backtest_summary": {
                                         "start_market_price": format!("{:.2}", start_price),
                                         "final_market_price": format!("{:.2}", final_market_price),
+                                        "trade_count": trade_count,
                                         "start_balance_sats": start_balance,
                                         "start_balance_usd": format!("{:.2}", start_balance_usd),
                                         "final_net_value_sats": final_net_value_sats,
