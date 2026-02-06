@@ -443,7 +443,7 @@ impl LiveTradingSession {
 impl From<LiveTradingSession> for TradingState {
     fn from(value: LiveTradingSession) -> Self {
         TradingState::new(
-            Utc::now(),
+            value.last_evaluation_time,
             value.balance,
             Price::bounded(value.last_price),
             value.last_trade_time,
