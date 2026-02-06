@@ -15,18 +15,6 @@ use super::{
 
 #[async_trait]
 pub(crate) trait PriceTicksRepository: Send + Sync {
-    /// Adds a new price tick to the database.
-    /// Uses INSERT ON CONFLICT DO NOTHING to avoid duplicate entries for the same timestamp.
-    ///
-    /// Parameters:
-    ///   - `tick`: The price tick data to insert
-    ///
-    /// Returns:
-    ///   - `Ok(Some(PriceTick))` if the tick was successfully inserted (new entry)
-    ///   - `Ok(None)` if the tick already existed in the database (no insertion occurred)
-    ///   - `Err` on database errors
-    async fn add_tick(&self, tick: &PriceTick) -> Result<Option<PriceTickRow>>;
-
     /// Adds multiple price ticks to the database in a single batch operation.
     /// Uses INSERT ON CONFLICT DO NOTHING to avoid duplicate entries.
     ///

@@ -28,25 +28,6 @@ impl PgPriceTicksRepo {
 
 #[async_trait]
 impl PriceTicksRepository for PgPriceTicksRepo {
-    async fn add_tick(&self, tick: &PriceTick) -> Result<Option<PriceTickRow>> {
-        let price_tick = sqlx::query_as!(
-            PriceTickRow,
-            r#"
-                INSERT INTO price_ticks (time, last_price)
-                VALUES ($1, $2)
-                ON CONFLICT (time) DO NOTHING
-                RETURNING time, last_price, created_at
-            "#,
-            tick.time(),
-            tick.last_price(),
-        )
-        .fetch_optional(self.pool())
-        .await
-        .map_err(DbError::Query)?;
-
-        Ok(price_tick)
-    }
-
     async fn add_ticks(&self, ticks: &[PriceTick]) -> Result<Vec<PriceTickRow>> {
         if ticks.is_empty() {
             return Ok(Vec::new());
