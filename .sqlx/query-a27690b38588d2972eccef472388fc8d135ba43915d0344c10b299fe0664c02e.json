@@ -1,0 +1,35 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                INSERT INTO price_ticks (time, last_price)\n                SELECT * FROM unnest($1::timestamptz[], $2::float8[])\n                ON CONFLICT (time) DO NOTHING\n                RETURNING time, last_price, created_at\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "time",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 1,
+        "name": "last_price",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 2,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "TimestamptzArray",
+        "Float8Array"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "a27690b38588d2972eccef472388fc8d135ba43915d0344c10b299fe0664c02e"
+}
