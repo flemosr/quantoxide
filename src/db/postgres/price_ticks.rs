@@ -47,6 +47,37 @@ impl PriceTicksRepository for PgPriceTicksRepo {
         Ok(price_tick)
     }
 
+    async fn add_ticks(&self, ticks: &[PriceTick]) -> Result<Vec<PriceTickRow>> {
+        if ticks.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let mut times = Vec::with_capacity(ticks.len());
+        let mut prices = Vec::with_capacity(ticks.len());
+
+        for tick in ticks {
+            times.push(tick.time());
+            prices.push(tick.last_price());
+        }
+
+        let inserted = sqlx::query_as!(
+            PriceTickRow,
+            r#"
+                INSERT INTO price_ticks (time, last_price)
+                SELECT * FROM unnest($1::timestamptz[], $2::float8[])
+                ON CONFLICT (time) DO NOTHING
+                RETURNING time, last_price, created_at
+            "#,
+            &times,
+            &prices,
+        )
+        .fetch_all(self.pool())
+        .await
+        .map_err(DbError::Query)?;
+
+        Ok(inserted)
+    }
+
     async fn get_latest_entry(&self) -> Result<Option<(DateTime<Utc>, f64)>> {
         struct PriceEntry {
             pub time: DateTime<Utc>,
