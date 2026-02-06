@@ -27,6 +27,12 @@ pub(crate) trait PriceTicksRepository: Send + Sync {
     ///   - `Err` on database errors
     async fn add_tick(&self, tick: &PriceTick) -> Result<Option<PriceTickRow>>;
 
+    /// Adds multiple price ticks to the database in a single batch operation.
+    /// Uses INSERT ON CONFLICT DO NOTHING to avoid duplicate entries.
+    ///
+    /// Returns only the ticks that were successfully inserted (new entries).
+    async fn add_ticks(&self, ticks: &[PriceTick]) -> Result<Vec<PriceTickRow>>;
+
     async fn get_latest_entry(&self) -> Result<Option<(DateTime<Utc>, f64)>>;
 
     async fn get_price_range_from(
