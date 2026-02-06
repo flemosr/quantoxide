@@ -49,4 +49,4 @@ pub enum DbError {
     AttemptedToUpdateStableCandle { time: DateTime<Utc> },
 }
 
-pub(super) type Result<T> = result::Result<T, DbError>;
+pub(crate) type Result<T> = result::Result<T, DbError>;
