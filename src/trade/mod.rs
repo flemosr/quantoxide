@@ -6,7 +6,11 @@ pub(crate) mod live;
 pub use backtest::{
     config::BacktestConfig,
     engine::{BacktestController, BacktestEngine},
-    state::{BacktestReceiver, BacktestStatus, BacktestUpdate},
+    parallel::{controller::BacktestParallelController, engine::BacktestParallelEngine},
+    state::{
+        BacktestParallelReceiver, BacktestParallelUpdate, BacktestReceiver, BacktestStatus,
+        BacktestUpdate,
+    },
 };
 pub use core::{
     ClosedTradeHistory, DynRunningTradesMap, Raw, RawOperator, RunningTradesMap, SignalOperator,
