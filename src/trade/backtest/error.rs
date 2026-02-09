@@ -110,6 +110,22 @@ pub enum BacktestError {
         candle_time: DateTime<Utc>,
         bucket_time: DateTime<Utc>,
     },
+
+    #[error("No operators added to parallel backtest engine")]
+    ParallelNoOperators,
+
+    #[error("Operator name must not be empty")]
+    ParallelEmptyOperatorName,
+
+    #[error("Duplicate operator name: '{name}'")]
+    ParallelDuplicateOperatorName { name: String },
+
+    #[error("Operator '{operator_name}' failed: {source}")]
+    ParallelOperatorFailed {
+        operator_name: String,
+        #[source]
+        source: Box<BacktestError>,
+    },
 }
 
 pub(super) type Result<T> = result::Result<T, BacktestError>;
