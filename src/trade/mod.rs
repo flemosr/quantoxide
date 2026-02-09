@@ -5,7 +5,7 @@ pub(crate) mod live;
 
 pub use backtest::{
     config::BacktestConfig,
-    engine::{BacktestController, BacktestEngine},
+    single::{controller::BacktestController, engine::BacktestEngine},
     parallel::{controller::BacktestParallelController, engine::BacktestParallelEngine},
     state::{
         BacktestParallelReceiver, BacktestParallelUpdate, BacktestReceiver, BacktestStatus,
