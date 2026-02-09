@@ -74,8 +74,8 @@ impl fmt::Display for BacktestStatus {
     }
 }
 
-/// Update events emitted during a backtest simulation containing status changes and trading state
-/// snapshots.
+/// Update events emitted during a single-operator backtest simulation containing status changes
+/// and trading state snapshots.
 #[derive(Clone)]
 pub enum BacktestUpdate {
     /// Status change notification.
@@ -96,20 +96,54 @@ impl From<TradingState> for BacktestUpdate {
     }
 }
 
-pub(super) type BacktestTransmiter = broadcast::Sender<BacktestUpdate>;
+pub(super) type BacktestTransmitter = broadcast::Sender<BacktestUpdate>;
 
-/// Receiver for subscribing to [`BacktestUpdate`]s including status changes and trading state
-/// snapshots.
+/// Receiver for subscribing to [`BacktestUpdate`]s including status changes and trading
+/// state snapshots.
 pub type BacktestReceiver = broadcast::Receiver<BacktestUpdate>;
 
-#[derive(Debug)]
-pub(super) struct BacktestStatusManager {
-    status: Mutex<BacktestStatus>,
-    update_tx: BacktestTransmiter,
+/// Update events for parallel backtest containing status changes and per-operator trading
+/// state snapshots.
+#[derive(Clone)]
+pub enum BacktestParallelUpdate {
+    /// Status change notification.
+    Status(BacktestStatus),
+    /// Trading state snapshot for a specific operator.
+    TradingState {
+        /// The name of the operator this state belongs to.
+        operator_name: String,
+        /// The trading state snapshot.
+        state: Box<TradingState>,
+    },
 }
 
-impl BacktestStatusManager {
-    pub fn new(update_tx: BacktestTransmiter) -> Arc<Self> {
+impl From<BacktestStatus> for BacktestParallelUpdate {
+    fn from(value: BacktestStatus) -> Self {
+        Self::Status(value)
+    }
+}
+
+pub(super) type BacktestParallelTransmitter = broadcast::Sender<BacktestParallelUpdate>;
+
+/// Receiver for subscribing to [`BacktestParallelUpdate`]s including status changes and per-operator
+/// trading state snapshots.
+pub type BacktestParallelReceiver = broadcast::Receiver<BacktestParallelUpdate>;
+
+pub(super) struct BacktestStatusManager<T: Clone> {
+    status: Mutex<BacktestStatus>,
+    update_tx: broadcast::Sender<T>,
+}
+
+impl<T: Clone> fmt::Debug for BacktestStatusManager<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("BacktestStatusManager")
+            .field("status", &self.status)
+            .finish_non_exhaustive()
+    }
+}
+
+impl<T: Clone + From<BacktestStatus>> BacktestStatusManager<T> {
+    pub fn new(update_tx: broadcast::Sender<T>) -> Arc<Self> {
         let status = Mutex::new(BacktestStatus::NotInitiated);
 
         Arc::new(Self { status, update_tx })
@@ -125,7 +159,7 @@ impl BacktestStatusManager {
         self.lock_status().clone()
     }
 
-    pub fn receiver(&self) -> BacktestReceiver {
+    pub fn receiver(&self) -> broadcast::Receiver<T> {
         self.update_tx.subscribe()
     }
 
