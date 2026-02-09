@@ -22,7 +22,7 @@ use super::{
     error::{Result, SignalError},
     state::{
         LiveSignalReader, LiveSignalReceiver, LiveSignalStatus, LiveSignalStatusManager,
-        LiveSignalTransmiter, LiveSignalUpdate,
+        LiveSignalTransmitter, LiveSignalUpdate,
     },
 };
 
@@ -172,7 +172,7 @@ pub struct LiveSignalEngine<S: Signal> {
     sync_reader: Arc<dyn SyncReader>,
     evaluators: Vec<WrappedSignalEvaluator<S>>,
     status_manager: Arc<LiveSignalStatusManager<S>>,
-    update_tx: LiveSignalTransmiter<S>,
+    update_tx: LiveSignalTransmitter<S>,
 }
 
 impl<S: Signal> LiveSignalEngine<S> {

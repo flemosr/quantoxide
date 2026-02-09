@@ -128,7 +128,7 @@ impl From<LiveTradingSession> for LiveTradeExecutorUpdate {
     }
 }
 
-pub(super) type LiveTradeExecutorTransmiter = broadcast::Sender<LiveTradeExecutorUpdate>;
+pub(super) type LiveTradeExecutorTransmitter = broadcast::Sender<LiveTradeExecutorUpdate>;
 
 /// Receiver for subscribing to [`LiveTradeExecutorUpdate`]s including orders, status changes, and
 /// closed trades.
@@ -137,11 +137,11 @@ pub type LiveTradeExecutorReceiver = broadcast::Receiver<LiveTradeExecutorUpdate
 #[derive(Clone)]
 pub(in crate::trade) struct WrappedRestClient {
     api_rest: Arc<RestClient>,
-    update_tx: LiveTradeExecutorTransmiter,
+    update_tx: LiveTradeExecutorTransmitter,
 }
 
 impl WrappedRestClient {
-    pub fn new(api_rest: Arc<RestClient>, update_tx: LiveTradeExecutorTransmiter) -> Self {
+    pub fn new(api_rest: Arc<RestClient>, update_tx: LiveTradeExecutorTransmitter) -> Self {
         Self {
             api_rest,
             update_tx,

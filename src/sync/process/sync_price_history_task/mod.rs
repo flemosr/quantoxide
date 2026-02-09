@@ -18,14 +18,14 @@ pub(in crate::sync) mod price_history_state;
 use error::{Result, SyncPriceHistoryError};
 use price_history_state::{DownloadRange, PriceHistoryState};
 
-pub(super) type PriceHistoryStateTransmiter = mpsc::Sender<PriceHistoryState>;
+pub(super) type PriceHistoryStateTransmitter = mpsc::Sender<PriceHistoryState>;
 
 #[derive(Clone)]
 pub(super) struct SyncPriceHistoryTask {
     config: SyncPriceHistoryTaskConfig,
     db: Arc<Database>,
     api_rest: Arc<RestClient>,
-    history_state_tx: Option<PriceHistoryStateTransmiter>,
+    history_state_tx: Option<PriceHistoryStateTransmitter>,
 }
 
 impl SyncPriceHistoryTask {
@@ -33,7 +33,7 @@ impl SyncPriceHistoryTask {
         config: &SyncProcessConfig,
         db: Arc<Database>,
         api_rest: Arc<RestClient>,
-        history_state_tx: Option<PriceHistoryStateTransmiter>,
+        history_state_tx: Option<PriceHistoryStateTransmitter>,
     ) -> Self {
         Self {
             config: config.into(),

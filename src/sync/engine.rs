@@ -25,7 +25,7 @@ use crate::{
 use super::{
     error::{Result, SyncError},
     process::{SyncProcess, error::SyncProcessFatalError},
-    state::{SyncReader, SyncReceiver, SyncStatus, SyncStatusManager, SyncTransmiter, SyncUpdate},
+    state::{SyncReader, SyncReceiver, SyncStatus, SyncStatusManager, SyncTransmitter, SyncUpdate},
 };
 
 /// Controller for managing and monitoring a running synchronization process.
@@ -283,7 +283,7 @@ pub struct SyncEngine {
     db: Arc<Database>,
     mode_int: SyncModeInt,
     status_manager: Arc<SyncStatusManager>,
-    update_tx: SyncTransmiter,
+    update_tx: SyncTransmitter,
 }
 
 impl SyncEngine {

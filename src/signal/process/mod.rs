@@ -17,7 +17,7 @@ use super::{
     config::{LiveSignalConfig, LiveSignalProcessConfig},
     core::{Signal, WrappedSignalEvaluator},
     state::{
-        LiveSignalStatusManager, LiveSignalStatusNotRunning, LiveSignalTransmiter, LiveSignalUpdate,
+        LiveSignalStatusManager, LiveSignalStatusNotRunning, LiveSignalTransmitter, LiveSignalUpdate,
     },
 };
 
@@ -50,7 +50,7 @@ pub(super) struct LiveSignalProcess<S: Signal> {
     shutdown_tx: broadcast::Sender<()>,
     sync_reader: Arc<dyn SyncReader>,
     status_manager: Arc<LiveSignalStatusManager<S>>,
-    update_tx: LiveSignalTransmiter<S>,
+    update_tx: LiveSignalTransmitter<S>,
 }
 
 impl<S: Signal> LiveSignalProcess<S> {
@@ -61,7 +61,7 @@ impl<S: Signal> LiveSignalProcess<S> {
         shutdown_tx: broadcast::Sender<()>,
         sync_reader: Arc<dyn SyncReader>,
         status_manager: Arc<LiveSignalStatusManager<S>>,
-        update_tx: LiveSignalTransmiter<S>,
+        update_tx: LiveSignalTransmitter<S>,
     ) -> AbortOnDropHandle<()> {
         let config = config.into();
 

@@ -137,7 +137,7 @@ impl From<PriceHistoryState> for SyncUpdate {
     }
 }
 
-pub(super) type SyncTransmiter = broadcast::Sender<SyncUpdate>;
+pub(super) type SyncTransmitter = broadcast::Sender<SyncUpdate>;
 
 /// Receiver for subscribing to [`SyncUpdate`]s.
 pub type SyncReceiver = broadcast::Receiver<SyncUpdate>;
@@ -161,11 +161,11 @@ pub trait SyncReader: Send + Sync + 'static {
 pub(super) struct SyncStatusManager {
     mode: SyncMode,
     status: Mutex<SyncStatus>,
-    update_tx: SyncTransmiter,
+    update_tx: SyncTransmitter,
 }
 
 impl SyncStatusManager {
-    pub fn new(mode: SyncMode, update_tx: SyncTransmiter) -> Arc<Self> {
+    pub fn new(mode: SyncMode, update_tx: SyncTransmitter) -> Arc<Self> {
         let status = Mutex::new(SyncStatusNotSynced::NotInitiated.into());
 
         Arc::new(Self {

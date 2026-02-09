@@ -17,7 +17,7 @@ use crate::{
 use super::{
     config::{SyncConfig, SyncProcessConfig},
     engine::SyncModeInt,
-    state::{SyncStatus, SyncStatusManager, SyncStatusNotSynced, SyncTransmiter},
+    state::{SyncStatus, SyncStatusManager, SyncStatusNotSynced, SyncTransmitter},
 };
 
 pub(crate) mod error;
@@ -27,7 +27,7 @@ pub(crate) mod sync_price_history_task;
 use error::{Result, SyncProcessError, SyncProcessFatalError, SyncProcessRecoverableError};
 use real_time_collection_task::RealTimeCollectionTask;
 use sync_price_history_task::{
-    PriceHistoryStateTransmiter, SyncPriceHistoryTask, price_history_state::PriceHistoryState,
+    PriceHistoryStateTransmitter, SyncPriceHistoryTask, price_history_state::PriceHistoryState,
 };
 
 pub(super) struct SyncProcess {
@@ -36,7 +36,7 @@ pub(super) struct SyncProcess {
     mode_int: SyncModeInt,
     shutdown_tx: broadcast::Sender<()>,
     status_manager: Arc<SyncStatusManager>,
-    update_tx: SyncTransmiter,
+    update_tx: SyncTransmitter,
 }
 
 impl SyncProcess {
@@ -47,7 +47,7 @@ impl SyncProcess {
         mode_int: SyncModeInt,
         shutdown_tx: broadcast::Sender<()>,
         status_manager: Arc<SyncStatusManager>,
-        update_tx: SyncTransmiter,
+        update_tx: SyncTransmitter,
     ) -> AbortOnDropHandle<()> {
         let config = config.into();
 
@@ -382,7 +382,7 @@ impl SyncProcess {
     async fn run_price_history_task_backfill(
         &self,
         api_rest: Arc<RestClient>,
-        history_state_tx: Option<PriceHistoryStateTransmiter>,
+        history_state_tx: Option<PriceHistoryStateTransmitter>,
         flag_gaps_range: Option<Duration>,
     ) -> Result<()> {
         SyncPriceHistoryTask::new(&self.config, self.db.clone(), api_rest, history_state_tx)
@@ -394,7 +394,7 @@ impl SyncProcess {
     async fn run_price_history_task_live(
         &self,
         api_rest: Arc<RestClient>,
-        history_state_tx: Option<PriceHistoryStateTransmiter>,
+        history_state_tx: Option<PriceHistoryStateTransmitter>,
         lookback: Duration,
     ) -> Result<()> {
         SyncPriceHistoryTask::new(&self.config, self.db.clone(), api_rest, history_state_tx)

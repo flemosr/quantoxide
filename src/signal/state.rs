@@ -123,7 +123,7 @@ impl<S: Signal> From<LiveSignalStatus> for LiveSignalUpdate<S> {
     }
 }
 
-pub(crate) type LiveSignalTransmiter<S> = broadcast::Sender<LiveSignalUpdate<S>>;
+pub(crate) type LiveSignalTransmitter<S> = broadcast::Sender<LiveSignalUpdate<S>>;
 
 /// Receiver for subscribing to [`LiveSignalUpdate`]s.
 pub type LiveSignalReceiver<S> = broadcast::Receiver<LiveSignalUpdate<S>>;
@@ -143,11 +143,11 @@ pub trait LiveSignalReader<S: Signal>: Send + Sync + 'static {
 #[derive(Debug)]
 pub(crate) struct LiveSignalStatusManager<S: Signal> {
     status: Mutex<LiveSignalStatus>,
-    update_tx: LiveSignalTransmiter<S>,
+    update_tx: LiveSignalTransmitter<S>,
 }
 
 impl<S: Signal> LiveSignalStatusManager<S> {
-    pub fn new(update_tx: LiveSignalTransmiter<S>) -> Arc<Self> {
+    pub fn new(update_tx: LiveSignalTransmitter<S>) -> Arc<Self> {
         let status = Mutex::new(LiveSignalStatusNotRunning::NotInitiated.into());
 
         Arc::new(Self { status, update_tx })

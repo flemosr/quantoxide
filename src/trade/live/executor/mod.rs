@@ -48,7 +48,7 @@ use state::{
     live_trading_session::{LiveTradingSession, TradingSessionTTL},
 };
 use update::{
-    LiveTradeExecutorReceiver, LiveTradeExecutorTransmiter, LiveTradeExecutorUpdate,
+    LiveTradeExecutorReceiver, LiveTradeExecutorTransmitter, LiveTradeExecutorUpdate,
     WrappedRestClient,
 };
 
@@ -58,7 +58,7 @@ pub struct LiveTradeExecutor {
     config: LiveTradeExecutorConfig,
     db: Arc<Database>,
     api: WrappedRestClient,
-    update_tx: LiveTradeExecutorTransmiter,
+    update_tx: LiveTradeExecutorTransmitter,
     state_manager: Arc<LiveTradeExecutorStateManager>,
     handle: Mutex<Option<AbortOnDropHandle<()>>>,
 }
@@ -68,7 +68,7 @@ impl LiveTradeExecutor {
         config: LiveTradeExecutorConfig,
         db: Arc<Database>,
         api: WrappedRestClient,
-        update_tx: LiveTradeExecutorTransmiter,
+        update_tx: LiveTradeExecutorTransmitter,
         state_manager: Arc<LiveTradeExecutorStateManager>,
         handle: AbortOnDropHandle<()>,
     ) -> Arc<Self> {
@@ -494,7 +494,7 @@ pub struct LiveTradeExecutorLauncher {
     config: LiveTradeExecutorConfig,
     db: Arc<Database>,
     api_rest: WrappedRestClient,
-    update_tx: LiveTradeExecutorTransmiter,
+    update_tx: LiveTradeExecutorTransmitter,
     state_manager: Arc<LiveTradeExecutorStateManager>,
     sync_rx: SyncReceiver,
 }
@@ -548,7 +548,7 @@ impl LiveTradeExecutorLauncher {
         trading_session_refresh_interval: time::Duration,
         db: Arc<Database>,
         api: WrappedRestClient,
-        update_tx: LiveTradeExecutorTransmiter,
+        update_tx: LiveTradeExecutorTransmitter,
         state_manager: Arc<LiveTradeExecutorStateManager>,
         sync_rx: SyncReceiver,
     ) -> AbortOnDropHandle<()> {

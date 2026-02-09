@@ -9,7 +9,7 @@ use super::{
         ExecutorActionError, ExecutorActionResult, ExecutorProcessFatalError,
         ExecutorProcessRecoverableError,
     },
-    update::LiveTradeExecutorTransmiter,
+    update::LiveTradeExecutorTransmitter,
 };
 
 pub(in crate::trade) mod live_trading_session;
@@ -90,7 +90,7 @@ impl From<LiveTradeExecutorStatusNotReady> for LiveTradeExecutorStatus {
 
 pub(super) struct LockedLiveTradeExecutorState<'a> {
     state_guard: MutexGuard<'a, LiveTradeExecutorState>,
-    update_tx: LiveTradeExecutorTransmiter,
+    update_tx: LiveTradeExecutorTransmitter,
 }
 
 impl<'a> LockedLiveTradeExecutorState<'a> {
@@ -169,11 +169,11 @@ impl<'a> LockedLiveTradeExecutorStateReady<'a> {
 
 pub(super) struct LiveTradeExecutorStateManager {
     state: Mutex<LiveTradeExecutorState>,
-    update_tx: LiveTradeExecutorTransmiter,
+    update_tx: LiveTradeExecutorTransmitter,
 }
 
 impl LiveTradeExecutorStateManager {
-    pub fn new(update_tx: LiveTradeExecutorTransmiter) -> Arc<Self> {
+    pub fn new(update_tx: LiveTradeExecutorTransmitter) -> Arc<Self> {
         let initial_state = LiveTradeExecutorState {
             status: LiveTradeExecutorStatusNotReady::Starting.into(),
             trading_session: None,
