@@ -253,7 +253,8 @@ Or see the
 for a signal-based approach. For direct interaction without the TUI, see the
 [`backtest_direct` example](https://github.com/flemosr/quantoxide/blob/main/examples/backtest_direct.rs),
 which outputs JSON metrics (PnL, Sharpe ratios, etc) suitable for programmatic or AI-assisted
-optimizations.
+optimizations. To run multiple operators in parallel with shared computational overhead, see the
+[`backtest_direct_parallel` example](https://github.com/flemosr/quantoxide/blob/main/examples/backtest_direct_parallel.rs).
 
 ### Live Trading TUI
 
