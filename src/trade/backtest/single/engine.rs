@@ -7,24 +7,23 @@ use crate::{
     db::Database,
     signal::{Signal, SignalEvaluator},
     sync::PriceHistoryState,
-    trade::backtest::config::BacktestConfig,
     util::DateTimeExt,
 };
 
 use super::{
+    super::{
+        super::core::{Raw, RawOperator, SignalOperator, TradeExecutor},
+        config::BacktestConfig,
+        consolidator::MultiResolutionConsolidator,
+        error::{BacktestError, Result},
+        executor::SimulatedTradeExecutor,
+        state::{
+            BacktestReceiver, BacktestStatus, BacktestStatusManager, BacktestTransmitter,
+            BacktestUpdate,
+        },
+    },
     controller::BacktestController,
     operator::OperatorPending,
-};
-
-use super::super::{
-    super::core::{Raw, RawOperator, SignalOperator, TradeExecutor},
-    consolidator::MultiResolutionConsolidator,
-    error::{BacktestError, Result},
-    executor::SimulatedTradeExecutor,
-    state::{
-        BacktestReceiver, BacktestStatus, BacktestStatusManager, BacktestTransmitter,
-        BacktestUpdate,
-    },
 };
 
 /// Builder for configuring and executing a backtest simulation. Encapsulates the configuration,
