@@ -25,7 +25,8 @@ use super::{
     error::{BacktestError, Result},
     executor::SimulatedTradeExecutor,
     state::{
-        BacktestReceiver, BacktestStatus, BacktestStatusManager, BacktestTransmiter, BacktestUpdate,
+        BacktestReceiver, BacktestStatus, BacktestStatusManager, BacktestTransmitter,
+        BacktestUpdate,
     },
 };
 
@@ -36,11 +37,14 @@ use super::{
 #[derive(Debug)]
 pub struct BacktestController {
     handle: Mutex<Option<AbortOnDropHandle<()>>>,
-    status_manager: Arc<BacktestStatusManager>,
+    status_manager: Arc<BacktestStatusManager<BacktestUpdate>>,
 }
 
 impl BacktestController {
-    fn new(handle: AbortOnDropHandle<()>, status_manager: Arc<BacktestStatusManager>) -> Arc<Self> {
+    fn new(
+        handle: AbortOnDropHandle<()>,
+        status_manager: Arc<BacktestStatusManager<BacktestUpdate>>,
+    ) -> Arc<Self> {
         Arc::new(Self {
             handle: Mutex::new(Some(handle)),
             status_manager,
@@ -389,8 +393,8 @@ pub struct BacktestEngine<S: Signal> {
     start_time: DateTime<Utc>,
     start_balance: u64,
     end_time: DateTime<Utc>,
-    status_manager: Arc<BacktestStatusManager>,
-    update_tx: BacktestTransmiter,
+    status_manager: Arc<BacktestStatusManager<BacktestUpdate>>,
+    update_tx: BacktestTransmitter,
 }
 
 impl<S: Signal> BacktestEngine<S> {
