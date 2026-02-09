@@ -11,6 +11,7 @@ Direct source code links for quick reference:
 | **Trade Operator Templates** | [raw.rs](https://raw.githubusercontent.com/flemosr/quantoxide/main/examples/operators/raw.rs) | [signal/mod.rs](https://raw.githubusercontent.com/flemosr/quantoxide/main/examples/operators/signal/mod.rs) / [signal/evaluator.rs](https://raw.githubusercontent.com/flemosr/quantoxide/refs/heads/main/examples/operators/signal/evaluator.rs) | - |
 | **Synchronization** | [sync_tui.rs](https://raw.githubusercontent.com/flemosr/quantoxide/main/examples/sync_tui.rs) | - | [sync_direct.rs](https://raw.githubusercontent.com/flemosr/quantoxide/main/examples/sync_direct.rs) |
 | **Backtesting** | [backtest_raw_tui.rs](https://raw.githubusercontent.com/flemosr/quantoxide/main/examples/backtest_raw_tui.rs) | [backtest_signal_tui.rs](https://raw.githubusercontent.com/flemosr/quantoxide/main/examples/backtest_signal_tui.rs) | [backtest_direct.rs](https://raw.githubusercontent.com/flemosr/quantoxide/main/examples/backtest_direct.rs) |
+| **Parallel Backtesting** | - | - | [backtest_direct_parallel.rs](https://raw.githubusercontent.com/flemosr/quantoxide/main/examples/backtest_direct_parallel.rs) |
 | **Live Trading** | [live_raw_tui.rs](https://raw.githubusercontent.com/flemosr/quantoxide/main/examples/live_raw_tui.rs) | [live_signal_tui.rs](https://raw.githubusercontent.com/flemosr/quantoxide/main/examples/live_signal_tui.rs) | [live_direct.rs](https://raw.githubusercontent.com/flemosr/quantoxide/main/examples/live_direct.rs) |
 
 ## Prerequisites
@@ -127,6 +128,36 @@ Options:
 Example:
 ```bash
 cargo run --example backtest_direct -- --start 2025-09-01 --end 2025-12-01 --balance 10000000 --rfr-sats 0.0 --rfr-usd 0.05
+```
+
+### backtest_direct_parallel
+
+Demonstrates direct interaction with the parallel backtest engine for custom update handling. This
+approach is more LLM-friendly, and simplifies integration of parallel backtest updates into other
+UIs or processing logic.
+
+The parallel backtest engine allows multiple operators to be run in parallel over the same time
+period and starting balance, while maintaining isolated trade execution state per operator. Candle
+management overhead is shared across all operators, making this significantly more efficient than
+running separate backtests. Useful for comparing strategies or running parameter sweeps.
+
+Usage:
+```bash
+cargo run --example backtest_direct_parallel -- --start <DATE> --end <DATE> [OPTIONS]
+```
+
+Required:
+- `--start <DATE>` - Start date in YYYY-MM-DD format
+- `--end <DATE>` - End date in YYYY-MM-DD format
+
+Options:
+- `--balance <SATS>` - Starting balance in sats (default: 10000000)
+- `--rfr-sats <RATE>` - Annual risk-free rate for sats as decimal (default: 0.0)
+- `--rfr-usd <RATE>` - Annual risk-free rate for USD as decimal (default: 0.0)
+
+Example:
+```bash
+cargo run --example backtest_direct_parallel -- --start 2025-09-01 --end 2025-12-01 --balance 10000000 --rfr-sats 0.0 --rfr-usd 0.05
 ```
 
 ## Live Trading
