@@ -16,6 +16,7 @@ use super::{
 };
 
 #[derive(Error, Debug)]
+#[non_exhaustive]
 pub enum TradeExecutorError {
     #[error("[Simulated] {0}")]
     Simulated(#[from] SimulatedTradeExecutorError),
@@ -27,6 +28,7 @@ pub enum TradeExecutorError {
 pub(super) type TradeExecutorResult<T> = result::Result<T, TradeExecutorError>;
 
 #[derive(Error, Debug)]
+#[non_exhaustive]
 pub enum TradeCoreError {
     #[error("Trade {trade_id} is not closed")]
     TradeNotClosed { trade_id: Uuid },

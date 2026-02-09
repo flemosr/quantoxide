@@ -7,6 +7,7 @@ use crate::util::PanicPayload;
 use super::{process::error::SignalProcessFatalError, state::LiveSignalStatus};
 
 #[derive(Error, Debug)]
+#[non_exhaustive]
 pub enum SignalEvaluatorError {
     #[error("`SignalEvaluator::lookback` panicked: {0}")]
     LookbackPanicked(PanicPayload),
@@ -24,12 +25,14 @@ pub enum SignalEvaluatorError {
 pub(crate) type SignalEvaluatorResult<T> = result::Result<T, SignalEvaluatorError>;
 
 #[derive(Error, Debug)]
+#[non_exhaustive]
 pub enum SignalOperatorError {
     #[error("At least one signal evaluator must be provided")]
     EmptyEvaluatorsVec,
 }
 
 #[derive(Error, Debug)]
+#[non_exhaustive]
 pub enum SignalError {
     #[error(transparent)]
     Evaluator(SignalEvaluatorError),

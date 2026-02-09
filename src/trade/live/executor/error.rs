@@ -20,6 +20,7 @@ use super::{
 };
 
 #[derive(Error, Debug)]
+#[non_exhaustive]
 pub enum ExecutorActionError {
     #[error("[RestApi] {0}")]
     RestApi(#[from] RestApiError),
@@ -97,6 +98,7 @@ pub enum ExecutorActionError {
 pub(super) type ExecutorActionResult<T> = result::Result<T, ExecutorActionError>;
 
 #[derive(Error, Debug)]
+#[non_exhaustive]
 pub enum ExecutorProcessRecoverableError {
     #[error("Live Trade Session evaluation error {0}")]
     LiveTradeSessionEvaluation(ExecutorActionError),
@@ -106,6 +108,7 @@ pub enum ExecutorProcessRecoverableError {
 }
 
 #[derive(Error, Debug)]
+#[non_exhaustive]
 pub enum ExecutorProcessFatalError {
     #[error("`Sync` process (dependency) was terminated with error: {0}")]
     SyncProcessTerminated(Arc<SyncProcessFatalError>),
@@ -123,6 +126,7 @@ pub enum ExecutorProcessFatalError {
 pub(super) type ExecutorProcessFatalResult<T> = result::Result<T, ExecutorProcessFatalError>;
 
 #[derive(Error, Debug)]
+#[non_exhaustive]
 pub enum LiveTradeExecutorError {
     #[error("REST API client initialization error: {0}")]
     RestApiInit(RestApiError),

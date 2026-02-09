@@ -12,6 +12,7 @@ use crate::{
 };
 
 #[derive(Error, Debug)]
+#[non_exhaustive]
 pub enum SignalProcessRecoverableError {
     #[error(transparent)]
     Evaluator(SignalEvaluatorError),
@@ -24,6 +25,7 @@ pub enum SignalProcessRecoverableError {
 }
 
 #[derive(Error, Debug)]
+#[non_exhaustive]
 pub enum SignalProcessFatalError {
     #[error(transparent)]
     Evaluator(SignalEvaluatorError),
@@ -51,6 +53,7 @@ pub enum SignalProcessFatalError {
 }
 
 #[derive(Error, Debug)]
+#[non_exhaustive]
 pub enum SignalProcessError {
     #[error(transparent)]
     Recoverable(#[from] SignalProcessRecoverableError),

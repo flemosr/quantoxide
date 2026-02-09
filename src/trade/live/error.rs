@@ -12,6 +12,7 @@ use super::{
 };
 
 #[derive(Error, Debug)]
+#[non_exhaustive]
 pub enum LiveError {
     #[error("REST API client initialization error: {0}")]
     RestApiInit(RestApiError),

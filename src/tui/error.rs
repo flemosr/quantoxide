@@ -12,6 +12,7 @@ use super::{TuiStatus, backtest::BacktestUiMessage, live::LiveUiMessage, sync::S
 
 /// Error types for TUI operations.
 #[derive(Error, Debug)]
+#[non_exhaustive]
 pub enum TuiError {
     #[error("TUI not running error: {0}")]
     TuiNotRunning(TuiStatus),

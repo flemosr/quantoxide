@@ -4,6 +4,7 @@ use thiserror::Error;
 use super::{MinIterationInterval, Period};
 
 #[derive(Error, Debug)]
+#[non_exhaustive]
 pub enum PeriodValidationError {
     #[error(
         "Invalid period, must be at least {} candles. Value: {value}",
@@ -19,6 +20,7 @@ pub enum PeriodValidationError {
 }
 
 #[derive(Error, Debug)]
+#[non_exhaustive]
 pub enum MinIterationIntervalValidationError {
     #[error(
         "Invalid minimum iteration interval, must be at least {}. Value: {}s",

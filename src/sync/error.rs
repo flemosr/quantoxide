@@ -7,6 +7,7 @@ use lnm_sdk::api_v3::error::RestApiError;
 use super::{process::error::SyncProcessFatalError, state::SyncStatus};
 
 #[derive(Error, Debug)]
+#[non_exhaustive]
 pub enum SyncError {
     #[error("REST API client initialization error: {0}")]
     RestApiInit(RestApiError),

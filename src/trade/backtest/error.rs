@@ -17,6 +17,7 @@ use super::{
 };
 
 #[derive(Error, Debug)]
+#[non_exhaustive]
 pub enum BacktestError {
     #[error("[TaskJoin] {0}")]
     TaskJoin(JoinError),

@@ -18,6 +18,7 @@ use super::super::{
 };
 
 #[derive(Error, Debug)]
+#[non_exhaustive]
 pub enum LiveProcessRecoverableError {
     #[error("[Db] {0}")]
     Db(#[from] DbError),
@@ -38,6 +39,7 @@ pub enum LiveProcessRecoverableError {
 }
 
 #[derive(Error, Debug)]
+#[non_exhaustive]
 pub enum LiveProcessFatalError {
     #[error("Launch executor error {0}")]
     LaunchExecutor(LiveTradeExecutorError),
@@ -97,6 +99,7 @@ pub enum LiveProcessFatalError {
 pub(crate) type LiveProcessFatalResult<T> = result::Result<T, LiveProcessFatalError>;
 
 #[derive(Error, Debug)]
+#[non_exhaustive]
 pub enum LiveProcessError {
     #[error(transparent)]
     Recoverable(#[from] LiveProcessRecoverableError),

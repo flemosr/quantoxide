@@ -4,6 +4,7 @@ use chrono::{DateTime, Utc};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
+#[non_exhaustive]
 pub enum DbError {
     #[error("Connection error: {0}")]
     Connection(sqlx::Error),

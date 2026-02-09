@@ -8,6 +8,7 @@ use lnm_sdk::api_v3::error::RestApiError;
 use crate::db::error::DbError;
 
 #[derive(Error, Debug)]
+#[non_exhaustive]
 pub enum SyncPriceHistoryError {
     #[error("RestApiMaxTrialsReached error: error {error}, trials {trials}")]
     RestApiMaxTrialsReached {

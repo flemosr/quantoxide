@@ -8,6 +8,7 @@ use lnm_sdk::api_v2::{WsConnectionStatus, error::WebSocketApiError};
 use crate::db::error::DbError;
 
 #[derive(Error, Debug)]
+#[non_exhaustive]
 pub enum RealTimeCollectionError {
     #[error("[WebSocketApi] {0}")]
     WebSocketApi(#[from] WebSocketApiError),

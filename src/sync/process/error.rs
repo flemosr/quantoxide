@@ -12,6 +12,7 @@ use super::{
 };
 
 #[derive(Error, Debug)]
+#[non_exhaustive]
 pub enum SyncProcessRecoverableError {
     #[error("[SyncPriceHistory] {0}")]
     SyncPriceHistory(#[from] SyncPriceHistoryError),
@@ -33,6 +34,7 @@ pub enum SyncProcessRecoverableError {
 }
 
 #[derive(Error, Debug)]
+#[non_exhaustive]
 pub enum SyncProcessFatalError {
     #[error("Shutdown signal channel recv error: {0}")]
     ShutdownSignalRecv(RecvError),
