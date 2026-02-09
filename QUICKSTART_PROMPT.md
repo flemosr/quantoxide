@@ -83,6 +83,7 @@ Follow this workflow when helping develop a trading strategy:
      - Iterate on strategy parameters systematically
      - Log each iteration's results with parameter values
      - Stop when performance plateaus or user intervention is needed
+     - For parameter sweeps, use `BacktestParallelEngine` to run multiple operators in a single backtest — shares candle management overhead across all operators, significantly more efficient than running separate backtests (see `backtest_direct_parallel` example)
    - Ask which workflow is preferred before proceeding
    - Update the context file with backtest results, parameter choices, and performance insights
    - Reference the examples README for more details on backtest modes
