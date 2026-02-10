@@ -31,7 +31,9 @@ pub use db::Database;
 /// Error types returned by `quantoxide`.
 pub mod error {
     pub use super::db::error::DbError;
-    pub use super::shared::error::{MinIterationIntervalValidationError, PeriodValidationError};
+    pub use super::shared::error::{
+        LookbackValidationError, MinIterationIntervalValidationError, PeriodValidationError,
+    };
     pub use super::signal::{
         error::{SignalError, SignalEvaluatorError, SignalOperatorError},
         process::error::{

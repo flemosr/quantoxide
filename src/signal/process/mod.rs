@@ -17,7 +17,8 @@ use super::{
     config::{LiveSignalConfig, LiveSignalProcessConfig},
     core::{Signal, WrappedSignalEvaluator},
     state::{
-        LiveSignalStatusManager, LiveSignalStatusNotRunning, LiveSignalTransmitter, LiveSignalUpdate,
+        LiveSignalStatusManager, LiveSignalStatusNotRunning, LiveSignalTransmitter,
+        LiveSignalUpdate,
     },
 };
 

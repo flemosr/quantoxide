@@ -1,15 +1,13 @@
 use lnm_sdk::api_v3::models::PercentageCapped;
 
-use crate::shared::{OhlcResolution, Period};
+use crate::shared::Lookback;
 
 use super::error::{BacktestError, Result};
 
 /// Minimum buffer size required for consolidation.
 ///
-/// Worst-case scenario: [`Period::MAX`] daily candles × 1440 minutes per day are needed for
-/// consolidation into a full lookback buffer.
-pub(super) const MIN_BUFFER_SIZE: usize =
-    Period::MAX.as_u64() as usize * OhlcResolution::OneDay.as_minutes() as usize;
+/// Derived from [`Lookback::MAX`] expressed in 1-minute candles.
+pub(super) const MIN_BUFFER_SIZE: usize = Lookback::MAX.num_minutes() as usize;
 
 /// Configuration for the [`BacktestEngine`](crate::trade::BacktestEngine) controlling simulation
 /// parameters and behavior.

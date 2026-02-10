@@ -1,7 +1,9 @@
+use std::convert::Infallible;
+
 use chrono::Duration;
 use thiserror::Error;
 
-use super::{MinIterationInterval, Period};
+use super::{Lookback, MinIterationInterval, Period};
 
 #[derive(Error, Debug)]
 #[non_exhaustive]
@@ -17,6 +19,26 @@ pub enum PeriodValidationError {
         Period::MAX
     )]
     TooLong { value: u64 },
+}
+
+#[derive(Error, Debug)]
+#[non_exhaustive]
+pub enum LookbackValidationError {
+    #[error(transparent)]
+    Period(#[from] PeriodValidationError),
+
+    #[error(
+        "Lookback duration exceeds maximum of {} days. Duration: {} days",
+        Lookback::MAX.num_days(),
+        duration.num_days()
+    )]
+    ExceedsMaxLookback { duration: Duration },
+}
+
+impl From<Infallible> for LookbackValidationError {
+    fn from(never: Infallible) -> Self {
+        match never {}
+    }
 }
 
 #[derive(Error, Debug)]

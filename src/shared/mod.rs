@@ -4,7 +4,7 @@ use chrono::Duration;
 
 pub mod error;
 
-use error::{MinIterationIntervalValidationError, PeriodValidationError};
+use error::{LookbackValidationError, MinIterationIntervalValidationError, PeriodValidationError};
 
 /// Supported OHLC resolutions for trading operations.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -79,8 +79,12 @@ impl Period {
     /// Minimum period: 5 candles.
     pub const MIN: Self = Self(5);
 
-    /// Maximum period: 500 candles.
-    pub const MAX: Self = Self(500);
+    /// Maximum period: derived from [`Lookback::MAX`] at 1-minute resolution.
+    ///
+    /// This is the theoretical `Period` upper bound for the finest resolution. The effective
+    /// `Period` limit depends on the candle resolution adopted since [`Lookback::MAX`] cannot be
+    /// exceeded.
+    pub const MAX: Self = Self(Lookback::MAX.num_minutes() as u64);
 
     /// Returns the period as a [`Duration`] for the given resolution.
     ///
@@ -276,15 +280,30 @@ pub struct Lookback {
 }
 
 impl Lookback {
+    /// Maximum lookback duration: 500 days.
+    ///
+    /// This caps the total time span a lookback can cover, regardless of resolution. For example,
+    /// 500 candles at daily resolution (500 days) or 720,000 candles at 1-minute resolution
+    /// (also 500 days) both reach this limit.
+    pub const MAX: Duration = Duration::days(500);
+
     /// Creates a new lookback configuration with the specified resolution and period.
-    pub fn new<P, E>(resolution: OhlcResolution, period: P) -> Result<Self, E>
+    ///
+    /// Returns an error if the period is invalid or if the resulting lookback duration exceeds
+    /// [`Self::MAX`].
+    pub fn new<P>(resolution: OhlcResolution, period: P) -> Result<Self, LookbackValidationError>
     where
-        P: TryInto<Period, Error = E>,
+        P: TryInto<Period>,
+        P::Error: Into<LookbackValidationError>,
     {
-        Ok(Self {
-            resolution,
-            period: period.try_into()?,
-        })
+        let period = period.try_into().map_err(Into::into)?;
+        let duration = period.as_duration(resolution);
+
+        if duration > Self::MAX {
+            return Err(LookbackValidationError::ExceedsMaxLookback { duration });
+        }
+
+        Ok(Self { resolution, period })
     }
 
     /// Returns the candle resolution.
