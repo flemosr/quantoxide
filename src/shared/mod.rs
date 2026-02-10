@@ -76,8 +76,8 @@ impl fmt::Display for OhlcResolution {
 pub struct Period(u64);
 
 impl Period {
-    /// Minimum period: 5 candles.
-    pub const MIN: Self = Self(5);
+    /// Minimum period: 1 candle.
+    pub const MIN: Self = Self(1);
 
     /// Maximum period: derived from [`Lookback::MAX`] at 1-minute resolution.
     ///
