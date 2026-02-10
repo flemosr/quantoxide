@@ -4,7 +4,7 @@ pub(crate) mod error;
 pub(crate) mod live;
 
 pub use backtest::{
-    config::BacktestConfig,
+    config::{BacktestConfig, MIN_BUFFER_SIZE},
     parallel::{controller::BacktestParallelController, engine::BacktestParallelEngine},
     single::{controller::BacktestController, engine::BacktestEngine},
     state::{
