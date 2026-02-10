@@ -4,10 +4,10 @@ use crate::shared::Lookback;
 
 use super::error::{BacktestError, Result};
 
-/// Minimum buffer size required for consolidation.
+/// Minimum number of candles loaded per database batch during backtests.
 ///
 /// Derived from [`Lookback::MAX`] expressed in 1-minute candles.
-pub(super) const MIN_BUFFER_SIZE: usize = Lookback::MAX.num_minutes() as usize;
+pub const MIN_BUFFER_SIZE: usize = Lookback::MAX.num_minutes() as usize;
 
 /// Configuration for the [`BacktestEngine`](crate::trade::BacktestEngine) controlling simulation
 /// parameters and behavior.
@@ -50,9 +50,9 @@ impl BacktestConfig {
         self.trade_tsl_step_size
     }
 
-    /// Sets the size of the candlestick buffer (minimum [`MIN_BUFFER_SIZE`]).
+    /// Sets the size of the candlestick buffer (minimum [`MIN_BUFFER_SIZE`](crate::trade::MIN_BUFFER_SIZE)).
     ///
-    /// Default: [`MIN_BUFFER_SIZE`]
+    /// Default: [`MIN_BUFFER_SIZE`](crate::trade::MIN_BUFFER_SIZE)
     pub fn with_buffer_size(mut self, size: usize) -> Result<Self> {
         if size < MIN_BUFFER_SIZE {
             return Err(BacktestError::InvalidConfigurationBufferSize { size });
