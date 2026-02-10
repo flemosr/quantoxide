@@ -48,8 +48,8 @@ pub struct BacktestParallelEngine {
 impl BacktestParallelEngine {
     /// Creates a new parallel backtest engine.
     ///
-    /// The engine is initially empty and operators must be added using [`add_raw_operator`] or
-    /// [`add_signal_operator`].
+    /// The engine is initially empty and operators must be added using [`Self::add_raw_operator`] or
+    /// [`Self::add_signal_operator`].
     pub async fn new(
         config: BacktestConfig,
         db: Arc<Database>,
