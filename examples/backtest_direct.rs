@@ -151,8 +151,8 @@ async fn main() -> Result<()> {
         loop {
             match backtest_rx.recv().await {
                 Ok(backtest_update) => match backtest_update {
-                    BacktestUpdate::Status(backtest_status) => {
-                        if matches!(backtest_status, BacktestStatus::Finished) {
+                    BacktestUpdate::Status(backtest_status) => match backtest_status {
+                        BacktestStatus::Finished => {
                             if let Some(state) = last_trading_state {
                                 println!("\nFinal {state}");
 
@@ -208,7 +208,18 @@ async fn main() -> Result<()> {
                             }
                             return;
                         }
-                    }
+                        BacktestStatus::Failed(error) => {
+                            eprintln!("\nBacktest failed: {error}");
+                            return;
+                        }
+                        BacktestStatus::Aborted => {
+                            println!("\nBacktest aborted.");
+                            return;
+                        }
+                        BacktestStatus::NotInitiated
+                        | BacktestStatus::Starting
+                        | BacktestStatus::Running => {}
+                    },
                     BacktestUpdate::TradingState(trading_state) => {
                         // Backtest updates correspond to midnight (UTC) of each day of the period
 

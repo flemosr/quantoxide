@@ -180,8 +180,8 @@ async fn main() -> Result<()> {
         loop {
             match backtest_rx.recv().await {
                 Ok(backtest_update) => match backtest_update {
-                    BacktestParallelUpdate::Status(backtest_status) => {
-                        if matches!(backtest_status, BacktestStatus::Finished) {
+                    BacktestParallelUpdate::Status(backtest_status) => match backtest_status {
+                        BacktestStatus::Finished => {
                             println!("\n========== BACKTEST COMPLETE ==========\n");
 
                             // Print summary for each operator
@@ -253,7 +253,18 @@ async fn main() -> Result<()> {
 
                             return;
                         }
-                    }
+                        BacktestStatus::Failed(error) => {
+                            eprintln!("\nBacktest failed: {error}");
+                            return;
+                        }
+                        BacktestStatus::Aborted => {
+                            println!("\nBacktest aborted.");
+                            return;
+                        }
+                        BacktestStatus::NotInitiated
+                        | BacktestStatus::Starting
+                        | BacktestStatus::Running => {}
+                    },
                     BacktestParallelUpdate::TradingState {
                         operator_name,
                         state,
