@@ -31,7 +31,7 @@ use operators::{
     raw::RawOperatorTemplate,
     signal::{MultiSignalOperatorTemplate, SupportedSignal, evaluator::SignalEvaluatorTemplate},
 };
-use util::input;
+use util::{input, metrics};
 
 /// Prints usage information and exits.
 fn print_usage() {
@@ -197,12 +197,11 @@ async fn main() -> Result<()> {
 
                                     let start_price =
                                         stats.start_market_price.unwrap_or(final_market_price);
-                                    let start_balance_usd = start_balance_for_task as f64
-                                        * start_price
-                                        / SATS_PER_BTC as f64;
+                                    let start_balance_usd =
+                                        start_balance_for_task as f64 * start_price / SATS_PER_BTC;
                                     let final_net_value_usd = final_net_value_sats as f64
                                         * final_market_price
-                                        / SATS_PER_BTC as f64;
+                                        / SATS_PER_BTC;
 
                                     let pnl_sats =
                                         final_net_value_sats as i64 - start_balance_for_task as i64;
@@ -211,18 +210,30 @@ async fn main() -> Result<()> {
                                     let pnl_usd = final_net_value_usd - start_balance_usd;
                                     let pnl_usd_pct = (pnl_usd / start_balance_usd) * 100.0;
 
-                                    let sharpe_sats = calculate_sharpe_ratio(
+                                    let sharpe_sats = metrics::calculate_sharpe_ratio(
                                         &stats.daily_net_values_sats,
                                         rfr_sats_for_task,
                                     );
-                                    let sharpe_usd = calculate_sharpe_ratio(
+                                    let sharpe_usd = metrics::calculate_sharpe_ratio(
                                         &stats.daily_net_values_usd,
                                         rfr_usd_for_task,
                                     );
 
-                                    let format_sharpe = |s: Option<f64>| match s {
-                                        Some(v) => format!("{:.4}", v),
-                                        None => "N/A".to_string(),
+                                    let max_dd_sats = metrics::calculate_max_drawdown(
+                                        &stats.daily_net_values_sats,
+                                    );
+                                    let max_dd_usd = metrics::calculate_max_drawdown(
+                                        &stats.daily_net_values_usd,
+                                    );
+
+                                    let format_sharpe = |s: Option<f64>| {
+                                        s.map_or("N/A".to_string(), |v| format!("{:.4}", v))
+                                    };
+
+                                    let format_dd = |dd: Option<f64>| {
+                                        dd.map_or("N/A".to_string(), |v| {
+                                            format!("{:.2}", v * 100.0)
+                                        })
                                     };
 
                                     let summary = json!({
@@ -241,6 +252,8 @@ async fn main() -> Result<()> {
                                         "daily_data_points": stats.daily_net_values_sats.len(),
                                         "sharpe_sats": format_sharpe(sharpe_sats),
                                         "sharpe_usd": format_sharpe(sharpe_usd),
+                                        "max_drawdown_sats_percent": format_dd(max_dd_sats),
+                                        "max_drawdown_usd_percent": format_dd(max_dd_usd),
                                     });
 
                                     summaries.push(summary);
@@ -278,7 +291,7 @@ async fn main() -> Result<()> {
 
                         let net_value_sats = state.total_net_value() as f64;
                         let market_price = state.market_price().as_f64();
-                        let net_value_usd = net_value_sats * market_price / SATS_PER_BTC as f64;
+                        let net_value_usd = net_value_sats * market_price / SATS_PER_BTC;
 
                         stats.daily_net_values_sats.push(net_value_sats);
                         stats.daily_net_values_usd.push(net_value_usd);
@@ -307,40 +320,4 @@ async fn main() -> Result<()> {
     println!("\nBacktest status: {final_status}");
 
     Ok(())
-}
-
-/// Calculate annualized Sharpe ratio from daily net values.
-/// Assumes 365 trading days per year. Returns `None` if there is insufficient data.
-fn calculate_sharpe_ratio(daily_values: &[f64], annual_risk_free_rate: f64) -> Option<f64> {
-    if daily_values.len() < 3 {
-        return None;
-    }
-
-    let returns: Vec<f64> = daily_values
-        .windows(2)
-        .filter(|w| w[0] != 0.0)
-        .map(|w| (w[1] - w[0]) / w[0])
-        .collect();
-
-    if returns.len() < 2 {
-        return None;
-    }
-
-    let mean_return = returns.iter().sum::<f64>() / returns.len() as f64;
-    let daily_risk_free_rate = annual_risk_free_rate / 365.0;
-    let excess_return = mean_return - daily_risk_free_rate;
-
-    let variance = returns
-        .iter()
-        .map(|r| (r - mean_return).powi(2))
-        .sum::<f64>()
-        / returns.len() as f64;
-    let std_dev = variance.sqrt();
-
-    if std_dev == 0.0 {
-        return None;
-    }
-
-    // Annualize
-    Some((excess_return / std_dev) * 365.0_f64.sqrt())
 }
