@@ -120,7 +120,7 @@ Use these dependencies with versions compatible with the quantoxide Cargo.toml m
 quantoxide = "<version-from-quantoxide-manifest>"
 async-trait = "<version-from-quantoxide-manifest>"
 chrono = { version = "<version-from-quantoxide-manifest>", features = ["now"] }
-dotenv = "<version-from-quantoxide-manifest>"
+dotenvy = "<version-from-quantoxide-manifest>"
 tokio = "<version-from-quantoxide-manifest>"
 ```
 
