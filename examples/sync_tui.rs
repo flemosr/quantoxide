@@ -2,7 +2,7 @@
 
 use std::env;
 
-use dotenv::dotenv;
+use dotenvy::dotenv;
 
 use quantoxide::{
     Database,

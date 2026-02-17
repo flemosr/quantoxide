@@ -2,7 +2,7 @@
 
 use std::env;
 
-use dotenv::dotenv;
+use dotenvy::dotenv;
 use serde_json::json;
 use tokio::time::{self, Duration};
 
