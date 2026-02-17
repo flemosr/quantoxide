@@ -14,6 +14,10 @@ Direct source code links for quick reference:
 | **Parallel Backtesting** | - | - | [backtest_direct_parallel.rs](https://raw.githubusercontent.com/flemosr/quantoxide/main/examples/backtest_direct_parallel.rs) |
 | **Live Trading** | [live_raw_tui.rs](https://raw.githubusercontent.com/flemosr/quantoxide/main/examples/live_raw_tui.rs) | [live_signal_tui.rs](https://raw.githubusercontent.com/flemosr/quantoxide/main/examples/live_signal_tui.rs) | [live_direct.rs](https://raw.githubusercontent.com/flemosr/quantoxide/main/examples/live_direct.rs) |
 
+Utilities shared across examples:
+- [util/input.rs](https://raw.githubusercontent.com/flemosr/quantoxide/main/examples/util/input.rs) - CLI argument parsing and date handling
+- [util/metrics.rs](https://raw.githubusercontent.com/flemosr/quantoxide/main/examples/util/metrics.rs) - Financial metrics (Sharpe ratio, max drawdown)
+
 ## Prerequisites
 
 All examples require a running PostgreSQL instance and the following environment variable:
