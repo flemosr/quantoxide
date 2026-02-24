@@ -336,6 +336,7 @@ impl<S: Signal> OperatorRunning<S> {
                                     );
                                 }
                                 SyncStatus::Synced => return Ok(()),
+                                SyncStatus::Backfilled => {}
                                 SyncStatus::Terminated(err) => {
                                     return Err(LiveProcessFatalError::SyncProcessTerminated(err).into());
                                 }
