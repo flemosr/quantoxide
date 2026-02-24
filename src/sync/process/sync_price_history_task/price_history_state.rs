@@ -50,8 +50,7 @@ pub struct PriceHistoryState {
 }
 
 impl PriceHistoryState {
-    async fn new(db: &Database, reach_opt: Option<Duration>) -> Result<Self> {
-        let reach_time = reach_opt.map(|reach| Utc::now() - reach);
+    async fn new(db: &Database, reach_time: Option<DateTime<Utc>>) -> Result<Self> {
 
         let Some(earliest_candle_time) = db.ohlc_candles.get_earliest_stable_candle_time().await?
         else {
@@ -114,7 +113,7 @@ impl PriceHistoryState {
         Self::new(db, None).await
     }
 
-    pub(crate) async fn evaluate_with_reach(db: &Database, reach: Duration) -> Result<Self> {
+    pub(crate) async fn evaluate_with_reach(db: &Database, reach: DateTime<Utc>) -> Result<Self> {
         Self::new(db, Some(reach)).await
     }
 
