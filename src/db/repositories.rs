@@ -4,13 +4,16 @@ use async_trait::async_trait;
 use chrono::{DateTime, Duration, Utc};
 use uuid::Uuid;
 
-use lnm_sdk::{api_v2::models::PriceTick, api_v3::models::OhlcCandle};
+use lnm_sdk::{
+    api_v2::models::PriceTick,
+    api_v3::models::{FundingSettlement, OhlcCandle},
+};
 
 use crate::{shared::OhlcResolution, trade::TradeTrailingStoploss};
 
 use super::{
     error::Result,
-    models::{OhlcCandleRow, PriceTickRow},
+    models::{FundingSettlementRow, OhlcCandleRow, PriceTickRow},
 };
 
 #[async_trait]
@@ -78,4 +81,33 @@ pub(crate) trait OhlcCandlesRepository: Send + Sync {
     /// Finds unflagged gaps in the candle history and marks surrounding candles as unstable
     /// so they can be re-fetched from the API.
     async fn flag_missing_candles(&self, range: Duration) -> Result<()>;
+}
+
+#[async_trait]
+pub(crate) trait FundingSettlementsRepository: Send + Sync {
+    /// Adds multiple funding settlements to the database.
+    /// Uses INSERT ON CONFLICT DO NOTHING since settlements are immutable.
+    async fn add_settlements(&self, settlements: &[FundingSettlement]) -> Result<()>;
+
+    /// Retrieves funding settlements within the specified time range, ordered by time ASC.
+    async fn get_settlements(
+        &self,
+        from: DateTime<Utc>,
+        to: DateTime<Utc>,
+    ) -> Result<Vec<FundingSettlementRow>>;
+
+    /// Returns the earliest settlement time in the database.
+    async fn get_earliest_settlement_time(&self) -> Result<Option<DateTime<Utc>>>;
+
+    /// Returns the latest settlement time in the database.
+    async fn get_latest_settlement_time(&self) -> Result<Option<DateTime<Utc>>>;
+
+    /// Returns the times of missing settlements on the funding settlement grid between the given bounds,
+    /// ordered by time ASC. Handles all three phase transitions internally:
+    /// Phase A ({08} UTC, 24h), Phase B ({04, 12, 20} UTC, 8h), Phase C ({00, 08, 16} UTC, 8h).
+    async fn get_missing_settlement_times(
+        &self,
+        from: DateTime<Utc>,
+        to: DateTime<Utc>,
+    ) -> Result<Vec<DateTime<Utc>>>;
 }
