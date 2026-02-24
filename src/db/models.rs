@@ -110,3 +110,44 @@ impl fmt::Display for PriceTickRow {
         Ok(())
     }
 }
+
+/// Database row representing a funding settlement.
+///
+/// Contains the fixing price and funding rate at a specific settlement time.
+#[derive(Debug, Clone)]
+pub struct FundingSettlementRow {
+    pub id: Uuid,
+    pub time: DateTime<Utc>,
+    pub fixing_price: f64,
+    pub funding_rate: f64,
+    pub created_at: DateTime<Utc>,
+}
+
+impl FundingSettlementRow {
+    /// Returns a formatted string representation of the funding settlement data for display
+    /// purposes.
+    pub fn as_data_str(&self) -> String {
+        let time_str = self.time.format_local_millis();
+        let created_at_str = self.created_at.format_local_millis();
+        let fixing_price_str = format!("{:.1}", self.fixing_price);
+
+        format!(
+            "id: {}\n\
+             time: {time_str}\n\
+             fixing_price: {fixing_price_str}\n\
+             funding_rate: {:.6}\n\
+             created_at: {created_at_str}",
+            self.id, self.funding_rate
+        )
+    }
+}
+
+impl fmt::Display for FundingSettlementRow {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Funding Settlement Row:")?;
+        for line in self.as_data_str().lines() {
+            write!(f, "\n  {line}")?;
+        }
+        Ok(())
+    }
+}
