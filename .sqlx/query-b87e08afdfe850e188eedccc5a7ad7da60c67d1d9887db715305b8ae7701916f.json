@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                SELECT gs.time AS \"time!\"\n                FROM generate_series($1::timestamptz, $2::timestamptz, INTERVAL '24 hours') AS gs(time)\n                LEFT JOIN funding_settlements fs ON fs.time = gs.time\n                WHERE fs.time IS NULL\n                ORDER BY gs.time ASC\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "time!",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Timestamptz",
+        "Timestamptz"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "b87e08afdfe850e188eedccc5a7ad7da60c67d1d9887db715305b8ae7701916f"
+}
