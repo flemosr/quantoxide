@@ -25,7 +25,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let config = SyncConfig::default();
     // How far back to fetch price history data can be configured with:
-    // let config = config.with_price_history_reach(180.try_into()?); // 180 days
+    // let config = config
+    //     .with_price_history_reach(date) // or:
+    //     .with_price_history_reach_max();
 
     let sync_engine = SyncEngine::new(config, db, domain, SyncMode::Backfill)?;
 
@@ -43,6 +45,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                     SyncUpdate::PriceHistoryState(price_history_state) => {
                         println!("\n{price_history_state}");
+                    }
+                    SyncUpdate::FundingSettlementsState(funding_settlement_state) => {
+                        println!("\n{funding_settlement_state}");
                     }
                 },
                 Err(e) => {
