@@ -144,6 +144,7 @@ impl<S: Signal> LiveSignalProcess<S> {
                                                 )
                                             }
                                             SyncStatus::Synced => break,
+                                            SyncStatus::Backfilled => {}
                                             SyncStatus::Terminated(err) => {
                                                 // Non-recoverable error
                                                 return Err(SignalProcessFatalError::SyncProcessTerminated(err).into());
