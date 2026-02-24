@@ -9,6 +9,7 @@ use crate::{db::models::PriceTickRow, sync::SyncMode};
 
 use super::process::{
     error::{SyncProcessFatalError, SyncProcessRecoverableError},
+    sync_funding_settlements_task::funding_settlements_state::FundingSettlementsState,
     sync_price_history_task::price_history_state::PriceHistoryState,
 };
 
@@ -117,6 +118,8 @@ pub enum SyncUpdate {
     PriceTick(PriceTickRow),
     /// Price history state has been evaluated or updated.
     PriceHistoryState(PriceHistoryState),
+    /// Funding settlements state has been evaluated or updated.
+    FundingSettlementsState(FundingSettlementsState),
 }
 
 impl From<SyncStatus> for SyncUpdate {
@@ -134,6 +137,12 @@ impl From<PriceTickRow> for SyncUpdate {
 impl From<PriceHistoryState> for SyncUpdate {
     fn from(value: PriceHistoryState) -> Self {
         Self::PriceHistoryState(value)
+    }
+}
+
+impl From<FundingSettlementsState> for SyncUpdate {
+    fn from(value: FundingSettlementsState) -> Self {
+        Self::FundingSettlementsState(value)
     }
 }
 
