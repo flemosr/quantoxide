@@ -61,7 +61,6 @@ impl FundingSettlementsState {
         flag_missing_range: Option<Duration>,
         exclude_missing_after: Option<DateTime<Utc>>,
     ) -> Result<Self> {
-
         let Some(earliest_time) = db
             .funding_settlements
             .get_earliest_settlement_time()
@@ -248,8 +247,10 @@ impl FundingSettlementsState {
     }
 
     fn eval_missing_hours(current: &DateTime<Utc>, target: &DateTime<Utc>) -> String {
+        let previous_settlement_time = current.floor_funding_settlement_time();
         let missing_hours =
-            ((*current - *target).num_minutes() as f32 / 60. * 100.0).round() / 100.0;
+            ((previous_settlement_time - *target).num_minutes() as f32 / 60. * 100.0).round()
+                / 100.0;
         if missing_hours <= 0. {
             "Ok".to_string()
         } else {
