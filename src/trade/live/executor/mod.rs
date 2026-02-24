@@ -637,6 +637,7 @@ impl LiveTradeExecutorLauncher {
                                         SyncStatus::ShutdownInitiated | SyncStatus::Shutdown => {
                                             return Err(ExecutorProcessFatalError::SyncProcessShutdown);
                                         }
+                                        SyncStatus::Backfilled => {}
                                         SyncStatus::Synced => should_refresh = true,
                                     },
                                     SyncUpdate::PriceTick(_) => should_refresh = true,
