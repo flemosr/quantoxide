@@ -378,6 +378,10 @@ impl SyncProcessConfig {
         self.price_history_flag_gap_range
     }
 
+    pub fn funding_settlement_reach(&self) -> DateTime<Utc> {
+        self.funding_settlement_reach
+    }
+
     pub fn funding_settlement_flag_missing_range(&self) -> Option<Duration> {
         self.funding_settlement_flag_missing_range
     }

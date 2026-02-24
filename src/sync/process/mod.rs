@@ -135,9 +135,35 @@ impl SyncProcess {
         let mut flag_gaps_range = self.config.price_history_flag_gap_range();
         let mut flag_missing_range = self.config.funding_settlement_flag_missing_range();
 
+        // Send initial state so both TUI panes can be populated from the start
+
+        self.status_manager
+            .update(SyncStatusNotSynced::InProgress.into());
+
+        let initial_fs_state = FundingSettlementsState::evaluate_with_reach(
+            &self.db,
+            self.config.funding_settlement_reach(),
+            flag_missing_range,
+            None,
+        )
+        .await
+        .map_err(Self::map_funding_settlements_error)?;
+
+        let _ = self.update_tx.send(initial_fs_state.into());
+
         loop {
-            self.status_manager
-                .update(SyncStatusNotSynced::InProgress.into());
+            // Backfill full historical price data
+
+            let (history_state_tx, history_state_rx) = mpsc::channel::<PriceHistoryState>(100);
+
+            self.spawn_history_state_update_handler(history_state_rx);
+
+            self.run_price_history_task_backfill(
+                api_rest.clone(),
+                Some(history_state_tx),
+                flag_gaps_range,
+            )
+            .await?;
 
             // Backfill funding settlements
 
@@ -154,19 +180,6 @@ impl SyncProcess {
                 )
                 .await?;
 
-            // Backfill full historical price data
-
-            let (history_state_tx, history_state_rx) = mpsc::channel::<PriceHistoryState>(100);
-
-            self.spawn_history_state_update_handler(history_state_rx);
-
-            self.run_price_history_task_backfill(
-                api_rest.clone(),
-                Some(history_state_tx),
-                flag_gaps_range,
-            )
-            .await?;
-
             // Skip expensive gap-detection on subsequent re-sync cycles; interior gaps are
             // only scanned on the first pass after process (re)start.
             flag_gaps_range = None;
@@ -175,6 +188,9 @@ impl SyncProcess {
             self.status_manager.update(SyncStatus::Backfilled);
 
             time::sleep(self.config.price_history_re_backfill_interval()).await;
+
+            self.status_manager
+                .update(SyncStatusNotSynced::InProgress.into());
         }
     }
 
