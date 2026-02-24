@@ -76,15 +76,12 @@ impl SyncTuiView {
         let mut result = String::new();
 
         if !state.ph_state_text.is_empty() {
-            result.push_str("[Price History]\n");
+            result.push_str("\n[Price History]\n");
             result.push_str(&state.ph_state_text);
         }
 
-        if !state.fs_state_text.is_empty() {
-            if !result.is_empty() {
-                result.push_str("\n\n");
-            }
-            result.push_str("[Funding Settlements]\n");
+        if !state.fs_state_text.is_empty() && !state.ph_state_text.is_empty() {
+            result.push_str("\n\n[Funding Settlements]\n");
             result.push_str(&state.fs_state_text);
         }
 
@@ -150,9 +147,7 @@ impl TuiView for SyncTuiView {
 
     fn get_active_scroll_mut(state: &mut Self::State) -> (&mut usize, &mut usize) {
         match state.active_pane {
-            SyncTuiPane::SyncStatePane => {
-                (&mut state.state_v_scroll, &mut state.state_h_scroll)
-            }
+            SyncTuiPane::SyncStatePane => (&mut state.state_v_scroll, &mut state.state_h_scroll),
             SyncTuiPane::LogPane => (&mut state.log_v_scroll, &mut state.log_h_scroll),
         }
     }
