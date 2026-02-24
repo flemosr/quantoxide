@@ -45,6 +45,7 @@ pub mod error {
         process::{
             error::{SyncProcessFatalError, SyncProcessRecoverableError},
             real_time_collection_task::error::RealTimeCollectionError,
+            sync_funding_settlements_task::error::SyncFundingSettlementsError,
             sync_price_history_task::error::SyncPriceHistoryError,
         },
     };
@@ -78,7 +79,7 @@ pub mod error {
 
 /// Exports database models, shared configuration types, and selected `lnm-sdk` models.
 pub mod models {
-    pub use super::db::models::{OhlcCandleRow, PriceTickRow};
+    pub use super::db::models::{FundingSettlementRow, OhlcCandleRow, PriceTickRow};
     pub use super::shared::{Lookback, MinIterationInterval, OhlcResolution, Period};
 
     // Re-export selected `lnm-sdk::api_v3` models and utils for convenience
