@@ -55,6 +55,8 @@ pub enum SyncStatus {
     NotSynced(SyncStatusNotSynced),
     /// Synchronization has been successfully completed.
     Synced,
+    /// Backfill pass completed successfully (no live feed).
+    Backfilled,
     /// Shutdown has been requested and is in progress.
     ShutdownInitiated,
     /// Sync process has been gracefully shut down.
@@ -75,6 +77,7 @@ impl fmt::Display for SyncStatus {
         match self {
             Self::NotSynced(status) => write!(f, "Not synced ({status})"),
             Self::Synced => write!(f, "Synced"),
+            Self::Backfilled => write!(f, "Backfilled"),
             Self::ShutdownInitiated => write!(f, "Shutdown initiated"),
             Self::Shutdown => write!(f, "Shutdown"),
             Self::Terminated(error) => write!(f, "Terminated: {error}"),
