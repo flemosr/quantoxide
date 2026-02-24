@@ -172,8 +172,7 @@ impl SyncProcess {
             flag_gaps_range = None;
             flag_missing_range = None;
 
-            self.status_manager
-                .update(SyncStatusNotSynced::WaitingForResync.into());
+            self.status_manager.update(SyncStatus::Backfilled);
 
             time::sleep(self.config.price_history_re_sync_interval()).await;
         }
