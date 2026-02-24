@@ -19,7 +19,9 @@ pub enum SyncFundingSettlementsError {
     #[error("[Db] {0}")]
     Db(#[from] DbError),
 
-    #[error("Unreachable missing settlement detected. Missing at {time}, configured reach at {reach}")]
+    #[error(
+        "Unreachable missing settlement detected. Missing at {time}, configured reach at {reach}"
+    )]
     UnreachableMissingSettlement {
         time: DateTime<Utc>,
         reach: DateTime<Utc>,

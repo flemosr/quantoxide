@@ -8,8 +8,7 @@ use lnm_sdk::api_v3::models::FundingSettlement;
 
 use crate::{
     sync::{
-        LNM_SETTLEMENT_A_END, LNM_SETTLEMENT_B_END, LNM_SETTLEMENT_B_START,
-        LNM_SETTLEMENT_C_START,
+        LNM_SETTLEMENT_A_END, LNM_SETTLEMENT_B_END, LNM_SETTLEMENT_B_START, LNM_SETTLEMENT_C_START,
     },
     util::DateTimeExt,
 };

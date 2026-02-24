@@ -51,7 +51,6 @@ pub struct PriceHistoryState {
 
 impl PriceHistoryState {
     async fn new(db: &Database, reach_time: Option<DateTime<Utc>>) -> Result<Self> {
-
         let Some(earliest_candle_time) = db.ohlc_candles.get_earliest_stable_candle_time().await?
         else {
             // DB is empty
