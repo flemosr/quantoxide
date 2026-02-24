@@ -27,6 +27,10 @@ pub(crate) mod sync_price_history_task;
 
 use error::{Result, SyncProcessError, SyncProcessFatalError, SyncProcessRecoverableError};
 use real_time_collection_task::RealTimeCollectionTask;
+use sync_funding_settlements_task::{
+    FundingSettlementsStateTransmitter, SyncFundingSettlementsTask,
+    error::SyncFundingSettlementsError, funding_settlements_state::FundingSettlementsState,
+};
 use sync_price_history_task::{
     PriceHistoryStateTransmitter, SyncPriceHistoryTask, price_history_state::PriceHistoryState,
 };
@@ -129,10 +133,26 @@ impl SyncProcess {
 
     async fn run_backfill(&self, api_rest: &Arc<RestClient>) -> Result<Never> {
         let mut flag_gaps_range = self.config.price_history_flag_gap_range();
+        let mut flag_missing_range = self.config.funding_settlement_flag_missing_range();
 
         loop {
             self.status_manager
                 .update(SyncStatusNotSynced::InProgress.into());
+
+            // Backfill funding settlements
+
+            let (funding_state_tx, funding_state_rx) =
+                mpsc::channel::<FundingSettlementsState>(100);
+
+            self.spawn_funding_state_update_handler(funding_state_rx);
+
+            let _ = self
+                .run_funding_settlements_task_backfill(
+                    api_rest.clone(),
+                    Some(funding_state_tx),
+                    flag_missing_range,
+                )
+                .await?;
 
             // Backfill full historical price data
 
@@ -147,7 +167,10 @@ impl SyncProcess {
             )
             .await?;
 
+            // Skip expensive gap-detection on subsequent re-sync cycles; interior gaps are
+            // only scanned on the first pass after process (re)start.
             flag_gaps_range = None;
+            flag_missing_range = None;
 
             self.status_manager
                 .update(SyncStatusNotSynced::WaitingForResync.into());
@@ -305,6 +328,20 @@ impl SyncProcess {
 
         api_ws.reset().await;
 
+        // Backfill funding settlements
+
+        let (funding_state_tx, funding_state_rx) = mpsc::channel::<FundingSettlementsState>(100);
+
+        self.spawn_funding_state_update_handler(funding_state_rx);
+
+        let _ = self
+            .run_funding_settlements_task_backfill(
+                api_rest.clone(),
+                Some(funding_state_tx),
+                self.config.funding_settlement_flag_missing_range(),
+            )
+            .await?;
+
         // Backfill full historical price data
 
         let (history_state_tx, history_state_rx) = mpsc::channel::<PriceHistoryState>(100);
@@ -346,6 +383,16 @@ impl SyncProcess {
             || Box::pin(time::sleep(self.config.live_price_tick_max_interval()));
         let mut tick_interval_timer = new_tick_interval_timer();
 
+        let retry_interval = self.config.funding_settlement_retry_interval();
+        let new_funding_timer = |synced: bool| -> Pin<Box<time::Sleep>> {
+            if synced {
+                SyncFundingSettlementsTask::next_funding_timer()
+            } else {
+                Box::pin(time::sleep(retry_interval))
+            }
+        };
+        let mut funding_timer = new_funding_timer(true);
+
         loop {
             tokio::select! {
                 rt_res = &mut real_time_collection_handle => {
@@ -368,6 +415,10 @@ impl SyncProcess {
                     // Ensure the OHLC candles DB remains up-to-date
                     self.run_price_history_task_backfill(api_rest.clone(), None, None).await?;
                     re_sync_timer = new_re_sync_timer();
+                }
+                _ = &mut funding_timer => {
+                    let synced = self.run_funding_settlements_task_backfill(api_rest.clone(), None, None).await?;
+                    funding_timer = new_funding_timer(synced);
                 }
                 _ = &mut tick_interval_timer => {
                     // Maximum interval between Price Ticks was exceeded
@@ -415,6 +466,42 @@ impl SyncProcess {
             while let Some(new_history_state) = history_state_rx.recv().await {
                 // Ignore no-receivers errors
                 let _ = update_tx.send(new_history_state.into());
+            }
+        });
+    }
+
+    async fn run_funding_settlements_task_backfill(
+        &self,
+        api_rest: Arc<RestClient>,
+        funding_state_tx: Option<FundingSettlementsStateTransmitter>,
+        flag_missing_range: Option<Duration>,
+    ) -> Result<bool> {
+        SyncFundingSettlementsTask::new(&self.config, self.db.clone(), api_rest, funding_state_tx)
+            .backfill(flag_missing_range)
+            .await
+            .map_err(Self::map_funding_settlements_error)
+    }
+
+    fn map_funding_settlements_error(e: SyncFundingSettlementsError) -> SyncProcessError {
+        match e {
+            SyncFundingSettlementsError::InvalidSettlementTime { time } => {
+                SyncProcessFatalError::InvalidFundingSettlementTime { time }.into()
+            }
+            SyncFundingSettlementsError::UnreachableMissingSettlement { time, reach } => {
+                SyncProcessFatalError::UnreachableMissingFundingSettlement { time, reach }.into()
+            }
+            other => SyncProcessRecoverableError::SyncFundingSettlements(other).into(),
+        }
+    }
+
+    fn spawn_funding_state_update_handler(
+        &self,
+        mut funding_state_rx: mpsc::Receiver<FundingSettlementsState>,
+    ) {
+        let update_tx = self.update_tx.clone();
+        tokio::spawn(async move {
+            while let Some(new_state) = funding_state_rx.recv().await {
+                let _ = update_tx.send(new_state.into());
             }
         });
     }

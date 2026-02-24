@@ -1,5 +1,6 @@
 use std::{result, time::Duration};
 
+use chrono::{DateTime, Utc};
 use thiserror::Error;
 use tokio::{
     sync::broadcast::error::{RecvError, SendError},
@@ -8,6 +9,7 @@ use tokio::{
 
 use super::{
     real_time_collection_task::error::RealTimeCollectionError,
+    sync_funding_settlements_task::error::SyncFundingSettlementsError,
     sync_price_history_task::error::SyncPriceHistoryError,
 };
 
@@ -16,6 +18,9 @@ use super::{
 pub enum SyncProcessRecoverableError {
     #[error("[SyncPriceHistory] {0}")]
     SyncPriceHistory(#[from] SyncPriceHistoryError),
+
+    #[error("[SyncFundingSettlements] {0}")]
+    SyncFundingSettlements(#[from] SyncFundingSettlementsError),
 
     #[error("[RealTimeCollection] {0}")]
     RealTimeCollection(#[from] RealTimeCollectionError),
@@ -36,6 +41,15 @@ pub enum SyncProcessRecoverableError {
 #[derive(Error, Debug)]
 #[non_exhaustive]
 pub enum SyncProcessFatalError {
+    #[error("Invalid funding settlement time received from API: {time}")]
+    InvalidFundingSettlementTime { time: DateTime<Utc> },
+
+    #[error("Unreachable missing funding settlement at {time}, configured reach at {reach}")]
+    UnreachableMissingFundingSettlement {
+        time: DateTime<Utc>,
+        reach: DateTime<Utc>,
+    },
+
     #[error("Shutdown signal channel recv error: {0}")]
     ShutdownSignalRecv(RecvError),
 
