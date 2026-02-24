@@ -22,6 +22,7 @@ use super::{
 
 pub(crate) mod error;
 pub(crate) mod real_time_collection_task;
+pub(crate) mod sync_funding_settlements_task;
 pub(crate) mod sync_price_history_task;
 
 use error::{Result, SyncProcessError, SyncProcessFatalError, SyncProcessRecoverableError};
