@@ -1,6 +1,6 @@
 use std::{num::NonZeroU64, sync::Arc};
 
-use chrono::{Duration, Timelike, Utc};
+use chrono::{DateTime, Duration, NaiveDate, Timelike, Utc};
 use tokio::{sync::mpsc, time};
 
 use lnm_sdk::api_v3::{
@@ -17,6 +17,13 @@ pub(in crate::sync) mod price_history_state;
 
 use error::{Result, SyncPriceHistoryError};
 use price_history_state::{DownloadRange, PriceHistoryState};
+
+/// First OHLC candle available from the LN Markets API.
+pub const LNM_OHLC_CANDLE_START: DateTime<Utc> = NaiveDate::from_ymd_opt(2020, 3, 1)
+    .expect("is valid")
+    .and_hms_opt(0, 0, 0)
+    .expect("is valid")
+    .and_utc();
 
 pub(super) type PriceHistoryStateTransmitter = mpsc::Sender<PriceHistoryState>;
 
