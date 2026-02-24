@@ -1,11 +1,16 @@
 use std::num::NonZeroU64;
 
-use chrono::Duration;
+use chrono::{DateTime, Duration, Utc};
 use tokio::time;
 
 use lnm_sdk::{
     api_v2::WebSocketClientConfig,
     api_v3::{RestClientConfig, models::PercentageCapped},
+};
+
+use crate::{
+    sync::{LNM_OHLC_CANDLE_START, LNM_SETTLEMENT_A_START},
+    util::DateTimeExt,
 };
 
 use super::executor::state::live_trading_session::TradingSessionTTL;
@@ -21,10 +26,13 @@ pub struct LiveTradeConfig {
     rest_api_error_max_trials: NonZeroU64,
     price_history_batch_size: NonZeroU64,
     sync_mode_full: bool,
-    price_history_reach: Duration,
+    price_history_reach: DateTime<Utc>,
+    funding_settlement_reach: DateTime<Utc>,
     price_history_re_sync_interval: time::Duration,
     price_history_flag_gap_range: Option<Duration>,
+    funding_settlement_flag_missing_range: Option<Duration>,
     live_price_tick_max_interval: time::Duration,
+    funding_sync_retry_interval: time::Duration,
     sync_update_timeout: time::Duration,
     trade_tsl_step_size: PercentageCapped,
     startup_clean_up_trades: bool,
@@ -52,10 +60,14 @@ impl Default for LiveTradeConfig {
             rest_api_error_max_trials: 3.try_into().expect("not zero"),
             price_history_batch_size: 1000.try_into().expect("not zero"),
             sync_mode_full: false,
-            price_history_reach: Duration::days(90),
+            price_history_reach: (Utc::now() - Duration::days(90)).floor_day(),
+            funding_settlement_reach: (Utc::now() - Duration::days(90))
+                .floor_funding_settlement_time(),
             price_history_re_sync_interval: time::Duration::from_secs(10),
             price_history_flag_gap_range: Some(Duration::weeks(4)),
-            live_price_tick_max_interval: time::Duration::from_secs(3 * 60),
+            funding_settlement_flag_missing_range: Some(Duration::weeks(4)),
+            live_price_tick_max_interval: time::Duration::from_mins(3),
+            funding_sync_retry_interval: time::Duration::from_mins(1),
             sync_update_timeout: time::Duration::from_secs(5),
             trade_tsl_step_size: PercentageCapped::MIN,
             startup_clean_up_trades: false,
@@ -109,8 +121,13 @@ impl LiveTradeConfig {
     }
 
     /// Returns how far back in time to fetch price history data.
-    pub fn price_history_reach(&self) -> Duration {
+    pub fn price_history_reach(&self) -> DateTime<Utc> {
         self.price_history_reach
+    }
+
+    /// Returns how far back in time to fetch funding settlement data.
+    pub fn funding_settlement_reach(&self) -> DateTime<Utc> {
+        self.funding_settlement_reach
     }
 
     /// Returns the interval for re-synchronizing price history data.
@@ -126,10 +143,21 @@ impl LiveTradeConfig {
         self.price_history_flag_gap_range
     }
 
+    /// Returns the time range (looking back from the current time) that will be scanned for missing
+    /// funding settlements during each backfill cycle.
+    pub fn funding_settlement_flag_missing_range(&self) -> Option<Duration> {
+        self.funding_settlement_flag_missing_range
+    }
+
     /// Returns the maximum interval between live price ticks before considering the connection
     /// stale.
     pub fn live_price_tick_max_interval(&self) -> time::Duration {
         self.live_price_tick_max_interval
+    }
+
+    /// Returns the retry interval for funding settlement sync when not yet caught up.
+    pub fn funding_sync_retry_interval(&self) -> time::Duration {
+        self.funding_sync_retry_interval
     }
 
     /// Returns the timeout duration for waiting on sync status updates.
@@ -245,9 +273,35 @@ impl LiveTradeConfig {
 
     /// Sets how far back in time to fetch price history data.
     ///
-    /// Default: `90` days
-    pub fn with_price_history_reach(mut self, days: NonZeroU64) -> Self {
-        self.price_history_reach = Duration::days(days.get() as i64);
+    /// The given time is floored to the start of the day (midnight UTC).
+    ///
+    /// Default: `Utc::now() - 90 days` (floored)
+    pub fn with_price_history_reach(mut self, reach: DateTime<Utc>) -> Self {
+        self.price_history_reach = reach.floor_day();
+        self
+    }
+
+    /// Sets the price history reach to [`LNM_OHLC_CANDLE_START`], fetching the full available
+    /// history.
+    pub fn with_price_history_reach_max(mut self) -> Self {
+        self.price_history_reach = LNM_OHLC_CANDLE_START;
+        self
+    }
+
+    /// Sets how far back in time to fetch funding settlement data.
+    ///
+    /// The given time is floored to the previous valid funding settlement time.
+    ///
+    /// Default: `Utc::now() - 90 days` (floored)
+    pub fn with_funding_settlement_reach(mut self, reach: DateTime<Utc>) -> Self {
+        self.funding_settlement_reach = reach.floor_funding_settlement_time();
+        self
+    }
+
+    /// Sets the funding settlement reach to [`LNM_SETTLEMENT_A_START`], fetching the full
+    /// available history.
+    pub fn with_funding_settlement_reach_max(mut self) -> Self {
+        self.funding_settlement_reach = LNM_SETTLEMENT_A_START;
         self
     }
 
@@ -270,12 +324,29 @@ impl LiveTradeConfig {
         self
     }
 
+    /// Sets the time range (looking back from the current time) to scan for missing funding
+    /// settlements during each backfill cycle.
+    ///
+    /// Default: `672` hours (4 weeks)
+    pub fn with_funding_settlement_flag_missing_range(mut self, hours: Option<u64>) -> Self {
+        self.funding_settlement_flag_missing_range = hours.map(|h| Duration::hours(h as i64));
+        self
+    }
+
     /// Sets the maximum interval between live price ticks before considering the connection
     /// stale.
     ///
     /// Default: `180` seconds (3 minutes)
     pub fn with_live_price_tick_max_interval(mut self, secs: u64) -> Self {
         self.live_price_tick_max_interval = time::Duration::from_secs(secs);
+        self
+    }
+
+    /// Sets the retry interval for funding settlement sync when not yet caught up.
+    ///
+    /// Default: `60` seconds (1 minute)
+    pub fn with_funding_sync_retry_interval(mut self, secs: u64) -> Self {
+        self.funding_sync_retry_interval = time::Duration::from_secs(secs);
         self
     }
 
