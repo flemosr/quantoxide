@@ -383,9 +383,8 @@ impl SimulatedTradeExecutor {
             })?;
         }
 
-        state_guard.balance -= trade.margin().as_i64()
-            + trade.maintenance_margin()
-            + trade.opening_fee() as i64;
+        state_guard.balance -=
+            trade.margin().as_i64() + trade.maintenance_margin() + trade.opening_fee() as i64;
 
         state_guard.last_trade_time = trade.filled_at();
 
