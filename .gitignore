@@ -1,7 +1,7 @@
-**/.claude/sessions
+.env
+.DS_Store
+Cargo.lock
 
-**/.env
-**/.DS_Store
-**/Cargo.lock
-
-**/target
+**/.claude/sessions/
+target/
+tmp/
