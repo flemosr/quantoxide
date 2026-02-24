@@ -345,6 +345,7 @@ impl<S: Signal> OperatorRunning<S> {
                             },
                             SyncUpdate::PriceTick(_) => return Ok(()),
                             SyncUpdate::PriceHistoryState(_) => {}
+                            SyncUpdate::FundingSettlementsState(_) => {}
                         },
                         Err(RecvError::Lagged(skipped)) => {
                             return Err(LiveProcessRecoverableError::SyncRecvLagged { skipped }.into());
