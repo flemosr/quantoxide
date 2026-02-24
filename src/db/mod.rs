@@ -9,10 +9,13 @@ mod repositories;
 
 use error::{DbError, Result};
 use postgres::{
-    ohlc_candles::PgOhlcCandlesRepo, price_ticks::PgPriceTicksRepo,
-    running_trades::PgRunningTradesRepo,
+    funding_settlements::PgFundingSettlementsRepo, ohlc_candles::PgOhlcCandlesRepo,
+    price_ticks::PgPriceTicksRepo, running_trades::PgRunningTradesRepo,
 };
-use repositories::{OhlcCandlesRepository, PriceTicksRepository, RunningTradesRepository};
+use repositories::{
+    FundingSettlementsRepository, OhlcCandlesRepository, PriceTicksRepository,
+    RunningTradesRepository,
+};
 
 /// Primary database interface for market data persistence and retrieval.
 ///
@@ -22,6 +25,7 @@ pub struct Database {
     pub(crate) ohlc_candles: Box<dyn OhlcCandlesRepository>,
     pub(crate) price_ticks: Box<dyn PriceTicksRepository>,
     pub(crate) running_trades: Box<dyn RunningTradesRepository>,
+    pub(crate) funding_settlements: Box<dyn FundingSettlementsRepository>,
 }
 
 impl Database {
@@ -46,11 +50,13 @@ impl Database {
         let ohlc_candles = Box::new(PgOhlcCandlesRepo::new(pool.clone()));
         let price_ticks = Box::new(PgPriceTicksRepo::new(pool.clone()));
         let running_trades = Box::new(PgRunningTradesRepo::new(pool.clone()));
+        let funding_settlements = Box::new(PgFundingSettlementsRepo::new(pool.clone()));
 
         Ok(Arc::new(Self {
             ohlc_candles,
             price_ticks,
             running_trades,
+            funding_settlements,
         }))
     }
 }
