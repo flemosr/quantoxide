@@ -49,8 +49,8 @@ impl Default for SyncConfig {
             price_history_re_backfill_interval: time::Duration::from_secs(90),
             price_history_flag_gap_range: Some(Duration::weeks(4)),
             funding_settlement_flag_missing_range: Some(Duration::weeks(4)),
-            live_price_tick_max_interval: time::Duration::from_mins(3),
-            funding_settlement_retry_interval: time::Duration::from_mins(1),
+            live_price_tick_max_interval: time::Duration::from_secs(3 * 60),
+            funding_settlement_retry_interval: time::Duration::from_secs(60),
             restart_interval: time::Duration::from_secs(10),
             shutdown_timeout: time::Duration::from_secs(6),
         }

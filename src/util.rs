@@ -102,7 +102,7 @@ impl DateTimeExt for DateTime<Utc> {
         } else if *self < LNM_SETTLEMENT_C_START {
             clean && hour % interval_hours == 4 // Phase B: {04, 12, 20}
         } else {
-            clean && hour % interval_hours == 0 // Phase C: {00, 08, 16}
+            clean && hour.is_multiple_of(interval_hours) // Phase C: {00, 08, 16}
         }
     }
 

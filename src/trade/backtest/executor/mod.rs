@@ -118,7 +118,7 @@ impl SimulatedTradeExecutor {
         // The market price reached some `stoploss` and/or `takeprofit`. Running
         // trades must be re-evaluated.
 
-        let mut new_balance = state_guard.balance as i64;
+        let mut new_balance = state_guard.balance;
         let mut new_realized_pl = state_guard.realized_pl;
         let mut new_closed_fees = state_guard.closed_fees;
         let mut new_last_trade_time = state_guard.last_trade_time;
@@ -268,7 +268,7 @@ impl SimulatedTradeExecutor {
         let market_price = Price::round(state_guard.market_price)
             .map_err(SimulatedTradeExecutorError::InvalidMarketPrice)?;
 
-        let mut new_balance = state_guard.balance as i64;
+        let mut new_balance = state_guard.balance;
         let mut new_realized_pl = state_guard.realized_pl;
         let mut new_closed_fees = state_guard.closed_fees;
 
@@ -384,7 +384,7 @@ impl SimulatedTradeExecutor {
         }
 
         state_guard.balance -= trade.margin().as_i64()
-            + trade.maintenance_margin() as i64
+            + trade.maintenance_margin()
             + trade.opening_fee() as i64;
 
         state_guard.last_trade_time = trade.filled_at();
