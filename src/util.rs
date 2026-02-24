@@ -13,8 +13,8 @@ use tokio::task::{JoinError, JoinHandle};
 use crate::{
     shared::OhlcResolution,
     sync::{
-        LNM_SETTLEMENT_A_END, LNM_SETTLEMENT_B_END, LNM_SETTLEMENT_B_START,
-        LNM_SETTLEMENT_C_START, LNM_SETTLEMENT_INTERVAL_8H,
+        LNM_SETTLEMENT_A_END, LNM_SETTLEMENT_B_END, LNM_SETTLEMENT_B_START, LNM_SETTLEMENT_C_START,
+        LNM_SETTLEMENT_INTERVAL_8H,
     },
 };
 
@@ -145,11 +145,7 @@ impl DateTimeExt for DateTime<Utc> {
 
         // Phase B / Phase C: ceil to next 8h grid point.
         let interval = LNM_SETTLEMENT_INTERVAL_8H.num_hours() as i32;
-        let phase_offset: i32 = if *self < LNM_SETTLEMENT_C_START {
-            4
-        } else {
-            0
-        };
+        let phase_offset: i32 = if *self < LNM_SETTLEMENT_C_START { 4 } else { 0 };
         let hour = self.hour() as i32;
         let next_slot = ((hour - phase_offset).div_euclid(interval) + 1) * interval + phase_offset;
 
@@ -205,11 +201,7 @@ impl DateTimeExt for DateTime<Utc> {
 
         // Phase B / Phase C: floor to 8h grid point.
         let interval = LNM_SETTLEMENT_INTERVAL_8H.num_hours() as i32;
-        let phase_offset: i32 = if *self < LNM_SETTLEMENT_C_START {
-            4
-        } else {
-            0
-        };
+        let phase_offset: i32 = if *self < LNM_SETTLEMENT_C_START { 4 } else { 0 };
         let hour = self.hour() as i32;
         let slot = (hour - phase_offset).div_euclid(interval) * interval + phase_offset;
 
@@ -871,10 +863,7 @@ mod tests {
         #[test]
         fn dead_zone_ab_ceils_to_phase_b_start() {
             let time = Utc.with_ymd_and_hms(2021, 12, 7, 12, 0, 0).unwrap();
-            assert_eq!(
-                time.ceil_funding_settlement_time(),
-                LNM_SETTLEMENT_B_START
-            );
+            assert_eq!(time.ceil_funding_settlement_time(), LNM_SETTLEMENT_B_START);
         }
 
         #[test]
@@ -882,10 +871,7 @@ mod tests {
             // 2021-12-07 09:00 is past Phase A end, would ceil to next day 08:00
             // but that's past PHASE_A_END, so should snap to Phase B start
             let time = Utc.with_ymd_and_hms(2021, 12, 7, 9, 0, 0).unwrap();
-            assert_eq!(
-                time.ceil_funding_settlement_time(),
-                LNM_SETTLEMENT_B_START
-            );
+            assert_eq!(time.ceil_funding_settlement_time(), LNM_SETTLEMENT_B_START);
         }
 
         // Phase B: already on grid
@@ -1002,19 +988,13 @@ mod tests {
         #[test]
         fn dead_zone_ceils_to_phase_c_start() {
             let time = Utc.with_ymd_and_hms(2025, 4, 11, 10, 0, 0).unwrap();
-            assert_eq!(
-                time.ceil_funding_settlement_time(),
-                LNM_SETTLEMENT_C_START
-            );
+            assert_eq!(time.ceil_funding_settlement_time(), LNM_SETTLEMENT_C_START);
         }
 
         #[test]
         fn dead_zone_just_after_phase_b_end() {
             let time = Utc.with_ymd_and_hms(2025, 4, 11, 4, 0, 1).unwrap();
-            assert_eq!(
-                time.ceil_funding_settlement_time(),
-                LNM_SETTLEMENT_C_START
-            );
+            assert_eq!(time.ceil_funding_settlement_time(), LNM_SETTLEMENT_C_START);
         }
     }
 
@@ -1061,10 +1041,7 @@ mod tests {
         #[test]
         fn dead_zone_ab_floors_to_phase_a_end() {
             let time = Utc.with_ymd_and_hms(2021, 12, 7, 14, 0, 0).unwrap();
-            assert_eq!(
-                time.floor_funding_settlement_time(),
-                LNM_SETTLEMENT_A_END
-            );
+            assert_eq!(time.floor_funding_settlement_time(), LNM_SETTLEMENT_A_END);
         }
 
         // Phase B: already on grid
@@ -1181,19 +1158,13 @@ mod tests {
         #[test]
         fn dead_zone_floors_to_phase_b_end() {
             let time = Utc.with_ymd_and_hms(2025, 4, 11, 10, 0, 0).unwrap();
-            assert_eq!(
-                time.floor_funding_settlement_time(),
-                LNM_SETTLEMENT_B_END
-            );
+            assert_eq!(time.floor_funding_settlement_time(), LNM_SETTLEMENT_B_END);
         }
 
         #[test]
         fn dead_zone_just_before_phase_c_start() {
             let time = Utc.with_ymd_and_hms(2025, 4, 11, 15, 59, 59).unwrap();
-            assert_eq!(
-                time.floor_funding_settlement_time(),
-                LNM_SETTLEMENT_B_END
-            );
+            assert_eq!(time.floor_funding_settlement_time(), LNM_SETTLEMENT_B_END);
         }
     }
 }
