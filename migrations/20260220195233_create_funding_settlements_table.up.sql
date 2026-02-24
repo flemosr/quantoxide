@@ -1,0 +1,9 @@
+CREATE TABLE funding_settlements (
+    id UUID NOT NULL PRIMARY KEY,
+    time TIMESTAMPTZ NOT NULL UNIQUE,
+    fixing_price DOUBLE PRECISION NOT NULL,
+    funding_rate DOUBLE PRECISION NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_funding_settlements_time ON funding_settlements (time);
