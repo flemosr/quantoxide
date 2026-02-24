@@ -48,6 +48,9 @@ pub enum DbError {
 
     #[error("Attempted to update a stable candle at time {time}")]
     AttemptedToUpdateStableCandle { time: DateTime<Utc> },
+
+    #[error("Invalid funding settlement time: {time}")]
+    InvalidFundingSettlementTime { time: DateTime<Utc> },
 }
 
 pub(crate) type Result<T> = result::Result<T, DbError>;
