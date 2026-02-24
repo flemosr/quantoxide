@@ -155,6 +155,7 @@ impl<S: Signal> LiveSignalProcess<S> {
                                         },
                                         SyncUpdate::PriceTick(_) => break,
                                         SyncUpdate::PriceHistoryState(_) => {}
+                                        SyncUpdate::FundingSettlementsState(_) => {}
                                     }
                                 },
                                 Err(RecvError::Lagged(skipped)) => {
