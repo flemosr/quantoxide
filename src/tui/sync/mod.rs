@@ -29,7 +29,8 @@ use view::SyncTuiView;
 #[derive(Debug)]
 pub enum SyncUiMessage {
     LogEntry(String),
-    StateUpdate(String),
+    PriceHistoryStateUpdate(String),
+    FundingSettlementsStateUpdate(String),
     ShutdownCompleted,
 }
 
@@ -135,22 +136,39 @@ impl SyncTui {
                         send_ui_msg(SyncUiMessage::LogEntry(tick.to_string())).await?;
                     }
                     SyncUpdate::PriceHistoryState(price_history_state) => {
-                        send_ui_msg(SyncUiMessage::StateUpdate(format!(
-                            "\n{}",
-                            price_history_state.summary()
-                        )))
+                        send_ui_msg(SyncUiMessage::PriceHistoryStateUpdate(
+                            price_history_state.summary(),
+                        ))
+                        .await?;
+                    }
+                    SyncUpdate::FundingSettlementsState(funding_state) => {
+                        send_ui_msg(SyncUiMessage::FundingSettlementsStateUpdate(
+                            funding_state.summary(),
+                        ))
                         .await?;
                     }
                 }
                 Ok(())
             };
 
-            if matches!(sync_reader.mode(), SyncMode::Live(None))
-                && let Err(e) =
-                    send_ui_msg(SyncUiMessage::StateUpdate("Not evaluated.".to_string())).await
-            {
-                status_manager.set_crashed(e);
-                return;
+            if matches!(sync_reader.mode(), SyncMode::Live(None)) {
+                if let Err(e) = send_ui_msg(SyncUiMessage::PriceHistoryStateUpdate(
+                    "Not evaluated.".to_string(),
+                ))
+                .await
+                {
+                    status_manager.set_crashed(e);
+                    return;
+                }
+
+                if let Err(e) = send_ui_msg(SyncUiMessage::FundingSettlementsStateUpdate(
+                    "Not evaluated.".to_string(),
+                ))
+                .await
+                {
+                    status_manager.set_crashed(e);
+                    return;
+                }
             }
 
             let mut sync_rx = sync_reader.update_receiver();
