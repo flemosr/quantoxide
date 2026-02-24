@@ -174,7 +174,7 @@ impl SyncProcess {
 
             self.status_manager.update(SyncStatus::Backfilled);
 
-            time::sleep(self.config.price_history_re_sync_interval()).await;
+            time::sleep(self.config.price_history_re_backfill_interval()).await;
         }
     }
 

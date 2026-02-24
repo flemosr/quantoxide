@@ -24,6 +24,7 @@ pub struct SyncConfig {
     price_history_reach: DateTime<Utc>,
     funding_settlement_reach: DateTime<Utc>,
     price_history_re_sync_interval: time::Duration,
+    price_history_re_backfill_interval: time::Duration,
     price_history_flag_gap_range: Option<Duration>,
     funding_settlement_flag_missing_range: Option<Duration>,
     live_price_tick_max_interval: time::Duration,
@@ -45,6 +46,7 @@ impl Default for SyncConfig {
             funding_settlement_reach: (Utc::now() - Duration::days(90))
                 .floor_funding_settlement_time(),
             price_history_re_sync_interval: time::Duration::from_secs(10),
+            price_history_re_backfill_interval: time::Duration::from_secs(90),
             price_history_flag_gap_range: Some(Duration::weeks(4)),
             funding_settlement_flag_missing_range: Some(Duration::weeks(4)),
             live_price_tick_max_interval: time::Duration::from_mins(3),
@@ -99,6 +101,11 @@ impl SyncConfig {
     /// Returns the interval for re-synchronizing price history data.
     pub fn price_history_re_sync_interval(&self) -> time::Duration {
         self.price_history_re_sync_interval
+    }
+
+    /// Returns the interval for re-backfilling price history data in backfill mode.
+    pub fn price_history_re_backfill_interval(&self) -> time::Duration {
+        self.price_history_re_backfill_interval
     }
 
     /// Returns the time range (looking back from the current time) that will be scanned for gaps
@@ -226,6 +233,14 @@ impl SyncConfig {
         self
     }
 
+    /// Sets the interval for re-backfilling price history data in backfill mode.
+    ///
+    /// Default: `90` seconds
+    pub fn with_price_history_re_backfill_interval(mut self, secs: u64) -> Self {
+        self.price_history_re_backfill_interval = time::Duration::from_secs(secs);
+        self
+    }
+
     /// Sets the time range (looking back from the current time) to scan for gaps in the candle
     /// history during each backfill cycle.
     ///
@@ -303,6 +318,7 @@ impl From<&LiveTradeConfig> for SyncConfig {
             price_history_reach: value.price_history_reach(),
             funding_settlement_reach: value.funding_settlement_reach(),
             price_history_re_sync_interval: value.price_history_re_sync_interval(),
+            price_history_re_backfill_interval: value.price_history_re_backfill_interval(),
             price_history_flag_gap_range: value.price_history_flag_gap_range(),
             funding_settlement_flag_missing_range: value.funding_settlement_flag_missing_range(),
             live_price_tick_max_interval: value.live_price_tick_max_interval(),
@@ -341,6 +357,7 @@ pub(crate) struct SyncProcessConfig {
     price_history_reach: DateTime<Utc>,
     funding_settlement_reach: DateTime<Utc>,
     price_history_re_sync_interval: time::Duration,
+    price_history_re_backfill_interval: time::Duration,
     price_history_flag_gap_range: Option<Duration>,
     funding_settlement_flag_missing_range: Option<Duration>,
     live_price_tick_max_interval: time::Duration,
@@ -351,6 +368,10 @@ pub(crate) struct SyncProcessConfig {
 impl SyncProcessConfig {
     pub fn price_history_re_sync_interval(&self) -> time::Duration {
         self.price_history_re_sync_interval
+    }
+
+    pub fn price_history_re_backfill_interval(&self) -> time::Duration {
+        self.price_history_re_backfill_interval
     }
 
     pub fn price_history_flag_gap_range(&self) -> Option<Duration> {
@@ -384,6 +405,7 @@ impl From<&SyncConfig> for SyncProcessConfig {
             price_history_reach: value.price_history_reach,
             funding_settlement_reach: value.funding_settlement_reach,
             price_history_re_sync_interval: value.price_history_re_sync_interval,
+            price_history_re_backfill_interval: value.price_history_re_backfill_interval,
             price_history_flag_gap_range: value.price_history_flag_gap_range,
             funding_settlement_flag_missing_range: value.funding_settlement_flag_missing_range,
             live_price_tick_max_interval: value.live_price_tick_max_interval,
