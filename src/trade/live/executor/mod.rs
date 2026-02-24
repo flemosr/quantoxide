@@ -641,6 +641,7 @@ impl LiveTradeExecutorLauncher {
                                     },
                                     SyncUpdate::PriceTick(_) => should_refresh = true,
                                     SyncUpdate::PriceHistoryState(_) => {}
+                                    SyncUpdate::FundingSettlementsState(_) => {}
                                 },
                                 Err(RecvError::Lagged(skipped)) => {
                                     state_manager
