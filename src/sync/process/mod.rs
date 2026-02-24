@@ -343,19 +343,18 @@ impl SyncProcess {
 
         api_ws.reset().await;
 
-        // Backfill funding settlements
+        // Send initial state so both TUI panes can be populated from the start
 
-        let (funding_state_tx, funding_state_rx) = mpsc::channel::<FundingSettlementsState>(100);
+        let initial_fs_state = FundingSettlementsState::evaluate_with_reach(
+            &self.db,
+            self.config.funding_settlement_reach(),
+            self.config.funding_settlement_flag_missing_range(),
+            None,
+        )
+        .await
+        .map_err(Self::map_funding_settlements_error)?;
 
-        self.spawn_funding_state_update_handler(funding_state_rx);
-
-        let _ = self
-            .run_funding_settlements_task_backfill(
-                api_rest.clone(),
-                Some(funding_state_tx),
-                self.config.funding_settlement_flag_missing_range(),
-            )
-            .await?;
+        let _ = self.update_tx.send(initial_fs_state.into());
 
         // Backfill full historical price data
 
@@ -369,6 +368,20 @@ impl SyncProcess {
             self.config.price_history_flag_gap_range(),
         )
         .await?;
+
+        // Backfill funding settlements
+
+        let (funding_state_tx, funding_state_rx) = mpsc::channel::<FundingSettlementsState>(100);
+
+        self.spawn_funding_state_update_handler(funding_state_rx);
+
+        let _ = self
+            .run_funding_settlements_task_backfill(
+                api_rest.clone(),
+                Some(funding_state_tx),
+                self.config.funding_settlement_flag_missing_range(),
+            )
+            .await?;
 
         // Start to collect real-time data
 
