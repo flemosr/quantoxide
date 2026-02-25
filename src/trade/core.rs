@@ -1346,8 +1346,7 @@ pub(super) trait TradeRunningExt: TradeRunning {
 
         match self.side() {
             TradeSide::Buy => {
-                let lower_bound = self.stoploss().unwrap_or(Price::MIN);
-
+                let lower_bound = self.stoploss().unwrap_or(self.liquidation());
                 let takeprofit_trigger = self.takeprofit().unwrap_or(Price::MAX);
                 let upper_bound =
                     takeprofit_trigger.min(next_stoploss_update_trigger.unwrap_or(Price::MAX));
@@ -1358,8 +1357,7 @@ pub(super) trait TradeRunningExt: TradeRunning {
                 let takeprofit_trigger = self.takeprofit().unwrap_or(Price::MIN);
                 let lower_bound =
                     takeprofit_trigger.max(next_stoploss_update_trigger.unwrap_or(Price::MIN));
-
-                let upper_bound = self.stoploss().unwrap_or(Price::MAX);
+                let upper_bound = self.stoploss().unwrap_or(self.liquidation());
 
                 Ok((lower_bound, upper_bound))
             }
@@ -1372,21 +1370,23 @@ pub(super) trait TradeRunningExt: TradeRunning {
                 let stoploss_reached = self
                     .stoploss()
                     .is_some_and(|stoploss| range_min <= stoploss.as_f64());
+                let liquidation_reached = range_min <= self.liquidation().as_f64();
                 let takeprofit_reached = self
                     .takeprofit()
                     .is_some_and(|takeprofit| range_max >= takeprofit.as_f64());
 
-                stoploss_reached || takeprofit_reached
+                stoploss_reached || liquidation_reached || takeprofit_reached
             }
             TradeSide::Sell => {
                 let stoploss_reached = self
                     .stoploss()
                     .is_some_and(|stoploss| range_max >= stoploss.as_f64());
+                let liquidation_reached = range_max >= self.liquidation().as_f64();
                 let takeprofit_reached = self
                     .takeprofit()
                     .is_some_and(|takeprofit| range_min <= takeprofit.as_f64());
 
-                stoploss_reached || takeprofit_reached
+                stoploss_reached || liquidation_reached || takeprofit_reached
             }
         }
     }
