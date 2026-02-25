@@ -180,8 +180,8 @@ impl SyncProcess {
                 )
                 .await?;
 
-            // Skip expensive gap-detection on subsequent re-sync cycles; interior gaps are
-            // only scanned on the first pass after process (re)start.
+            // Skip expensive gap-detection on subsequent re-sync cycles. Interior gaps are only
+            // scanned on the first pass after process (re)start.
             flag_gaps_range = None;
             flag_missing_range = None;
 
