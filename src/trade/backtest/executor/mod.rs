@@ -131,8 +131,14 @@ impl SimulatedTradeExecutor {
             // Check if price reached stoploss or takeprofit
 
             let (trade_min_opt, trade_max_opt) = match trade.side() {
-                TradeSide::Buy => (trade.stoploss(), trade.takeprofit()),
-                TradeSide::Sell => (trade.takeprofit(), trade.stoploss()),
+                TradeSide::Buy => (
+                    Some(trade.stoploss().unwrap_or(trade.liquidation())),
+                    trade.takeprofit(),
+                ),
+                TradeSide::Sell => (
+                    trade.takeprofit(),
+                    Some(trade.stoploss().unwrap_or(trade.liquidation())),
+                ),
             };
 
             if let Some(trade_min) = trade_min_opt
