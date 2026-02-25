@@ -85,8 +85,7 @@ pub(crate) trait OhlcCandlesRepository: Send + Sync {
 
 #[async_trait]
 pub(crate) trait FundingSettlementsRepository: Send + Sync {
-    /// Adds multiple funding settlements to the database.
-    /// Uses INSERT ON CONFLICT DO NOTHING since settlements are immutable.
+    /// Adds multiple funding settlements to the database. Idempotent.
     async fn add_settlements(&self, settlements: &[FundingSettlement]) -> Result<()>;
 
     /// Retrieves funding settlements within the specified time range, ordered by time ASC.
@@ -102,9 +101,12 @@ pub(crate) trait FundingSettlementsRepository: Send + Sync {
     /// Returns the latest settlement time in the database.
     async fn get_latest_settlement_time(&self) -> Result<Option<DateTime<Utc>>>;
 
-    /// Returns the times of missing settlements on the funding settlement grid between the given bounds,
-    /// ordered by time ASC. Handles all three phase transitions internally:
-    /// Phase A ({08} UTC, 24h), Phase B ({04, 12, 20} UTC, 8h), Phase C ({00, 08, 16} UTC, 8h).
+    /// Returns the times of missing settlements on the funding settlement grid between the given
+    /// bounds, ordered by time ASC. Handles all three LNM funding settlement grid phases
+    /// transitions internally:
+    /// + Phase A ({08} UTC, 24h)
+    /// + Phase B ({04, 12, 20} UTC, 8h)
+    /// + Phase C ({00, 08, 16} UTC, 8h)
     async fn get_missing_settlement_times(
         &self,
         from: DateTime<Utc>,
