@@ -10,6 +10,27 @@ fn next_candle(prev: &OhlcCandleRow, price: f64) -> OhlcCandleRow {
     OhlcCandleRow::new_simple(prev.time + Duration::minutes(1), price, prev.volume)
 }
 
+fn next_candle_ohlc(
+    prev: &OhlcCandleRow,
+    open: f64,
+    high: f64,
+    low: f64,
+    close: f64,
+) -> OhlcCandleRow {
+    let time = prev.time + Duration::minutes(1);
+    OhlcCandleRow {
+        time,
+        open,
+        high,
+        low,
+        close,
+        volume: prev.volume,
+        created_at: time,
+        updated_at: time,
+        stable: true,
+    }
+}
+
 #[tokio::test]
 async fn test_simulated_trade_executor_long_profit() -> TradeExecutorResult<()> {
     // Step 1: Create a new executor with market price as 99_000, balance of 1_000_000
@@ -968,6 +989,146 @@ async fn test_simulated_trade_executor_add_margin_short_loss() -> TradeExecutorR
     assert_eq!(state.realized_pl(), -4_951);
     assert_eq!(state.closed_len(), 1);
     assert_eq!(state.closed_fees(), 995);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_simulated_trade_executor_long_liquidation_reached() -> TradeExecutorResult<()> {
+    let candle = OhlcCandleRow::new_simple(Utc::now().floor_minute(), 100_000.0, 1_000);
+    let start_balance = 100_000_000;
+    let config = SimulatedTradeExecutorConfig::default();
+
+    let executor = SimulatedTradeExecutor::new(config, &candle, start_balance);
+
+    // Open a long trade with high leverage and no stoploss
+    let size = Quantity::try_from(500).unwrap().into();
+    let leverage = Leverage::try_from(50).unwrap();
+    let stoploss = None;
+    let takeprofit = None;
+
+    executor
+        .open_long(size, leverage, stoploss, takeprofit, None)
+        .await?;
+
+    let state = executor.trading_state().await?;
+    assert_eq!(state.running_long_len(), 1);
+
+    let (trade, _) = state.running_map().trades_desc().next().unwrap();
+    let liquidation = trade.liquidation().as_f64();
+
+    // Candle whose low reaches below liquidation price, but close stays above
+    let candle = next_candle_ohlc(&candle, 100_000.0, 100_000.0, liquidation - 1.0, 99_500.0);
+    executor.candle_update(&candle).await?;
+
+    let state = executor.trading_state().await?;
+    assert_eq!(state.running_long_len(), 0, "Long should be liquidated");
+    assert_eq!(state.closed_len(), 1);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_simulated_trade_executor_long_liquidation_not_reached() -> TradeExecutorResult<()> {
+    let candle = OhlcCandleRow::new_simple(Utc::now().floor_minute(), 100_000.0, 1_000);
+    let start_balance = 100_000_000;
+    let config = SimulatedTradeExecutorConfig::default();
+
+    let executor = SimulatedTradeExecutor::new(config, &candle, start_balance);
+
+    // Open a long trade with high leverage and no stoploss
+    let size = Quantity::try_from(500).unwrap().into();
+    let leverage = Leverage::try_from(50).unwrap();
+    let stoploss = None;
+    let takeprofit = None;
+
+    executor
+        .open_long(size, leverage, stoploss, takeprofit, None)
+        .await?;
+
+    let state = executor.trading_state().await?;
+    assert_eq!(state.running_long_len(), 1);
+
+    let (trade, _) = state.running_map().trades_desc().next().unwrap();
+    let liquidation = trade.liquidation().as_f64();
+
+    // Candle whose low stays above liquidation price
+    let candle = next_candle_ohlc(&candle, 100_000.0, 100_000.0, liquidation + 1.0, 99_500.0);
+    executor.candle_update(&candle).await?;
+
+    let state = executor.trading_state().await?;
+    assert_eq!(state.running_long_len(), 1, "Long should still be open");
+    assert_eq!(state.closed_len(), 0);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_simulated_trade_executor_short_liquidation_reached() -> TradeExecutorResult<()> {
+    let candle = OhlcCandleRow::new_simple(Utc::now().floor_minute(), 100_000.0, 1_000);
+    let start_balance = 100_000_000;
+    let config = SimulatedTradeExecutorConfig::default();
+
+    let executor = SimulatedTradeExecutor::new(config, &candle, start_balance);
+
+    // Open a short trade with high leverage and no stoploss
+    let size = Quantity::try_from(500).unwrap().into();
+    let leverage = Leverage::try_from(50).unwrap();
+    let stoploss = None;
+    let takeprofit = None;
+
+    executor
+        .open_short(size, leverage, stoploss, takeprofit, None)
+        .await?;
+
+    let state = executor.trading_state().await?;
+    assert_eq!(state.running_short_len(), 1);
+
+    let (trade, _) = state.running_map().trades_desc().next().unwrap();
+    let liquidation = trade.liquidation().as_f64();
+
+    // Candle whose high reaches above liquidation price, but close stays below
+    let candle = next_candle_ohlc(&candle, 100_000.0, liquidation + 1.0, 100_000.0, 100_500.0);
+    executor.candle_update(&candle).await?;
+
+    let state = executor.trading_state().await?;
+    assert_eq!(state.running_short_len(), 0, "Short should be liquidated");
+    assert_eq!(state.closed_len(), 1);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_simulated_trade_executor_short_liquidation_not_reached() -> TradeExecutorResult<()> {
+    let candle = OhlcCandleRow::new_simple(Utc::now().floor_minute(), 100_000.0, 1_000);
+    let start_balance = 100_000_000;
+    let config = SimulatedTradeExecutorConfig::default();
+
+    let executor = SimulatedTradeExecutor::new(config, &candle, start_balance);
+
+    // Open a short trade with high leverage and no stoploss
+    let size = Quantity::try_from(500).unwrap().into();
+    let leverage = Leverage::try_from(50).unwrap();
+    let stoploss = None;
+    let takeprofit = None;
+
+    executor
+        .open_short(size, leverage, stoploss, takeprofit, None)
+        .await?;
+
+    let state = executor.trading_state().await?;
+    assert_eq!(state.running_short_len(), 1);
+
+    let (trade, _) = state.running_map().trades_desc().next().unwrap();
+    let liquidation = trade.liquidation().as_f64();
+
+    // Candle whose high stays below liquidation price
+    let candle = next_candle_ohlc(&candle, 100_000.0, liquidation - 1.0, 100_000.0, 100_500.0);
+    executor.candle_update(&candle).await?;
+
+    let state = executor.trading_state().await?;
+    assert_eq!(state.running_short_len(), 1, "Short should still be open");
+    assert_eq!(state.closed_len(), 0);
 
     Ok(())
 }
