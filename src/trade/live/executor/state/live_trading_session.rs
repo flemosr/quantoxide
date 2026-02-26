@@ -124,6 +124,65 @@ impl LiveTradingSession {
 
         let running_trades = api.get_trades_running().await?;
 
+        // Reconcile trades that closed between the last `reevaluate()` and the fresh API
+        // state fetched above. Once the session expires, `reevaluate()` stops running, so any
+        // closure during that window is missed.
+        if let Some(prev_session) = &prev_trading_session {
+            let running_ids: HashSet<Uuid> = running_trades.iter().map(|t| t.id()).collect();
+
+            let missed_ids: HashSet<Uuid> = prev_session
+                .running_map
+                .trades_desc()
+                .map(|(t, _)| t.id())
+                .filter(|id| !running_ids.contains(id))
+                .collect();
+
+            if !missed_ids.is_empty() {
+                let limit = (prev_session.running_map.len() as u64)
+                    .max(1)
+                    .try_into()
+                    .expect("valid `NonZeroU64`");
+
+                let closed_trades = api.get_trades_closed(limit).await?;
+
+                let mut unconfirmed = missed_ids.clone();
+
+                let closed_history = Arc::make_mut(&mut session.closed_history);
+
+                for closed_trade in &closed_trades {
+                    if !missed_ids.contains(&closed_trade.id()) {
+                        continue;
+                    }
+
+                    unconfirmed.remove(&closed_trade.id());
+
+                    session.realized_pl += closed_trade.pl();
+                    session.closed_fees += closed_trade.opening_fee() + closed_trade.closing_fee();
+
+                    closed_history
+                        .add(Arc::new(closed_trade.clone()))
+                        .map_err(ExecutorActionError::ClosedHistoryUpdate)?;
+
+                    let baseline = prev_funding_snapshot
+                        .get(&closed_trade.id())
+                        .copied()
+                        .unwrap_or(0);
+                    session.funding_fees += closed_trade.sum_funding_fees() - baseline;
+
+                    let closed_at = closed_trade.closed_at();
+                    if let Some(closed_at) = closed_at {
+                        if session.last_trade_time.is_none_or(|last| closed_at > last) {
+                            session.last_trade_time = Some(closed_at);
+                        }
+                    }
+                }
+
+                if let Some(&trade_id) = unconfirmed.iter().next() {
+                    return Err(ExecutorActionError::ClosedTradeNotConfirmed { trade_id });
+                }
+            }
+        }
+
         // Try to recover trades 'trailing stoploss' config from db
 
         let mut registered_trades_map = db.running_trades.get_running_trades_map().await?;
