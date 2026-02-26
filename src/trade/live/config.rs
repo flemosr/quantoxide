@@ -13,8 +13,6 @@ use crate::{
     util::DateTimeExt,
 };
 
-use super::executor::state::live_trading_session::TradingSessionTTL;
-
 /// Configuration for the [`LiveTradeEngine`](crate::trade::LiveTradeEngine) controlling
 /// synchronization, signal processing, trade execution, and session management.
 #[derive(Clone, Debug)]
@@ -38,7 +36,6 @@ pub struct LiveTradeConfig {
     trade_tsl_step_size: PercentageCapped,
     startup_clean_up_trades: bool,
     startup_recover_trades: bool,
-    trading_session_ttl: TradingSessionTTL,
     trading_session_refresh_interval: time::Duration,
     shutdown_clean_up_trades: bool,
     trade_estimated_fee: PercentageCapped,
@@ -49,10 +46,6 @@ pub struct LiveTradeConfig {
 
 impl Default for LiveTradeConfig {
     fn default() -> Self {
-        let trading_session_ttl = (Duration::hours(1) + Duration::minutes(5))
-            .try_into()
-            .expect("must be valid `TradingSessionTTL`");
-
         Self {
             rest_api_timeout: time::Duration::from_secs(20),
             ws_api_disconnect_timeout: time::Duration::from_secs(6),
@@ -74,7 +67,6 @@ impl Default for LiveTradeConfig {
             trade_tsl_step_size: PercentageCapped::MIN,
             startup_clean_up_trades: false,
             startup_recover_trades: true,
-            trading_session_ttl,
             trading_session_refresh_interval: time::Duration::from_millis(1_000),
             shutdown_clean_up_trades: false,
             trade_estimated_fee: PercentageCapped::try_from(0.1)
@@ -185,11 +177,6 @@ impl LiveTradeConfig {
     /// Returns whether to recover existing trades when starting the live trading session.
     pub fn startup_recover_trades(&self) -> bool {
         self.startup_recover_trades
-    }
-
-    /// Returns the time-to-live for trading sessions before they require renewal.
-    pub fn trading_session_ttl(&self) -> TradingSessionTTL {
-        self.trading_session_ttl
     }
 
     /// Returns the interval for refreshing and validating the trading session state.
@@ -400,14 +387,6 @@ impl LiveTradeConfig {
         self
     }
 
-    /// Sets the time-to-live for trading sessions before they require renewal.
-    ///
-    /// Default: `1` hour and `5` minutes
-    pub fn with_trading_session_ttl(mut self, trading_session_ttl: TradingSessionTTL) -> Self {
-        self.trading_session_ttl = trading_session_ttl;
-        self
-    }
-
     /// Sets the interval for refreshing and validating the trading session state.
     ///
     /// Default: `1000` milliseconds (1 second)
@@ -519,7 +498,6 @@ pub struct LiveTradeExecutorConfig {
     trade_tsl_step_size: PercentageCapped,
     startup_clean_up_trades: bool,
     startup_recover_trades: bool,
-    trading_session_ttl: TradingSessionTTL,
     trading_session_refresh_interval: time::Duration,
     shutdown_clean_up_trades: bool,
     trade_estimated_fee: PercentageCapped,
@@ -540,11 +518,6 @@ impl LiveTradeExecutorConfig {
     /// Returns whether to recover existing trades when starting the live trading session.
     pub fn startup_recover_trades(&self) -> bool {
         self.startup_recover_trades
-    }
-
-    /// Returns the time-to-live for trading sessions before they require renewal.
-    pub fn trading_session_ttl(&self) -> TradingSessionTTL {
-        self.trading_session_ttl
     }
 
     /// Returns the interval for refreshing and validating the trading session state.
@@ -594,14 +567,6 @@ impl LiveTradeExecutorConfig {
         self
     }
 
-    /// Sets the time-to-live for trading sessions before they require renewal.
-    ///
-    /// Default: `1` hour and `5` minutes
-    pub fn with_trading_session_ttl(mut self, trading_session_ttl: TradingSessionTTL) -> Self {
-        self.trading_session_ttl = trading_session_ttl;
-        self
-    }
-
     /// Sets the interval for refreshing and validating the trading session state.
     ///
     /// Default: `1000` milliseconds (1 second)
@@ -637,15 +602,10 @@ impl LiveTradeExecutorConfig {
 
 impl Default for LiveTradeExecutorConfig {
     fn default() -> Self {
-        let trading_session_ttl = (Duration::hours(1) + Duration::minutes(5))
-            .try_into()
-            .expect("must be valid `TradingSessionTTL`");
-
         Self {
             trade_tsl_step_size: PercentageCapped::MIN,
             startup_clean_up_trades: false,
             startup_recover_trades: true,
-            trading_session_ttl,
             trading_session_refresh_interval: time::Duration::from_millis(1_000),
             shutdown_clean_up_trades: false,
             trade_estimated_fee: PercentageCapped::try_from(0.1)
@@ -661,7 +621,6 @@ impl From<&LiveTradeConfig> for LiveTradeExecutorConfig {
             trade_tsl_step_size: value.trailing_stoploss_step_size(),
             startup_clean_up_trades: value.startup_clean_up_trades(),
             startup_recover_trades: value.startup_recover_trades(),
-            trading_session_ttl: value.trading_session_ttl(),
             trading_session_refresh_interval: value.trading_session_refresh_interval(),
             shutdown_clean_up_trades: value.shutdown_clean_up_trades(),
             trade_estimated_fee: value.trade_estimated_fee(),

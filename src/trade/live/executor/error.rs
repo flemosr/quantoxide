@@ -1,6 +1,5 @@
 use std::{num::NonZeroU64, result, sync::Arc};
 
-use chrono::Duration;
 use thiserror::Error;
 use uuid::Uuid;
 
@@ -13,10 +12,7 @@ use crate::{
 
 use super::{
     super::super::error::TradeCoreError,
-    state::{
-        LiveTradeExecutorStatus, LiveTradeExecutorStatusNotReady,
-        live_trading_session::TradingSessionTTL,
-    },
+    state::{LiveTradeExecutorStatus, LiveTradeExecutorStatusNotReady},
 };
 
 #[derive(Error, Debug)]
@@ -81,12 +77,6 @@ pub enum ExecutorActionError {
         amount: NonZeroU64,
         max_cash_in: u64,
     },
-
-    #[error(
-        "`TradingSessionTTL` must be at least {}. Value: {value}",
-        TradingSessionTTL::MIN
-    )]
-    InvalidTradingSessionTTL { value: Duration },
 
     #[error("Unexpected closed trade returned by the server. Id: {trade_id}")]
     UnexpectedClosedTrade { trade_id: Uuid },
