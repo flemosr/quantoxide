@@ -10,7 +10,7 @@ use uuid::Uuid;
 
 use lnm_sdk::api_v3::models::{PercentageCapped, Price, Trade};
 
-use crate::db::Database;
+use crate::{db::Database, util::DateTimeExt};
 
 use super::super::super::{
     super::core::{
@@ -23,31 +23,9 @@ use super::super::super::{
     },
 };
 
-/// Time-to-live duration for a trading session before it requires renewal with API data.
-#[derive(Debug, Clone, Copy)]
-pub struct TradingSessionTTL(Duration);
-
-impl TradingSessionTTL {
-    /// Minimum allowed TTL duration (1 hour).
-    pub const MIN: Duration = Duration::hours(1);
-}
-
-impl TryFrom<Duration> for TradingSessionTTL {
-    type Error = ExecutorActionError;
-    fn try_from(value: Duration) -> Result<Self, Self::Error> {
-        if value < Self::MIN {
-            return Err(ExecutorActionError::InvalidTradingSessionTTL { value });
-        }
-
-        Ok(Self(value))
-    }
-}
-
-impl From<TradingSessionTTL> for Duration {
-    fn from(value: TradingSessionTTL) -> Self {
-        value.0
-    }
-}
+/// Sessions expire 5 minutes past each hour to ensure funding fees settled at the rounded hour are
+/// reflected in the API state before renewal.
+const SESSION_EXPIRY_OFFSET_MIN: u32 = 5;
 
 #[derive(Debug, Clone)]
 pub(in crate::trade) struct LiveTradingSession {
@@ -70,7 +48,6 @@ impl LiveTradingSession {
     pub async fn new(
         recover_trades_on_startup: bool,
         tsl_step_size: PercentageCapped,
-        refresh_offset: TradingSessionTTL,
         db: &Database,
         api: &WrappedRestClient,
         prev_trading_session: Option<Self>,
@@ -83,15 +60,14 @@ impl LiveTradingSession {
 
         let user = api.get_user().await?;
 
-        let created_at_hour = Utc::now()
-            .with_minute(0)
-            .expect("Setting `DateTime<Utc>` minute to 0 should not fail")
-            .with_second(0)
-            .expect("Setting `DateTime<Utc>` second to 0 should not fail")
-            .with_nanosecond(0)
-            .expect("Setting `DateTime<Utc>` nanosecond to 0 should not fail");
-
-        let expires_at = created_at_hour + Duration::from(refresh_offset);
+        let now = Utc::now();
+        let expires_at = if now.minute() < SESSION_EXPIRY_OFFSET_MIN {
+            now.floor_hour() + Duration::minutes(SESSION_EXPIRY_OFFSET_MIN as i64)
+        } else {
+            now.floor_hour()
+                + Duration::hours(1)
+                + Duration::minutes(SESSION_EXPIRY_OFFSET_MIN as i64)
+        };
 
         let (prev_funding_fees, prev_funding_snapshot) = prev_trading_session
             .as_ref()
