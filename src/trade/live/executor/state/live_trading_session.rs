@@ -448,6 +448,7 @@ impl From<LiveTradingSession> for TradingState {
             Price::bounded(value.last_price),
             value.last_trade_time,
             value.running_map,
+            0, // FIXME, `funding_fees`
             value.realized_pl,
             value.closed_history,
             value.closed_fees,

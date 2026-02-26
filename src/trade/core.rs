@@ -533,6 +533,7 @@ pub struct TradingState {
     last_trade_time: Option<DateTime<Utc>>,
     running_map: DynRunningTradesMap,
     running_stats: OnceLock<RunningStats>,
+    funding_fees: i64,
     realized_pl: i64,
     closed_history: Arc<ClosedTradeHistory>,
     closed_fees: u64,
@@ -546,6 +547,7 @@ impl TradingState {
         market_price: Price,
         last_trade_time: Option<DateTime<Utc>>,
         running_map: DynRunningTradesMap,
+        funding_fees: i64,
         realized_pl: i64,
         closed_history: Arc<ClosedTradeHistory>,
         closed_fees: u64,
@@ -557,6 +559,7 @@ impl TradingState {
             last_trade_time,
             running_map,
             running_stats: OnceLock::new(),
+            funding_fees,
             realized_pl,
             closed_history,
             closed_fees,
@@ -688,6 +691,14 @@ impl TradingState {
         self.get_running_stats().fees
     }
 
+    /// Returns the net funding fees across all settlements (in satoshis).
+    ///
+    /// Positive -> net revenue
+    /// Negative -> net cost
+    pub fn funding_fees(&self) -> i64 {
+        self.funding_fees
+    }
+
     /// Returns the total realized profit/loss including closed trades and cashed-in profits from
     /// running trades (in satoshis).
     pub fn realized_pl(&self) -> i64 {
@@ -760,6 +771,7 @@ impl TradingState {
         result.push_str(&format!("  pl: {}\n", self.running_pl()));
         result.push_str(&format!("  fees: {}\n", self.running_fees()));
         result.push_str(&format!("  total_margin: {}\n", self.running_margin()));
+        result.push_str(&format!("funding_fees: {}\n", self.funding_fees));
         result.push_str(&format!("realized_pl: {}\n", self.realized_pl));
         result.push_str("closed_positions:\n");
         result.push_str(&format!("  trades: {}\n", self.closed_len()));
