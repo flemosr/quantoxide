@@ -62,6 +62,8 @@ pub(in crate::trade) struct LiveTradingSession {
     realized_pl: i64,
     closed_history: Arc<ClosedTradeHistory>,
     closed_fees: u64,
+    funding_fees: i64,
+    funding_snapshot: HashMap<Uuid, i64>,
 }
 
 impl LiveTradingSession {
@@ -91,6 +93,12 @@ impl LiveTradingSession {
 
         let expires_at = created_at_hour + Duration::from(refresh_offset);
 
+        let (prev_funding_fees, prev_funding_snapshot) = prev_trading_session
+            .as_ref()
+            .map_or((0, HashMap::new()), |ps| {
+                (ps.funding_fees, ps.funding_snapshot.clone())
+            });
+
         let mut session = Self {
             expires_at,
             tsl_step_size,
@@ -106,6 +114,8 @@ impl LiveTradingSession {
                 |ps| ps.closed_history.clone(),
             ),
             closed_fees: prev_trading_session.as_ref().map_or(0, |ps| ps.closed_fees),
+            funding_fees: prev_funding_fees,
+            funding_snapshot: HashMap::new(),
         };
 
         if !recover_trades_on_startup {
@@ -120,6 +130,14 @@ impl LiveTradingSession {
 
         for trade in running_trades {
             let trade_tsl = registered_trades_map.remove(&trade.id()).flatten();
+
+            // Subtract the previous baseline so that `register_running_trade`'s realization of
+            // `sum_funding_fees` yields the correct delta.
+            let baseline = prev_funding_snapshot
+                .get(&trade.id())
+                .copied()
+                .unwrap_or(trade.sum_funding_fees());
+            session.funding_fees -= baseline;
 
             // Balance obtained via API is up-to-date
             session.register_running_trade(trade, trade_tsl, false)?;
@@ -301,6 +319,13 @@ impl LiveTradingSession {
             .update(self.tsl_step_size, &new_trade, trade_tsl)
             .map_err(ExecutorActionError::PriceTriggerUpdate)?;
 
+        // Realize `sum_funding_fees` now and record it as the baseline for future deltas. This
+        // handles the edge case where a trade is created right at a funding settlement and already
+        // carries non-zero fees by the time we see it.
+        self.funding_fees += new_trade.sum_funding_fees();
+        self.funding_snapshot
+            .insert(new_trade.id(), new_trade.sum_funding_fees());
+
         self.running_map.add(Arc::new(new_trade), trade_tsl);
 
         Ok(())
@@ -411,6 +436,10 @@ impl LiveTradingSession {
                 new_realized_pl += closed_trade.pl();
                 new_closed_fees += closed_trade.opening_fee() + closed_trade.closing_fee();
 
+                if let Some(baseline) = self.funding_snapshot.remove(&closed_trade.id()) {
+                    self.funding_fees += closed_trade.sum_funding_fees() - baseline;
+                }
+
                 closed_history
                     .add(Arc::new(closed_trade.clone()))
                     .map_err(ExecutorActionError::ClosedHistoryUpdate)?;
@@ -448,7 +477,7 @@ impl From<LiveTradingSession> for TradingState {
             Price::bounded(value.last_price),
             value.last_trade_time,
             value.running_map,
-            0, // FIXME, `funding_fees`
+            value.funding_fees,
             value.realized_pl,
             value.closed_history,
             value.closed_fees,
