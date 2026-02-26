@@ -1,12 +1,12 @@
-use std::sync::Arc;
+use std::{collections::VecDeque, sync::Arc};
 
 use chrono::{DateTime, Duration, Utc};
 use tokio::sync::broadcast;
 
 use crate::{
-    db::Database,
+    db::{Database, models::FundingSettlementRow},
     signal::{Signal, SignalEvaluator},
-    sync::PriceHistoryState,
+    sync::{FundingSettlementsState, LNM_SETTLEMENT_A_START, PriceHistoryState},
     util::DateTimeExt,
 };
 
@@ -123,6 +123,29 @@ impl<S: Signal> BacktestEngine<S> {
             });
         }
 
+        let settlement_from = start_time.ceil_funding_settlement_time();
+        let settlement_to = end_time.floor_funding_settlement_time();
+
+        let funding_settlements_state = FundingSettlementsState::evaluate(&db)
+            .await
+            .map_err(BacktestError::FundingSettlementsStateEvaluation)?;
+
+        // As of Feb 2026, the LNM API does not provide funding settlement data before
+        // `LNM_SETTLEMENT_A_START`, so we only require settlement data for the portion of the
+        // backtest that overlaps with the available range. If the entire backtest predates
+        // settlement data, no check is needed.
+        if settlement_to >= LNM_SETTLEMENT_A_START
+            && !funding_settlements_state
+                .is_range_available(settlement_from.max(LNM_SETTLEMENT_A_START), settlement_to)
+        {
+            return Err(BacktestError::FundingSettlementDataUnavailable {
+                from: settlement_from,
+                to: settlement_to,
+                bound_start: funding_settlements_state.bound_start(),
+                bound_end: funding_settlements_state.bound_end(),
+            });
+        }
+
         let (update_tx, _) = broadcast::channel::<BacktestUpdate>(10_000);
 
         let status_manager = BacktestStatusManager::new(update_tx.clone());
@@ -190,6 +213,18 @@ impl<S: Signal> BacktestEngine<S> {
 
         let trades_executor =
             SimulatedTradeExecutor::new(&self.config, start_candle, self.start_balance);
+
+        let settlement_from = self.start_time.ceil_funding_settlement_time();
+        let settlement_to = self.end_time.floor_funding_settlement_time();
+
+        let mut settlements: VecDeque<FundingSettlementRow> = self
+            .db
+            .funding_settlements
+            .get_settlements(settlement_from, settlement_to)
+            .await?
+            .into();
+
+        let mut next_settlement = settlements.pop_front();
 
         let resolution_to_max_period = self.operator_pending.resolution_to_max_period().clone();
 
@@ -270,6 +305,20 @@ impl<S: Signal> BacktestEngine<S> {
 
             // Advance time cursor to the end of the next candle's minute (skips gaps in data)
             time_cursor = minute_buffer[minute_cursor_idx].time + Duration::seconds(59);
+
+            // Apply funding settlements that fall within the new time cursor. Applied before
+            // `candle_update` so that updated margin/leverage/liquidation are visible to the
+            // price-trigger liquidation check.
+            while let Some(settlement) = &next_settlement
+                && settlement.time <= time_cursor
+            {
+                trades_executor
+                    .apply_funding_settlement(settlement)
+                    .await
+                    .map_err(BacktestError::FundingSettlementApplication)?;
+
+                next_settlement = settlements.pop_front();
+            }
 
             let next_minute_candle = &minute_buffer[minute_cursor_idx];
             trades_executor

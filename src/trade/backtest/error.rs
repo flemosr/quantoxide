@@ -7,7 +7,10 @@ use tokio::task::JoinError;
 use crate::{
     db::error::DbError,
     signal::error::{SignalEvaluatorError, SignalOperatorError},
-    sync::process::sync_price_history_task::error::SyncPriceHistoryError,
+    sync::process::{
+        sync_funding_settlements_task::error::SyncFundingSettlementsError,
+        sync_price_history_task::error::SyncPriceHistoryError,
+    },
 };
 
 use super::{
@@ -127,6 +130,22 @@ pub enum BacktestError {
         #[source]
         source: Box<BacktestError>,
     },
+
+    #[error("Funding Settlements State Evaluation error: {0}")]
+    FundingSettlementsStateEvaluation(SyncFundingSettlementsError),
+
+    #[error(
+        "Funding settlement data unavailable for backtest range ({from} to {to}). Settlement bounds: {bound_start:?} to {bound_end:?}."
+    )]
+    FundingSettlementDataUnavailable {
+        from: DateTime<Utc>,
+        to: DateTime<Utc>,
+        bound_start: Option<DateTime<Utc>>,
+        bound_end: Option<DateTime<Utc>>,
+    },
+
+    #[error("Funding settlement application error: {0}")]
+    FundingSettlementApplication(SimulatedTradeExecutorError),
 }
 
 pub(super) type Result<T> = result::Result<T, BacktestError>;
