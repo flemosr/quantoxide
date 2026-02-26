@@ -71,14 +71,21 @@ Trade operators can be implemented in two ways:
 The **Synchronization** process is responsible for determining the current state of the PostgreSQL
 database, identifying gaps, and fetching the necessary data from LN Markets to remediate them.
 Having some continous historical market data stored in the database is a prerequisite for
-backtesting. The `SyncEngine` supports both 'backfill' mode (to fetch historical OHLC candle data)
-and 'live' mode, handling live price data received via WebSocket.
+backtesting. The `SyncEngine` supports both 'backfill' mode (to fetch historical OHLC candle and
+funding settlement data) and 'live' mode, handling live price data received via WebSocket.
 
 ### Backtesting
 
 The **Backtesting** engine allows trading strategies to be tested against historical price data
 stored in the PostgreSQL database, without risking real funds. The `BacktestEngine` replays
 historical market conditions, simulating the Trade Operator actions and tracking performance metrics.
+Backtests include:
++ Minute-by-minute replay using real 1-minute OHLC data
++ Historically accurate [funding fees](https://docs.lnmarkets.com/resources/futures/#funding-fees)
+  applied using synchronized settlement data, so that results realistically reflect the cost of
+  holding positions across funding events
++ Simulated stoplosses (including trailing), takeprofits, and liquidations
+
 This allows strategies to be iterated on, parameters to be adjusted, and profitability to be
 estimated, all locally in a risk-free environment.
 
@@ -123,11 +130,7 @@ granular permissions following the *principle of least privilege*.
 This project is in active development and currently has the following limitations:
 
 - **Only isolated futures trades are supported**. Cross margin trades are not supported yet.
-- **Backtesting does not yet take
-  [funding fees](https://docs.lnmarkets.com/resources/futures/#funding-fees) into account**. This
-  will generally overstate the returns of long positions held across funding events, and understate
-  the returns of short positions.
-  
+
 ## Examples
 
 Complete runnable examples are available in the
