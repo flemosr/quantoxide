@@ -5,5 +5,3 @@ CREATE TABLE funding_settlements (
     funding_rate DOUBLE PRECISION NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-
-CREATE INDEX idx_funding_settlements_time ON funding_settlements (time);
