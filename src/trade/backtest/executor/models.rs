@@ -4,8 +4,11 @@ use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
 use lnm_sdk::api_v3::models::{
-    ClientId, Leverage, Margin, PercentageCapped, Price, Quantity, TradeSide, TradeSize, trade_util,
+    ClientId, Leverage, Margin, PercentageCapped, Price, Quantity, SATS_PER_BTC, TradeSide,
+    TradeSize, trade_util,
 };
+
+use crate::db::models::FundingSettlementRow;
 
 use super::{
     super::super::core::{TradeClosed, TradeCore, TradeRunning},
@@ -166,6 +169,61 @@ impl SimulatedTradeRunning {
             closing_fee_reserved: self.closing_fee_reserved,
             client_id: self.client_id.clone(),
         }))
+    }
+
+    /// Applies a funding settlement to this trade, updating margin, leverage, and liquidation.
+    ///
+    /// Returns `Some(updated_trade)` when the trade can be updated, or `None` when margin or
+    /// leverage became invalid (trade is effectively bankrupt). Negative fees are deducted from
+    /// margin. Positive fees should be added to the balance.
+    ///
+    /// This method does NOT check whether the new liquidation price crosses the market price.
+    /// That check is left to the next `candle_update`, which will liquidate the trade through the
+    /// normal price-trigger mechanism.
+    pub fn apply_funding_settlement(
+        &self,
+        settlement: &FundingSettlementRow,
+    ) -> SimulatedTradeExecutorResult<(Option<Arc<Self>>, i64)> {
+        let raw_fee = (self.quantity.as_f64() / settlement.fixing_price)
+            * settlement.funding_rate
+            * SATS_PER_BTC;
+
+        // Longs pay when funding rates are positive, shorts pay when negative
+        let funding_fee = match self.side {
+            TradeSide::Buy => -raw_fee,
+            TradeSide::Sell => raw_fee,
+        }
+        .round() as i64;
+
+        if funding_fee >= 0 {
+            return Ok((Some(Arc::new(self.clone())), funding_fee));
+        }
+
+        let Ok(new_margin) = Margin::try_from(self.margin.as_i64() + funding_fee) else {
+            return Ok((None, funding_fee));
+        };
+
+        let Ok(new_leverage) = Leverage::try_calculate(self.quantity, new_margin, self.price)
+        else {
+            return Ok((None, funding_fee));
+        };
+
+        let new_liquidation = trade_util::estimate_liquidation_price(
+            self.side,
+            self.quantity,
+            self.price,
+            new_leverage,
+        );
+
+        Ok((
+            Some(Arc::new(Self {
+                margin: new_margin,
+                leverage: new_leverage,
+                liquidation: new_liquidation,
+                ..self.clone()
+            })),
+            funding_fee,
+        ))
     }
 
     pub fn to_closed(
