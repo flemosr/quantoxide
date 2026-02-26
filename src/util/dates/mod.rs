@@ -40,6 +40,9 @@ pub(crate) trait DateTimeExt {
     /// Rounds down to the previous valid funding settlement time (or returns self if already on-grid).
     fn floor_funding_settlement_time(&self) -> DateTime<Utc>;
 
+    /// Floors this timestamp to the start of the current hour.
+    fn floor_hour(&self) -> DateTime<Utc>;
+
     /// Floors this timestamp to the start of the day (midnight UTC).
     fn floor_day(&self) -> DateTime<Utc>;
 }
@@ -205,6 +208,14 @@ impl DateTimeExt for DateTime<Utc> {
                 .expect("valid time")
                 .and_utc()
         }
+    }
+
+    fn floor_hour(&self) -> DateTime<Utc> {
+        self.trunc_subsecs(0)
+            .with_second(0)
+            .expect("second is always valid")
+            .with_minute(0)
+            .expect("minute is always valid")
     }
 
     fn floor_day(&self) -> DateTime<Utc> {
