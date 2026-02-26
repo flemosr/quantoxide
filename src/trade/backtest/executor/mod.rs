@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 use lnm_sdk::api_v3::models::{ClientId, Leverage, Price, TradeSide, TradeSize};
 
-use crate::db::models::OhlcCandleRow;
+use crate::db::models::{FundingSettlementRow, OhlcCandleRow};
 
 use super::{
     super::{
@@ -256,6 +256,87 @@ impl SimulatedTradeExecutor {
         state_guard.trigger = new_trigger;
         state_guard.running_map = new_running_map;
 
+        state_guard.realized_pl = new_realized_pl;
+        state_guard.closed_fees = new_closed_fees;
+        state_guard.last_trade_time = new_last_trade_time;
+
+        Ok(())
+    }
+
+    pub async fn apply_funding_settlement(
+        &self,
+        settlement: &FundingSettlementRow,
+    ) -> SimulatedTradeExecutorResult<()> {
+        let mut state_guard = self.state.lock().await;
+
+        if state_guard.running_map.is_empty() {
+            return Ok(());
+        }
+
+        let mut new_balance = state_guard.balance;
+        let mut new_funding_fees = state_guard.funding_fees;
+        let mut new_realized_pl = state_guard.realized_pl;
+        let mut new_closed_fees = state_guard.closed_fees;
+        let mut new_last_trade_time = state_guard.last_trade_time;
+        let mut closed_trades: Vec<Arc<dyn TradeClosed>> = Vec::new();
+
+        let mut new_trigger = PriceTrigger::new();
+        let mut new_running_map = RunningTradesMap::new();
+
+        for (trade, trade_tsl_opt) in state_guard.running_map.trades_desc() {
+            let (updated_trade, funding_fee) = trade.apply_funding_settlement(settlement)?;
+
+            new_funding_fees += funding_fee;
+
+            if let Some(updated_trade) = updated_trade {
+                if funding_fee > 0 {
+                    new_balance += funding_fee;
+                }
+
+                new_trigger
+                    .update(
+                        self.config.trailing_stoploss_step_size(),
+                        updated_trade.as_ref(),
+                        *trade_tsl_opt,
+                    )
+                    .map_err(SimulatedTradeExecutorError::PriceTriggerUpdate)?;
+                new_running_map.add(updated_trade, *trade_tsl_opt);
+            } else {
+                // Edge case: the funding fee would make margin or leverage invalid, so the trade
+                // can no longer be represented. In practice this shouldn't happen — trades
+                // this close to liquidation will be closed by market movements first. Close
+                // at the current market price and deduct the fee from the balance.
+                let closing_price = Price::round(state_guard.market_price)
+                    .map_err(SimulatedTradeExecutorError::InvalidMarketPrice)?;
+                let closed_trade =
+                    trade.to_closed(self.config.fee_perc(), settlement.time, closing_price);
+
+                new_balance += closed_trade.margin().as_i64() + closed_trade.maintenance_margin()
+                    - closed_trade.closing_fee() as i64
+                    + closed_trade.pl()
+                    + funding_fee;
+
+                new_realized_pl += closed_trade.pl();
+                new_closed_fees += closed_trade.opening_fee() + closed_trade.closing_fee();
+                new_last_trade_time = Some(settlement.time);
+
+                closed_trades.push(closed_trade);
+            }
+        }
+
+        if !closed_trades.is_empty() {
+            let closed_history = Arc::make_mut(&mut state_guard.closed_history);
+            for closed_trade in closed_trades {
+                closed_history
+                    .add(closed_trade)
+                    .map_err(SimulatedTradeExecutorError::ClosedHistoryUpdate)?;
+            }
+        }
+
+        state_guard.balance = new_balance;
+        state_guard.trigger = new_trigger;
+        state_guard.running_map = new_running_map;
+        state_guard.funding_fees = new_funding_fees;
         state_guard.realized_pl = new_realized_pl;
         state_guard.closed_fees = new_closed_fees;
         state_guard.last_trade_time = new_last_trade_time;
