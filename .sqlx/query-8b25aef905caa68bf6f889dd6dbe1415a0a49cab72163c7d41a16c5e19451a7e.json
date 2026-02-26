@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                INSERT INTO funding_settlements (id, time, fixing_price, funding_rate)\n                SELECT * FROM unnest($1::uuid[], $2::timestamptz[], $3::float8[], $4::float8[])\n                ON CONFLICT (time) DO NOTHING\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "UuidArray",
+        "TimestamptzArray",
+        "Float8Array",
+        "Float8Array"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "8b25aef905caa68bf6f889dd6dbe1415a0a49cab72163c7d41a16c5e19451a7e"
+}
