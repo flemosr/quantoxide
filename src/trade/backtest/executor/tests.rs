@@ -1,10 +1,10 @@
-use crate::util::DateTimeExt;
+use crate::{db::models::FundingSettlementRow, util::DateTimeExt};
 
 use super::*;
 
 use chrono::Duration;
 
-use lnm_sdk::api_v3::models::{ClientId, Leverage, PercentageCapped, Quantity};
+use lnm_sdk::api_v3::models::{ClientId, Leverage, PercentageCapped, Quantity, SATS_PER_BTC};
 
 fn next_candle(prev: &OhlcCandleRow, price: f64) -> OhlcCandleRow {
     OhlcCandleRow::new_simple(prev.time + Duration::minutes(1), price, prev.volume)
@@ -1129,6 +1129,693 @@ async fn test_simulated_trade_executor_short_liquidation_not_reached() -> TradeE
     let state = executor.trading_state().await?;
     assert_eq!(state.running_short_len(), 1, "Short should still be open");
     assert_eq!(state.closed_len(), 0);
+
+    Ok(())
+}
+
+fn make_settlement(
+    time: DateTime<Utc>,
+    fixing_price: f64,
+    funding_rate: f64,
+) -> FundingSettlementRow {
+    FundingSettlementRow {
+        id: Uuid::new_v4(),
+        time,
+        fixing_price,
+        funding_rate,
+        created_at: time,
+    }
+}
+
+/// Helper: compute the expected funding fee for a given trade side/quantity/settlement,
+/// using the same formula as `SimulatedTradeRunning::apply_funding_settlement`.
+fn expected_funding_fee(
+    side: TradeSide,
+    quantity: f64,
+    fixing_price: f64,
+    funding_rate: f64,
+) -> i64 {
+    let raw = (quantity / fixing_price) * funding_rate * SATS_PER_BTC;
+    match side {
+        TradeSide::Buy => -raw,
+        TradeSide::Sell => raw,
+    }
+    .round() as i64
+}
+
+/// Positive funding rate: long pays, funding_fees should be negative.
+#[tokio::test]
+async fn test_funding_settlement_long_positive_rate() -> TradeExecutorResult<()> {
+    let candle = OhlcCandleRow::new_simple(Utc::now().floor_minute(), 60_000.0, 1_000);
+    let start_balance = 100_000_000;
+    let config = SimulatedTradeExecutorConfig::default();
+
+    let executor = SimulatedTradeExecutor::new(config, &candle, start_balance);
+
+    // Open a long: $10,000 quantity at $60,000
+    let size = Quantity::try_from(10_000).unwrap().into();
+    let leverage = Leverage::try_from(1).unwrap();
+    executor.open_long(size, leverage, None, None, None).await?;
+
+    let state = executor.trading_state().await?;
+    let balance_after_open = state.balance();
+    assert_eq!(state.funding_fees(), 0);
+
+    // Apply settlement with positive rate (+0.01%)
+    // Expected: (10_000 / 60_000) * 0.0001 * 100_000_000 = 1_667 sats
+    // Longs pay -> -1_667
+    let settlement = make_settlement(candle.time, 60_000.0, 0.0001);
+    executor.apply_funding_settlement(&settlement).await?;
+
+    let state = executor.trading_state().await?;
+    let exp_fee = expected_funding_fee(TradeSide::Buy, 10_000.0, 60_000.0, 0.0001);
+    assert!(exp_fee < 0, "Long should pay on positive rate");
+    assert_eq!(exp_fee, -1667);
+    assert_eq!(state.funding_fees(), exp_fee);
+    // Negative fees are deducted from margin, not from balance directly
+    assert_eq!(state.balance(), balance_after_open);
+    assert_eq!(state.running_long_len(), 1);
+
+    Ok(())
+}
+
+/// Negative funding rate: long receives, funding_fees should be positive.
+#[tokio::test]
+async fn test_funding_settlement_long_negative_rate() -> TradeExecutorResult<()> {
+    let candle = OhlcCandleRow::new_simple(Utc::now().floor_minute(), 60_000.0, 1_000);
+    let start_balance = 100_000_000;
+    let config = SimulatedTradeExecutorConfig::default();
+
+    let executor = SimulatedTradeExecutor::new(config, &candle, start_balance);
+
+    let size = Quantity::try_from(10_000).unwrap().into();
+    let leverage = Leverage::try_from(1).unwrap();
+    executor.open_long(size, leverage, None, None, None).await?;
+
+    let state = executor.trading_state().await?;
+    let balance_after_open = state.balance();
+
+    // Negative rate: longs receive
+    let settlement = make_settlement(candle.time, 60_000.0, -0.0001);
+    executor.apply_funding_settlement(&settlement).await?;
+
+    let state = executor.trading_state().await?;
+    let exp_fee = expected_funding_fee(TradeSide::Buy, 10_000.0, 60_000.0, -0.0001);
+    assert!(exp_fee > 0, "Long should receive on negative rate");
+    assert_eq!(exp_fee, 1667);
+    assert_eq!(state.funding_fees(), exp_fee);
+    // Positive fees are added to balance
+    assert_eq!(state.balance(), balance_after_open + exp_fee as u64);
+    assert_eq!(state.running_long_len(), 1);
+
+    Ok(())
+}
+
+/// Positive funding rate: short receives, funding_fees should be positive.
+#[tokio::test]
+async fn test_funding_settlement_short_positive_rate() -> TradeExecutorResult<()> {
+    let candle = OhlcCandleRow::new_simple(Utc::now().floor_minute(), 60_000.0, 1_000);
+    let start_balance = 100_000_000;
+    let config = SimulatedTradeExecutorConfig::default();
+
+    let executor = SimulatedTradeExecutor::new(config, &candle, start_balance);
+
+    let size = Quantity::try_from(10_000).unwrap().into();
+    let leverage = Leverage::try_from(1).unwrap();
+    executor
+        .open_short(size, leverage, None, None, None)
+        .await?;
+
+    let state = executor.trading_state().await?;
+    let balance_after_open = state.balance();
+
+    // Positive rate: shorts receive
+    let settlement = make_settlement(candle.time, 60_000.0, 0.0001);
+    executor.apply_funding_settlement(&settlement).await?;
+
+    let state = executor.trading_state().await?;
+    let exp_fee = expected_funding_fee(TradeSide::Sell, 10_000.0, 60_000.0, 0.0001);
+    assert!(exp_fee > 0, "Short should receive on positive rate");
+    assert_eq!(exp_fee, 1667);
+    assert_eq!(state.funding_fees(), exp_fee);
+    assert_eq!(state.balance(), balance_after_open + exp_fee as u64);
+    assert_eq!(state.running_short_len(), 1);
+
+    Ok(())
+}
+
+/// Negative funding rate: short pays, funding_fees should be negative.
+#[tokio::test]
+async fn test_funding_settlement_short_negative_rate() -> TradeExecutorResult<()> {
+    let candle = OhlcCandleRow::new_simple(Utc::now().floor_minute(), 60_000.0, 1_000);
+    let start_balance = 100_000_000;
+    let config = SimulatedTradeExecutorConfig::default();
+
+    let executor = SimulatedTradeExecutor::new(config, &candle, start_balance);
+
+    let size = Quantity::try_from(10_000).unwrap().into();
+    let leverage = Leverage::try_from(1).unwrap();
+    executor
+        .open_short(size, leverage, None, None, None)
+        .await?;
+
+    let state = executor.trading_state().await?;
+    let balance_after_open = state.balance();
+
+    let settlement = make_settlement(candle.time, 60_000.0, -0.0001);
+    executor.apply_funding_settlement(&settlement).await?;
+
+    let state = executor.trading_state().await?;
+    let exp_fee = expected_funding_fee(TradeSide::Sell, 10_000.0, 60_000.0, -0.0001);
+    assert!(exp_fee < 0, "Short should pay on negative rate");
+    assert_eq!(exp_fee, -1667);
+    assert_eq!(state.funding_fees(), exp_fee);
+    // Negative fees deducted from margin, balance unchanged
+    assert_eq!(state.balance(), balance_after_open);
+    assert_eq!(state.running_short_len(), 1);
+
+    Ok(())
+}
+
+/// Multiple settlements accumulate funding_fees correctly.
+#[tokio::test]
+async fn test_funding_settlement_cumulative_fees() -> TradeExecutorResult<()> {
+    let candle = OhlcCandleRow::new_simple(Utc::now().floor_minute(), 100_000.0, 1_000);
+    let start_balance = 100_000_000;
+    let config = SimulatedTradeExecutorConfig::default();
+
+    let executor = SimulatedTradeExecutor::new(config, &candle, start_balance);
+
+    // Open long $500 at $100k
+    let size = Quantity::try_from(500).unwrap().into();
+    let leverage = Leverage::try_from(1).unwrap();
+    executor.open_long(size, leverage, None, None, None).await?;
+
+    // Settlement 1: positive rate -> long pays
+    let s1 = make_settlement(candle.time, 100_000.0, 0.0001);
+    executor.apply_funding_settlement(&s1).await?;
+
+    let fee1 = expected_funding_fee(TradeSide::Buy, 500.0, 100_000.0, 0.0001);
+
+    let state = executor.trading_state().await?;
+    assert_eq!(state.funding_fees(), fee1);
+
+    // Settlement 2: negative rate -> long receives
+    let s2 = make_settlement(candle.time + Duration::hours(8), 100_000.0, -0.0002);
+    executor.apply_funding_settlement(&s2).await?;
+
+    let fee2 = expected_funding_fee(TradeSide::Buy, 500.0, 100_000.0, -0.0002);
+
+    let state = executor.trading_state().await?;
+    assert_eq!(state.funding_fees(), fee1 + fee2);
+
+    // Settlement 3: another positive rate
+    let s3 = make_settlement(candle.time + Duration::hours(16), 100_000.0, 0.00005);
+    executor.apply_funding_settlement(&s3).await?;
+
+    let fee3 = expected_funding_fee(TradeSide::Buy, 500.0, 100_000.0, 0.00005);
+
+    let state = executor.trading_state().await?;
+    assert_eq!(state.funding_fees(), fee1 + fee2 + fee3);
+
+    Ok(())
+}
+
+/// Settlement with no open positions is a no-op.
+#[tokio::test]
+async fn test_funding_settlement_no_positions() -> TradeExecutorResult<()> {
+    let candle = OhlcCandleRow::new_simple(Utc::now().floor_minute(), 100_000.0, 1_000);
+    let start_balance = 100_000_000;
+    let config = SimulatedTradeExecutorConfig::default();
+
+    let executor = SimulatedTradeExecutor::new(config, &candle, start_balance);
+
+    let settlement = make_settlement(candle.time, 100_000.0, 0.001);
+    executor.apply_funding_settlement(&settlement).await?;
+
+    let state = executor.trading_state().await?;
+    assert_eq!(state.funding_fees(), 0);
+    assert_eq!(state.balance(), start_balance);
+
+    Ok(())
+}
+
+/// Funding fee with zero rate should produce zero fee.
+#[tokio::test]
+async fn test_funding_settlement_zero_rate() -> TradeExecutorResult<()> {
+    let candle = OhlcCandleRow::new_simple(Utc::now().floor_minute(), 100_000.0, 1_000);
+    let start_balance = 100_000_000;
+    let config = SimulatedTradeExecutorConfig::default();
+
+    let executor = SimulatedTradeExecutor::new(config, &candle, start_balance);
+
+    let size = Quantity::try_from(500).unwrap().into();
+    let leverage = Leverage::try_from(1).unwrap();
+    executor.open_long(size, leverage, None, None, None).await?;
+
+    let state = executor.trading_state().await?;
+    let balance_after_open = state.balance();
+
+    let settlement = make_settlement(candle.time, 100_000.0, 0.0);
+    executor.apply_funding_settlement(&settlement).await?;
+
+    let state = executor.trading_state().await?;
+    assert_eq!(state.funding_fees(), 0);
+    assert_eq!(state.balance(), balance_after_open);
+
+    Ok(())
+}
+
+/// Funding applied to multiple open positions (long + short) simultaneously.
+#[tokio::test]
+async fn test_funding_settlement_mixed_positions() -> TradeExecutorResult<()> {
+    let candle = OhlcCandleRow::new_simple(Utc::now().floor_minute(), 100_000.0, 1_000);
+    let start_balance = 100_000_000;
+    let config = SimulatedTradeExecutorConfig::default();
+
+    let executor = SimulatedTradeExecutor::new(config, &candle, start_balance);
+
+    let size = Quantity::try_from(500).unwrap().into();
+    let leverage = Leverage::try_from(1).unwrap();
+
+    executor.open_long(size, leverage, None, None, None).await?;
+    executor
+        .open_short(size, leverage, None, None, None)
+        .await?;
+
+    let state = executor.trading_state().await?;
+    let balance_after_open = state.balance();
+    assert_eq!(state.running_long_len(), 1);
+    assert_eq!(state.running_short_len(), 1);
+
+    // Positive rate: long pays, short receives. With same quantity, fees nearly cancel out.
+    let settlement = make_settlement(candle.time, 100_000.0, 0.0001);
+    executor.apply_funding_settlement(&settlement).await?;
+
+    let long_fee = expected_funding_fee(TradeSide::Buy, 500.0, 100_000.0, 0.0001);
+    let short_fee = expected_funding_fee(TradeSide::Sell, 500.0, 100_000.0, 0.0001);
+    assert_eq!(long_fee, -short_fee, "Fees should be equal and opposite");
+
+    let state = executor.trading_state().await?;
+    assert_eq!(state.funding_fees(), long_fee + short_fee);
+    // Net fee is 0 (cancel out), but positive short fee was added to balance
+    assert_eq!(state.balance(), balance_after_open + short_fee as u64);
+    assert_eq!(state.running_long_len(), 1);
+    assert_eq!(state.running_short_len(), 1);
+
+    Ok(())
+}
+
+/// Negative funding fees reduce margin, leverage, and shift liquidation price.
+#[tokio::test]
+async fn test_funding_settlement_margin_reduction_long() -> TradeExecutorResult<()> {
+    let candle = OhlcCandleRow::new_simple(Utc::now().floor_minute(), 100_000.0, 1_000);
+    let start_balance = 100_000_000;
+    let config = SimulatedTradeExecutorConfig::default();
+
+    let executor = SimulatedTradeExecutor::new(config, &candle, start_balance);
+
+    let size = Quantity::try_from(500).unwrap().into();
+    let leverage = Leverage::try_from(1).unwrap();
+    executor.open_long(size, leverage, None, None, None).await?;
+
+    let state = executor.trading_state().await?;
+    let (trade_before, _) = state.running_map().trades_desc().next().unwrap();
+    let margin_before = trade_before.margin();
+    let liquidation_before = trade_before.liquidation();
+
+    // Apply a large positive rate so the long pays a significant fee
+    let settlement = make_settlement(candle.time, 100_000.0, 0.01); // 1%
+    executor.apply_funding_settlement(&settlement).await?;
+
+    let state = executor.trading_state().await?;
+    assert_eq!(state.running_long_len(), 1);
+
+    let (trade_after, _) = state.running_map().trades_desc().next().unwrap();
+    assert!(
+        trade_after.margin().as_u64() < margin_before.as_u64(),
+        "Margin should decrease when long pays funding fee"
+    );
+    assert!(
+        trade_after.liquidation().as_f64() > liquidation_before.as_f64(),
+        "Liquidation price should move closer to market when margin decreases (long)"
+    );
+
+    Ok(())
+}
+
+/// Negative funding fees reduce margin for shorts as well.
+#[tokio::test]
+async fn test_funding_settlement_margin_reduction_short() -> TradeExecutorResult<()> {
+    let candle = OhlcCandleRow::new_simple(Utc::now().floor_minute(), 100_000.0, 1_000);
+    let start_balance = 100_000_000;
+    let config = SimulatedTradeExecutorConfig::default();
+
+    let executor = SimulatedTradeExecutor::new(config, &candle, start_balance);
+
+    let size = Quantity::try_from(500).unwrap().into();
+    let leverage = Leverage::try_from(1).unwrap();
+    executor
+        .open_short(size, leverage, None, None, None)
+        .await?;
+
+    let state = executor.trading_state().await?;
+    let (trade_before, _) = state.running_map().trades_desc().next().unwrap();
+    let margin_before = trade_before.margin();
+    let liquidation_before = trade_before.liquidation();
+
+    // Large negative rate so the short pays
+    let settlement = make_settlement(candle.time, 100_000.0, -0.01); // -1%
+    executor.apply_funding_settlement(&settlement).await?;
+
+    let state = executor.trading_state().await?;
+    assert_eq!(state.running_short_len(), 1);
+
+    let (trade_after, _) = state.running_map().trades_desc().next().unwrap();
+    assert!(
+        trade_after.margin().as_u64() < margin_before.as_u64(),
+        "Margin should decrease when short pays funding fee"
+    );
+    assert!(
+        trade_after.liquidation().as_f64() < liquidation_before.as_f64(),
+        "Liquidation price should move closer to market when margin decreases (short)"
+    );
+
+    Ok(())
+}
+
+/// Funding fees are reflected in final PL when closing a trade.
+#[tokio::test]
+async fn test_funding_settlement_reflected_in_close() -> TradeExecutorResult<()> {
+    let candle = OhlcCandleRow::new_simple(Utc::now().floor_minute(), 100_000.0, 1_000);
+    let start_balance = 100_000_000;
+    let config = SimulatedTradeExecutorConfig::default();
+
+    let executor = SimulatedTradeExecutor::new(config, &candle, start_balance);
+
+    let size = Quantity::try_from(500).unwrap().into();
+    let leverage = Leverage::try_from(1).unwrap();
+    executor
+        .open_short(size, leverage, None, None, None)
+        .await?;
+
+    // Short receives positive rate -> funding_fees positive
+    let settlement = make_settlement(candle.time, 100_000.0, 0.001); // 0.1%
+    executor.apply_funding_settlement(&settlement).await?;
+
+    let state_before_close = executor.trading_state().await?;
+    let funding_fees_before = state_before_close.funding_fees();
+    assert!(funding_fees_before > 0);
+
+    // Close at the same price (no price PL)
+    executor.close_shorts().await?;
+
+    let state = executor.trading_state().await?;
+    // Funding fees should persist after closing
+    assert_eq!(state.funding_fees(), funding_fees_before);
+    assert_eq!(state.running_short_len(), 0);
+    assert_eq!(state.closed_len(), 1);
+
+    Ok(())
+}
+
+/// Verify the LN Markets documentation example:
+/// +0.01% rate, $10,000 quantity at $60,000 BTCUSD -> 1,667 sats.
+#[tokio::test]
+async fn test_funding_settlement_docs_example() -> TradeExecutorResult<()> {
+    let candle = OhlcCandleRow::new_simple(Utc::now().floor_minute(), 60_000.0, 1_000);
+    let start_balance = 100_000_000;
+    let config = SimulatedTradeExecutorConfig::default();
+
+    let executor = SimulatedTradeExecutor::new(config, &candle, start_balance);
+
+    // Open long with $10,000 quantity
+    let size = Quantity::try_from(10_000).unwrap().into();
+    let leverage = Leverage::try_from(1).unwrap();
+    executor.open_long(size, leverage, None, None, None).await?;
+
+    // +0.01% = 0.0001
+    let settlement = make_settlement(candle.time, 60_000.0, 0.0001);
+    executor.apply_funding_settlement(&settlement).await?;
+
+    let state = executor.trading_state().await?;
+    // (10_000 / 60_000) * 0.0001 * 100_000_000 = 1_666.666... -> rounds to 1_667
+    // Long pays -> -1_667
+    assert_eq!(state.funding_fees(), -1667);
+
+    Ok(())
+}
+
+/// Verify the same docs example but for a short position (short receives).
+#[tokio::test]
+async fn test_funding_settlement_docs_example_short() -> TradeExecutorResult<()> {
+    let candle = OhlcCandleRow::new_simple(Utc::now().floor_minute(), 60_000.0, 1_000);
+    let start_balance = 100_000_000;
+    let config = SimulatedTradeExecutorConfig::default();
+
+    let executor = SimulatedTradeExecutor::new(config, &candle, start_balance);
+
+    let size = Quantity::try_from(10_000).unwrap().into();
+    let leverage = Leverage::try_from(1).unwrap();
+    executor
+        .open_short(size, leverage, None, None, None)
+        .await?;
+
+    let settlement = make_settlement(candle.time, 60_000.0, 0.0001);
+    executor.apply_funding_settlement(&settlement).await?;
+
+    let state = executor.trading_state().await?;
+    // Short receives -> +1_667
+    assert_eq!(state.funding_fees(), 1667);
+
+    Ok(())
+}
+
+/// Funding settlement applied to a leveraged long position.
+#[tokio::test]
+async fn test_funding_settlement_leveraged_long() -> TradeExecutorResult<()> {
+    let candle = OhlcCandleRow::new_simple(Utc::now().floor_minute(), 100_000.0, 1_000);
+    let start_balance = 100_000_000;
+    let config = SimulatedTradeExecutorConfig::default();
+
+    let executor = SimulatedTradeExecutor::new(config, &candle, start_balance);
+
+    // $500 quantity with 10x leverage (so margin is ~$50 worth)
+    let size = Quantity::try_from(500).unwrap().into();
+    let leverage = Leverage::try_from(10).unwrap();
+    executor.open_long(size, leverage, None, None, None).await?;
+
+    let state = executor.trading_state().await?;
+    let (trade_before, _) = state.running_map().trades_desc().next().unwrap();
+    let margin_before = trade_before.margin();
+    let leverage_before = trade_before.leverage();
+
+    // Positive rate -> long pays
+    let settlement = make_settlement(candle.time, 100_000.0, 0.001); // 0.1%
+    executor.apply_funding_settlement(&settlement).await?;
+
+    // Fee = (500 / 100_000) * 0.001 * 100_000_000 = 500 sats
+    let exp_fee = expected_funding_fee(TradeSide::Buy, 500.0, 100_000.0, 0.001);
+    assert_eq!(exp_fee, -500);
+
+    let state = executor.trading_state().await?;
+    assert_eq!(state.funding_fees(), exp_fee);
+    assert_eq!(state.running_long_len(), 1);
+
+    let (trade_after, _) = state.running_map().trades_desc().next().unwrap();
+    // Margin should be reduced by fee amount
+    assert_eq!(
+        trade_after.margin().as_i64(),
+        margin_before.as_i64() + exp_fee
+    );
+    // With lower margin and same quantity, effective leverage increases
+    assert!(trade_after.leverage() >= leverage_before);
+
+    Ok(())
+}
+
+/// Funding settlement does not affect balance when position is closed before settlement.
+#[tokio::test]
+async fn test_funding_settlement_after_close_is_noop() -> TradeExecutorResult<()> {
+    let candle = OhlcCandleRow::new_simple(Utc::now().floor_minute(), 100_000.0, 1_000);
+    let start_balance = 100_000_000;
+    let config = SimulatedTradeExecutorConfig::default();
+
+    let executor = SimulatedTradeExecutor::new(config, &candle, start_balance);
+
+    let size = Quantity::try_from(500).unwrap().into();
+    let leverage = Leverage::try_from(1).unwrap();
+    executor.open_long(size, leverage, None, None, None).await?;
+
+    // Close the trade first
+    executor.close_longs().await?;
+
+    let state = executor.trading_state().await?;
+    let balance_after_close = state.balance();
+    assert_eq!(state.running_long_len(), 0);
+
+    // Settlement after close should be a no-op
+    let settlement = make_settlement(candle.time, 100_000.0, 0.01);
+    executor.apply_funding_settlement(&settlement).await?;
+
+    let state = executor.trading_state().await?;
+    assert_eq!(state.funding_fees(), 0);
+    assert_eq!(state.balance(), balance_after_close);
+
+    Ok(())
+}
+
+/// Funding settlement with different fixing price changes fee magnitude.
+#[tokio::test]
+async fn test_funding_settlement_fixing_price_impact() -> TradeExecutorResult<()> {
+    let candle = OhlcCandleRow::new_simple(Utc::now().floor_minute(), 100_000.0, 1_000);
+    let start_balance = 100_000_000;
+    let config = SimulatedTradeExecutorConfig::default();
+
+    let executor = SimulatedTradeExecutor::new(config, &candle, start_balance);
+
+    let size = Quantity::try_from(10_000).unwrap().into();
+    let leverage = Leverage::try_from(1).unwrap();
+    executor.open_long(size, leverage, None, None, None).await?;
+
+    // Lower fixing price -> more BTC notional -> larger fee
+    let settlement_low = make_settlement(candle.time, 50_000.0, 0.0001);
+    executor.apply_funding_settlement(&settlement_low).await?;
+
+    let fee_low_fixing = expected_funding_fee(TradeSide::Buy, 10_000.0, 50_000.0, 0.0001);
+
+    let state = executor.trading_state().await?;
+    assert_eq!(state.funding_fees(), fee_low_fixing);
+    // (10_000 / 50_000) * 0.0001 * 100_000_000 = 2_000 sats -> long pays -2_000
+    assert_eq!(fee_low_fixing, -2000);
+
+    Ok(())
+}
+
+/// Multiple settlements across multiple trades with price changes in between.
+#[tokio::test]
+async fn test_funding_settlement_with_price_movement() -> TradeExecutorResult<()> {
+    let candle = OhlcCandleRow::new_simple(Utc::now().floor_minute(), 100_000.0, 1_000);
+    let start_balance = 100_000_000;
+    let config = SimulatedTradeExecutorConfig::default();
+
+    let executor = SimulatedTradeExecutor::new(config, &candle, start_balance);
+
+    let size = Quantity::try_from(500).unwrap().into();
+    let leverage = Leverage::try_from(1).unwrap();
+    executor.open_long(size, leverage, None, None, None).await?;
+
+    // Apply first settlement
+    let s1 = make_settlement(candle.time, 100_000.0, 0.0001);
+    executor.apply_funding_settlement(&s1).await?;
+
+    let fee1 = expected_funding_fee(TradeSide::Buy, 500.0, 100_000.0, 0.0001);
+
+    // Price moves up
+    let candle = next_candle(&candle, 105_000.0);
+    executor.candle_update(&candle).await?;
+
+    let state = executor.trading_state().await?;
+    assert_eq!(state.funding_fees(), fee1);
+    assert!(
+        state.running_pl() > 0,
+        "Should be profitable after price increase"
+    );
+
+    // Apply second settlement at new fixing price
+    let s2 = make_settlement(candle.time, 105_000.0, 0.0002);
+    executor.apply_funding_settlement(&s2).await?;
+
+    let fee2 = expected_funding_fee(TradeSide::Buy, 500.0, 105_000.0, 0.0002);
+
+    let state = executor.trading_state().await?;
+    assert_eq!(state.funding_fees(), fee1 + fee2);
+    assert!(state.running_pl() > 0);
+    assert_eq!(state.running_long_len(), 1);
+
+    Ok(())
+}
+
+/// Repeated settlements progressively erode margin on leveraged trade.
+#[tokio::test]
+async fn test_funding_settlement_progressive_margin_erosion() -> TradeExecutorResult<()> {
+    let candle = OhlcCandleRow::new_simple(Utc::now().floor_minute(), 100_000.0, 1_000);
+    let start_balance = 100_000_000;
+    let config = SimulatedTradeExecutorConfig::default();
+
+    let executor = SimulatedTradeExecutor::new(config, &candle, start_balance);
+
+    let size = Quantity::try_from(500).unwrap().into();
+    let leverage = Leverage::try_from(10).unwrap();
+    executor.open_long(size, leverage, None, None, None).await?;
+
+    let state = executor.trading_state().await?;
+    let (trade0, _) = state.running_map().trades_desc().next().unwrap();
+    let initial_margin = trade0.margin().as_u64();
+
+    let mut cumulative_fees = 0i64;
+
+    // Apply 5 successive settlements with positive rate (long pays each time)
+    for i in 0..5 {
+        let settlement = make_settlement(
+            candle.time + Duration::hours(8 * i),
+            100_000.0,
+            0.001, // 0.1%
+        );
+        executor.apply_funding_settlement(&settlement).await?;
+
+        let fee = expected_funding_fee(TradeSide::Buy, 500.0, 100_000.0, 0.001);
+        cumulative_fees += fee;
+
+        let state = executor.trading_state().await?;
+        assert_eq!(state.funding_fees(), cumulative_fees);
+
+        if state.running_long_len() == 1 {
+            let (trade, _) = state.running_map().trades_desc().next().unwrap();
+            assert!(
+                trade.margin().as_u64() < initial_margin,
+                "Margin should erode after {} settlements",
+                i + 1
+            );
+        }
+    }
+
+    Ok(())
+}
+
+/// Positive funding fee received by short does not alter trade margin (only balance).
+#[tokio::test]
+async fn test_funding_settlement_positive_fee_no_margin_change() -> TradeExecutorResult<()> {
+    let candle = OhlcCandleRow::new_simple(Utc::now().floor_minute(), 100_000.0, 1_000);
+    let start_balance = 100_000_000;
+    let config = SimulatedTradeExecutorConfig::default();
+
+    let executor = SimulatedTradeExecutor::new(config, &candle, start_balance);
+
+    let size = Quantity::try_from(500).unwrap().into();
+    let leverage = Leverage::try_from(1).unwrap();
+    executor
+        .open_short(size, leverage, None, None, None)
+        .await?;
+
+    let state = executor.trading_state().await?;
+    let (trade_before, _) = state.running_map().trades_desc().next().unwrap();
+    let margin_before = trade_before.margin();
+    let leverage_before = trade_before.leverage();
+    let liquidation_before = trade_before.liquidation();
+
+    // Positive rate -> short receives -> trade margin/leverage/liquidation unchanged
+    let settlement = make_settlement(candle.time, 100_000.0, 0.001);
+    executor.apply_funding_settlement(&settlement).await?;
+
+    let state = executor.trading_state().await?;
+    let (trade_after, _) = state.running_map().trades_desc().next().unwrap();
+    assert_eq!(trade_after.margin(), margin_before);
+    assert_eq!(trade_after.leverage(), leverage_before);
+    assert_eq!(
+        trade_after.liquidation().as_f64(),
+        liquidation_before.as_f64()
+    );
 
     Ok(())
 }
