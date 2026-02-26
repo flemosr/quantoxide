@@ -14,11 +14,11 @@ We are working with **quantoxide**, a Rust framework for developing, backtesting
    - Raw Operators: Process OHLC data and execute trades within a single component (recommended for single-strategy use cases)
    - Signal Operators: Delegate OHLC processing to Signal Evaluators, enabling multi-signal strategies or running multiple strategies in parallel
 
-2. **Synchronization** - Fetches and stores historical OHLC candle data from LN Markets into PostgreSQL (required for backtesting)
+2. **Synchronization** - Fetches and stores historical OHLC candle data and funding settlement data from LN Markets into PostgreSQL (required for backtesting)
    - Backfill mode: Historical data
    - Live mode: WebSocket streaming
 
-3. **Backtesting** - Tests strategies against historical data without risking real funds
+3. **Backtesting** - Tests strategies against historical data without risking real funds, with historically accurate funding fees and simulated stoplosses (including trailing), takeprofits, and liquidations
 
 4. **Live Trading** - Deploys strategies to production with real funds via authenticated LN Markets API
 
@@ -129,7 +129,6 @@ tokio = "<version-from-quantoxide-manifest>"
 ## Important Constraints
 
 - Only **isolated margin futures** are supported (no cross margin)
-- Backtesting **does not account for funding fees** (overstates long returns, understates short returns)
 - This is **alpha software** - bugs may result in loss of assets
 
 ## TUI vs Direct Mode
