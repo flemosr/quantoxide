@@ -110,7 +110,7 @@ impl FundingSettlementsRepository for PgFundingSettlementsRepo {
             r#"
                 INSERT INTO funding_settlements (id, time, fixing_price, funding_rate)
                 SELECT * FROM unnest($1::uuid[], $2::timestamptz[], $3::float8[], $4::float8[])
-                ON CONFLICT (id) DO NOTHING
+                ON CONFLICT (time) DO NOTHING
             "#,
             &ids,
             &times,
