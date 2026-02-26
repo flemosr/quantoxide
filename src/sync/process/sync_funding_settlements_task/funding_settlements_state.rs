@@ -167,6 +167,12 @@ impl FundingSettlementsState {
         self.bounds.map(|(_, end)| end)
     }
 
+    /// Checks if the specified time range falls within the available settlement bounds.
+    pub fn is_range_available(&self, range_from: DateTime<Utc>, range_to: DateTime<Utc>) -> bool {
+        self.bounds
+            .is_some_and(|(start, end)| start <= range_from && end >= range_to)
+    }
+
     /// Returns the latest contiguous group of missing settlement times.
     ///
     /// Always prioritizes the most recent missing settlements, working backwards in time.
