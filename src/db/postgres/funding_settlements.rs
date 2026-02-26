@@ -8,7 +8,8 @@ use lnm_sdk::api_v3::models::FundingSettlement;
 
 use crate::{
     sync::{
-        LNM_SETTLEMENT_A_END, LNM_SETTLEMENT_B_END, LNM_SETTLEMENT_B_START, LNM_SETTLEMENT_C_START,
+        LNM_SETTLEMENT_A_END, LNM_SETTLEMENT_A_START, LNM_SETTLEMENT_B_END, LNM_SETTLEMENT_B_START,
+        LNM_SETTLEMENT_C_START,
     },
     util::DateTimeExt,
 };
@@ -207,9 +208,10 @@ impl FundingSettlementsRepository for PgFundingSettlementsRepo {
 
         // Phase A segment (interval A, 24h): from .. min(to, PHASE_A_END)
         if from <= LNM_SETTLEMENT_A_END {
+            let phase_a_from = from.max(LNM_SETTLEMENT_A_START);
             let phase_a_to = to.min(LNM_SETTLEMENT_A_END);
             combined.extend(
-                self.query_missing_settlement_times_24h(from, phase_a_to)
+                self.query_missing_settlement_times_24h(phase_a_from, phase_a_to)
                     .await?,
             );
         }
