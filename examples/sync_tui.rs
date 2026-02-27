@@ -33,8 +33,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let config = SyncConfig::default();
     // How far back to fetch price history data can be configured with:
     // let config = config
-    //     .with_price_history_reach(date) // or:
-    //     .with_price_history_reach_max();
+    //     .with_price_history_reach_max() // or: .with_price_history_reach(specific_date)
+    //     .with_funding_settlement_reach_max(); // or: .with_funding_settlement_reach(specific_date)
 
     let sync_engine = SyncEngine::new(config, db, domain, SyncMode::Backfill)?;
 
