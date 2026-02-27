@@ -289,8 +289,8 @@ impl SimulatedTradeExecutor {
             new_funding_fees += funding_fee;
 
             if let Some(updated_trade) = updated_trade {
-                if funding_fee > 0 {
-                    new_balance += funding_fee;
+                if funding_fee < 0 {
+                    new_balance -= funding_fee;
                 }
 
                 new_trigger
@@ -314,7 +314,7 @@ impl SimulatedTradeExecutor {
                 new_balance += closed_trade.margin().as_i64() + closed_trade.maintenance_margin()
                     - closed_trade.closing_fee() as i64
                     + closed_trade.pl()
-                    + funding_fee;
+                    - funding_fee;
 
                 new_realized_pl += closed_trade.pl();
                 new_closed_fees += closed_trade.opening_fee() + closed_trade.closing_fee();
