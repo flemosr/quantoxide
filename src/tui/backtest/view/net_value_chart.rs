@@ -12,16 +12,19 @@ use crate::models::SATS_PER_BTC;
 pub(super) enum ChartMode {
     #[default]
     Sats,
+    BtcPrice,
     Usd,
 }
 
 pub(super) struct NetValueChartData {
     title: String,
     data_nav_sats: Vec<(f64, f64)>,
+    data_btc_price: Vec<(f64, f64)>,
     data_nav_usd: Vec<(f64, f64)>,
     start_time: f64,
     end_time: f64,
     max_nav_sats: f64,
+    max_btc_price: f64,
     max_nav_usd: f64,
     active_chart: ChartMode,
 }
@@ -31,10 +34,12 @@ impl NetValueChartData {
         Self {
             title: "No Data Available".to_string(),
             data_nav_sats: vec![],
+            data_btc_price: vec![],
             data_nav_usd: vec![],
             start_time: 0.0,
             end_time: 0.0,
             max_nav_sats: 0.0,
+            max_btc_price: 0.0,
             max_nav_usd: 0.0,
             active_chart: ChartMode::default(),
         }
@@ -66,6 +71,11 @@ impl NetValueChartData {
         }
         self.data_nav_sats.push((timestamp, total_net_value_f64));
 
+        if market_price > self.max_btc_price {
+            self.max_btc_price = market_price;
+        }
+        self.data_btc_price.push((timestamp, market_price));
+
         let net_value_usd = total_net_value_f64 * market_price / SATS_PER_BTC;
         if net_value_usd > self.max_nav_usd {
             self.max_nav_usd = net_value_usd;
@@ -83,18 +93,26 @@ impl NetValueChartData {
                 ChartMode::Sats => (
                     &self.data_nav_sats,
                     self.max_nav_sats,
-                    "[x] Net Asset Value [sats] | [ ] Net Asset Value [USD]",
+                    "[x] NAV [sats] | [ ] BTC Price | [ ] NAV [USD]",
                     "NAV [sats]",
                     false,
                     Color::Rgb(255, 165, 0),
                 ),
+                ChartMode::BtcPrice => (
+                    &self.data_btc_price,
+                    self.max_btc_price,
+                    "[ ] NAV [sats] | [x] BTC Price | [ ] NAV [USD]",
+                    "Price [USD]",
+                    true,
+                    Color::Rgb(180, 100, 255),
+                ),
                 ChartMode::Usd => (
                     &self.data_nav_usd,
                     self.max_nav_usd,
-                    "[ ] Net Asset Value [sats] | [x] Net Asset Value [USD]",
+                    "[ ] NAV [sats] | [ ] BTC Price | [x] NAV [USD]",
                     "NAV [USD]",
                     true,
-                    Color::Cyan,
+                    Color::Rgb(0, 210, 210),
                 ),
             };
 

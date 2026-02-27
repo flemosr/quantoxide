@@ -101,7 +101,8 @@ impl BacktestTuiView {
 
         match index {
             1 => state_guard.chart_data.set_chart_mode(ChartMode::Sats),
-            2 => state_guard.chart_data.set_chart_mode(ChartMode::Usd),
+            2 => state_guard.chart_data.set_chart_mode(ChartMode::BtcPrice),
+            3 => state_guard.chart_data.set_chart_mode(ChartMode::Usd),
             _ => {}
         }
     }
@@ -270,6 +271,10 @@ impl TuiView for BacktestTuiView {
             BacktestTuiPane::TradingStatePane => BacktestTuiPane::LogPane,
             BacktestTuiPane::LogPane => BacktestTuiPane::TradingStatePane,
         };
+    }
+
+    fn help_text() -> &'static str {
+        " Ctrl+C shutdown | Tab switch panes | Up/Down/Left/Right scroll | 'b' bottom | 't' top | '1'/'2'/'3' chart"
     }
 
     fn select_chart(&self, index: u8) {
