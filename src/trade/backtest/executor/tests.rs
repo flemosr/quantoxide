@@ -1157,13 +1157,13 @@ fn expected_funding_fee(
 ) -> i64 {
     let raw = (quantity / fixing_price) * funding_rate * SATS_PER_BTC;
     match side {
-        TradeSide::Buy => -raw,
-        TradeSide::Sell => raw,
+        TradeSide::Buy => raw,
+        TradeSide::Sell => -raw,
     }
     .round() as i64
 }
 
-/// Positive funding rate: long pays, funding_fees should be negative.
+/// Positive funding rate: long pays, funding_fees should be positive (cost).
 #[tokio::test]
 async fn test_funding_settlement_long_positive_rate() -> TradeExecutorResult<()> {
     let candle = OhlcCandleRow::new_simple(Utc::now().floor_minute(), 60_000.0, 1_000);
@@ -1183,23 +1183,23 @@ async fn test_funding_settlement_long_positive_rate() -> TradeExecutorResult<()>
 
     // Apply settlement with positive rate (+0.01%)
     // Expected: (10_000 / 60_000) * 0.0001 * 100_000_000 = 1_667 sats
-    // Longs pay -> -1_667
+    // Longs pay -> +1_667
     let settlement = make_settlement(candle.time, 60_000.0, 0.0001);
     executor.apply_funding_settlement(&settlement).await?;
 
     let state = executor.trading_state().await?;
     let exp_fee = expected_funding_fee(TradeSide::Buy, 10_000.0, 60_000.0, 0.0001);
-    assert!(exp_fee < 0, "Long should pay on positive rate");
-    assert_eq!(exp_fee, -1667);
+    assert!(exp_fee > 0, "Long should pay on positive rate");
+    assert_eq!(exp_fee, 1667);
     assert_eq!(state.funding_fees(), exp_fee);
-    // Negative fees are deducted from margin, not from balance directly
+    // Positive fees (cost) are deducted from margin, not from balance directly
     assert_eq!(state.balance(), balance_after_open);
     assert_eq!(state.running_long_len(), 1);
 
     Ok(())
 }
 
-/// Negative funding rate: long receives, funding_fees should be positive.
+/// Negative funding rate: long receives, funding_fees should be negative (revenue).
 #[tokio::test]
 async fn test_funding_settlement_long_negative_rate() -> TradeExecutorResult<()> {
     let candle = OhlcCandleRow::new_simple(Utc::now().floor_minute(), 60_000.0, 1_000);
@@ -1221,17 +1221,17 @@ async fn test_funding_settlement_long_negative_rate() -> TradeExecutorResult<()>
 
     let state = executor.trading_state().await?;
     let exp_fee = expected_funding_fee(TradeSide::Buy, 10_000.0, 60_000.0, -0.0001);
-    assert!(exp_fee > 0, "Long should receive on negative rate");
-    assert_eq!(exp_fee, 1667);
+    assert!(exp_fee < 0, "Long should receive on negative rate");
+    assert_eq!(exp_fee, -1667);
     assert_eq!(state.funding_fees(), exp_fee);
-    // Positive fees are added to balance
-    assert_eq!(state.balance(), balance_after_open + exp_fee as u64);
+    // Negative fees (revenue) are added to balance
+    assert_eq!(state.balance(), balance_after_open + (-exp_fee) as u64);
     assert_eq!(state.running_long_len(), 1);
 
     Ok(())
 }
 
-/// Positive funding rate: short receives, funding_fees should be positive.
+/// Positive funding rate: short receives, funding_fees should be negative (revenue).
 #[tokio::test]
 async fn test_funding_settlement_short_positive_rate() -> TradeExecutorResult<()> {
     let candle = OhlcCandleRow::new_simple(Utc::now().floor_minute(), 60_000.0, 1_000);
@@ -1255,16 +1255,16 @@ async fn test_funding_settlement_short_positive_rate() -> TradeExecutorResult<()
 
     let state = executor.trading_state().await?;
     let exp_fee = expected_funding_fee(TradeSide::Sell, 10_000.0, 60_000.0, 0.0001);
-    assert!(exp_fee > 0, "Short should receive on positive rate");
-    assert_eq!(exp_fee, 1667);
+    assert!(exp_fee < 0, "Short should receive on positive rate");
+    assert_eq!(exp_fee, -1667);
     assert_eq!(state.funding_fees(), exp_fee);
-    assert_eq!(state.balance(), balance_after_open + exp_fee as u64);
+    assert_eq!(state.balance(), balance_after_open + (-exp_fee) as u64);
     assert_eq!(state.running_short_len(), 1);
 
     Ok(())
 }
 
-/// Negative funding rate: short pays, funding_fees should be negative.
+/// Negative funding rate: short pays, funding_fees should be positive (cost).
 #[tokio::test]
 async fn test_funding_settlement_short_negative_rate() -> TradeExecutorResult<()> {
     let candle = OhlcCandleRow::new_simple(Utc::now().floor_minute(), 60_000.0, 1_000);
@@ -1287,10 +1287,10 @@ async fn test_funding_settlement_short_negative_rate() -> TradeExecutorResult<()
 
     let state = executor.trading_state().await?;
     let exp_fee = expected_funding_fee(TradeSide::Sell, 10_000.0, 60_000.0, -0.0001);
-    assert!(exp_fee < 0, "Short should pay on negative rate");
-    assert_eq!(exp_fee, -1667);
+    assert!(exp_fee > 0, "Short should pay on negative rate");
+    assert_eq!(exp_fee, 1667);
     assert_eq!(state.funding_fees(), exp_fee);
-    // Negative fees deducted from margin, balance unchanged
+    // Positive fees (cost) deducted from margin, balance unchanged
     assert_eq!(state.balance(), balance_after_open);
     assert_eq!(state.running_short_len(), 1);
 
@@ -1418,8 +1418,8 @@ async fn test_funding_settlement_mixed_positions() -> TradeExecutorResult<()> {
 
     let state = executor.trading_state().await?;
     assert_eq!(state.funding_fees(), long_fee + short_fee);
-    // Net fee is 0 (cancel out), but positive short fee was added to balance
-    assert_eq!(state.balance(), balance_after_open + short_fee as u64);
+    // Net fee is 0 (cancel out), but negative short fee (revenue) was added to balance
+    assert_eq!(state.balance(), balance_after_open + (-short_fee) as u64);
     assert_eq!(state.running_long_len(), 1);
     assert_eq!(state.running_short_len(), 1);
 
@@ -1519,13 +1519,13 @@ async fn test_funding_settlement_reflected_in_close() -> TradeExecutorResult<()>
         .open_short(size, leverage, None, None, None)
         .await?;
 
-    // Short receives positive rate -> funding_fees positive
+    // Short receives positive rate -> funding_fees negative (revenue)
     let settlement = make_settlement(candle.time, 100_000.0, 0.001); // 0.1%
     executor.apply_funding_settlement(&settlement).await?;
 
     let state_before_close = executor.trading_state().await?;
     let funding_fees_before = state_before_close.funding_fees();
-    assert!(funding_fees_before > 0);
+    assert!(funding_fees_before < 0);
 
     // Close at the same price (no price PL)
     executor.close_shorts().await?;
@@ -1560,8 +1560,8 @@ async fn test_funding_settlement_docs_example() -> TradeExecutorResult<()> {
 
     let state = executor.trading_state().await?;
     // (10_000 / 60_000) * 0.0001 * 100_000_000 = 1_666.666... -> rounds to 1_667
-    // Long pays -> -1_667
-    assert_eq!(state.funding_fees(), -1667);
+    // Long pays -> +1_667 (positive = cost in market convention)
+    assert_eq!(state.funding_fees(), 1667);
 
     Ok(())
 }
@@ -1585,8 +1585,8 @@ async fn test_funding_settlement_docs_example_short() -> TradeExecutorResult<()>
     executor.apply_funding_settlement(&settlement).await?;
 
     let state = executor.trading_state().await?;
-    // Short receives -> +1_667
-    assert_eq!(state.funding_fees(), 1667);
+    // Short receives -> -1_667 (negative = revenue in market convention)
+    assert_eq!(state.funding_fees(), -1667);
 
     Ok(())
 }
@@ -1616,7 +1616,7 @@ async fn test_funding_settlement_leveraged_long() -> TradeExecutorResult<()> {
 
     // Fee = (500 / 100_000) * 0.001 * 100_000_000 = 500 sats
     let exp_fee = expected_funding_fee(TradeSide::Buy, 500.0, 100_000.0, 0.001);
-    assert_eq!(exp_fee, -500);
+    assert_eq!(exp_fee, 500);
 
     let state = executor.trading_state().await?;
     assert_eq!(state.funding_fees(), exp_fee);
@@ -1626,7 +1626,7 @@ async fn test_funding_settlement_leveraged_long() -> TradeExecutorResult<()> {
     // Margin should be reduced by fee amount
     assert_eq!(
         trade_after.margin().as_i64(),
-        margin_before.as_i64() + exp_fee
+        margin_before.as_i64() - exp_fee
     );
     // With lower margin and same quantity, effective leverage increases
     assert!(trade_after.leverage() >= leverage_before);
@@ -1686,8 +1686,8 @@ async fn test_funding_settlement_fixing_price_impact() -> TradeExecutorResult<()
 
     let state = executor.trading_state().await?;
     assert_eq!(state.funding_fees(), fee_low_fixing);
-    // (10_000 / 50_000) * 0.0001 * 100_000_000 = 2_000 sats -> long pays -2_000
-    assert_eq!(fee_low_fixing, -2000);
+    // (10_000 / 50_000) * 0.0001 * 100_000_000 = 2_000 sats -> long pays +2_000
+    assert_eq!(fee_low_fixing, 2000);
 
     Ok(())
 }
