@@ -20,7 +20,7 @@ use super::{
 
 mod net_value_chart;
 
-use net_value_chart::NetValueChartData;
+use net_value_chart::{ChartMode, NetValueChartData};
 
 #[derive(Debug, PartialEq, EnumIter)]
 pub(in crate::tui) enum BacktestTuiPane {
@@ -90,10 +90,20 @@ impl BacktestTuiView {
             .initialize(start_time, end_time, start_balance);
     }
 
-    pub fn add_chart_point(&self, time: DateTime<Utc>, balance: u64) {
+    pub fn add_chart_point(&self, time: DateTime<Utc>, balance: u64, market_price: f64) {
         let mut state_guard = self.state.lock().expect("not poisoned");
 
-        state_guard.chart_data.add_point(time, balance);
+        state_guard.chart_data.add_point(time, balance, market_price);
+    }
+
+    pub fn select_chart(&self, index: u8) {
+        let mut state_guard = self.state.lock().expect("not poisoned");
+
+        match index {
+            1 => state_guard.chart_data.set_chart_mode(ChartMode::Sats),
+            2 => state_guard.chart_data.set_chart_mode(ChartMode::Usd),
+            _ => {}
+        }
     }
 }
 
@@ -207,7 +217,11 @@ impl TuiView for BacktestTuiView {
     fn handle_ui_message(&self, message: Self::UiMessage) -> Result<bool> {
         match message {
             BacktestUiMessage::StateUpdate(state) => {
-                self.add_chart_point(state.last_tick_time(), state.total_net_value());
+                self.add_chart_point(
+                    state.last_tick_time(),
+                    state.total_net_value(),
+                    state.market_price().as_f64(),
+                );
 
                 self.update_pane_content(
                     BacktestTuiPane::TradingStatePane,
@@ -256,5 +270,9 @@ impl TuiView for BacktestTuiView {
             BacktestTuiPane::TradingStatePane => BacktestTuiPane::LogPane,
             BacktestTuiPane::LogPane => BacktestTuiPane::TradingStatePane,
         };
+    }
+
+    fn select_chart(&self, index: u8) {
+        self.select_chart(index);
     }
 }
