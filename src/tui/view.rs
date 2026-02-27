@@ -186,6 +186,10 @@ pub(super) trait TuiView: TuiLogManager {
         f.render_widget(list, rect);
     }
 
+    fn help_text() -> &'static str {
+        " Ctrl+C shutdown | Tab switch panes | Up/Down/Left/Right scroll | 'b' bottom | 't' top"
+    }
+
     fn render_panes(f: &mut Frame, state: &Self::State) {
         for pane in Self::TuiPane::iter() {
             Self::render_pane(f, state, pane);
@@ -193,8 +197,8 @@ pub(super) trait TuiView: TuiLogManager {
 
         let help_area = Self::get_help_area(f);
 
-        let help_text = " Press Ctrl+C to shutdown, Tab to switch panes, scroll with Up/Down, Left/Right, 'b' to bottom and 't' to top";
-        let help_paragraph = Paragraph::new(help_text).style(Style::default().fg(Color::Gray));
+        let help_paragraph =
+            Paragraph::new(Self::help_text()).style(Style::default().fg(Color::Gray));
         f.render_widget(help_paragraph, help_area);
     }
 
