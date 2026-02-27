@@ -85,6 +85,8 @@ where
                 KeyCode::Right => tui_view.scroll_right(),
                 KeyCode::Char('t') | KeyCode::Char('T') => tui_view.reset_scroll(),
                 KeyCode::Char('b') | KeyCode::Char('B') => tui_view.scroll_to_bottom(),
+                KeyCode::Char('1') => tui_view.select_chart(1),
+                KeyCode::Char('2') => tui_view.select_chart(2),
                 KeyCode::Tab => tui_view.switch_pane(),
                 _ => {}
             }

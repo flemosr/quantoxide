@@ -320,4 +320,6 @@ pub(super) trait TuiView: TuiLogManager {
     }
 
     fn switch_pane(&self);
+
+    fn select_chart(&self, _index: u8) {}
 }
