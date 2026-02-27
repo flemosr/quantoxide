@@ -752,17 +752,23 @@ impl TradingState {
 
         result.push_str(&format!("Price: {:.1} USD\n\n", self.market_price));
 
-        // Net value / Balance
-        let nv_sats = self.total_net_value().to_string();
-        let nv_usd = format!(
+        // Net Asset Value
+        let price = self.market_price.as_f64();
+        let nav_sats = self.total_net_value().to_string();
+        let nav_usd = format!(
             "{:.2}",
-            self.total_net_value() as f64 * self.market_price.as_f64() / SATS_PER_BTC
+            self.total_net_value() as f64 * price / SATS_PER_BTC
         );
-        let bal = self.balance.to_string();
-        let w = nv_sats.len().max(nv_usd.len()).max(bal.len());
-        result.push_str(&format!("Net value: {:>w$} sats\n", nv_sats));
-        result.push_str(&format!("Net value: {:>w$} USD\n", nv_usd));
-        result.push_str(&format!("Balance:   {:>w$} sats\n\n", bal));
+        let w = nav_sats.len().max(nav_usd.len());
+        result.push_str(&format!("Net Asset Value: {:>w$} sats\n", nav_sats));
+        result.push_str(&format!("                 {:>w$} USD\n\n", nav_usd));
+
+        // Available balance
+        let bal_sats = self.balance.to_string();
+        let bal_usd = format!("{:.2}", self.balance as f64 * price / SATS_PER_BTC);
+        let w = bal_sats.len().max(bal_usd.len());
+        result.push_str(&format!("Available balance: {:>w$} sats\n", bal_sats));
+        result.push_str(&format!("                   {:>w$} USD\n\n", bal_usd));
 
         // Running Positions (aligned across Long and Short)
         let lt = self.running_long_len().to_string();
