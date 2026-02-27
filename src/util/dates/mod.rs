@@ -17,6 +17,9 @@ pub(crate) trait DateTimeExt {
 
     fn format_local_millis(&self) -> String;
 
+    /// Formats as `MM/DD HH:MM:SS (TZ)` in local timezone.
+    fn format_local_short(&self) -> String;
+
     /// Floors this timestamp to the start of its resolution bucket.
     ///
     /// Uses epoch-based bucketing: `floor(timestamp / bucket_size) * bucket_size`.
@@ -70,6 +73,11 @@ impl DateTimeExt for DateTime<Utc> {
     fn format_local_millis(&self) -> String {
         let local_time = self.with_timezone(&Local);
         local_time.format("%Y-%m-%d %H:%M:%S.%3f (%Z)").to_string()
+    }
+
+    fn format_local_short(&self) -> String {
+        let local_time = self.with_timezone(&Local);
+        local_time.format("%Y/%m/%d %H:%M:%S (%Z)").to_string()
     }
 
     fn floor_to_resolution(&self, resolution: OhlcResolution) -> DateTime<Utc> {
