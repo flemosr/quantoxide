@@ -693,8 +693,8 @@ impl TradingState {
 
     /// Returns the net funding fees across all settlements (in satoshis).
     ///
-    /// Positive -> net revenue
-    /// Negative -> net cost
+    /// Positive -> net cost
+    /// Negative -> net revenue
     pub fn funding_fees(&self) -> i64 {
         self.funding_fees
     }
