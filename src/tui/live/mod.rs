@@ -62,7 +62,7 @@ impl LiveTui {
     pub async fn launch(config: TuiConfig, log_file_path: Option<&str>) -> Result<Arc<Self>> {
         let log_file = core::open_log_file(log_file_path)?;
 
-        let (ui_tx, ui_rx) = mpsc::channel::<LiveUiMessage>(100);
+        let (ui_tx, ui_rx) = mpsc::channel::<LiveUiMessage>(1_000);
         let (shutdown_tx, shutdown_rx) = mpsc::channel::<()>(1);
 
         let tui_terminal = TuiTerminal::new()?;
