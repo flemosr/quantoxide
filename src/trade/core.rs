@@ -14,8 +14,8 @@ use uuid::Uuid;
 use lnm_sdk::api_v3::{
     error::TradeValidationError,
     models::{
-        ClientId, Leverage, Margin, Percentage, PercentageCapped, Price, Quantity, Trade,
-        TradeSide, TradeSize, trade_util,
+        ClientId, Leverage, Margin, Percentage, PercentageCapped, Price, Quantity, SATS_PER_BTC,
+        Trade, TradeSide, TradeSize, trade_util,
     },
 };
 
@@ -740,42 +740,76 @@ impl TradingState {
     pub fn summary(&self) -> String {
         let mut result = String::new();
 
-        result.push_str("timing:\n");
-        result.push_str(&format!(
-            "  last_tick_time: {}\n",
-            self.last_tick_time().format_local_millis()
-        ));
-        let lttl_str = self
+        let last_trade_str = self
             .last_trade_time()
-            .map_or("null".to_string(), |lttl| lttl.format_local_millis());
-        result.push_str(&format!("  last_trade_time: {lttl_str}\n"));
+            .map_or("-".to_string(), |t| t.format_local_short());
 
-        result.push_str(&format!("total_net_value: {}\n", self.total_net_value()));
-        result.push_str(&format!("balance: {}\n", self.balance));
-        result.push_str(&format!("market_price: {:.1}\n", self.market_price));
+        let tick_str = self.last_tick_time().format_local_short();
+        let w = tick_str.len().max(last_trade_str.len());
+        result.push_str("Timestamps:\n");
+        result.push_str(&format!("  Tick:       {:>w$}\n", tick_str));
+        result.push_str(&format!("  Last trade: {:>w$}\n\n", last_trade_str));
 
-        result.push_str("running_positions:\n");
-        result.push_str("  long:\n");
-        result.push_str(&format!("    trades: {}\n", self.running_long_len()));
-        result.push_str(&format!("    margin: {}\n", self.running_long_margin()));
-        result.push_str(&format!("    quantity: {}\n", self.running_long_quantity()));
-        result.push_str("  short:\n");
-        result.push_str(&format!("    trades: {}\n", self.running_short_len()));
-        result.push_str(&format!("    margin: {}\n", self.running_short_margin()));
-        result.push_str(&format!(
-            "    quantity: {}\n",
-            self.running_short_quantity()
-        ));
+        result.push_str(&format!("Price: {:.1} USD\n\n", self.market_price));
 
-        result.push_str("running_metrics:\n");
-        result.push_str(&format!("  pl: {}\n", self.running_pl()));
-        result.push_str(&format!("  fees: {}\n", self.running_fees()));
-        result.push_str(&format!("  total_margin: {}\n", self.running_margin()));
-        result.push_str(&format!("funding_fees: {}\n", self.funding_fees));
-        result.push_str(&format!("realized_pl: {}\n", self.realized_pl));
-        result.push_str("closed_positions:\n");
-        result.push_str(&format!("  trades: {}\n", self.closed_len()));
-        result.push_str(&format!("  fees: {}", self.closed_fees));
+        // Net value / Balance
+        let nv_sats = self.total_net_value().to_string();
+        let nv_usd = format!(
+            "{:.2}",
+            self.total_net_value() as f64 * self.market_price.as_f64() / SATS_PER_BTC
+        );
+        let bal = self.balance.to_string();
+        let w = nv_sats.len().max(nv_usd.len()).max(bal.len());
+        result.push_str(&format!("Net value: {:>w$} sats\n", nv_sats));
+        result.push_str(&format!("Net value: {:>w$} USD\n", nv_usd));
+        result.push_str(&format!("Balance:   {:>w$} sats\n\n", bal));
+
+        // Running Positions (aligned across Long and Short)
+        let lt = self.running_long_len().to_string();
+        let lm = self.running_long_margin().to_string();
+        let lq = self.running_long_quantity().to_string();
+        let st = self.running_short_len().to_string();
+        let sm = self.running_short_margin().to_string();
+        let sq = self.running_short_quantity().to_string();
+        let w = [&lt, &lm, &lq, &st, &sm, &sq]
+            .iter()
+            .map(|s| s.len())
+            .max()
+            .unwrap_or(0);
+        result.push_str("Running Positions:\n");
+        result.push_str("  Long:\n");
+        result.push_str(&format!("    Trades:   {:>w$}\n", lt));
+        result.push_str(&format!("    Margin:   {:>w$} sats\n", lm));
+        result.push_str(&format!("    Quantity: {:>w$} USD\n", lq));
+        result.push_str("  Short:\n");
+        result.push_str(&format!("    Trades:   {:>w$}\n", st));
+        result.push_str(&format!("    Margin:   {:>w$} sats\n", sm));
+        result.push_str(&format!("    Quantity: {:>w$} USD\n\n", sq));
+
+        // Running Metrics
+        let rpl = self.running_pl().to_string();
+        let rf = self.running_fees().to_string();
+        let rm = self.running_margin().to_string();
+        let w = rpl.len().max(rf.len()).max(rm.len());
+        result.push_str("Running Metrics:\n");
+        result.push_str(&format!("  P/L:    {:>w$} sats\n", rpl));
+        result.push_str(&format!("  Fees:   {:>w$} sats\n", rf));
+        result.push_str(&format!("  Margin: {:>w$} sats\n\n", rm));
+
+        // Funding / Realized
+        let ff = self.funding_fees.to_string();
+        let rp = self.realized_pl.to_string();
+        let w = ff.len().max(rp.len());
+        result.push_str(&format!("Funding fees: {:>w$} sats\n", ff));
+        result.push_str(&format!("Realized P/L: {:>w$} sats\n\n", rp));
+
+        // Closed
+        let ct = self.closed_len().to_string();
+        let cf = self.closed_fees.to_string();
+        let w = ct.len().max(cf.len());
+        result.push_str("Closed:\n");
+        result.push_str(&format!("  Trades: {:>w$}\n", ct));
+        result.push_str(&format!("  Fees:   {:>w$} sats", cf));
 
         result
     }
