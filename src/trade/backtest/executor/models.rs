@@ -174,8 +174,8 @@ impl SimulatedTradeRunning {
     /// Applies a funding settlement to this trade, updating margin, leverage, and liquidation.
     ///
     /// Returns `Some(updated_trade)` when the trade can be updated, or `None` when margin or
-    /// leverage became invalid (trade is effectively bankrupt). Negative fees are deducted from
-    /// margin. Positive fees should be added to the balance.
+    /// leverage became invalid (trade is effectively bankrupt). Positive fees (cost) are deducted
+    /// from margin. Negative fees (revenue) should be added to the balance.
     ///
     /// This method does NOT check whether the new liquidation price crosses the market price.
     /// That check is left to the next `candle_update`, which will liquidate the trade through the
@@ -188,18 +188,19 @@ impl SimulatedTradeRunning {
             * settlement.funding_rate
             * SATS_PER_BTC;
 
+        // Positive = cost (paid), negative = revenue (received)
         // Longs pay when funding rates are positive, shorts pay when negative
         let funding_fee = match self.side {
-            TradeSide::Buy => -raw_fee,
-            TradeSide::Sell => raw_fee,
+            TradeSide::Buy => raw_fee,
+            TradeSide::Sell => -raw_fee,
         }
         .round() as i64;
 
-        if funding_fee >= 0 {
+        if funding_fee <= 0 {
             return Ok((Some(Arc::new(self.clone())), funding_fee));
         }
 
-        let Ok(new_margin) = Margin::try_from(self.margin.as_i64() + funding_fee) else {
+        let Ok(new_margin) = Margin::try_from(self.margin.as_i64() - funding_fee) else {
             return Ok((None, funding_fee));
         };
 
