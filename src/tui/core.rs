@@ -56,7 +56,7 @@ where
         task::yield_now().await;
         tui_terminal.draw(tui_view.as_ref())?;
 
-        if let Ok(message) = ui_rx.try_recv() {
+        while let Ok(message) = ui_rx.try_recv() {
             let is_shutdown_completed = tui_view.handle_ui_message(message)?;
             if is_shutdown_completed {
                 return Ok(());
@@ -97,7 +97,7 @@ where
         tui_terminal.draw(tui_view.as_ref())?;
         time::sleep(event_check_interval).await;
 
-        if let Ok(message) = ui_rx.try_recv() {
+        while let Ok(message) = ui_rx.try_recv() {
             let is_shutdown_completed = tui_view.handle_ui_message(message)?;
             if is_shutdown_completed {
                 return Ok(());
