@@ -41,7 +41,7 @@ async fn main() -> Result<()> {
 
     if price_history_state.bound_end().is_none() {
         println!("Some price history must be available in the local database to run the backtest.");
-        println!("Run a synchronization example first to fetch historical data.");
+        println!("Run a synchronization example, in backfill mode, to fetch historical data.");
 
         return Ok(());
     }
