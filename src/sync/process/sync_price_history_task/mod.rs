@@ -70,8 +70,6 @@ impl SyncPriceHistoryTask {
         let mut candles: Vec<OhlcCandle> = {
             let mut trials = 0;
             loop {
-                time::sleep(self.config.rest_api_cooldown()).await;
-
                 match self
                     .api_rest
                     .futures_data
