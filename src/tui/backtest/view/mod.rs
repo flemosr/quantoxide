@@ -250,7 +250,7 @@ impl TuiView for BacktestTuiView {
 
         let bottom_chunks = Layout::default()
             .direction(Direction::Horizontal)
-            .constraints([Constraint::Length(55), Constraint::Min(0)])
+            .constraints([Constraint::Length(46), Constraint::Min(0)])
             .split(main_chunks[1]);
 
         let mut state_guard = self.get_state();
