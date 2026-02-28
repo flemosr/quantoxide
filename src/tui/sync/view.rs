@@ -225,7 +225,7 @@ impl TuiView for SyncTuiView {
 
         let main_chunks = Layout::default()
             .direction(Direction::Horizontal)
-            .constraints([Constraint::Length(52), Constraint::Min(0)])
+            .constraints([Constraint::Length(56), Constraint::Min(0)])
             .split(main_area);
 
         let mut state_guard = self.get_state();
