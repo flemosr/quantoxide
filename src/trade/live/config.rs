@@ -1,4 +1,4 @@
-use std::num::NonZeroU64;
+use std::num::{NonZeroU32, NonZeroU64};
 
 use chrono::{DateTime, Duration, Utc};
 use tokio::time;
@@ -18,6 +18,8 @@ use crate::{
 #[derive(Clone, Debug)]
 pub struct LiveTradeConfig {
     rest_api_timeout: time::Duration,
+    rest_api_rate_limit_auth_requests_per_second: NonZeroU32,
+    rest_api_rate_limit_unauth_requests_per_second: NonZeroU32,
     ws_api_disconnect_timeout: time::Duration,
     rest_api_error_cooldown: time::Duration,
     rest_api_error_max_trials: NonZeroU64,
@@ -45,9 +47,19 @@ pub struct LiveTradeConfig {
 
 impl Default for LiveTradeConfig {
     fn default() -> Self {
+        let rest_config_default = RestClientConfig::default();
+        let ws_config_default = WebSocketClientConfig::default();
         Self {
-            rest_api_timeout: time::Duration::from_secs(20),
-            ws_api_disconnect_timeout: time::Duration::from_secs(6),
+            rest_api_timeout: rest_config_default.timeout(),
+            rest_api_rate_limit_auth_requests_per_second: rest_config_default
+                .rate_limit_auth_requests_per_second()
+                .try_into()
+                .expect("not zero"),
+            rest_api_rate_limit_unauth_requests_per_second: rest_config_default
+                .rate_limit_unauth_requests_per_second()
+                .try_into()
+                .expect("not zero"),
+            ws_api_disconnect_timeout: ws_config_default.disconnect_timeout(),
             rest_api_error_cooldown: time::Duration::from_secs(10),
             rest_api_error_max_trials: 3.try_into().expect("not zero"),
             price_history_batch_size: 1000.try_into().expect("not zero"),
@@ -80,6 +92,16 @@ impl LiveTradeConfig {
     /// Returns the timeout duration for REST API requests.
     pub fn rest_api_timeout(&self) -> time::Duration {
         self.rest_api_timeout
+    }
+
+    /// Returns the rate limit for authenticated REST API requests, in requests per second.
+    pub fn rest_api_rate_limit_auth_requests_per_second(&self) -> NonZeroU32 {
+        self.rest_api_rate_limit_auth_requests_per_second
+    }
+
+    /// Returns the rate limit for unauthenticated REST API requests, in requests per second.
+    pub fn rest_api_rate_limit_unauth_requests_per_second(&self) -> NonZeroU32 {
+        self.rest_api_rate_limit_unauth_requests_per_second
     }
 
     /// Returns the disconnect timeout for WebSocket API connections.
@@ -204,15 +226,31 @@ impl LiveTradeConfig {
 
     /// Sets the timeout duration for REST API requests.
     ///
-    /// Default: `20` seconds
+    /// Default: [`RestClientConfig`](lnm_sdk::api_v3::RestClientConfig) default
     pub fn with_rest_api_timeout(mut self, secs: u64) -> Self {
         self.rest_api_timeout = time::Duration::from_secs(secs);
         self
     }
 
+    /// Sets the rate limit for authenticated REST API requests, in requests per second.
+    ///
+    /// Default: [`RestClientConfig`](lnm_sdk::api_v3::RestClientConfig) default
+    pub fn with_rest_api_rate_limit_auth_requests_per_second(mut self, rps: NonZeroU32) -> Self {
+        self.rest_api_rate_limit_auth_requests_per_second = rps;
+        self
+    }
+
+    /// Sets the rate limit for unauthenticated REST API requests, in requests per second.
+    ///
+    /// Default: [`RestClientConfig`](lnm_sdk::api_v3::RestClientConfig) default
+    pub fn with_rest_api_rate_limit_unauth_requests_per_second(mut self, rps: NonZeroU32) -> Self {
+        self.rest_api_rate_limit_unauth_requests_per_second = rps;
+        self
+    }
+
     /// Sets the disconnect timeout for WebSocket API connections.
     ///
-    /// Default: `6` seconds
+    /// Default: [`WebSocketClientConfig`](lnm_sdk::api_v2::WebSocketClientConfig) default
     pub fn with_ws_api_disconnect_timeout(mut self, secs: u64) -> Self {
         self.ws_api_disconnect_timeout = time::Duration::from_secs(secs);
         self
@@ -423,7 +461,15 @@ impl LiveTradeConfig {
 
 impl From<&LiveTradeConfig> for RestClientConfig {
     fn from(value: &LiveTradeConfig) -> Self {
+        // FIXME, when a more straighforward constructor is added to `RestClientConfig`
         RestClientConfig::new(value.rest_api_timeout())
+            .with_rate_limiter_active(true)
+            .with_rate_limit_auth_requests_per_second(
+                value.rest_api_rate_limit_auth_requests_per_second(),
+            )
+            .with_rate_limit_unauth_requests_per_second(
+                value.rest_api_rate_limit_unauth_requests_per_second(),
+            )
     }
 }
 
