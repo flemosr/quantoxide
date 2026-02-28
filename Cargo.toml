@@ -16,7 +16,7 @@ keywords = ["bitcoin", "backtesting", "algotrading", "futures", "trading"]
 categories = ["finance", "simulation", "cryptography::cryptocurrencies"]
 
 [dependencies]
-lnm-sdk = "0.3.1"
+lnm-sdk = "0.4.0"
 async-trait = "0.1.89"
 chrono = { version = "0.4.42", features = ["now", "serde"] }
 futures = "0.3.31"
