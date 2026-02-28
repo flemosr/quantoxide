@@ -117,7 +117,7 @@ impl NetValueChartData {
             };
 
         let y_min = 0.; // Keep y axis starting at 0
-        let y_max = max_value * 1.1; // Add padding to max value
+        let y_max = max_value * 1.2; // Add padding to max value
 
         let datasets = vec![
             Dataset::default()
@@ -143,17 +143,27 @@ impl NetValueChartData {
         })
         .collect::<Vec<_>>();
 
-        let y_labels = [y_min, (y_min + y_max) / 2., y_max]
+        let fmt_label = |v: f64, usd: bool| -> String {
+            if usd {
+                format!("{:.2}", v)
+            } else {
+                (v as u64).to_string()
+            }
+        };
+        let max_w = [
+            fmt_label(self.max_nav_sats * 1.2, false).len(),
+            fmt_label(self.max_btc_price * 1.2, true).len(),
+            fmt_label(self.max_nav_usd * 1.2, true).len(),
+        ]
+        .into_iter()
+        .max()
+        .unwrap_or(0);
+
+        let y_label_strs = [y_min, (y_min + y_max) / 2., y_max].map(|s| fmt_label(s, format_usd));
+        let y_labels: Vec<Span> = y_label_strs
             .iter()
-            .map(|s| {
-                let txt = if format_usd {
-                    format!("{:.2}", s)
-                } else {
-                    (*s as u64).to_string()
-                };
-                Span::raw(txt)
-            })
-            .collect::<Vec<_>>();
+            .map(|s| Span::raw(format!("{s:>max_w$}")))
+            .collect();
 
         Chart::new(datasets)
             .block(
