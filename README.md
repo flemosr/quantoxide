@@ -177,6 +177,9 @@ impl RawOperator for MyOperator {
 }
 ```
 
+The trade executor includes an internal FIFO rate limiter that automatically paces requests to stay
+within the LNM API's rate limits when running live, so consumers don't need to handle throttling.
+
 See the
 [`operators/raw` example](https://github.com/flemosr/quantoxide/blob/main/examples/operators/raw.rs)
 for a complete template. For signal-based operators, see the
