@@ -146,10 +146,10 @@ impl LiveTradingSession {
                     session.funding_fees += closed_trade.sum_funding_fees() - baseline;
 
                     let closed_at = closed_trade.closed_at();
-                    if let Some(closed_at) = closed_at {
-                        if session.last_trade_time.is_none_or(|last| closed_at > last) {
-                            session.last_trade_time = Some(closed_at);
-                        }
+                    if let Some(closed_at) = closed_at
+                        && session.last_trade_time.is_none_or(|last| closed_at > last)
+                    {
+                        session.last_trade_time = Some(closed_at);
                     }
                 }
 
