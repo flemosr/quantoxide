@@ -19,7 +19,6 @@ use crate::{
 pub struct LiveTradeConfig {
     rest_api_timeout: time::Duration,
     ws_api_disconnect_timeout: time::Duration,
-    rest_api_cooldown: time::Duration,
     rest_api_error_cooldown: time::Duration,
     rest_api_error_max_trials: NonZeroU64,
     price_history_batch_size: NonZeroU64,
@@ -49,7 +48,6 @@ impl Default for LiveTradeConfig {
         Self {
             rest_api_timeout: time::Duration::from_secs(20),
             ws_api_disconnect_timeout: time::Duration::from_secs(6),
-            rest_api_cooldown: time::Duration::from_secs(2),
             rest_api_error_cooldown: time::Duration::from_secs(10),
             rest_api_error_max_trials: 3.try_into().expect("not zero"),
             price_history_batch_size: 1000.try_into().expect("not zero"),
@@ -87,11 +85,6 @@ impl LiveTradeConfig {
     /// Returns the disconnect timeout for WebSocket API connections.
     pub fn ws_api_disconnect_timeout(&self) -> time::Duration {
         self.ws_api_disconnect_timeout
-    }
-
-    /// Returns the cooldown period between REST API requests.
-    pub fn rest_api_cooldown(&self) -> time::Duration {
-        self.rest_api_cooldown
     }
 
     /// Returns the cooldown period after REST API errors before retrying.
@@ -222,14 +215,6 @@ impl LiveTradeConfig {
     /// Default: `6` seconds
     pub fn with_ws_api_disconnect_timeout(mut self, secs: u64) -> Self {
         self.ws_api_disconnect_timeout = time::Duration::from_secs(secs);
-        self
-    }
-
-    /// Sets the cooldown period between REST API requests.
-    ///
-    /// Default: `2` seconds
-    pub fn with_api_cooldown(mut self, secs: u64) -> Self {
-        self.rest_api_cooldown = time::Duration::from_secs(secs);
         self
     }
 

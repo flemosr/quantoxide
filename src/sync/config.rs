@@ -17,7 +17,6 @@ use super::process::{
 pub struct SyncConfig {
     rest_api_timeout: time::Duration,
     ws_api_disconnect_timeout: time::Duration,
-    rest_api_cooldown: time::Duration,
     rest_api_error_cooldown: time::Duration,
     rest_api_error_max_trials: NonZeroU64,
     price_history_batch_size: NonZeroU64,
@@ -38,7 +37,6 @@ impl Default for SyncConfig {
         Self {
             rest_api_timeout: time::Duration::from_secs(20),
             ws_api_disconnect_timeout: time::Duration::from_secs(6),
-            rest_api_cooldown: time::Duration::from_secs(2),
             rest_api_error_cooldown: time::Duration::from_secs(10),
             rest_api_error_max_trials: 3.try_into().expect("not zero"),
             price_history_batch_size: 1000.try_into().expect("not zero"),
@@ -66,11 +64,6 @@ impl SyncConfig {
     /// Returns the disconnect timeout for WebSocket API connections.
     pub fn ws_api_disconnect_timeout(&self) -> time::Duration {
         self.ws_api_disconnect_timeout
-    }
-
-    /// Returns the cooldown period between REST API requests.
-    pub fn rest_api_cooldown(&self) -> time::Duration {
-        self.rest_api_cooldown
     }
 
     /// Returns the cooldown period after REST API errors before retrying.
@@ -156,14 +149,6 @@ impl SyncConfig {
     /// Default: `6` seconds
     pub fn with_ws_api_disconnect_timeout(mut self, secs: u64) -> Self {
         self.ws_api_disconnect_timeout = time::Duration::from_secs(secs);
-        self
-    }
-
-    /// Sets the cooldown period between REST API requests.
-    ///
-    /// Default: `2` seconds
-    pub fn with_rest_api_cooldown(mut self, secs: u64) -> Self {
-        self.rest_api_cooldown = time::Duration::from_secs(secs);
         self
     }
 
@@ -311,7 +296,6 @@ impl From<&LiveTradeConfig> for SyncConfig {
         SyncConfig {
             rest_api_timeout: value.rest_api_timeout(),
             ws_api_disconnect_timeout: value.ws_api_disconnect_timeout(),
-            rest_api_cooldown: value.rest_api_cooldown(),
             rest_api_error_cooldown: value.rest_api_error_cooldown(),
             rest_api_error_max_trials: value.rest_api_error_max_trials(),
             price_history_batch_size: value.price_history_batch_size(),
@@ -350,7 +334,6 @@ impl From<&SyncConfig> for SyncControllerConfig {
 
 #[derive(Clone)]
 pub(crate) struct SyncProcessConfig {
-    rest_api_cooldown: time::Duration,
     rest_api_error_cooldown: time::Duration,
     rest_api_error_max_trials: NonZeroU64,
     price_history_batch_size: NonZeroU64,
@@ -402,7 +385,6 @@ impl SyncProcessConfig {
 impl From<&SyncConfig> for SyncProcessConfig {
     fn from(value: &SyncConfig) -> Self {
         Self {
-            rest_api_cooldown: value.rest_api_cooldown,
             rest_api_error_cooldown: value.rest_api_error_cooldown,
             rest_api_error_max_trials: value.rest_api_error_max_trials,
             price_history_batch_size: value.price_history_batch_size,
@@ -421,7 +403,6 @@ impl From<&SyncConfig> for SyncProcessConfig {
 
 #[derive(Clone)]
 pub(crate) struct SyncPriceHistoryTaskConfig {
-    rest_api_cooldown: time::Duration,
     rest_api_error_cooldown: time::Duration,
     rest_api_error_max_trials: NonZeroU64,
     price_history_batch_size: NonZeroU64,
@@ -429,10 +410,6 @@ pub(crate) struct SyncPriceHistoryTaskConfig {
 }
 
 impl SyncPriceHistoryTaskConfig {
-    pub fn rest_api_cooldown(&self) -> time::Duration {
-        self.rest_api_cooldown
-    }
-
     pub fn rest_api_error_cooldown(&self) -> time::Duration {
         self.rest_api_error_cooldown
     }
@@ -453,7 +430,6 @@ impl SyncPriceHistoryTaskConfig {
 impl From<&SyncProcessConfig> for SyncPriceHistoryTaskConfig {
     fn from(value: &SyncProcessConfig) -> Self {
         Self {
-            rest_api_cooldown: value.rest_api_cooldown,
             rest_api_error_cooldown: value.rest_api_error_cooldown,
             rest_api_error_max_trials: value.rest_api_error_max_trials,
             price_history_batch_size: value.price_history_batch_size,
@@ -464,17 +440,12 @@ impl From<&SyncProcessConfig> for SyncPriceHistoryTaskConfig {
 
 #[derive(Clone)]
 pub(crate) struct SyncFundingSettlementsTaskConfig {
-    rest_api_cooldown: time::Duration,
     rest_api_error_cooldown: time::Duration,
     rest_api_error_max_trials: NonZeroU64,
     funding_settlement_reach: DateTime<Utc>,
 }
 
 impl SyncFundingSettlementsTaskConfig {
-    pub fn rest_api_cooldown(&self) -> time::Duration {
-        self.rest_api_cooldown
-    }
-
     pub fn rest_api_error_cooldown(&self) -> time::Duration {
         self.rest_api_error_cooldown
     }
@@ -491,7 +462,6 @@ impl SyncFundingSettlementsTaskConfig {
 impl From<&SyncProcessConfig> for SyncFundingSettlementsTaskConfig {
     fn from(value: &SyncProcessConfig) -> Self {
         Self {
-            rest_api_cooldown: value.rest_api_cooldown,
             rest_api_error_cooldown: value.rest_api_error_cooldown,
             rest_api_error_max_trials: value.rest_api_error_max_trials,
             funding_settlement_reach: value.funding_settlement_reach,
