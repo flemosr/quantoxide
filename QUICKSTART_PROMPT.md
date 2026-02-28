@@ -176,6 +176,7 @@ Each engine has two modes:
 - Use TUI `::log` methods instead of `println!` when TUIs are running
 - Include proper error handling with `Result<()>`
 - Database schema auto-initializes on first `Database::new()` call
+- The trade executor includes an internal FIFO rate limiter that automatically paces requests to stay within the LNM API's rate limits when running live — no need to implement throttling
 - **CRUCIAL:** When instructing the user to create an `.env` file, add a `.env.template` as reference and ensure `.gitignore` excludes `.env`
 
 ### Quick Reference
