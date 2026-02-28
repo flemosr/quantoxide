@@ -93,7 +93,9 @@ impl BacktestTuiView {
     pub fn add_chart_point(&self, time: DateTime<Utc>, balance: u64, market_price: f64) {
         let mut state_guard = self.state.lock().expect("not poisoned");
 
-        state_guard.chart_data.add_point(time, balance, market_price);
+        state_guard
+            .chart_data
+            .add_point(time, balance, market_price);
     }
 
     pub fn select_chart(&self, index: u8) {
