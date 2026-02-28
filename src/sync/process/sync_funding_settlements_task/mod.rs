@@ -128,8 +128,6 @@ impl SyncFundingSettlementsTask {
         // don't hit that edge case.
         let to = download_range.to().map(|t| t + Duration::seconds(1));
 
-        time::sleep(self.config.rest_api_cooldown()).await;
-
         let mut trials = 0;
         let page = loop {
             match self
