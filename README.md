@@ -253,7 +253,8 @@ backtest_tui.until_stopped().await;
 </p>
 
 *Note: The backtest illustrated corresponds to a simple carry-trade strategy that hedges the full
-balance, adjusting collateral as needed to avoid liquidations.*
+balance, adjusting collateral as needed to avoid liquidations. Negative funding fees correspond to
+revenue from funding events.*
 
 For a complete implementation with a raw operator, see the
 [`backtest_raw_tui` example](https://github.com/flemosr/quantoxide/blob/main/examples/backtest_raw_tui.rs).
