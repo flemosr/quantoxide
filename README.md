@@ -80,7 +80,7 @@ The **Backtesting** engine allows trading strategies to be tested against histor
 stored in the PostgreSQL database, without risking real funds. The `BacktestEngine` replays
 historical market conditions, simulating the Trade Operator actions and tracking performance metrics.
 Backtests include:
-+ Minute-by-minute replay using real 1-minute OHLC data
++ High-resolution market replay using real 1-minute OHLC data
 + Historically accurate [funding fees](https://docs.lnmarkets.com/resources/futures/#funding-fees)
   applied using synchronized settlement data, so that results realistically reflect the cost of
   holding positions across funding events
