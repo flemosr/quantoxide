@@ -205,7 +205,7 @@ impl PriceHistoryState {
 
         if self
             .reach_time
-            .is_some_and(|reach_time| backfilling && history_bounds.0 > reach_time)
+            .is_some_and(|reach_time| history_bounds.0 > reach_time)
         {
             // Price history should be extended further into the past
 
