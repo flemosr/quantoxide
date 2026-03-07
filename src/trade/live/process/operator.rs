@@ -358,8 +358,20 @@ impl<S: Signal> OperatorRunning<S> {
                     }
                 }
                 _ = time::sleep(config.sync_update_timeout()) => {
-                    if matches!(sync_reader.status_snapshot(), SyncStatus::Synced) {
-                        return Ok(());
+                    match sync_reader.status_snapshot() {
+                        SyncStatus::Synced => return Ok(()),
+                        SyncStatus::NotSynced(sync_status_not_synced) => {
+                            status_manager.update(
+                                LiveTradeStatus::WaitingForSync(sync_status_not_synced)
+                            );
+                        }
+                        SyncStatus::Terminated(err) => {
+                            return Err(LiveProcessFatalError::SyncProcessTerminated(err).into());
+                        }
+                        SyncStatus::ShutdownInitiated | SyncStatus::Shutdown => {
+                            return Err(LiveProcessFatalError::SyncProcessShutdown.into());
+                        }
+                        SyncStatus::Backfilled => {}
                     }
                 }
             }
