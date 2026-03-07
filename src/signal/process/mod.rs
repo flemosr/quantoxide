@@ -169,8 +169,23 @@ impl<S: Signal> LiveSignalProcess<S> {
                             }
                         }
                         _ = time::sleep(self.config.sync_update_timeout()) => {
-                            if matches!(self.sync_reader.status_snapshot(), SyncStatus::Synced) {
-                                break;
+                            match self.sync_reader.status_snapshot() {
+                                SyncStatus::Synced => break,
+                                SyncStatus::NotSynced(sync_status_not_synced) => {
+                                    self.status_manager.update(
+                                        LiveSignalStatusNotRunning::WaitingForSync(
+                                            sync_status_not_synced,
+                                        )
+                                        .into(),
+                                    );
+                                }
+                                SyncStatus::Terminated(err) => {
+                                    return Err(SignalProcessFatalError::SyncProcessTerminated(err).into());
+                                }
+                                SyncStatus::ShutdownInitiated | SyncStatus::Shutdown => {
+                                    return Err(SignalProcessFatalError::SyncProcessShutdown.into());
+                                }
+                                SyncStatus::Backfilled => {}
                             }
                         }
                     }
