@@ -45,6 +45,14 @@ pub enum SyncPriceHistoryError {
 
     #[error("Price history state `reach` was not set, and it is required to evaluate DB gaps")]
     PriceHistoryStateReachNotSet,
+
+    #[error(
+        "Lookback reach ({lookback_reach}) is before the configured price history reach ({price_history_reach})"
+    )]
+    LookbackExceedsPriceHistoryReach {
+        lookback_reach: DateTime<Utc>,
+        price_history_reach: DateTime<Utc>,
+    },
 }
 
 pub(super) type Result<T> = result::Result<T, SyncPriceHistoryError>;
