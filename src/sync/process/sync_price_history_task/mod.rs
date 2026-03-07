@@ -229,8 +229,17 @@ impl SyncPriceHistoryTask {
 
         // Now it can be assumed that the history upper bound matches the current time
 
+        let reach = Utc::now() - lookback;
+
+        if reach < self.config.price_history_reach() {
+            return Err(SyncPriceHistoryError::LookbackExceedsPriceHistoryReach {
+                lookback_reach: reach,
+                price_history_reach: self.config.price_history_reach(),
+            });
+        }
+
         loop {
-            let history_state = PriceHistoryState::evaluate(&self.db).await?;
+            let history_state = PriceHistoryState::evaluate_with_reach(&self.db, reach).await?;
             self.handle_history_update(&history_state).await?;
 
             if let Some(lastest_history_range) = history_state.tail_continuous_duration()
