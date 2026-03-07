@@ -145,13 +145,13 @@ impl<S: Signal> LiveSignalProcess<S> {
                                                 )
                                             }
                                             SyncStatus::Synced => break,
-                                            SyncStatus::Backfilled => {}
+                                            SyncStatus::Backfilled => {
+                                                return Err(SignalProcessFatalError::UnexpectedSyncBackfilled.into());
+                                            }
                                             SyncStatus::Terminated(err) => {
-                                                // Non-recoverable error
                                                 return Err(SignalProcessFatalError::SyncProcessTerminated(err).into());
                                             }
                                             SyncStatus::ShutdownInitiated | SyncStatus::Shutdown => {
-                                                // Non-recoverable error
                                                 return Err(SignalProcessFatalError::SyncProcessShutdown.into());
                                             }
                                         },
@@ -185,7 +185,9 @@ impl<S: Signal> LiveSignalProcess<S> {
                                 SyncStatus::ShutdownInitiated | SyncStatus::Shutdown => {
                                     return Err(SignalProcessFatalError::SyncProcessShutdown.into());
                                 }
-                                SyncStatus::Backfilled => {}
+                                SyncStatus::Backfilled => {
+                                    return Err(SignalProcessFatalError::UnexpectedSyncBackfilled.into());
+                                }
                             }
                         }
                     }
