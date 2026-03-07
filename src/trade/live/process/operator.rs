@@ -170,8 +170,9 @@ impl<S: Signal> OperatorRunning<S> {
         status_manager: &Arc<LiveTradeStatusManager<S>>,
         update_tx: &LiveTradeTransmitter<S>,
     ) -> Result<Never> {
+        let mut signal_rx = signal_controller.update_receiver();
         loop {
-            match signal_controller.update_receiver().recv().await {
+            match signal_rx.recv().await {
                 Ok(signal_update) => match signal_update {
                     LiveSignalUpdate::Status(signal_status) => match signal_status {
                         LiveSignalStatus::NotRunning(signal_status_not_running) => {
