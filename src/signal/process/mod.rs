@@ -9,6 +9,7 @@ use tokio::{
 use crate::{
     db::{Database, models::OhlcCandleRow},
     shared::{OhlcResolution, Period},
+    signal::LiveSignalReader,
     sync::{SyncReader, SyncStatus, SyncUpdate},
     util::{AbortOnDropHandle, DateTimeExt, Never},
 };
@@ -17,8 +18,8 @@ use super::{
     config::{LiveSignalConfig, LiveSignalProcessConfig},
     core::{Signal, WrappedSignalEvaluator},
     state::{
-        LiveSignalStatusManager, LiveSignalStatusNotRunning, LiveSignalTransmitter,
-        LiveSignalUpdate,
+        LiveSignalStatus, LiveSignalStatusManager, LiveSignalStatusNotRunning,
+        LiveSignalTransmitter, LiveSignalUpdate,
     },
 };
 
@@ -174,6 +175,13 @@ impl<S: Signal> LiveSignalProcess<S> {
                         }
                     }
                 }
+            }
+
+            if !matches!(
+                self.status_manager.status_snapshot(),
+                LiveSignalStatus::Running
+            ) {
+                self.status_manager.update(LiveSignalStatus::Running);
             }
 
             let now = Utc::now();
