@@ -337,7 +337,9 @@ impl<S: Signal> OperatorRunning<S> {
                                     );
                                 }
                                 SyncStatus::Synced => return Ok(()),
-                                SyncStatus::Backfilled => {}
+                                SyncStatus::Backfilled => {
+                                    return Err(LiveProcessFatalError::UnexpectedSyncBackfilled.into());
+                                }
                                 SyncStatus::Terminated(err) => {
                                     return Err(LiveProcessFatalError::SyncProcessTerminated(err).into());
                                 }
@@ -371,7 +373,9 @@ impl<S: Signal> OperatorRunning<S> {
                         SyncStatus::ShutdownInitiated | SyncStatus::Shutdown => {
                             return Err(LiveProcessFatalError::SyncProcessShutdown.into());
                         }
-                        SyncStatus::Backfilled => {}
+                        SyncStatus::Backfilled => {
+                            return Err(LiveProcessFatalError::UnexpectedSyncBackfilled.into());
+                        }
                     }
                 }
             }
