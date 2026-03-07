@@ -33,6 +33,9 @@ pub enum SignalProcessFatalError {
     #[error("`Sync` process (dependency) was shutdown")]
     SyncProcessShutdown,
 
+    #[error("Received unexpected `SyncStatus::Backfilled` from live sync process")]
+    UnexpectedSyncBackfilled,
+
     #[error("`Sync` process (dependency) was terminated with error: {0}")]
     SyncProcessTerminated(Arc<SyncProcessFatalError>),
 
