@@ -4,7 +4,7 @@ use chrono::{DateTime, Duration, Utc};
 
 use crate::db::Database;
 
-use super::error::{Result, SyncPriceHistoryError};
+use super::error::{Result, SyncPriceHistoryFatalError};
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum DownloadRange {
@@ -71,10 +71,11 @@ impl PriceHistoryState {
             // DB has a single candle
 
             if reach_time.is_some_and(|reach_time| earliest_candle_time < reach_time) {
-                return Err(SyncPriceHistoryError::UnreachableDbGap {
+                return Err(SyncPriceHistoryFatalError::UnreachableDbGap {
                     gap: earliest_candle_time,
                     reach: reach_time.expect("`reach_time_opt` can't be `None`"),
-                });
+                }
+                .into());
             }
 
             return Ok(Self {
@@ -92,10 +93,11 @@ impl PriceHistoryState {
             // There is a price gap before `reach_time`. Since candles before `reach_time`
             // can't be fetched, said gap can't be closed.
             // Therefore the DB can't be synced.
-            return Err(SyncPriceHistoryError::UnreachableDbGap {
+            return Err(SyncPriceHistoryFatalError::UnreachableDbGap {
                 gap: *from_time,
                 reach: reach_time.expect("`reach_time_opt` can't be `None`"),
-            });
+            }
+            .into());
         }
 
         Ok(Self {
@@ -148,10 +150,11 @@ impl PriceHistoryState {
         range_to: DateTime<Utc>,
     ) -> Result<bool> {
         if range_from >= range_to {
-            return Err(SyncPriceHistoryError::InvalidPriceHistoryStateRange {
+            return Err(SyncPriceHistoryFatalError::InvalidPriceHistoryStateRange {
                 range_from,
                 range_to,
-            });
+            }
+            .into());
         }
 
         let Some(bounds) = self.bounds else {
@@ -178,10 +181,11 @@ impl PriceHistoryState {
         }) {
             // DB has a single unreachable entry. Edge case
 
-            return Err(SyncPriceHistoryError::UnreachableDbGap {
+            return Err(SyncPriceHistoryFatalError::UnreachableDbGap {
                 gap: history_bounds.0,
                 reach: self.reach_time.expect("not `None`"),
-            });
+            }
+            .into());
         }
 
         let prioritized_gap = if backfilling {
@@ -194,10 +198,11 @@ impl PriceHistoryState {
             if self.reach_time.is_some_and(|reach_time| from < reach_time) {
                 // Gap before `reach`. Since entries before `reach` can't be fetched, said gap
                 // can't be closed. Therefore, the DB can't be synced.
-                return Err(SyncPriceHistoryError::UnreachableDbGap {
+                return Err(SyncPriceHistoryFatalError::UnreachableDbGap {
                     gap: from,
                     reach: self.reach_time.expect("not `None`"),
-                });
+                }
+                .into());
             }
 
             return Ok(DownloadRange::Gap { from, to });
@@ -236,7 +241,7 @@ impl PriceHistoryState {
     /// Checks whether there are any gaps or missing data within the reach period.
     pub fn has_gaps(&self) -> Result<bool> {
         let Some(reach_time) = self.reach_time else {
-            return Err(SyncPriceHistoryError::PriceHistoryStateReachNotSet);
+            return Err(SyncPriceHistoryFatalError::PriceHistoryStateReachNotSet.into());
         };
 
         Ok(self

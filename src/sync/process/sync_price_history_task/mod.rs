@@ -15,7 +15,7 @@ use super::super::config::{SyncPriceHistoryTaskConfig, SyncProcessConfig};
 pub(crate) mod error;
 pub(in crate::sync) mod price_history_state;
 
-use error::{Result, SyncPriceHistoryError};
+use error::{Result, SyncPriceHistoryFatalError, SyncPriceHistoryRecoverableError};
 use price_history_state::{DownloadRange, PriceHistoryState};
 
 /// First OHLC candle available from the LN Markets API.
@@ -86,10 +86,13 @@ impl SyncPriceHistoryTask {
                     Err(error) => {
                         trials += 1;
                         if trials >= self.config.rest_api_error_max_trials().get() {
-                            return Err(SyncPriceHistoryError::RestApiMaxTrialsReached {
-                                error,
-                                trials: self.config.rest_api_error_max_trials(),
-                            });
+                            return Err(
+                                SyncPriceHistoryRecoverableError::RestApiMaxTrialsReached {
+                                    error,
+                                    trials: self.config.rest_api_error_max_trials(),
+                                }
+                                .into(),
+                            );
                         }
 
                         time::sleep(self.config.rest_api_error_cooldown()).await;
@@ -110,13 +113,14 @@ impl SyncPriceHistoryTask {
             };
 
             if current.time().second() != 0 || current.time().nanosecond() != 0 {
-                return Err(SyncPriceHistoryError::ApiCandlesTimesNotRoundedToMinute);
+                return Err(SyncPriceHistoryFatalError::ApiCandlesTimesNotRoundedToMinute.into());
             }
 
             if next.time() >= current.time() {
-                return Err(SyncPriceHistoryError::ApíCandlesNotOrderedByTimeDesc {
+                return Err(SyncPriceHistoryFatalError::ApíCandlesNotOrderedByTimeDesc {
                     inconsistency_at: next.time(),
-                });
+                }
+                .into());
             }
         }
 
@@ -125,7 +129,7 @@ impl SyncPriceHistoryTask {
         // Check the last candle's time is rounded. Not checked when iterating over
         // `candles.windows(2)`. Also handles single candles.
         if period_start.second() != 0 || period_start.nanosecond() != 0 {
-            return Err(SyncPriceHistoryError::ApiCandlesTimesNotRoundedToMinute);
+            return Err(SyncPriceHistoryFatalError::ApiCandlesTimesNotRoundedToMinute.into());
         }
 
         if let Some(time) = candles_from
@@ -151,9 +155,10 @@ impl SyncPriceHistoryTask {
                 DownloadRange::LowerBound { to } => {
                     // No new entries available before lower bound. Invalid reach config.
                     return Err(
-                        SyncPriceHistoryError::ApiCandlesNotAvailableBeforeHistoryStart {
+                        SyncPriceHistoryFatalError::ApiCandlesNotAvailableBeforeHistoryStart {
                             history_start: to,
-                        },
+                        }
+                        .into(),
                     );
                 }
                 DownloadRange::Gap { from: _, to } => {
@@ -174,7 +179,7 @@ impl SyncPriceHistoryTask {
             history_state_tx
                 .send(new_history_state.clone())
                 .await
-                .map_err(|_| SyncPriceHistoryError::HistoryUpdateHandlerFailed)?;
+                .map_err(|_| SyncPriceHistoryRecoverableError::HistoryUpdateHandlerFailed)?;
         }
 
         Ok(())
@@ -232,10 +237,13 @@ impl SyncPriceHistoryTask {
         let reach = Utc::now() - lookback;
 
         if reach < self.config.price_history_reach() {
-            return Err(SyncPriceHistoryError::LookbackExceedsPriceHistoryReach {
-                lookback_reach: reach,
-                price_history_reach: self.config.price_history_reach(),
-            });
+            return Err(
+                SyncPriceHistoryFatalError::LookbackExceedsPriceHistoryReach {
+                    lookback_reach: reach,
+                    price_history_reach: self.config.price_history_reach(),
+                }
+                .into(),
+            );
         }
 
         loop {
