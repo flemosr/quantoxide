@@ -42,4 +42,16 @@ pub enum SyncFundingSettlementsError {
     InvalidSettlementTime { time: DateTime<Utc> },
 }
 
+impl SyncFundingSettlementsError {
+    pub fn is_fatal(&self) -> bool {
+        matches!(
+            self,
+            Self::UnreachableMissingSettlement { .. }
+                | Self::FundingSettlementsStateReachNotSet
+                | Self::ApiSettlementsNotAvailableBeforeHistoryStart { .. }
+                | Self::InvalidSettlementTime { .. }
+        )
+    }
+}
+
 pub(super) type Result<T> = result::Result<T, SyncFundingSettlementsError>;
