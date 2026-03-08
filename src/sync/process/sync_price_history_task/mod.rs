@@ -222,7 +222,21 @@ impl SyncPriceHistoryTask {
     }
 
     pub async fn live(self, lookback: Duration) -> Result<()> {
-        let history_state = PriceHistoryState::evaluate(&self.db).await?;
+        let lookback_reach = Utc::now() - lookback;
+
+        if lookback_reach < self.config.price_history_reach() {
+            return Err(
+                SyncPriceHistoryFatalError::LookbackExceedsPriceHistoryReach {
+                    lookback_reach,
+                    price_history_reach: self.config.price_history_reach(),
+                }
+                .into(),
+            );
+        }
+
+        let reach = self.config.price_history_reach();
+
+        let history_state = PriceHistoryState::evaluate_with_reach(&self.db, reach).await?;
         self.handle_history_update(&history_state).await?;
 
         let initial_download_range = match history_state.bound_end() {
@@ -233,18 +247,6 @@ impl SyncPriceHistoryTask {
         self.partial_download(initial_download_range).await?;
 
         // Now it can be assumed that the history upper bound matches the current time
-
-        let reach = Utc::now() - lookback;
-
-        if reach < self.config.price_history_reach() {
-            return Err(
-                SyncPriceHistoryFatalError::LookbackExceedsPriceHistoryReach {
-                    lookback_reach: reach,
-                    price_history_reach: self.config.price_history_reach(),
-                }
-                .into(),
-            );
-        }
 
         loop {
             let history_state = PriceHistoryState::evaluate_with_reach(&self.db, reach).await?;
