@@ -45,8 +45,13 @@ pub mod error {
         process::{
             error::{SyncProcessFatalError, SyncProcessRecoverableError},
             real_time_collection_task::error::RealTimeCollectionError,
-            sync_funding_settlements_task::error::SyncFundingSettlementsError,
-            sync_price_history_task::error::SyncPriceHistoryError,
+            sync_funding_settlements_task::error::{
+                SyncFundingSettlementsError, SyncFundingSettlementsFatalError,
+                SyncFundingSettlementsRecoverableError,
+            },
+            sync_price_history_task::error::{
+                SyncPriceHistoryError, SyncPriceHistoryFatalError, SyncPriceHistoryRecoverableError,
+            },
         },
     };
     pub use super::trade::{
