@@ -1,6 +1,5 @@
 use std::{result, time::Duration};
 
-use chrono::{DateTime, Utc};
 use thiserror::Error;
 use tokio::{
     sync::broadcast::error::{RecvError, SendError},
@@ -41,14 +40,8 @@ pub enum SyncProcessRecoverableError {
 #[derive(Error, Debug)]
 #[non_exhaustive]
 pub enum SyncProcessFatalError {
-    #[error("Invalid funding settlement time received from API: {time}")]
-    InvalidFundingSettlementTime { time: DateTime<Utc> },
-
-    #[error("Unreachable missing funding settlement at {time}, configured reach at {reach}")]
-    UnreachableMissingFundingSettlement {
-        time: DateTime<Utc>,
-        reach: DateTime<Utc>,
-    },
+    #[error(transparent)]
+    SyncFundingSettlements(SyncFundingSettlementsError),
 
     #[error(transparent)]
     SyncPriceHistory(SyncPriceHistoryError),
