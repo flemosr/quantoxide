@@ -8,7 +8,7 @@ use crate::util::DateTimeExt;
 
 use super::{
     LNM_SETTLEMENT_INTERVAL_8H,
-    error::{Result, SyncFundingSettlementsError},
+    error::{Result, SyncFundingSettlementsFatalError},
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -81,10 +81,13 @@ impl FundingSettlementsState {
 
         if earliest_time == latest_time {
             if reach_time.is_some_and(|reach_time| earliest_time < reach_time) {
-                return Err(SyncFundingSettlementsError::UnreachableMissingSettlement {
-                    time: earliest_time,
-                    reach: reach_time.expect("`reach_time_opt` can't be `None`"),
-                });
+                return Err(
+                    SyncFundingSettlementsFatalError::UnreachableMissingSettlement {
+                        time: earliest_time,
+                        reach: reach_time.expect("`reach_time_opt` can't be `None`"),
+                    }
+                    .into(),
+                );
             }
 
             return Ok(Self {
@@ -116,10 +119,13 @@ impl FundingSettlementsState {
         if let Some(first_missing) = missing.first()
             && reach_time.is_some_and(|reach_time| *first_missing < reach_time)
         {
-            return Err(SyncFundingSettlementsError::UnreachableMissingSettlement {
-                time: *first_missing,
-                reach: reach_time.expect("`reach_time_opt` can't be `None`"),
-            });
+            return Err(
+                SyncFundingSettlementsFatalError::UnreachableMissingSettlement {
+                    time: *first_missing,
+                    reach: reach_time.expect("`reach_time_opt` can't be `None`"),
+                }
+                .into(),
+            );
         }
 
         Ok(Self {
@@ -206,10 +212,13 @@ impl FundingSettlementsState {
             .reach_time
             .is_some_and(|reach_time| bounds.0 == bounds.1 && bounds.0 < reach_time)
         {
-            return Err(SyncFundingSettlementsError::UnreachableMissingSettlement {
-                time: bounds.0,
-                reach: self.reach_time.expect("not `None`"),
-            });
+            return Err(
+                SyncFundingSettlementsFatalError::UnreachableMissingSettlement {
+                    time: bounds.0,
+                    reach: self.reach_time.expect("not `None`"),
+                }
+                .into(),
+            );
         }
 
         // Always start from the most recent missing settlements and work backwards
@@ -218,10 +227,13 @@ impl FundingSettlementsState {
             let last = *group.last().expect("group is non-empty");
 
             if self.reach_time.is_some_and(|reach_time| first < reach_time) {
-                return Err(SyncFundingSettlementsError::UnreachableMissingSettlement {
-                    time: first,
-                    reach: self.reach_time.expect("not `None`"),
-                });
+                return Err(
+                    SyncFundingSettlementsFatalError::UnreachableMissingSettlement {
+                        time: first,
+                        reach: self.reach_time.expect("not `None`"),
+                    }
+                    .into(),
+                );
             }
 
             return Ok(FundingDownloadRange::Missing {
@@ -244,7 +256,9 @@ impl FundingSettlementsState {
     /// interior gaps exist, or history doesn't reach back far enough).
     pub fn has_missing(&self) -> Result<bool> {
         let Some(reach_time) = self.reach_time else {
-            return Err(SyncFundingSettlementsError::FundingSettlementsStateReachNotSet);
+            return Err(
+                SyncFundingSettlementsFatalError::FundingSettlementsStateReachNotSet.into(),
+            );
         };
 
         Ok(self

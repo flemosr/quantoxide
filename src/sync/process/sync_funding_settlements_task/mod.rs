@@ -12,7 +12,7 @@ use super::super::config::{SyncFundingSettlementsTaskConfig, SyncProcessConfig};
 pub(crate) mod error;
 pub(in crate::sync) mod funding_settlements_state;
 
-use error::{Result, SyncFundingSettlementsError};
+use error::{Result, SyncFundingSettlementsFatalError, SyncFundingSettlementsRecoverableError};
 use funding_settlements_state::{FundingDownloadRange, FundingSettlementsState};
 
 // LN Markets funding settlement grid phases:
@@ -140,10 +140,13 @@ impl SyncFundingSettlementsTask {
                 Err(error) => {
                     trials += 1;
                     if trials >= self.config.rest_api_error_max_trials().get() {
-                        return Err(SyncFundingSettlementsError::RestApiMaxTrialsReached {
-                            error,
-                            trials: self.config.rest_api_error_max_trials(),
-                        });
+                        return Err(
+                            SyncFundingSettlementsRecoverableError::RestApiMaxTrialsReached {
+                                error,
+                                trials: self.config.rest_api_error_max_trials(),
+                            }
+                            .into(),
+                        );
                     }
 
                     time::sleep(self.config.rest_api_error_cooldown()).await;
@@ -161,9 +164,10 @@ impl SyncFundingSettlementsTask {
 
         for settlement in &new_settlements {
             if !settlement.time().is_valid_funding_settlement_time() {
-                return Err(SyncFundingSettlementsError::InvalidSettlementTime {
+                return Err(SyncFundingSettlementsFatalError::InvalidSettlementTime {
                     time: settlement.time(),
-                });
+                }
+                .into());
             }
         }
 
@@ -171,9 +175,10 @@ impl SyncFundingSettlementsTask {
             match download_range {
                 FundingDownloadRange::LowerBound { to } => {
                     return Err(
-                        SyncFundingSettlementsError::ApiSettlementsNotAvailableBeforeHistoryStart {
+                        SyncFundingSettlementsFatalError::ApiSettlementsNotAvailableBeforeHistoryStart {
                             history_start: to,
-                        },
+                        }
+                        .into(),
                     );
                 }
                 FundingDownloadRange::Missing { .. }
@@ -197,7 +202,7 @@ impl SyncFundingSettlementsTask {
             state_tx
                 .send(new_state.clone())
                 .await
-                .map_err(|_| SyncFundingSettlementsError::HistoryUpdateHandlerFailed)?;
+                .map_err(|_| SyncFundingSettlementsRecoverableError::HistoryUpdateHandlerFailed)?;
         }
 
         Ok(())
