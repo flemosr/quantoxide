@@ -50,6 +50,9 @@ pub enum SyncProcessFatalError {
         reach: DateTime<Utc>,
     },
 
+    #[error(transparent)]
+    SyncPriceHistory(SyncPriceHistoryError),
+
     #[error("Shutdown signal channel recv error: {0}")]
     ShutdownSignalRecv(RecvError),
 

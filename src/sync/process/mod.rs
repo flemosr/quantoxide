@@ -32,7 +32,8 @@ use sync_funding_settlements_task::{
     error::SyncFundingSettlementsError, funding_settlements_state::FundingSettlementsState,
 };
 use sync_price_history_task::{
-    PriceHistoryStateTransmitter, SyncPriceHistoryTask, price_history_state::PriceHistoryState,
+    PriceHistoryStateTransmitter, SyncPriceHistoryTask, error::SyncPriceHistoryError,
+    price_history_state::PriceHistoryState,
 };
 
 pub(super) struct SyncProcess {
@@ -468,7 +469,7 @@ impl SyncProcess {
         SyncPriceHistoryTask::new(&self.config, self.db.clone(), api_rest, history_state_tx)
             .backfill(flag_gaps_range)
             .await
-            .map_err(|e| SyncProcessRecoverableError::SyncPriceHistory(e).into())
+            .map_err(Self::map_price_history_error)
     }
 
     async fn run_price_history_task_live(
@@ -480,7 +481,15 @@ impl SyncProcess {
         SyncPriceHistoryTask::new(&self.config, self.db.clone(), api_rest, history_state_tx)
             .live(lookback)
             .await
-            .map_err(|e| SyncProcessRecoverableError::SyncPriceHistory(e).into())
+            .map_err(Self::map_price_history_error)
+    }
+
+    fn map_price_history_error(e: SyncPriceHistoryError) -> SyncProcessError {
+        if e.is_fatal() {
+            SyncProcessFatalError::SyncPriceHistory(e).into()
+        } else {
+            SyncProcessRecoverableError::SyncPriceHistory(e).into()
+        }
     }
 
     /// Clean up is not needed since the task is terminated when
