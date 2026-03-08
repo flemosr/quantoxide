@@ -9,7 +9,7 @@ use crate::db::error::DbError;
 
 #[derive(Error, Debug)]
 #[non_exhaustive]
-pub enum SyncPriceHistoryError {
+pub enum SyncPriceHistoryRecoverableError {
     #[error("RestApiMaxTrialsReached error: error {error}, trials {trials}")]
     RestApiMaxTrialsReached {
         error: RestApiError,
@@ -20,8 +20,12 @@ pub enum SyncPriceHistoryError {
     HistoryUpdateHandlerFailed,
 
     #[error("[Db] {0}")]
-    Db(#[from] DbError),
+    Db(DbError),
+}
 
+#[derive(Error, Debug)]
+#[non_exhaustive]
+pub enum SyncPriceHistoryFatalError {
     #[error("API candles must have times rounded to the minute (no seconds/nanoseconds)")]
     ApiCandlesTimesNotRoundedToMinute,
 
@@ -55,18 +59,18 @@ pub enum SyncPriceHistoryError {
     },
 }
 
-impl SyncPriceHistoryError {
-    pub fn is_fatal(&self) -> bool {
-        matches!(
-            self,
-            Self::ApiCandlesTimesNotRoundedToMinute
-                | Self::ApíCandlesNotOrderedByTimeDesc { .. }
-                | Self::ApiCandlesNotAvailableBeforeHistoryStart { .. }
-                | Self::UnreachableDbGap { .. }
-                | Self::InvalidPriceHistoryStateRange { .. }
-                | Self::PriceHistoryStateReachNotSet
-                | Self::LookbackExceedsPriceHistoryReach { .. }
-        )
+#[derive(Error, Debug)]
+pub enum SyncPriceHistoryError {
+    #[error(transparent)]
+    Recoverable(#[from] SyncPriceHistoryRecoverableError),
+
+    #[error(transparent)]
+    Fatal(#[from] SyncPriceHistoryFatalError),
+}
+
+impl From<DbError> for SyncPriceHistoryError {
+    fn from(e: DbError) -> Self {
+        SyncPriceHistoryRecoverableError::Db(e).into()
     }
 }
 
