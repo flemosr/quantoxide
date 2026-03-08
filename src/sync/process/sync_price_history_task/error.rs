@@ -16,6 +16,12 @@ pub enum SyncPriceHistoryError {
         trials: NonZeroU64,
     },
 
+    #[error("HistoryUpdateHandlerFailed error")]
+    HistoryUpdateHandlerFailed,
+
+    #[error("[Db] {0}")]
+    Db(#[from] DbError),
+
     #[error("API candles must have times rounded to the minute (no seconds/nanoseconds)")]
     ApiCandlesTimesNotRoundedToMinute,
 
@@ -24,12 +30,6 @@ pub enum SyncPriceHistoryError {
 
     #[error("API candles before {history_start} are not available")]
     ApiCandlesNotAvailableBeforeHistoryStart { history_start: DateTime<Utc> },
-
-    #[error("HistoryUpdateHandlerFailed error")]
-    HistoryUpdateHandlerFailed,
-
-    #[error("[Db] {0}")]
-    Db(#[from] DbError),
 
     #[error("Unreachable gap detected in the database. Gap at {gap}, configured reach at {reach}")]
     UnreachableDbGap {
@@ -53,6 +53,21 @@ pub enum SyncPriceHistoryError {
         lookback_reach: DateTime<Utc>,
         price_history_reach: DateTime<Utc>,
     },
+}
+
+impl SyncPriceHistoryError {
+    pub fn is_fatal(&self) -> bool {
+        matches!(
+            self,
+            Self::ApiCandlesTimesNotRoundedToMinute
+                | Self::ApíCandlesNotOrderedByTimeDesc { .. }
+                | Self::ApiCandlesNotAvailableBeforeHistoryStart { .. }
+                | Self::UnreachableDbGap { .. }
+                | Self::InvalidPriceHistoryStateRange { .. }
+                | Self::PriceHistoryStateReachNotSet
+                | Self::LookbackExceedsPriceHistoryReach { .. }
+        )
+    }
 }
 
 pub(super) type Result<T> = result::Result<T, SyncPriceHistoryError>;
