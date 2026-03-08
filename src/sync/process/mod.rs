@@ -485,10 +485,11 @@ impl SyncProcess {
     }
 
     fn map_price_history_error(e: SyncPriceHistoryError) -> SyncProcessError {
-        if e.is_fatal() {
-            SyncProcessFatalError::SyncPriceHistory(e).into()
-        } else {
-            SyncProcessRecoverableError::SyncPriceHistory(e).into()
+        match e {
+            SyncPriceHistoryError::Recoverable(e) => {
+                SyncProcessRecoverableError::SyncPriceHistory(e).into()
+            }
+            SyncPriceHistoryError::Fatal(e) => SyncProcessFatalError::SyncPriceHistory(e).into(),
         }
     }
 

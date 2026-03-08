@@ -9,14 +9,16 @@ use tokio::{
 use super::{
     real_time_collection_task::error::RealTimeCollectionError,
     sync_funding_settlements_task::error::SyncFundingSettlementsError,
-    sync_price_history_task::error::SyncPriceHistoryError,
+    sync_price_history_task::error::{
+        SyncPriceHistoryFatalError, SyncPriceHistoryRecoverableError,
+    },
 };
 
 #[derive(Error, Debug)]
 #[non_exhaustive]
 pub enum SyncProcessRecoverableError {
     #[error("[SyncPriceHistory] {0}")]
-    SyncPriceHistory(#[from] SyncPriceHistoryError),
+    SyncPriceHistory(#[from] SyncPriceHistoryRecoverableError),
 
     #[error("[SyncFundingSettlements] {0}")]
     SyncFundingSettlements(#[from] SyncFundingSettlementsError),
@@ -44,7 +46,7 @@ pub enum SyncProcessFatalError {
     SyncFundingSettlements(SyncFundingSettlementsError),
 
     #[error(transparent)]
-    SyncPriceHistory(SyncPriceHistoryError),
+    SyncPriceHistory(SyncPriceHistoryFatalError),
 
     #[error("Shutdown signal channel recv error: {0}")]
     ShutdownSignalRecv(RecvError),
