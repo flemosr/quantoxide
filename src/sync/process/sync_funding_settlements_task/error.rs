@@ -9,7 +9,7 @@ use crate::db::error::DbError;
 
 #[derive(Error, Debug)]
 #[non_exhaustive]
-pub enum SyncFundingSettlementsError {
+pub enum SyncFundingSettlementsRecoverableError {
     #[error("RestApiMaxTrialsReached error: error {error}, trials {trials}")]
     RestApiMaxTrialsReached {
         error: RestApiError,
@@ -17,8 +17,15 @@ pub enum SyncFundingSettlementsError {
     },
 
     #[error("[Db] {0}")]
-    Db(#[from] DbError),
+    Db(DbError),
 
+    #[error("HistoryUpdateHandlerFailed error")]
+    HistoryUpdateHandlerFailed,
+}
+
+#[derive(Error, Debug)]
+#[non_exhaustive]
+pub enum SyncFundingSettlementsFatalError {
     #[error(
         "Unreachable missing settlement detected. Missing at {time}, configured reach at {reach}"
     )]
@@ -26,9 +33,6 @@ pub enum SyncFundingSettlementsError {
         time: DateTime<Utc>,
         reach: DateTime<Utc>,
     },
-
-    #[error("HistoryUpdateHandlerFailed error")]
-    HistoryUpdateHandlerFailed,
 
     #[error(
         "Funding settlements state `reach` was not set, and it is required to evaluate DB gaps"
@@ -42,15 +46,18 @@ pub enum SyncFundingSettlementsError {
     InvalidSettlementTime { time: DateTime<Utc> },
 }
 
-impl SyncFundingSettlementsError {
-    pub fn is_fatal(&self) -> bool {
-        matches!(
-            self,
-            Self::UnreachableMissingSettlement { .. }
-                | Self::FundingSettlementsStateReachNotSet
-                | Self::ApiSettlementsNotAvailableBeforeHistoryStart { .. }
-                | Self::InvalidSettlementTime { .. }
-        )
+#[derive(Error, Debug)]
+pub enum SyncFundingSettlementsError {
+    #[error(transparent)]
+    Recoverable(#[from] SyncFundingSettlementsRecoverableError),
+
+    #[error(transparent)]
+    Fatal(#[from] SyncFundingSettlementsFatalError),
+}
+
+impl From<DbError> for SyncFundingSettlementsError {
+    fn from(e: DbError) -> Self {
+        SyncFundingSettlementsRecoverableError::Db(e).into()
     }
 }
 
