@@ -521,10 +521,13 @@ impl SyncProcess {
     }
 
     fn map_funding_settlements_error(e: SyncFundingSettlementsError) -> SyncProcessError {
-        if e.is_fatal() {
-            SyncProcessFatalError::SyncFundingSettlements(e).into()
-        } else {
-            SyncProcessRecoverableError::SyncFundingSettlements(e).into()
+        match e {
+            SyncFundingSettlementsError::Recoverable(e) => {
+                SyncProcessRecoverableError::SyncFundingSettlements(e).into()
+            }
+            SyncFundingSettlementsError::Fatal(e) => {
+                SyncProcessFatalError::SyncFundingSettlements(e).into()
+            }
         }
     }
 

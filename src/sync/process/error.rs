@@ -8,7 +8,9 @@ use tokio::{
 
 use super::{
     real_time_collection_task::error::RealTimeCollectionError,
-    sync_funding_settlements_task::error::SyncFundingSettlementsError,
+    sync_funding_settlements_task::error::{
+        SyncFundingSettlementsFatalError, SyncFundingSettlementsRecoverableError,
+    },
     sync_price_history_task::error::{
         SyncPriceHistoryFatalError, SyncPriceHistoryRecoverableError,
     },
@@ -18,13 +20,13 @@ use super::{
 #[non_exhaustive]
 pub enum SyncProcessRecoverableError {
     #[error("[SyncPriceHistory] {0}")]
-    SyncPriceHistory(#[from] SyncPriceHistoryRecoverableError),
+    SyncPriceHistory(SyncPriceHistoryRecoverableError),
 
     #[error("[SyncFundingSettlements] {0}")]
-    SyncFundingSettlements(#[from] SyncFundingSettlementsError),
+    SyncFundingSettlements(SyncFundingSettlementsRecoverableError),
 
     #[error("[RealTimeCollection] {0}")]
-    RealTimeCollection(#[from] RealTimeCollectionError),
+    RealTimeCollection(RealTimeCollectionError),
 
     #[error("[RealTimeCollectionTaskJoin] {0}")]
     RealTimeCollectionTaskJoin(JoinError),
@@ -43,7 +45,7 @@ pub enum SyncProcessRecoverableError {
 #[non_exhaustive]
 pub enum SyncProcessFatalError {
     #[error(transparent)]
-    SyncFundingSettlements(SyncFundingSettlementsError),
+    SyncFundingSettlements(SyncFundingSettlementsFatalError),
 
     #[error(transparent)]
     SyncPriceHistory(SyncPriceHistoryFatalError),
