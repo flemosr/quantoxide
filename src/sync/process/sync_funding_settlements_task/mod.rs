@@ -78,7 +78,7 @@ pub(super) struct SyncFundingSettlementsTask {
     config: SyncFundingSettlementsTaskConfig,
     db: Arc<Database>,
     api_rest: Arc<RestClient>,
-    funding_state_tx: Option<FundingSettlementsStateTransmitter>,
+    funding_state_tx: FundingSettlementsStateTransmitter,
 }
 
 impl SyncFundingSettlementsTask {
@@ -107,7 +107,7 @@ impl SyncFundingSettlementsTask {
         config: &SyncProcessConfig,
         db: Arc<Database>,
         api_rest: Arc<RestClient>,
-        funding_state_tx: Option<FundingSettlementsStateTransmitter>,
+        funding_state_tx: FundingSettlementsStateTransmitter,
     ) -> Self {
         Self {
             config: config.into(),
@@ -198,12 +198,10 @@ impl SyncFundingSettlementsTask {
     }
 
     async fn handle_state_update(&self, new_state: &FundingSettlementsState) -> Result<()> {
-        if let Some(state_tx) = self.funding_state_tx.as_ref() {
-            state_tx
-                .send(new_state.clone())
-                .await
-                .map_err(|_| SyncFundingSettlementsRecoverableError::HistoryUpdateHandlerFailed)?;
-        }
+        self.funding_state_tx
+            .send(new_state.clone())
+            .await
+            .map_err(|_| SyncFundingSettlementsRecoverableError::HistoryUpdateHandlerFailed)?;
 
         Ok(())
     }

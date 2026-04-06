@@ -178,7 +178,7 @@ impl SyncProcess {
             let _ = self
                 .run_funding_settlements_task_backfill(
                     api_rest.clone(),
-                    Some(funding_state_tx),
+                    funding_state_tx,
                     flag_missing_range,
                 )
                 .await?;
@@ -432,7 +432,7 @@ impl SyncProcess {
         let _ = self
             .run_funding_settlements_task_backfill(
                 api_rest.clone(),
-                Some(funding_state_tx),
+                funding_state_tx.clone(),
                 self.config.funding_settlement_flag_missing_range(),
             )
             .await?;
@@ -506,7 +506,7 @@ impl SyncProcess {
                         re_sync_timer = new_re_sync_timer();
                     }
                     _ = &mut funding_timer => {
-                        let synced = self.run_funding_settlements_task_backfill(api_rest.clone(), None, None).await?;
+                        let synced = self.run_funding_settlements_task_backfill(api_rest.clone(), funding_state_tx.clone(), None).await?;
                         funding_timer = new_funding_timer(synced);
                     }
                     _ = &mut tick_interval_timer => {
@@ -533,7 +533,7 @@ impl SyncProcess {
                         re_sync_timer = new_re_sync_timer();
                     }
                     _ = &mut funding_timer => {
-                        let synced = self.run_funding_settlements_task_backfill(api_rest.clone(), None, None).await?;
+                        let synced = self.run_funding_settlements_task_backfill(api_rest.clone(), funding_state_tx.clone(), None).await?;
                         funding_timer = new_funding_timer(synced);
                     }
                 }
@@ -592,7 +592,7 @@ impl SyncProcess {
     async fn run_funding_settlements_task_backfill(
         &self,
         api_rest: Arc<RestClient>,
-        funding_state_tx: Option<FundingSettlementsStateTransmitter>,
+        funding_state_tx: FundingSettlementsStateTransmitter,
         flag_missing_range: Option<Duration>,
     ) -> Result<bool> {
         SyncFundingSettlementsTask::new(&self.config, self.db.clone(), api_rest, funding_state_tx)
