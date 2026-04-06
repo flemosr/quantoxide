@@ -230,7 +230,7 @@ impl<S: Signal> LiveTradeEngine<S> {
                     api_ws,
                     lookback,
                 ),
-                None => SyncEngine::live_no_lookback(&config, db.clone(), api_ws),
+                None => SyncEngine::live_no_lookback(&config, db.clone(), api_rest.clone(), api_ws),
             }
         };
 
@@ -332,7 +332,7 @@ impl LiveTradeEngine<Raw> {
                     api_ws,
                     lookback,
                 ),
-                None => SyncEngine::live_no_lookback(&config, db.clone(), api_ws),
+                None => SyncEngine::live_no_lookback(&config, db.clone(), api_rest.clone(), api_ws),
             }
         };
 
