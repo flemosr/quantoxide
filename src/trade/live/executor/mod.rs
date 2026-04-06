@@ -639,7 +639,7 @@ impl LiveTradeExecutorLauncher {
                                         SyncStatus::Synced => should_refresh = true,
                                     },
                                     SyncUpdate::PriceTick(_) => should_refresh = true,
-                                    SyncUpdate::PriceHistoryState(_) => {}
+                                    SyncUpdate::PriceHistoryState(_) => should_refresh = true,
                                     SyncUpdate::FundingSettlementsState(_) => {}
                                 },
                                 Err(RecvError::Lagged(skipped)) => {
