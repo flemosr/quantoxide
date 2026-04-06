@@ -260,6 +260,9 @@ impl LiveTradeConfig {
     /// When `false`, live modes rely solely on REST polling instead of WebSocket feeds.
     ///
     /// Default: `false`
+    ///
+    /// **Note**: As of Apr 06 2026, WebSocket API support is temporarily disabled on the LN Markets
+    /// platform, so REST polling is used by default.
     pub fn with_ws_enabled(mut self, enabled: bool) -> Self {
         self.ws_enabled = enabled;
         self
