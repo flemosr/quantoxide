@@ -73,7 +73,7 @@ impl Default for LiveTradeConfig {
             funding_settlement_flag_missing_range: Some(Duration::weeks(4)),
             live_price_tick_max_interval: time::Duration::from_secs(3 * 60),
             funding_sync_retry_interval: time::Duration::from_secs(60),
-            sync_update_timeout: time::Duration::from_secs(5),
+            sync_update_timeout: time::Duration::from_secs(60),
             trade_tsl_step_size: PercentageCapped::MIN,
             startup_clean_up_trades: false,
             startup_recover_trades: true,
