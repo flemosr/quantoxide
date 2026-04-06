@@ -17,6 +17,7 @@ use super::process::{
 pub struct SyncConfig {
     rest_api_timeout: time::Duration,
     rest_api_rate_limit_unauth_requests_per_second: NonZeroU32,
+    ws_enabled: bool,
     ws_api_disconnect_timeout: time::Duration,
     rest_api_error_cooldown: time::Duration,
     rest_api_error_max_trials: NonZeroU64,
@@ -43,6 +44,7 @@ impl Default for SyncConfig {
                 .rate_limit_unauth_requests_per_second()
                 .try_into()
                 .expect("not zero"),
+            ws_enabled: false,
             ws_api_disconnect_timeout: ws_config_default.disconnect_timeout(),
             rest_api_error_cooldown: time::Duration::from_secs(10),
             rest_api_error_max_trials: 3.try_into().expect("not zero"),
@@ -71,6 +73,11 @@ impl SyncConfig {
     /// Returns the rate limit for unauthenticated REST API requests, in requests per second.
     pub fn rest_api_rate_limit_unauth_requests_per_second(&self) -> NonZeroU32 {
         self.rest_api_rate_limit_unauth_requests_per_second
+    }
+
+    /// Returns whether WebSocket data collection is enabled in live modes.
+    pub fn ws_enabled(&self) -> bool {
+        self.ws_enabled
     }
 
     /// Returns the disconnect timeout for WebSocket API connections.
@@ -161,6 +168,16 @@ impl SyncConfig {
     /// Default: [`RestClientConfig`](lnm_sdk::api_v3::RestClientConfig) default
     pub fn with_rest_api_rate_limit_unauth_requests_per_second(mut self, rps: NonZeroU32) -> Self {
         self.rest_api_rate_limit_unauth_requests_per_second = rps;
+        self
+    }
+
+    /// Sets whether WebSocket data collection is enabled in live modes.
+    ///
+    /// When `false`, live modes rely solely on REST polling instead of WebSocket feeds.
+    ///
+    /// Default: `false`
+    pub fn with_ws_enabled(mut self, enabled: bool) -> Self {
+        self.ws_enabled = enabled;
         self
     }
 
@@ -322,6 +339,7 @@ impl From<&LiveTradeConfig> for SyncConfig {
             rest_api_timeout: value.rest_api_timeout(),
             rest_api_rate_limit_unauth_requests_per_second: value
                 .rest_api_rate_limit_unauth_requests_per_second(),
+            ws_enabled: value.ws_enabled(),
             ws_api_disconnect_timeout: value.ws_api_disconnect_timeout(),
             rest_api_error_cooldown: value.rest_api_error_cooldown(),
             rest_api_error_max_trials: value.rest_api_error_max_trials(),
@@ -363,6 +381,7 @@ impl From<&SyncConfig> for SyncControllerConfig {
 pub(crate) struct SyncProcessConfig {
     rest_api_error_cooldown: time::Duration,
     rest_api_error_max_trials: NonZeroU64,
+    ws_enabled: bool,
     price_history_batch_size: NonZeroU64,
     price_history_reach: DateTime<Utc>,
     funding_settlement_reach: DateTime<Utc>,
@@ -376,6 +395,10 @@ pub(crate) struct SyncProcessConfig {
 }
 
 impl SyncProcessConfig {
+    pub fn ws_enabled(&self) -> bool {
+        self.ws_enabled
+    }
+
     pub fn price_history_re_sync_interval(&self) -> time::Duration {
         self.price_history_re_sync_interval
     }
@@ -414,6 +437,7 @@ impl From<&SyncConfig> for SyncProcessConfig {
         Self {
             rest_api_error_cooldown: value.rest_api_error_cooldown,
             rest_api_error_max_trials: value.rest_api_error_max_trials,
+            ws_enabled: value.ws_enabled,
             price_history_batch_size: value.price_history_batch_size,
             price_history_reach: value.price_history_reach,
             funding_settlement_reach: value.funding_settlement_reach,
