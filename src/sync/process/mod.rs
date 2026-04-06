@@ -374,18 +374,18 @@ impl SyncProcess {
         } else {
             // REST polling only
 
+            let (history_state_tx, history_state_rx) = mpsc::channel::<PriceHistoryState>(100);
+
+            self.spawn_history_state_update_handler(history_state_rx);
+
             self.status_manager.update(SyncStatus::Synced);
 
             loop {
                 time::sleep(self.config.price_history_re_sync_interval()).await;
 
-                let (history_state_tx, history_state_rx) = mpsc::channel::<PriceHistoryState>(100);
-
-                self.spawn_history_state_update_handler(history_state_rx);
-
                 self.run_price_history_task_live(
                     api_rest.clone(),
-                    Some(history_state_tx),
+                    Some(history_state_tx.clone()),
                     lookback,
                 )
                 .await?;
