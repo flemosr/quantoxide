@@ -32,7 +32,7 @@ pub(super) struct SyncPriceHistoryTask {
     config: SyncPriceHistoryTaskConfig,
     db: Arc<Database>,
     api_rest: Arc<RestClient>,
-    history_state_tx: Option<PriceHistoryStateTransmitter>,
+    history_state_tx: PriceHistoryStateTransmitter,
 }
 
 impl SyncPriceHistoryTask {
@@ -40,7 +40,7 @@ impl SyncPriceHistoryTask {
         config: &SyncProcessConfig,
         db: Arc<Database>,
         api_rest: Arc<RestClient>,
-        history_state_tx: Option<PriceHistoryStateTransmitter>,
+        history_state_tx: PriceHistoryStateTransmitter,
     ) -> Self {
         Self {
             config: config.into(),
@@ -175,12 +175,10 @@ impl SyncPriceHistoryTask {
     }
 
     async fn handle_history_update(&self, new_history_state: &PriceHistoryState) -> Result<()> {
-        if let Some(history_state_tx) = self.history_state_tx.as_ref() {
-            history_state_tx
-                .send(new_history_state.clone())
-                .await
-                .map_err(|_| SyncPriceHistoryRecoverableError::HistoryUpdateHandlerFailed)?;
-        }
+        self.history_state_tx
+            .send(new_history_state.clone())
+            .await
+            .map_err(|_| SyncPriceHistoryRecoverableError::HistoryUpdateHandlerFailed)?;
 
         Ok(())
     }

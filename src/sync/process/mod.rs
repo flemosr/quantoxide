@@ -163,7 +163,7 @@ impl SyncProcess {
 
             self.run_price_history_task_backfill(
                 api_rest.clone(),
-                Some(history_state_tx),
+                history_state_tx,
                 flag_gaps_range,
             )
             .await?;
@@ -270,7 +270,7 @@ impl SyncProcess {
 
             self.run_price_history_task_backfill(
                 api_rest.clone(),
-                Some(history_state_tx.clone()),
+                history_state_tx.clone(),
                 None,
             )
             .await?;
@@ -282,7 +282,7 @@ impl SyncProcess {
 
                 self.run_price_history_task_backfill(
                     api_rest.clone(),
-                    Some(history_state_tx.clone()),
+                    history_state_tx.clone(),
                     None,
                 )
                 .await?;
@@ -303,7 +303,7 @@ impl SyncProcess {
 
         self.spawn_history_state_update_handler(history_state_rx);
 
-        self.run_price_history_task_live(api_rest.clone(), Some(history_state_tx.clone()), lookback)
+        self.run_price_history_task_live(api_rest.clone(), history_state_tx.clone(), lookback)
             .await?;
 
         if self.config.ws_enabled() {
@@ -359,7 +359,7 @@ impl SyncProcess {
                     }
                     _ = &mut re_sync_timer => {
                         // Ensure the OHLC candles DB remains up-to-date
-                        self.run_price_history_task_live(api_rest.clone(), None, lookback).await?;
+                        self.run_price_history_task_live(api_rest.clone(), history_state_tx.clone(), lookback).await?;
                         re_sync_timer = new_re_sync_timer();
                     }
                     _ = &mut tick_interval_timer => {
@@ -381,7 +381,7 @@ impl SyncProcess {
 
                 self.run_price_history_task_live(
                     api_rest.clone(),
-                    Some(history_state_tx.clone()),
+                    history_state_tx.clone(),
                     lookback,
                 )
                 .await?;
@@ -418,7 +418,7 @@ impl SyncProcess {
 
         self.run_price_history_task_backfill(
             api_rest.clone(),
-            Some(history_state_tx.clone()),
+            history_state_tx.clone(),
             self.config.price_history_flag_gap_range(),
         )
         .await?;
@@ -502,7 +502,7 @@ impl SyncProcess {
                     }
                     _ = &mut re_sync_timer => {
                         // Ensure the OHLC candles DB remains up-to-date
-                        self.run_price_history_task_backfill(api_rest.clone(), None, None).await?;
+                        self.run_price_history_task_backfill(api_rest.clone(), history_state_tx.clone(), None).await?;
                         re_sync_timer = new_re_sync_timer();
                     }
                     _ = &mut funding_timer => {
@@ -529,7 +529,7 @@ impl SyncProcess {
             loop {
                 tokio::select! {
                     _ = &mut re_sync_timer => {
-                        self.run_price_history_task_backfill(api_rest.clone(), Some(history_state_tx.clone()), None).await?;
+                        self.run_price_history_task_backfill(api_rest.clone(), history_state_tx.clone(), None).await?;
                         re_sync_timer = new_re_sync_timer();
                     }
                     _ = &mut funding_timer => {
@@ -544,7 +544,7 @@ impl SyncProcess {
     async fn run_price_history_task_backfill(
         &self,
         api_rest: Arc<RestClient>,
-        history_state_tx: Option<PriceHistoryStateTransmitter>,
+        history_state_tx: PriceHistoryStateTransmitter,
         flag_gaps_range: Option<Duration>,
     ) -> Result<()> {
         SyncPriceHistoryTask::new(&self.config, self.db.clone(), api_rest, history_state_tx)
@@ -556,7 +556,7 @@ impl SyncProcess {
     async fn run_price_history_task_live(
         &self,
         api_rest: Arc<RestClient>,
-        history_state_tx: Option<PriceHistoryStateTransmitter>,
+        history_state_tx: PriceHistoryStateTransmitter,
         lookback: Duration,
     ) -> Result<()> {
         SyncPriceHistoryTask::new(&self.config, self.db.clone(), api_rest, history_state_tx)
