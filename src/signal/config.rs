@@ -13,7 +13,7 @@ pub struct LiveSignalConfig {
 impl Default for LiveSignalConfig {
     fn default() -> Self {
         Self {
-            sync_update_timeout: time::Duration::from_secs(5),
+            sync_update_timeout: time::Duration::from_secs(60),
             restart_interval: time::Duration::from_secs(10),
             shutdown_timeout: time::Duration::from_secs(6),
         }
