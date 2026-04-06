@@ -303,7 +303,7 @@ impl SyncProcess {
 
         self.spawn_history_state_update_handler(history_state_rx);
 
-        self.run_price_history_task_live(api_rest.clone(), Some(history_state_tx), lookback)
+        self.run_price_history_task_live(api_rest.clone(), Some(history_state_tx.clone()), lookback)
             .await?;
 
         if self.config.ws_enabled() {
@@ -374,10 +374,6 @@ impl SyncProcess {
         } else {
             // REST polling only
 
-            let (history_state_tx, history_state_rx) = mpsc::channel::<PriceHistoryState>(100);
-
-            self.spawn_history_state_update_handler(history_state_rx);
-
             self.status_manager.update(SyncStatus::Synced);
 
             loop {
@@ -422,7 +418,7 @@ impl SyncProcess {
 
         self.run_price_history_task_backfill(
             api_rest.clone(),
-            Some(history_state_tx),
+            Some(history_state_tx.clone()),
             self.config.price_history_flag_gap_range(),
         )
         .await?;
@@ -526,10 +522,6 @@ impl SyncProcess {
             // REST polling only
 
             self.status_manager.update(SyncStatus::Synced);
-
-            let (history_state_tx, history_state_rx) = mpsc::channel::<PriceHistoryState>(100);
-
-            self.spawn_history_state_update_handler(history_state_rx);
 
             let mut re_sync_timer = new_re_sync_timer();
             let mut funding_timer = new_funding_timer(true);
