@@ -263,7 +263,10 @@ impl From<&SyncModeInt> for SyncMode {
     fn from(value: &SyncModeInt) -> Self {
         match value {
             SyncModeInt::Backfill { .. } => Self::Backfill,
-            SyncModeInt::LiveNoLookback { api_rest: _, api_ws: _ } => Self::Live(None),
+            SyncModeInt::LiveNoLookback {
+                api_rest: _,
+                api_ws: _,
+            } => Self::Live(None),
             SyncModeInt::LiveWithLookback {
                 api_rest: _,
                 api_ws: _,

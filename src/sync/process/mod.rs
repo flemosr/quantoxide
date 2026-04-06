@@ -268,12 +268,8 @@ impl SyncProcess {
 
             self.spawn_history_state_update_handler(history_state_rx);
 
-            self.run_price_history_task_backfill(
-                api_rest.clone(),
-                history_state_tx.clone(),
-                None,
-            )
-            .await?;
+            self.run_price_history_task_backfill(api_rest.clone(), history_state_tx.clone(), None)
+                .await?;
 
             self.status_manager.update(SyncStatus::Synced);
 
