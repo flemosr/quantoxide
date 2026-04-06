@@ -122,7 +122,9 @@ impl SyncProcess {
     fn run_mode(&self) -> Pin<Box<dyn Future<Output = Result<Never>> + Send + '_>> {
         match &self.mode_int {
             SyncModeInt::Backfill { api_rest } => Box::pin(self.run_backfill(api_rest)),
-            SyncModeInt::LiveNoLookback { api_ws } => Box::pin(self.run_live_no_lookback(api_ws)),
+            SyncModeInt::LiveNoLookback { api_rest, api_ws } => {
+                Box::pin(self.run_live_no_lookback(api_rest, api_ws))
+            }
             SyncModeInt::LiveWithLookback {
                 api_rest,
                 api_ws,
@@ -195,61 +197,95 @@ impl SyncProcess {
         }
     }
 
-    async fn run_live_no_lookback(&self, api_ws: &Arc<WebSocketClient>) -> Result<Never> {
+    async fn run_live_no_lookback(
+        &self,
+        api_rest: &Arc<RestClient>,
+        api_ws: &Arc<WebSocketClient>,
+    ) -> Result<Never> {
         self.status_manager
             .update(SyncStatusNotSynced::InProgress.into());
 
-        api_ws.reset().await;
+        if self.config.ws_enabled() {
+            api_ws.reset().await;
 
-        // Start to collect real-time data
+            // Start to collect real-time data
 
-        let (price_tick_tx, _) = broadcast::channel::<PriceTickRow>(1_000);
+            let (price_tick_tx, _) = broadcast::channel::<PriceTickRow>(1_000);
 
-        let mut real_time_collection_handle =
-            self.spawn_real_time_collection_task(api_ws.clone(), price_tick_tx.clone());
+            let mut real_time_collection_handle =
+                self.spawn_real_time_collection_task(api_ws.clone(), price_tick_tx.clone());
 
-        if real_time_collection_handle.is_finished() {
-            real_time_collection_handle
-                .await
-                .map_err(SyncProcessRecoverableError::RealTimeCollectionTaskJoin)??;
+            if real_time_collection_handle.is_finished() {
+                real_time_collection_handle
+                    .await
+                    .map_err(SyncProcessRecoverableError::RealTimeCollectionTaskJoin)??;
 
-            return Err(SyncProcessRecoverableError::UnexpectedRealTimeCollectionShutdown.into());
-        }
+                return Err(
+                    SyncProcessRecoverableError::UnexpectedRealTimeCollectionShutdown.into(),
+                );
+            }
 
-        // Handle updates and re-syncs
+            // Handle updates and re-syncs
 
-        let mut is_synced = false;
-        let mut price_tick_rx = price_tick_tx.subscribe();
+            let mut is_synced = false;
+            let mut price_tick_rx = price_tick_tx.subscribe();
 
-        let new_tick_interval_timer =
-            || Box::pin(time::sleep(self.config.live_price_tick_max_interval()));
-        let mut tick_interval_timer = new_tick_interval_timer();
+            let new_tick_interval_timer =
+                || Box::pin(time::sleep(self.config.live_price_tick_max_interval()));
+            let mut tick_interval_timer = new_tick_interval_timer();
 
-        loop {
-            tokio::select! {
-                rt_res = &mut real_time_collection_handle => {
-                    rt_res.map_err(SyncProcessRecoverableError::RealTimeCollectionTaskJoin)??;
+            loop {
+                tokio::select! {
+                    rt_res = &mut real_time_collection_handle => {
+                        rt_res.map_err(SyncProcessRecoverableError::RealTimeCollectionTaskJoin)??;
 
-                    return Err(SyncProcessRecoverableError::UnexpectedRealTimeCollectionShutdown.into());
-                }
-                tick_res = price_tick_rx.recv() => {
-                    tick_interval_timer = new_tick_interval_timer();
-
-                    let tick = tick_res.map_err(SyncProcessRecoverableError::PriceTickRecv)?;
-                    if !is_synced {
-                        self.status_manager.update(SyncStatus::Synced);
-                        is_synced = true;
+                        return Err(SyncProcessRecoverableError::UnexpectedRealTimeCollectionShutdown.into());
                     }
+                    tick_res = price_tick_rx.recv() => {
+                        tick_interval_timer = new_tick_interval_timer();
 
-                    let _ = self.update_tx.send(tick.into());
+                        let tick = tick_res.map_err(SyncProcessRecoverableError::PriceTickRecv)?;
+                        if !is_synced {
+                            self.status_manager.update(SyncStatus::Synced);
+                            is_synced = true;
+                        }
+
+                        let _ = self.update_tx.send(tick.into());
+                    }
+                    _ = &mut tick_interval_timer => {
+                        // Maximum interval between Price Ticks was exceeded
+                        return Err(SyncProcessRecoverableError::MaxPriceTickIntevalExceeded(
+                            self.config.live_price_tick_max_interval(),
+                        )
+                        .into());
+                    }
                 }
-                _ = &mut tick_interval_timer => {
-                    // Maximum interval between Price Ticks was exceeded
-                    return Err(SyncProcessRecoverableError::MaxPriceTickIntevalExceeded(
-                        self.config.live_price_tick_max_interval(),
-                    )
-                    .into());
-                }
+            }
+        } else {
+            // REST polling only
+
+            let (history_state_tx, history_state_rx) = mpsc::channel::<PriceHistoryState>(100);
+
+            self.spawn_history_state_update_handler(history_state_rx);
+
+            self.run_price_history_task_backfill(
+                api_rest.clone(),
+                Some(history_state_tx.clone()),
+                None,
+            )
+            .await?;
+
+            self.status_manager.update(SyncStatus::Synced);
+
+            loop {
+                time::sleep(self.config.price_history_re_sync_interval()).await;
+
+                self.run_price_history_task_backfill(
+                    api_rest.clone(),
+                    Some(history_state_tx.clone()),
+                    None,
+                )
+                .await?;
             }
         }
     }
@@ -263,8 +299,6 @@ impl SyncProcess {
         self.status_manager
             .update(SyncStatusNotSynced::InProgress.into());
 
-        api_ws.reset().await;
-
         let (history_state_tx, history_state_rx) = mpsc::channel::<PriceHistoryState>(100);
 
         self.spawn_history_state_update_handler(history_state_rx);
@@ -272,64 +306,89 @@ impl SyncProcess {
         self.run_price_history_task_live(api_rest.clone(), Some(history_state_tx), lookback)
             .await?;
 
-        // Start to collect real-time data
+        if self.config.ws_enabled() {
+            api_ws.reset().await;
 
-        let (price_tick_tx, _) = broadcast::channel::<PriceTickRow>(10_000);
+            // Start to collect real-time data
 
-        let mut real_time_collection_handle =
-            self.spawn_real_time_collection_task(api_ws.clone(), price_tick_tx.clone());
+            let (price_tick_tx, _) = broadcast::channel::<PriceTickRow>(10_000);
 
-        if real_time_collection_handle.is_finished() {
-            real_time_collection_handle
-                .await
-                .map_err(SyncProcessRecoverableError::RealTimeCollectionTaskJoin)??;
+            let mut real_time_collection_handle =
+                self.spawn_real_time_collection_task(api_ws.clone(), price_tick_tx.clone());
 
-            return Err(SyncProcessRecoverableError::UnexpectedRealTimeCollectionShutdown.into());
-        }
+            if real_time_collection_handle.is_finished() {
+                real_time_collection_handle
+                    .await
+                    .map_err(SyncProcessRecoverableError::RealTimeCollectionTaskJoin)??;
 
-        // Handle updates and re-syncs
+                return Err(
+                    SyncProcessRecoverableError::UnexpectedRealTimeCollectionShutdown.into(),
+                );
+            }
 
-        let mut is_synced = false;
-        let mut price_tick_rx = price_tick_tx.subscribe();
+            // Handle updates and re-syncs
 
-        let new_re_sync_timer =
-            || Box::pin(time::sleep(self.config.price_history_re_sync_interval()));
-        let mut re_sync_timer = new_re_sync_timer();
+            let mut is_synced = false;
+            let mut price_tick_rx = price_tick_tx.subscribe();
 
-        let new_tick_interval_timer =
-            || Box::pin(time::sleep(self.config.live_price_tick_max_interval()));
-        let mut tick_interval_timer = new_tick_interval_timer();
+            let new_re_sync_timer =
+                || Box::pin(time::sleep(self.config.price_history_re_sync_interval()));
+            let mut re_sync_timer = new_re_sync_timer();
 
-        loop {
-            tokio::select! {
-                rt_res = &mut real_time_collection_handle => {
-                    rt_res.map_err(SyncProcessRecoverableError::RealTimeCollectionTaskJoin)??;
+            let new_tick_interval_timer =
+                || Box::pin(time::sleep(self.config.live_price_tick_max_interval()));
+            let mut tick_interval_timer = new_tick_interval_timer();
 
-                    return Err(SyncProcessRecoverableError::UnexpectedRealTimeCollectionShutdown.into());
-                }
-                tick_res = price_tick_rx.recv() => {
-                    tick_interval_timer = new_tick_interval_timer();
+            loop {
+                tokio::select! {
+                    rt_res = &mut real_time_collection_handle => {
+                        rt_res.map_err(SyncProcessRecoverableError::RealTimeCollectionTaskJoin)??;
 
-                    let tick = tick_res.map_err(SyncProcessRecoverableError::PriceTickRecv)?;
-                    if !is_synced {
-                        self.status_manager.update(SyncStatus::Synced);
-                        is_synced = true;
+                        return Err(SyncProcessRecoverableError::UnexpectedRealTimeCollectionShutdown.into());
                     }
+                    tick_res = price_tick_rx.recv() => {
+                        tick_interval_timer = new_tick_interval_timer();
 
-                    let _ = self.update_tx.send(tick.into());
+                        let tick = tick_res.map_err(SyncProcessRecoverableError::PriceTickRecv)?;
+                        if !is_synced {
+                            self.status_manager.update(SyncStatus::Synced);
+                            is_synced = true;
+                        }
+
+                        let _ = self.update_tx.send(tick.into());
+                    }
+                    _ = &mut re_sync_timer => {
+                        // Ensure the OHLC candles DB remains up-to-date
+                        self.run_price_history_task_live(api_rest.clone(), None, lookback).await?;
+                        re_sync_timer = new_re_sync_timer();
+                    }
+                    _ = &mut tick_interval_timer => {
+                        // Maximum interval between Price Ticks was exceeded
+                        return Err(SyncProcessRecoverableError::MaxPriceTickIntevalExceeded(
+                            self.config.live_price_tick_max_interval(),
+                        )
+                        .into());
+                    }
                 }
-                _ = &mut re_sync_timer => {
-                    // Ensure the OHLC candles DB remains up-to-date
-                    self.run_price_history_task_live(api_rest.clone(), None, lookback).await?;
-                    re_sync_timer = new_re_sync_timer();
-                }
-                _ = &mut tick_interval_timer => {
-                    // Maximum interval between Price Ticks was exceeded
-                    return Err(SyncProcessRecoverableError::MaxPriceTickIntevalExceeded(
-                        self.config.live_price_tick_max_interval(),
-                    )
-                    .into());
-                }
+            }
+        } else {
+            // REST polling only
+
+            self.status_manager.update(SyncStatus::Synced);
+
+            loop {
+                time::sleep(self.config.price_history_re_sync_interval()).await;
+
+                let (history_state_tx, history_state_rx) = mpsc::channel::<PriceHistoryState>(100);
+
+                self.spawn_history_state_update_handler(history_state_rx);
+
+                self.run_price_history_task_live(
+                    api_rest.clone(),
+                    Some(history_state_tx),
+                    lookback,
+                )
+                .await?;
             }
         }
     }
@@ -341,8 +400,6 @@ impl SyncProcess {
     ) -> Result<Never> {
         self.status_manager
             .update(SyncStatusNotSynced::InProgress.into());
-
-        api_ws.reset().await;
 
         // Send initial state so both TUI panes can be populated from the start
 
@@ -384,33 +441,8 @@ impl SyncProcess {
             )
             .await?;
 
-        // Start to collect real-time data
-
-        let (price_tick_tx, _) = broadcast::channel::<PriceTickRow>(10_000);
-
-        let mut real_time_collection_handle =
-            self.spawn_real_time_collection_task(api_ws.clone(), price_tick_tx.clone());
-
-        if real_time_collection_handle.is_finished() {
-            real_time_collection_handle
-                .await
-                .map_err(SyncProcessRecoverableError::RealTimeCollectionTaskJoin)??;
-
-            return Err(SyncProcessRecoverableError::UnexpectedRealTimeCollectionShutdown.into());
-        }
-
-        // Handle updates and re-syncs
-
-        let mut is_synced = false;
-        let mut price_tick_rx = price_tick_tx.subscribe();
-
         let new_re_sync_timer =
             || Box::pin(time::sleep(self.config.price_history_re_sync_interval()));
-        let mut re_sync_timer = new_re_sync_timer();
-
-        let new_tick_interval_timer =
-            || Box::pin(time::sleep(self.config.live_price_tick_max_interval()));
-        let mut tick_interval_timer = new_tick_interval_timer();
 
         let retry_interval = self.config.funding_settlement_retry_interval();
         let new_funding_timer = |synced: bool| -> Pin<Box<time::Sleep>> {
@@ -420,41 +452,98 @@ impl SyncProcess {
                 Box::pin(time::sleep(retry_interval))
             }
         };
-        let mut funding_timer = new_funding_timer(true);
 
-        loop {
-            tokio::select! {
-                rt_res = &mut real_time_collection_handle => {
-                    rt_res.map_err(SyncProcessRecoverableError::RealTimeCollectionTaskJoin)??;
+        if self.config.ws_enabled() {
+            api_ws.reset().await;
 
-                    return Err(SyncProcessRecoverableError::UnexpectedRealTimeCollectionShutdown.into());
-                }
-                tick_res = price_tick_rx.recv() => {
-                    tick_interval_timer = new_tick_interval_timer();
+            // Start to collect real-time data
 
-                    let tick = tick_res.map_err(SyncProcessRecoverableError::PriceTickRecv)?;
-                    if !is_synced {
-                        self.status_manager.update(SyncStatus::Synced);
-                        is_synced = true;
+            let (price_tick_tx, _) = broadcast::channel::<PriceTickRow>(10_000);
+
+            let mut real_time_collection_handle =
+                self.spawn_real_time_collection_task(api_ws.clone(), price_tick_tx.clone());
+
+            if real_time_collection_handle.is_finished() {
+                real_time_collection_handle
+                    .await
+                    .map_err(SyncProcessRecoverableError::RealTimeCollectionTaskJoin)??;
+
+                return Err(
+                    SyncProcessRecoverableError::UnexpectedRealTimeCollectionShutdown.into(),
+                );
+            }
+
+            // Handle updates and re-syncs
+
+            let mut is_synced = false;
+            let mut price_tick_rx = price_tick_tx.subscribe();
+
+            let mut re_sync_timer = new_re_sync_timer();
+
+            let new_tick_interval_timer =
+                || Box::pin(time::sleep(self.config.live_price_tick_max_interval()));
+            let mut tick_interval_timer = new_tick_interval_timer();
+
+            let mut funding_timer = new_funding_timer(true);
+
+            loop {
+                tokio::select! {
+                    rt_res = &mut real_time_collection_handle => {
+                        rt_res.map_err(SyncProcessRecoverableError::RealTimeCollectionTaskJoin)??;
+
+                        return Err(SyncProcessRecoverableError::UnexpectedRealTimeCollectionShutdown.into());
                     }
+                    tick_res = price_tick_rx.recv() => {
+                        tick_interval_timer = new_tick_interval_timer();
 
-                    let _ = self.update_tx.send(tick.into());
+                        let tick = tick_res.map_err(SyncProcessRecoverableError::PriceTickRecv)?;
+                        if !is_synced {
+                            self.status_manager.update(SyncStatus::Synced);
+                            is_synced = true;
+                        }
+
+                        let _ = self.update_tx.send(tick.into());
+                    }
+                    _ = &mut re_sync_timer => {
+                        // Ensure the OHLC candles DB remains up-to-date
+                        self.run_price_history_task_backfill(api_rest.clone(), None, None).await?;
+                        re_sync_timer = new_re_sync_timer();
+                    }
+                    _ = &mut funding_timer => {
+                        let synced = self.run_funding_settlements_task_backfill(api_rest.clone(), None, None).await?;
+                        funding_timer = new_funding_timer(synced);
+                    }
+                    _ = &mut tick_interval_timer => {
+                        // Maximum interval between Price Ticks was exceeded
+                        return Err(SyncProcessRecoverableError::MaxPriceTickIntevalExceeded(
+                            self.config.live_price_tick_max_interval(),
+                        )
+                        .into());
+                    }
                 }
-                _ = &mut re_sync_timer => {
-                    // Ensure the OHLC candles DB remains up-to-date
-                    self.run_price_history_task_backfill(api_rest.clone(), None, None).await?;
-                    re_sync_timer = new_re_sync_timer();
-                }
-                _ = &mut funding_timer => {
-                    let synced = self.run_funding_settlements_task_backfill(api_rest.clone(), None, None).await?;
-                    funding_timer = new_funding_timer(synced);
-                }
-                _ = &mut tick_interval_timer => {
-                    // Maximum interval between Price Ticks was exceeded
-                    return Err(SyncProcessRecoverableError::MaxPriceTickIntevalExceeded(
-                        self.config.live_price_tick_max_interval(),
-                    )
-                    .into());
+            }
+        } else {
+            // REST polling only
+
+            self.status_manager.update(SyncStatus::Synced);
+
+            let (history_state_tx, history_state_rx) = mpsc::channel::<PriceHistoryState>(100);
+
+            self.spawn_history_state_update_handler(history_state_rx);
+
+            let mut re_sync_timer = new_re_sync_timer();
+            let mut funding_timer = new_funding_timer(true);
+
+            loop {
+                tokio::select! {
+                    _ = &mut re_sync_timer => {
+                        self.run_price_history_task_backfill(api_rest.clone(), Some(history_state_tx.clone()), None).await?;
+                        re_sync_timer = new_re_sync_timer();
+                    }
+                    _ = &mut funding_timer => {
+                        let synced = self.run_funding_settlements_task_backfill(api_rest.clone(), None, None).await?;
+                        funding_timer = new_funding_timer(synced);
+                    }
                 }
             }
         }

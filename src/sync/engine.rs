@@ -245,6 +245,7 @@ pub(super) enum SyncModeInt {
         api_rest: Arc<RestClient>,
     },
     LiveNoLookback {
+        api_rest: Arc<RestClient>,
         api_ws: Arc<WebSocketClient>,
     },
     LiveWithLookback {
@@ -262,7 +263,7 @@ impl From<&SyncModeInt> for SyncMode {
     fn from(value: &SyncModeInt) -> Self {
         match value {
             SyncModeInt::Backfill { .. } => Self::Backfill,
-            SyncModeInt::LiveNoLookback { .. } => Self::Live(None),
+            SyncModeInt::LiveNoLookback { api_rest: _, api_ws: _ } => Self::Live(None),
             SyncModeInt::LiveWithLookback {
                 api_rest: _,
                 api_ws: _,
@@ -309,9 +310,10 @@ impl SyncEngine {
     pub(crate) fn live_no_lookback(
         config: impl Into<SyncConfig>,
         db: Arc<Database>,
+        api_rest: Arc<RestClient>,
         api_ws: Arc<WebSocketClient>,
     ) -> Self {
-        let mode_int = SyncModeInt::LiveNoLookback { api_ws };
+        let mode_int = SyncModeInt::LiveNoLookback { api_rest, api_ws };
 
         Self::with_mode_int(config, db, mode_int)
     }
@@ -366,7 +368,7 @@ impl SyncEngine {
                     api_ws,
                     lookback,
                 },
-                None => SyncModeInt::LiveNoLookback { api_ws },
+                None => SyncModeInt::LiveNoLookback { api_rest, api_ws },
             },
             SyncMode::Full => SyncModeInt::Full { api_rest, api_ws },
         };
