@@ -20,6 +20,7 @@ pub struct LiveTradeConfig {
     rest_api_timeout: time::Duration,
     rest_api_rate_limit_auth_requests_per_second: NonZeroU32,
     rest_api_rate_limit_unauth_requests_per_second: NonZeroU32,
+    ws_enabled: bool,
     ws_api_disconnect_timeout: time::Duration,
     rest_api_error_cooldown: time::Duration,
     rest_api_error_max_trials: NonZeroU64,
@@ -59,6 +60,7 @@ impl Default for LiveTradeConfig {
                 .rate_limit_unauth_requests_per_second()
                 .try_into()
                 .expect("not zero"),
+            ws_enabled: false,
             ws_api_disconnect_timeout: ws_config_default.disconnect_timeout(),
             rest_api_error_cooldown: time::Duration::from_secs(10),
             rest_api_error_max_trials: 3.try_into().expect("not zero"),
@@ -102,6 +104,11 @@ impl LiveTradeConfig {
     /// Returns the rate limit for unauthenticated REST API requests, in requests per second.
     pub fn rest_api_rate_limit_unauth_requests_per_second(&self) -> NonZeroU32 {
         self.rest_api_rate_limit_unauth_requests_per_second
+    }
+
+    /// Returns whether WebSocket data collection is enabled in live modes.
+    pub fn ws_enabled(&self) -> bool {
+        self.ws_enabled
     }
 
     /// Returns the disconnect timeout for WebSocket API connections.
@@ -245,6 +252,16 @@ impl LiveTradeConfig {
     /// Default: [`RestClientConfig`](lnm_sdk::api_v3::RestClientConfig) default
     pub fn with_rest_api_rate_limit_unauth_requests_per_second(mut self, rps: NonZeroU32) -> Self {
         self.rest_api_rate_limit_unauth_requests_per_second = rps;
+        self
+    }
+
+    /// Sets whether WebSocket data collection is enabled in live modes.
+    ///
+    /// When `false`, live modes rely solely on REST polling instead of WebSocket feeds.
+    ///
+    /// Default: `false`
+    pub fn with_ws_enabled(mut self, enabled: bool) -> Self {
+        self.ws_enabled = enabled;
         self
     }
 
