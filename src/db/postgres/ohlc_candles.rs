@@ -474,74 +474,102 @@ impl OhlcCandlesRepository for PgOhlcCandlesRepo {
         .await
         .map_err(DbError::Query)?;
 
-        if gap_after_times.is_empty() {
-            return Ok(());
+        if !gap_after_times.is_empty() {
+            // Batch process: Mark unstable candles around gaps
+            // For each gap_after_time, find the 5 nearest candles before and after
+            sqlx::query!(
+                r#"
+                    WITH gap_times AS (
+                        SELECT unnest($2::timestamptz[]) as gap_time
+                    ),
+                    unstable_times AS (
+                        -- Get 5 candles before each gap
+                        SELECT DISTINCT time
+                        FROM gap_times gt
+                        CROSS JOIN LATERAL (
+                            SELECT time
+                            FROM ohlc_candles
+                            WHERE time >= $1 AND time <= gt.gap_time
+                            ORDER BY time DESC
+                            LIMIT 5
+                        ) before_gap
+                        UNION
+                        -- Get 5 candles after each gap
+                        SELECT DISTINCT time
+                        FROM gap_times gt
+                        CROSS JOIN LATERAL (
+                            SELECT time
+                            FROM ohlc_candles
+                            WHERE time >= $1 AND time > gt.gap_time
+                            ORDER BY time ASC
+                            LIMIT 5
+                        ) after_gap
+                    )
+                    UPDATE ohlc_candles
+                    SET stable = false
+                    WHERE time IN (SELECT time FROM unstable_times)
+                "#,
+                cutoff_time,
+                &gap_after_times
+            )
+            .execute(&mut *tx)
+            .await
+            .map_err(DbError::Query)?;
+
+            // Batch process: Mark 6th candles after gaps
+            sqlx::query!(
+                r#"
+                    WITH gap_times AS (
+                        SELECT unnest($2::timestamptz[]) as gap_time
+                    ),
+                    sixth_candles AS (
+                        SELECT DISTINCT time
+                        FROM gap_times gt
+                        CROSS JOIN LATERAL (
+                            SELECT time
+                            FROM ohlc_candles
+                            WHERE time >= $1 AND time > gt.gap_time
+                            ORDER BY time ASC
+                            LIMIT 1 OFFSET 5
+                        ) sixth
+                    )
+                    UPDATE ohlc_candles
+                    SET gap = true
+                    WHERE time IN (SELECT time FROM sixth_candles)
+                "#,
+                cutoff_time,
+                &gap_after_times
+            )
+            .execute(&mut *tx)
+            .await
+            .map_err(DbError::Query)?;
         }
 
-        // Batch process: Mark unstable candles around gaps
-        // For each gap_after_time, find the 5 nearest candles before and after
+        // Flag unstable regions that lack gap markers. Find stable candles whose immediate
+        // predecessor is unstable and not already gap-flagged. This ensures regions made unstable
+        // by CANDLE_STABLE_AGE (or the buffer marking above) are picked up by the gap-fill
+        // machinery.
         sqlx::query!(
             r#"
-                WITH gap_times AS (
-                    SELECT unnest($2::timestamptz[]) as gap_time
-                ),
-                unstable_times AS (
-                    -- Get 5 candles before each gap
-                    SELECT DISTINCT time
-                    FROM gap_times gt
-                    CROSS JOIN LATERAL (
-                        SELECT time
-                        FROM ohlc_candles
-                        WHERE time >= $1 AND time <= gt.gap_time
-                        ORDER BY time DESC
-                        LIMIT 5
-                    ) before_gap
-                    UNION
-                    -- Get 5 candles after each gap
-                    SELECT DISTINCT time
-                    FROM gap_times gt
-                    CROSS JOIN LATERAL (
-                        SELECT time
-                        FROM ohlc_candles
-                        WHERE time >= $1 AND time > gt.gap_time
-                        ORDER BY time ASC
-                        LIMIT 5
-                    ) after_gap
-                )
-                UPDATE ohlc_candles
-                SET stable = false
-                WHERE time IN (SELECT time FROM unstable_times)
-            "#,
-            cutoff_time,
-            &gap_after_times
-        )
-        .execute(&mut *tx)
-        .await
-        .map_err(DbError::Query)?;
-
-        // Batch process: Mark 6th candles after gaps
-        sqlx::query!(
-            r#"
-                WITH gap_times AS (
-                    SELECT unnest($2::timestamptz[]) as gap_time
-                ),
-                sixth_candles AS (
-                    SELECT DISTINCT time
-                    FROM gap_times gt
-                    CROSS JOIN LATERAL (
-                        SELECT time
-                        FROM ohlc_candles
-                        WHERE time >= $1 AND time > gt.gap_time
-                        ORDER BY time ASC
-                        LIMIT 1 OFFSET 5
-                    ) sixth
-                )
                 UPDATE ohlc_candles
                 SET gap = true
-                WHERE time IN (SELECT time FROM sixth_candles)
+                WHERE time IN (
+                    SELECT c_stable.time
+                    FROM ohlc_candles c_stable
+                    INNER JOIN LATERAL (
+                        SELECT stable
+                        FROM ohlc_candles
+                        WHERE time < c_stable.time
+                        ORDER BY time DESC
+                        LIMIT 1
+                    ) c_prev ON true
+                    WHERE c_stable.time >= $1
+                    AND c_stable.stable = true
+                    AND c_stable.gap = false
+                    AND c_prev.stable = false
+                )
             "#,
-            cutoff_time,
-            &gap_after_times
+            cutoff_time
         )
         .execute(&mut *tx)
         .await
