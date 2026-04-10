@@ -23,8 +23,7 @@ pub struct PriceHistoryState {
 
 impl PriceHistoryState {
     async fn new(db: &Database, reach_time: Option<DateTime<Utc>>) -> Result<Self> {
-        let Some(earliest_candle_time) = db.ohlc_candles.get_earliest_stable_candle_time().await?
-        else {
+        let Some(earliest_candle_time) = db.ohlc_candles.get_earliest_candle_time().await? else {
             // DB is empty
             return Ok(Self {
                 reach_time,
@@ -35,7 +34,7 @@ impl PriceHistoryState {
 
         let lastest_candle_time = db
             .ohlc_candles
-            .get_latest_stable_candle_time()
+            .get_latest_candle_time()
             .await?
             .expect("db not empty");
 
@@ -142,7 +141,7 @@ impl PriceHistoryState {
         Ok(range_within_bounds && range_without_gaps)
     }
 
-    pub(crate) fn next_download_range(&self, backfilling: bool) -> Result<DownloadRange> {
+    pub(in crate::sync) fn next_download_range(&self, backfilling: bool) -> Result<DownloadRange> {
         let history_bounds = match &self.bounds {
             Some(bounds) => bounds,
             None => return Ok(DownloadRange::Latest),
