@@ -331,7 +331,7 @@ impl OhlcCandlesRepository for PgOhlcCandlesRepo {
         Ok(())
     }
 
-    async fn get_earliest_stable_candle_time(&self) -> Result<Option<DateTime<Utc>>> {
+    async fn get_earliest_candle_time(&self) -> Result<Option<DateTime<Utc>>> {
         struct OhlcCandlePartial {
             pub time: DateTime<Utc>,
         }
@@ -341,7 +341,6 @@ impl OhlcCandlesRepository for PgOhlcCandlesRepo {
             r#"
                 SELECT time
                 FROM ohlc_candles
-                WHERE stable = true
                 ORDER BY time ASC
                 LIMIT 1
             "#
@@ -353,7 +352,7 @@ impl OhlcCandlesRepository for PgOhlcCandlesRepo {
         Ok(candle.map(|c| c.time))
     }
 
-    async fn get_latest_stable_candle_time(&self) -> Result<Option<DateTime<Utc>>> {
+    async fn get_latest_candle_time(&self) -> Result<Option<DateTime<Utc>>> {
         struct OhlcCandlePartial {
             pub time: DateTime<Utc>,
         }
@@ -363,7 +362,6 @@ impl OhlcCandlesRepository for PgOhlcCandlesRepo {
             r#"
                 SELECT time
                 FROM ohlc_candles
-                WHERE stable = true
                 ORDER BY time DESC
                 LIMIT 1
             "#
