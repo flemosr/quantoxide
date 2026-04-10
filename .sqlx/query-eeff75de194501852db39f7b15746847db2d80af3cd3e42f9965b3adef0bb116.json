@@ -1,0 +1,21 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                    INSERT INTO ohlc_candles (time, open, high, low, close, volume, gap, stable)\n                    SELECT * FROM unnest($1::timestamptz[], $2::float8[], $3::float8[], $4::float8[], $5::float8[], $6::bigint[], $7::bool[], $8::bool[])\n                    ON CONFLICT (time) DO UPDATE\n                    SET open = EXCLUDED.open,\n                        high = EXCLUDED.high,\n                        low = EXCLUDED.low,\n                        close = EXCLUDED.close,\n                        volume = EXCLUDED.volume,\n                        gap = EXCLUDED.gap,\n                        stable = EXCLUDED.stable\n                    WHERE ohlc_candles.open != EXCLUDED.open\n                       OR ohlc_candles.high != EXCLUDED.high\n                       OR ohlc_candles.low != EXCLUDED.low\n                       OR ohlc_candles.close != EXCLUDED.close\n                       OR ohlc_candles.volume != EXCLUDED.volume\n                       OR ohlc_candles.gap != EXCLUDED.gap\n                       OR ohlc_candles.stable != EXCLUDED.stable\n                ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "TimestamptzArray",
+        "Float8Array",
+        "Float8Array",
+        "Float8Array",
+        "Float8Array",
+        "Int8Array",
+        "BoolArray",
+        "BoolArray"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "eeff75de194501852db39f7b15746847db2d80af3cd3e42f9965b3adef0bb116"
+}

@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                UPDATE ohlc_candles\n                SET gap = true\n                WHERE time IN (\n                    SELECT c_stable.time\n                    FROM ohlc_candles c_stable\n                    INNER JOIN LATERAL (\n                        SELECT stable\n                        FROM ohlc_candles\n                        WHERE time < c_stable.time\n                        ORDER BY time DESC\n                        LIMIT 1\n                    ) c_prev ON true\n                    WHERE c_stable.time >= $1\n                    AND c_stable.stable = true\n                    AND c_stable.gap = false\n                    AND c_prev.stable = false\n                )\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "4241d4819182c2e89b66daad6e6e0e6100fa2c1bd154ffcd763727f63dd16295"
+}
