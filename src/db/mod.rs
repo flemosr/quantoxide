@@ -1,9 +1,15 @@
 use std::sync::Arc;
 
+use chrono::Duration;
 use sqlx::postgres::PgPoolOptions;
 
 pub(crate) mod error;
 pub(crate) mod models;
+
+/// Candles are only marked stable (skip re-fetch) once their time is at least this far in the
+/// past. The API may return slightly different OHLC values for recent candles across requests.
+pub(crate) const CANDLE_STABLE_AGE: Duration = Duration::hours(1);
+
 mod postgres;
 mod repositories;
 
