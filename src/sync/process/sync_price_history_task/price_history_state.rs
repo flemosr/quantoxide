@@ -4,38 +4,10 @@ use chrono::{DateTime, Duration, Utc};
 
 use crate::db::Database;
 
-use super::error::{Result, SyncPriceHistoryFatalError};
-
-#[derive(Debug, Clone, Copy)]
-pub(crate) enum DownloadRange {
-    Latest,
-    UpperBound {
-        from: DateTime<Utc>,
-    },
-    Gap {
-        from: DateTime<Utc>,
-        to: DateTime<Utc>,
-    },
-    LowerBound {
-        to: DateTime<Utc>,
-    },
-}
-
-impl DownloadRange {
-    pub fn from(&self) -> Option<DateTime<Utc>> {
-        match self {
-            Self::UpperBound { from } | Self::Gap { from, to: _ } => Some(*from),
-            _ => None,
-        }
-    }
-
-    pub fn to(&self) -> Option<DateTime<Utc>> {
-        match self {
-            Self::LowerBound { to } | Self::Gap { from: _, to } => Some(*to),
-            _ => None,
-        }
-    }
-}
+use super::{
+    DownloadRange,
+    error::{Result, SyncPriceHistoryFatalError},
+};
 
 /// Represents the current state of price history data in the database.
 ///

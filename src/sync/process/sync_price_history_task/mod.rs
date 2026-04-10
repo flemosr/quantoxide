@@ -16,7 +16,39 @@ pub(crate) mod error;
 pub(in crate::sync) mod price_history_state;
 
 use error::{Result, SyncPriceHistoryFatalError, SyncPriceHistoryRecoverableError};
-use price_history_state::{DownloadRange, PriceHistoryState};
+use price_history_state::PriceHistoryState;
+
+/// Describes the target range for a partial OHLC candle download.
+#[derive(Debug, Clone, Copy)]
+pub(in crate::sync) enum DownloadRange {
+    /// Fetch the most recent candles, with no bounds.
+    Latest,
+    /// Fetch candles newer than `from`, up to the current time.
+    UpperBound { from: DateTime<Utc> },
+    /// Fetch candles strictly between `from` and `to` to fill a known gap.
+    Gap {
+        from: DateTime<Utc>,
+        to: DateTime<Utc>,
+    },
+    /// Fetch candles older than `to` to extend the history downward.
+    LowerBound { to: DateTime<Utc> },
+}
+
+impl DownloadRange {
+    pub fn from(&self) -> Option<DateTime<Utc>> {
+        match self {
+            Self::UpperBound { from } | Self::Gap { from, to: _ } => Some(*from),
+            _ => None,
+        }
+    }
+
+    pub fn to(&self) -> Option<DateTime<Utc>> {
+        match self {
+            Self::LowerBound { to } | Self::Gap { from: _, to } => Some(*to),
+            _ => None,
+        }
+    }
+}
 
 /// First OHLC candle available from the LN Markets API.
 pub const LNM_OHLC_CANDLE_START: DateTime<Utc> = NaiveDate::from_ymd_opt(2020, 3, 1)
