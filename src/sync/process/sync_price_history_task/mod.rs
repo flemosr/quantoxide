@@ -234,7 +234,10 @@ impl SyncPriceHistoryTask {
                 continue;
             }
 
-            if download_range.to().is_none() {
+            if matches!(
+                download_range,
+                DownloadRange::Latest | DownloadRange::UpperBound { from: _ }
+            ) {
                 // Latest entries received. No gaps remain. Backfilling complete.
 
                 if let Some(bound_end) = history_state.bound_end() {
