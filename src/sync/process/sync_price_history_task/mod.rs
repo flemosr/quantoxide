@@ -8,7 +8,7 @@ use lnm_sdk::api_v3::{
     models::{OhlcCandle, OhlcRange},
 };
 
-use crate::db::Database;
+use crate::db::{CANDLE_STABLE_AGE, Database};
 
 use super::super::config::{SyncPriceHistoryTaskConfig, SyncProcessConfig};
 
@@ -88,10 +88,12 @@ impl SyncPriceHistoryTask {
 
         let limit = match (candles_from, candles_to) {
             (Some(from), to_opt) => {
-                // Always get at least 3 candles. It is assumed that `Utc::now()` will be close to
-                // the API server time, but small differences should be expected.
+                // Fetch at least CANDLE_STABLE_AGE + 10% worth of candles so that the oldest ones
+                // in each batch already exceed the stability threshold and can be marked stable
+                // immediately.
+                let min_candles = CANDLE_STABLE_AGE.num_minutes() * 11 / 10;
                 let to_est = to_opt.unwrap_or(Utc::now());
-                let exp_candle_qtd = (to_est - from).num_minutes().max(3) as u64;
+                let exp_candle_qtd = (to_est - from).num_minutes().max(min_candles) as u64;
                 let exp_candle_qtd = NonZeroU64::try_from(exp_candle_qtd).expect("must be gte 0");
 
                 exp_candle_qtd.min(self.config.price_history_batch_size())
@@ -99,7 +101,7 @@ impl SyncPriceHistoryTask {
             _ => self.config.price_history_batch_size(),
         };
 
-        let mut candles: Vec<OhlcCandle> = {
+        let candles: Vec<OhlcCandle> = {
             let mut trials = 0;
             loop {
                 match self
@@ -138,7 +140,7 @@ impl SyncPriceHistoryTask {
             return Ok(candles);
         }
 
-        // Validate: times must be rounded to the minute and continuous (1 minute apart, descending)
+        // Validate: times must be rounded to the minute and descending
         for window in candles.windows(2) {
             let [current, next] = window else {
                 unreachable!()
@@ -162,13 +164,6 @@ impl SyncPriceHistoryTask {
         // `candles.windows(2)`. Also handles single candles.
         if period_start.second() != 0 || period_start.nanosecond() != 0 {
             return Err(SyncPriceHistoryFatalError::ApiCandlesTimesNotRoundedToMinute.into());
-        }
-
-        if let Some(time) = candles_from
-            && let Some(candle_i) = candles.iter().position(|candle| candle.time() == time)
-        {
-            // Remove candles with time at `from_observed_time` or before
-            let _ = candles.split_off(candle_i);
         }
 
         Ok(candles)
