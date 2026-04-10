@@ -46,9 +46,6 @@ pub enum DbError {
     #[error("New DB candles must be ordered by time desc. Inconsistency at: {inconsistency_at}")]
     NewDbCandlesNotOrderedByTimeDesc { inconsistency_at: DateTime<Utc> },
 
-    #[error("Attempted to update a stable candle at time {time}")]
-    AttemptedToUpdateStableCandle { time: DateTime<Utc> },
-
     #[error("Invalid funding settlement time: {time}")]
     InvalidFundingSettlementTime { time: DateTime<Utc> },
 }
