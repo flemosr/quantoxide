@@ -9,6 +9,7 @@ use lnm_sdk::api_v3::models::OhlcCandle;
 use crate::shared::OhlcResolution;
 
 use super::super::{
+    CANDLE_STABLE_AGE,
     error::{DbError, Result},
     models::OhlcCandleRow,
     repositories::OhlcCandlesRepository,
@@ -60,7 +61,6 @@ impl OhlcCandlesRepository for PgOhlcCandlesRepo {
         }
 
         let period_start = new_candles.last().expect("not empty").time();
-        let period_end = new_candles.first().expect("not empty").time();
 
         // Validate the last candle's time (also handles single candles)
         if period_start.second() != 0 || period_start.nanosecond() != 0 {
@@ -69,21 +69,9 @@ impl OhlcCandlesRepository for PgOhlcCandlesRepo {
 
         let mut tx = self.start_transaction().await?;
 
-        let conflicting_stable = sqlx::query_scalar!(
-                "SELECT time FROM ohlc_candles WHERE time >= $1 AND time <= $2 AND stable = true LIMIT 1",
-                period_start,
-                period_end
-            )
-            .fetch_optional(&mut *tx)
-            .await
-            .map_err(DbError::Query)?;
-
-        if let Some(conflicting_time) = conflicting_stable {
-            return Err(DbError::AttemptedToUpdateStableCandle {
-                time: conflicting_time,
-            });
-        }
-
+        // Clear the gap flag on the candle immediately after the period (the `to` boundary that
+        // came with the download range). This is unrelated to the batch below — the gap marker
+        // lives on an existing stable row whose values we're not touching.
         if let Some(before_candle_time) = before_candle_time {
             sqlx::query!(
                 "UPDATE ohlc_candles SET gap = false WHERE time = $1",
@@ -93,6 +81,22 @@ impl OhlcCandlesRepository for PgOhlcCandlesRepo {
             .await
             .map_err(DbError::Query)?;
         }
+
+        // Gap-marker placement: if the candle immediately before the batch (`period_start - 1min`)
+        // is not stable, flag the batch's oldest candle with `gap=true`. This deliberately checks
+        // `stable = true`, not just existence — an unstable predecessor (e.g. leftover from a
+        // previous sync session's tail) must trigger a gap so that `get_gaps` picks it up and the
+        // unstable region gets re-fetched. This is the only mechanism that detects stale unstable
+        // tails in live mode, which does not run `flag_missing_candles`.
+        let before_period_time = period_start - Duration::minutes(1);
+        let before_period_candle_exists = sqlx::query_scalar!(
+            "SELECT EXISTS(SELECT 1 FROM ohlc_candles WHERE time = $1 AND stable = true)",
+            before_period_time
+        )
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(DbError::Query)?
+        .unwrap_or(false);
 
         let mut times = Vec::with_capacity(new_candles.len());
         let mut opens = Vec::with_capacity(new_candles.len());
@@ -110,27 +114,17 @@ impl OhlcCandlesRepository for PgOhlcCandlesRepo {
             volumes.push(candle.volume() as i64);
         }
 
-        let before_period_time = period_start - Duration::minutes(1);
-        let before_period_candle_exists = sqlx::query_scalar!(
-            "SELECT EXISTS(SELECT 1 FROM ohlc_candles WHERE time = $1 AND stable = true)",
-            before_period_time
-        )
-        .fetch_one(&mut *tx)
-        .await
-        .map_err(DbError::Query)?
-        .unwrap_or(false);
-
         let mut gaps: Vec<bool> = vec![false; new_candles.len()];
         gaps[new_candles.len() - 1] = !before_period_candle_exists;
 
-        // The presence of `before_candle_time` indicates that the latest candle of the period is
-        // not the candle corresponding to the current minute, and therefore can be considered
-        // stable.
-        let mut stables: Vec<bool> = vec![true; new_candles.len()];
-        stables[0] = before_candle_time.is_some();
+        let stable_cutoff = Utc::now() - CANDLE_STABLE_AGE;
+        let stables: Vec<bool> = new_candles
+            .iter()
+            .map(|c| c.time() <= stable_cutoff)
+            .collect();
 
-        // Batch insert all candles, overwriting provisional candles if any
-
+        // Batch upsert all candles. The WHERE clause on DO UPDATE prevents the updated_at
+        // trigger from firing when no values actually changed.
         sqlx::query!(
                 r#"
                     INSERT INTO ohlc_candles (time, open, high, low, close, volume, gap, stable)
@@ -143,6 +137,13 @@ impl OhlcCandlesRepository for PgOhlcCandlesRepo {
                         volume = EXCLUDED.volume,
                         gap = EXCLUDED.gap,
                         stable = EXCLUDED.stable
+                    WHERE ohlc_candles.open != EXCLUDED.open
+                       OR ohlc_candles.high != EXCLUDED.high
+                       OR ohlc_candles.low != EXCLUDED.low
+                       OR ohlc_candles.close != EXCLUDED.close
+                       OR ohlc_candles.volume != EXCLUDED.volume
+                       OR ohlc_candles.gap != EXCLUDED.gap
+                       OR ohlc_candles.stable != EXCLUDED.stable
                 "#,
                 &times,
                 &opens,
