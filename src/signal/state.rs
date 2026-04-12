@@ -75,6 +75,19 @@ pub enum LiveSignalStatus {
     Terminated(Arc<SignalProcessFatalError>),
 }
 
+impl PartialEq for LiveSignalStatus {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::NotRunning(a), Self::NotRunning(b)) => a == b,
+            (Self::Running, Self::Running)
+            | (Self::ShutdownInitiated, Self::ShutdownInitiated)
+            | (Self::Shutdown, Self::Shutdown) => true,
+            (Self::Terminated(a), Self::Terminated(b)) => Arc::ptr_eq(a, b),
+            _ => false,
+        }
+    }
+}
+
 impl LiveSignalStatus {
     /// Returns `true` if the signal process has stopped (either shut down or terminated).
     pub fn is_stopped(&self) -> bool {
