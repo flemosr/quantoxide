@@ -127,6 +127,10 @@ impl<TView: TuiLogManager> TuiStatusManager<TView> {
             return;
         }
 
+        if *status == new_status {
+            return;
+        }
+
         // TODO: Improve this log entry
         let _ = self
             .logger
