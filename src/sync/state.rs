@@ -79,6 +79,20 @@ pub enum SyncStatus {
     Terminated(Arc<SyncProcessFatalError>),
 }
 
+impl PartialEq for SyncStatus {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::NotSynced(a), Self::NotSynced(b)) => a == b,
+            (Self::Synced, Self::Synced)
+            | (Self::Backfilled, Self::Backfilled)
+            | (Self::ShutdownInitiated, Self::ShutdownInitiated)
+            | (Self::Shutdown, Self::Shutdown) => true,
+            (Self::Terminated(a), Self::Terminated(b)) => Arc::ptr_eq(a, b),
+            _ => false,
+        }
+    }
+}
+
 impl SyncStatus {
     /// Returns `true` if the sync process has stopped (either shut down or terminated).
     pub fn is_stopped(&self) -> bool {
