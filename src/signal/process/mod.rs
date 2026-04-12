@@ -127,7 +127,13 @@ impl<S: Signal> LiveSignalProcess<S> {
                 time::sleep(wait_duration).await;
             }
 
-            if !matches!(self.sync_reader.status_snapshot(), SyncStatus::Synced) {
+            if let SyncStatus::NotSynced(sync_status_not_synced) =
+                self.sync_reader.status_snapshot()
+            {
+                self.status_manager.update(
+                    LiveSignalStatusNotRunning::WaitingForSync(sync_status_not_synced).into(),
+                );
+
                 let mut sync_rx = self.sync_reader.update_receiver();
                 loop {
                     tokio::select! {
@@ -155,7 +161,7 @@ impl<S: Signal> LiveSignalProcess<S> {
                                                 return Err(SignalProcessFatalError::SyncProcessShutdown.into());
                                             }
                                         },
-                                        SyncUpdate::PriceTick(_) => break,
+                                        SyncUpdate::PriceTick(_) => {}
                                         SyncUpdate::PriceHistoryState(_) => {}
                                         SyncUpdate::FundingSettlementsState(_) => {}
                                     }
