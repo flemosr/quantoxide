@@ -108,6 +108,10 @@ pub(super) struct LockedLiveTradeExecutorState<'a> {
 }
 
 impl<'a> LockedLiveTradeExecutorState<'a> {
+    pub fn status(&self) -> &LiveTradeExecutorStatus {
+        self.state_guard.status()
+    }
+
     pub fn trading_session(&self) -> Option<&LiveTradingSession> {
         self.state_guard.trading_session()
     }
@@ -116,6 +120,12 @@ impl<'a> LockedLiveTradeExecutorState<'a> {
         mut self,
         new_status_not_ready: LiveTradeExecutorStatusNotReady,
     ) {
+        if let LiveTradeExecutorStatus::NotReady(current) = &self.state_guard.status {
+            if *current == new_status_not_ready {
+                return;
+            }
+        }
+
         let new_status: LiveTradeExecutorStatus = new_status_not_ready.into();
 
         self.state_guard.status = new_status.clone();
