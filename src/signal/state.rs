@@ -186,6 +186,11 @@ impl<S: Signal> LiveSignalStatusManager<S> {
     }
     pub fn update(&self, new_status: LiveSignalStatus) {
         let mut status_guard = self.lock_status();
+
+        if *status_guard == new_status {
+            return;
+        }
+
         *status_guard = new_status.clone();
         drop(status_guard);
 
