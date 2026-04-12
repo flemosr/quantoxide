@@ -30,6 +30,19 @@ pub enum LiveSignalStatusNotRunning {
     Restarting,
 }
 
+impl PartialEq for LiveSignalStatusNotRunning {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::NotInitiated, Self::NotInitiated)
+            | (Self::Starting, Self::Starting)
+            | (Self::Restarting, Self::Restarting) => true,
+            (Self::WaitingForSync(a), Self::WaitingForSync(b)) => a == b,
+            (Self::Failed(a), Self::Failed(b)) => Arc::ptr_eq(a, b),
+            _ => false,
+        }
+    }
+}
+
 impl fmt::Display for LiveSignalStatusNotRunning {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
