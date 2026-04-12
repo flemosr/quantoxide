@@ -61,6 +61,20 @@ impl BacktestStatus {
     }
 }
 
+impl PartialEq for BacktestStatus {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::NotInitiated, Self::NotInitiated)
+            | (Self::Starting, Self::Starting)
+            | (Self::Running, Self::Running)
+            | (Self::Finished, Self::Finished)
+            | (Self::Aborted, Self::Aborted) => true,
+            (Self::Failed(a), Self::Failed(b)) => Arc::ptr_eq(a, b),
+            _ => false,
+        }
+    }
+}
+
 impl fmt::Display for BacktestStatus {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
