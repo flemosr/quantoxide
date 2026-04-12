@@ -42,6 +42,18 @@ impl fmt::Display for TuiStatusStopped {
     }
 }
 
+impl PartialEq for TuiStatus {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Running, Self::Running) | (Self::ShutdownInitiated, Self::ShutdownInitiated) => {
+                true
+            }
+            (Self::Stopped(a), Self::Stopped(b)) => Arc::ptr_eq(a, b),
+            _ => false,
+        }
+    }
+}
+
 impl fmt::Display for TuiStatus {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
