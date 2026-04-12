@@ -33,6 +33,20 @@ pub enum LiveTradeExecutorStatusNotReady {
     Shutdown,
 }
 
+impl PartialEq for LiveTradeExecutorStatusNotReady {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Starting, Self::Starting)
+            | (Self::ShutdownInitiated, Self::ShutdownInitiated)
+            | (Self::Shutdown, Self::Shutdown) => true,
+            (Self::WaitingForSync(a), Self::WaitingForSync(b)) => a == b,
+            (Self::Failed(a), Self::Failed(b)) => Arc::ptr_eq(a, b),
+            (Self::Terminated(a), Self::Terminated(b)) => Arc::ptr_eq(a, b),
+            _ => false,
+        }
+    }
+}
+
 impl fmt::Display for LiveTradeExecutorStatusNotReady {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
