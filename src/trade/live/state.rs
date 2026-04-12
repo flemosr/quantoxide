@@ -45,6 +45,25 @@ pub enum LiveTradeStatus {
     Terminated(Arc<LiveProcessFatalError>),
 }
 
+impl PartialEq for LiveTradeStatus {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::NotInitiated, Self::NotInitiated)
+            | (Self::Starting, Self::Starting)
+            | (Self::Running, Self::Running)
+            | (Self::Restarting, Self::Restarting)
+            | (Self::ShutdownInitiated, Self::ShutdownInitiated)
+            | (Self::Shutdown, Self::Shutdown) => true,
+            (Self::WaitingForSync(a), Self::WaitingForSync(b)) => a == b,
+            (Self::WaitingForSignal(a), Self::WaitingForSignal(b)) => a == b,
+            (Self::WaitingTradeExecutor(a), Self::WaitingTradeExecutor(b)) => a == b,
+            (Self::Failed(a), Self::Failed(b)) => Arc::ptr_eq(a, b),
+            (Self::Terminated(a), Self::Terminated(b)) => Arc::ptr_eq(a, b),
+            _ => false,
+        }
+    }
+}
+
 impl LiveTradeStatus {
     /// Returns `true` if the live trade process has stopped (either shut down or terminated).
     pub fn is_stopped(&self) -> bool {
