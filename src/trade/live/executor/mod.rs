@@ -44,8 +44,8 @@ use error::{
     LiveTradeExecutorResult,
 };
 use state::{
-    LiveTradeExecutorState, LiveTradeExecutorStateManager, LiveTradeExecutorStatusNotReady,
-    live_trading_session::LiveTradingSession,
+    LiveTradeExecutorState, LiveTradeExecutorStateManager, LiveTradeExecutorStatus,
+    LiveTradeExecutorStatusNotReady, live_trading_session::LiveTradingSession,
 };
 use update::{
     LiveTradeExecutorReceiver, LiveTradeExecutorTransmitter, LiveTradeExecutorUpdate,
@@ -553,9 +553,14 @@ impl LiveTradeExecutorLauncher {
     ) -> AbortOnDropHandle<()> {
         tokio::spawn(async move {
             let refresh_trading_session = async || {
-                let locked_state = state_manager.lock_state().await;
+                // Phase 1: clone the current trading session under a short-lived lock
+                let prev_session = {
+                    let locked_state = state_manager.lock_state().await;
+                    locked_state.trading_session().cloned()
+                };
 
-                let current_trading_session = match locked_state.trading_session().cloned() {
+                // Phase 2: perform DB + REST work without holding the lock
+                let result = match prev_session {
                     Some(old_trading_session) if !old_trading_session.is_expired() => {
                         let mut restored_trading_session = old_trading_session;
 
@@ -564,22 +569,9 @@ impl LiveTradeExecutorLauncher {
                             .await
                             .map_err(ExecutorProcessRecoverableError::LiveTradeSessionEvaluation)
                         {
-                            Ok(closed_trades) => {
-                                for closed_trade in closed_trades.into_iter() {
-                                    // Ignore no-receiver errors
-                                    let _ = update_tx
-                                        .send(LiveTradeExecutorUpdate::ClosedTrade(closed_trade));
-                                }
-                            }
-                            Err(e) => {
-                                let new_status_not_ready =
-                                    LiveTradeExecutorStatusNotReady::Failed(Arc::new(e));
-                                locked_state.update_status_not_ready(new_status_not_ready);
-                                return;
-                            }
+                            Ok(closed_trades) => Ok((restored_trading_session, closed_trades)),
+                            Err(e) => Err(e),
                         }
-
-                        restored_trading_session
                     }
                     prev_session => {
                         match LiveTradingSession::new(
@@ -592,22 +584,44 @@ impl LiveTradeExecutorLauncher {
                         .await
                         .map_err(ExecutorProcessRecoverableError::LiveTradeSessionEvaluation)
                         {
-                            Ok(new_trading_session) => new_trading_session,
-                            Err(e) => {
-                                locked_state.update_status_not_ready(
-                                    LiveTradeExecutorStatusNotReady::Failed(Arc::new(e)),
-                                );
-                                return;
-                            }
+                            Ok(new_trading_session) => Ok((new_trading_session, Vec::new())),
+                            Err(e) => Err(e),
                         }
                     }
                 };
 
-                locked_state.update_status_ready(current_trading_session);
+                // Phase 3: re-acquire lock and commit if state is still valid
+                let locked_state = state_manager.lock_state().await;
+
+                match result {
+                    Ok((trading_session, closed_trades)) => {
+                        if matches!(locked_state.status(), LiveTradeExecutorStatus::NotReady(_)) {
+                            // State changed while unlocked, discard stale result
+                            return;
+                        }
+
+                        locked_state.update_status_ready(trading_session);
+
+                        for closed_trade in closed_trades {
+                            // Ignore no-receiver errors
+                            let _ = update_tx
+                                .send(LiveTradeExecutorUpdate::ClosedTrade(closed_trade));
+                        }
+                    }
+                    Err(e) => {
+                        locked_state.update_status_not_ready(
+                            LiveTradeExecutorStatusNotReady::Failed(Arc::new(e)),
+                        );
+                    }
+                }
             };
 
             let handler = async || -> ExecutorProcessFatalResult<Never> {
                 let mut sync_rx = sync_rx;
+                let mut is_synced = matches!(
+                    state_manager.snapshot().await.status(),
+                    LiveTradeExecutorStatus::Ready
+                );
                 let mut should_refresh = false;
                 let new_refresh_timer = || Box::pin(time::sleep(trading_session_refresh_interval));
                 let mut refresh_timer = new_refresh_timer();
@@ -619,6 +633,9 @@ impl LiveTradeExecutorLauncher {
                                 Ok(sync_update) => match sync_update {
                                     SyncUpdate::Status(sync_status) => match sync_status {
                                         SyncStatus::NotSynced(sync_status_not_synced) => {
+                                            is_synced = false;
+                                            should_refresh = false;
+
                                             let new_status_not_ready =
                                                 LiveTradeExecutorStatusNotReady::WaitingForSync(
                                                     sync_status_not_synced,
@@ -628,18 +645,26 @@ impl LiveTradeExecutorLauncher {
                                                 .await;
                                         }
                                         SyncStatus::Terminated(err) => {
-                                            return Err(ExecutorProcessFatalError::SyncProcessTerminated(
-                                                err,
-                                            ));
+                                            return Err(
+                                                ExecutorProcessFatalError::SyncProcessTerminated(
+                                                    err,
+                                                ),
+                                            );
                                         }
                                         SyncStatus::ShutdownInitiated | SyncStatus::Shutdown => {
-                                            return Err(ExecutorProcessFatalError::SyncProcessShutdown);
+                                            return Err(
+                                                ExecutorProcessFatalError::SyncProcessShutdown,
+                                            );
                                         }
                                         SyncStatus::Backfilled => {}
-                                        SyncStatus::Synced => should_refresh = true,
+                                        SyncStatus::Synced => {
+                                            is_synced = true;
+                                            should_refresh = true;
+                                        }
                                     },
-                                    SyncUpdate::PriceTick(_) => should_refresh = true,
-                                    SyncUpdate::PriceHistoryState(_) => should_refresh = true,
+                                    SyncUpdate::PriceTick(_) | SyncUpdate::PriceHistoryState(_) => {
+                                        should_refresh = is_synced;
+                                    }
                                     SyncUpdate::FundingSettlementsState(_) => {}
                                 },
                                 Err(RecvError::Lagged(skipped)) => {
