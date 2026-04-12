@@ -32,6 +32,20 @@ pub enum SyncStatusNotSynced {
     Restarting,
 }
 
+impl PartialEq for SyncStatusNotSynced {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::NotInitiated, Self::NotInitiated)
+            | (Self::Starting, Self::Starting)
+            | (Self::InProgress, Self::InProgress)
+            | (Self::WaitingForResync, Self::WaitingForResync)
+            | (Self::Restarting, Self::Restarting) => true,
+            (Self::Failed(a), Self::Failed(b)) => Arc::ptr_eq(a, b),
+            _ => false,
+        }
+    }
+}
+
 impl fmt::Display for SyncStatusNotSynced {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
