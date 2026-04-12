@@ -175,6 +175,10 @@ impl<S: Signal> LiveTradeStatusManager<S> {
         mut status_guard: MutexGuard<'_, LiveTradeStatus>,
         new_status: LiveTradeStatus,
     ) {
+        if *status_guard == new_status {
+            return;
+        }
+
         *status_guard = new_status.clone();
         drop(status_guard);
 
