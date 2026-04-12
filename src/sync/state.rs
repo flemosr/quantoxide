@@ -221,22 +221,18 @@ impl SyncStatusManager {
             .expect("`SyncStatusManager` mutex can't be poisoned")
     }
 
-    fn update_status_guard(
-        &self,
-        mut status_guard: MutexGuard<'_, SyncStatus>,
-        new_status: SyncStatus,
-    ) {
+    pub fn update(&self, new_status: SyncStatus) {
+        let mut status_guard = self.lock_status();
+
+        if *status_guard == new_status {
+            return;
+        }
+
         *status_guard = new_status.clone();
         drop(status_guard);
 
         // Ignore no-receivers errors
         let _ = self.update_tx.send(new_status.into());
-    }
-
-    pub fn update(&self, new_status: SyncStatus) {
-        let status_guard = self.lock_status();
-
-        self.update_status_guard(status_guard, new_status);
     }
 }
 
