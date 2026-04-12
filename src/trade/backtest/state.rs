@@ -179,6 +179,11 @@ impl<T: Clone + From<BacktestStatus>> BacktestStatusManager<T> {
 
     pub fn update(&self, new_status: BacktestStatus) {
         let mut status_guard = self.lock_status();
+
+        if *status_guard == new_status {
+            return;
+        }
+
         *status_guard = new_status.clone();
         drop(status_guard);
 
