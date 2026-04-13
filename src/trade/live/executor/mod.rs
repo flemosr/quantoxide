@@ -22,7 +22,7 @@ use lnm_sdk::api_v3::{
 
 use crate::{
     db::Database,
-    sync::{SyncReader, SyncReceiver, SyncStatus, SyncUpdate},
+    sync::{SyncReader, SyncStatus, SyncUpdate},
     util::{AbortOnDropHandle, Never},
 };
 
@@ -496,7 +496,7 @@ pub struct LiveTradeExecutorLauncher {
     api_rest: WrappedRestClient,
     update_tx: LiveTradeExecutorTransmitter,
     state_manager: Arc<LiveTradeExecutorStateManager>,
-    sync_rx: SyncReceiver,
+    sync_reader: Arc<dyn SyncReader>,
 }
 
 impl LiveTradeExecutorLauncher {
@@ -531,7 +531,7 @@ impl LiveTradeExecutorLauncher {
             api_rest,
             update_tx,
             state_manager,
-            sync_rx: sync_reader.update_receiver(),
+            sync_reader,
         })
     }
 
@@ -549,7 +549,7 @@ impl LiveTradeExecutorLauncher {
         api: WrappedRestClient,
         update_tx: LiveTradeExecutorTransmitter,
         state_manager: Arc<LiveTradeExecutorStateManager>,
-        sync_rx: SyncReceiver,
+        sync_reader: Arc<dyn SyncReader>,
     ) -> AbortOnDropHandle<()> {
         tokio::spawn(async move {
             let refresh_trading_session = async || {
@@ -595,8 +595,10 @@ impl LiveTradeExecutorLauncher {
 
                 match result {
                     Ok((trading_session, closed_trades)) => {
-                        if matches!(locked_state.status(), LiveTradeExecutorStatus::NotReady(_)) {
-                            // State changed while unlocked, discard stale result
+                        if let LiveTradeExecutorStatus::NotReady(status) = locked_state.status()
+                            && status.is_unrecoverable()
+                        {
+                            // Unrecoverable state reached while unlocked, discard stale result
                             return;
                         }
 
@@ -616,13 +618,11 @@ impl LiveTradeExecutorLauncher {
                 }
             };
 
-            let handler = async || -> ExecutorProcessFatalResult<Never> {
-                let mut sync_rx = sync_rx;
-                let mut is_synced = matches!(
-                    state_manager.snapshot().await.status(),
-                    LiveTradeExecutorStatus::Ready
-                );
-                let mut should_refresh = false;
+            let mut sync_rx = sync_reader.update_receiver();
+
+            let mut handler = async || -> ExecutorProcessFatalResult<Never> {
+                let mut is_synced = matches!(sync_reader.status_snapshot(), SyncStatus::Synced);
+                let mut should_refresh = is_synced;
                 let new_refresh_timer = || Box::pin(time::sleep(trading_session_refresh_interval));
                 let mut refresh_timer = new_refresh_timer();
 
@@ -732,7 +732,7 @@ impl LiveTradeExecutorLauncher {
             self.api_rest.clone(),
             self.update_tx.clone(),
             self.state_manager.clone(),
-            self.sync_rx,
+            self.sync_reader,
         );
 
         Ok(LiveTradeExecutor::new(
