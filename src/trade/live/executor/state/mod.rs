@@ -33,6 +33,17 @@ pub enum LiveTradeExecutorStatusNotReady {
     Shutdown,
 }
 
+impl LiveTradeExecutorStatusNotReady {
+    /// Returns `true` if the status represents an unrecoverable state from which the executor
+    /// cannot transition back to [`LiveTradeExecutorStatus::Ready`].
+    pub fn is_unrecoverable(&self) -> bool {
+        match self {
+            Self::Starting | Self::WaitingForSync(_) | Self::Failed(_) => false,
+            Self::ShutdownInitiated | Self::Shutdown | Self::Terminated(_) => true,
+        }
+    }
+}
+
 impl PartialEq for LiveTradeExecutorStatusNotReady {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
