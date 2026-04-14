@@ -196,6 +196,12 @@ impl LiveTradingSession {
         Utc::now() >= self.expires_at
     }
 
+    pub fn expire(&mut self) {
+        if !self.is_expired() {
+            self.expires_at = Utc::now()
+        }
+    }
+
     pub fn balance(&self) -> u64 {
         self.balance
     }
