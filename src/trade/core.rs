@@ -1500,6 +1500,9 @@ pub(super) trait TradeRunningExt: TradeRunning {
             }
         };
 
+        // Skip no-op updates: rounding can collapse `new_sl` back to `curr_sl`
+        let new_stoploss = new_stoploss.filter(|new_sl| Some(*new_sl) != self.stoploss());
+
         Ok(new_stoploss)
     }
 }
