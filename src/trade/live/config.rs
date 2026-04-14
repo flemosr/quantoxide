@@ -261,7 +261,7 @@ impl LiveTradeConfig {
     ///
     /// Default: `false`
     ///
-    /// **Note**: As of Apr 06 2026, WebSocket API support is temporarily disabled on the LN Markets
+    /// **Note**: As of Apr 14 2026, WebSocket API support is temporarily disabled on the LN Markets
     /// platform, so REST polling is used by default.
     pub fn with_ws_enabled(mut self, enabled: bool) -> Self {
         self.ws_enabled = enabled;
