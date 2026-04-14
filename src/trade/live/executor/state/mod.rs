@@ -141,6 +141,15 @@ impl<'a> LockedLiveTradeExecutorState<'a> {
             }
         }
 
+        // On failure, expire the stored trading session so the next refresh rebuilds state from a
+        // fresh exchange fetch rather than trusting the (possibly stale) in-memory snapshot that
+        // produced the error.
+        if new_status_not_ready.is_failed()
+            && let Some(session) = self.state_guard.trading_session.as_mut()
+        {
+            session.expire();
+        }
+
         let new_status: LiveTradeExecutorStatus = new_status_not_ready.into();
 
         self.state_guard.status = new_status.clone();
