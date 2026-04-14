@@ -135,10 +135,10 @@ impl<'a> LockedLiveTradeExecutorState<'a> {
         mut self,
         new_status_not_ready: LiveTradeExecutorStatusNotReady,
     ) {
-        if let LiveTradeExecutorStatus::NotReady(current) = &self.state_guard.status {
-            if *current == new_status_not_ready {
-                return;
-            }
+        if let LiveTradeExecutorStatus::NotReady(current) = &self.state_guard.status
+            && *current == new_status_not_ready
+        {
+            return;
         }
 
         // On failure, expire the stored trading session so the next refresh rebuilds state from a
