@@ -34,6 +34,10 @@ pub enum LiveTradeExecutorStatusNotReady {
 }
 
 impl LiveTradeExecutorStatusNotReady {
+    pub fn is_failed(&self) -> bool {
+        matches!(self, Self::Failed(_))
+    }
+
     /// Returns `true` if the status represents an unrecoverable state from which the executor
     /// cannot transition back to [`LiveTradeExecutorStatus::Ready`].
     pub fn is_unrecoverable(&self) -> bool {
