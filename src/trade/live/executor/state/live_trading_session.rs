@@ -1,6 +1,6 @@
 use std::{
     collections::{HashMap, HashSet},
-    result, slice,
+    slice,
     sync::Arc,
 };
 
@@ -279,7 +279,6 @@ impl LiveTradingSession {
         }
 
         let mut updated_trades = HashMap::new();
-        let mut close_results = Vec::new();
 
         for chunk in to_update.chunks(3) {
             let update_futures = chunk
@@ -287,37 +286,13 @@ impl LiveTradingSession {
                 .map(|&(trade_id, new_stoploss)| api.update_trade_stoploss(trade_id, new_stoploss))
                 .collect::<Vec<_>>();
 
-            let update_results = future::join_all(update_futures).await;
-
-            let mut close_futures = Vec::new();
-
-            for (&(trade_id, _), update_res) in chunk.iter().zip(update_results) {
-                match update_res {
-                    Ok(updated_trade) => {
-                        updated_trades.insert(updated_trade.id(), updated_trade);
-                    }
-                    Err(_) => {
-                        close_futures.push(api.close_trade(trade_id));
-                    }
-                }
+            for update_res in future::join_all(update_futures).await {
+                let updated_trade = update_res?;
+                updated_trades.insert(updated_trade.id(), updated_trade);
             }
-
-            if close_futures.is_empty() {
-                continue;
-            }
-
-            let new_close_results = future::join_all(close_futures).await;
-            close_results.extend(new_close_results);
         }
 
-        let new_closed_trades = close_results
-            .into_iter()
-            .collect::<result::Result<Vec<_>, _>>()?;
-
-        closed_trades.extend(new_closed_trades);
-
         self.update_running_trades(updated_trades)?;
-
         self.close_trades(&closed_trades)?;
 
         Ok(closed_trades)
