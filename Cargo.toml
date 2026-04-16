@@ -1,6 +1,6 @@
 [package]
 name = "quantoxide"
-version = "0.5.3"
+version = "0.5.4"
 authors = ["Rafael Lemos <contact@flemosr.com>"]
 edition = "2024"
 rust-version = "1.88"
