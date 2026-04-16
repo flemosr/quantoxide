@@ -3,9 +3,12 @@ use std::{num::NonZeroU64, sync::Arc};
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
-use lnm_sdk::api_v3::models::{
-    ClientId, Leverage, Margin, PercentageCapped, Price, Quantity, SATS_PER_BTC, TradeSide,
-    TradeSize, trade_util,
+use lnm_sdk::api_v3::{
+    error::LeverageValidationError,
+    models::{
+        ClientId, Leverage, Margin, PercentageCapped, Price, Quantity, SATS_PER_BTC, TradeSide,
+        TradeSize, trade_util,
+    },
 };
 
 use crate::db::models::FundingSettlementRow;
@@ -204,9 +207,14 @@ impl SimulatedTradeRunning {
             return Ok((None, funding_fee));
         };
 
-        let Ok(new_leverage) = Leverage::try_calculate(self.quantity, new_margin, self.price)
-        else {
-            return Ok((None, funding_fee));
+        // A sub-MIN result is a benign rounding artifact from the open-time quantity flooring.
+        // LN Markets accepts these overcollateralized positions, so `new_leverage` is clamped to
+        // `Leverage::MIN` and the trade is kept running. An above-MAX result means the funding fee
+        // has eroded the margin past the `Leverage::MAX` threshold, so the trade is force-closed.
+        let new_leverage = match Leverage::try_calculate(self.quantity, new_margin, self.price) {
+            Ok(leverage) => leverage,
+            Err(LeverageValidationError::TooLow { .. }) => Leverage::MIN,
+            Err(LeverageValidationError::TooHigh { .. }) => return Ok((None, funding_fee)),
         };
 
         let new_liquidation = trade_util::estimate_liquidation_price(
