@@ -4,7 +4,9 @@ use super::*;
 
 use chrono::Duration;
 
-use lnm_sdk::api_v3::models::{ClientId, Leverage, PercentageCapped, Quantity, SATS_PER_BTC};
+use lnm_sdk::api_v3::models::{
+    ClientId, Leverage, Margin, PercentageCapped, Quantity, SATS_PER_BTC,
+};
 
 fn next_candle(prev: &OhlcCandleRow, price: f64) -> OhlcCandleRow {
     OhlcCandleRow::new_simple(prev.time + Duration::minutes(1), price, prev.volume)
@@ -1815,6 +1817,47 @@ async fn test_funding_settlement_positive_fee_no_margin_change() -> TradeExecuto
     assert_eq!(
         trade_after.liquidation().as_f64(),
         liquidation_before.as_f64()
+    );
+
+    Ok(())
+}
+
+/// Margin-sized 1x trades may float below `Leverage::MIN` since the open-time quantity is floored.
+/// Funding settlement must clamp such sub-MIN recomputations to `MIN` rather than force-close,
+/// matching LN Markets' acceptance of overcollateralized positions.
+#[tokio::test]
+async fn test_funding_settlement_margin_sized_1x_not_force_closed() -> TradeExecutorResult<()> {
+    let candle = OhlcCandleRow::new_simple(Utc::now().floor_minute(), 42_879.0, 1_000);
+    let start_balance = 100_000_000;
+    let config = SimulatedTradeExecutorConfig::default();
+
+    let executor = SimulatedTradeExecutor::new(config, &candle, start_balance);
+
+    // Margin-sized 1x long: quantity = floor(99_876 * 1 * 42_879 / 1e8) = floor(42.83) = 42,
+    // giving economic leverage 42 * 1e8 / (99_876 * 42_879) ≈ 0.9807 — below `Leverage::MIN`.
+    let size = Margin::try_from(99_876_u64).unwrap().into();
+    let leverage = Leverage::try_from(1).unwrap();
+    executor.open_long(size, leverage, None, None, None).await?;
+
+    assert_eq!(executor.trading_state().await?.running_long_len(), 1);
+
+    // Positive rate -> long pays -> settlement recomputes leverage from the floored quantity.
+    let settlement = make_settlement(candle.time, 42_879.0, 0.0001);
+    executor.apply_funding_settlement(&settlement).await?;
+
+    let state = executor.trading_state().await?;
+    assert_eq!(
+        state.running_long_len(),
+        1,
+        "Trade must survive the settlement; sub-MIN economic leverage should clamp to `MIN`",
+    );
+    assert_eq!(state.closed_history().len(), 0);
+
+    let (trade, _) = state.running_map().trades_desc().next().unwrap();
+    assert_eq!(
+        trade.leverage(),
+        Leverage::MIN,
+        "Post-settlement leverage should be clamped to `Leverage::MIN`",
     );
 
     Ok(())
