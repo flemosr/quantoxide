@@ -302,10 +302,11 @@ impl SimulatedTradeExecutor {
                     .map_err(SimulatedTradeExecutorError::PriceTriggerUpdate)?;
                 new_running_map.add(updated_trade, *trade_tsl_opt);
             } else {
-                // Edge case: the funding fee would make margin or leverage invalid, so the trade
-                // can no longer be represented. In practice this shouldn't happen — trades
-                // this close to liquidation will be closed by market movements first. Close
-                // at the current market price and deduct the fee from the balance.
+                // Edge case: The funding fee would make margin or leverage invalid, so the trade
+                // can no longer be represented and should be closed at the current market price and
+                // the fee deducted from the balance.
+                // In practice this shouldn't happen. Trades that close to liquidation should be
+                // closed by market movements first.
                 let closing_price = Price::round(state_guard.market_price)
                     .map_err(SimulatedTradeExecutorError::InvalidMarketPrice)?;
                 let closed_trade =
