@@ -14,6 +14,7 @@ use async_trait::async_trait;
 
 use quantoxide::{
     error::Result,
+    models::ClientId,
     trade::{SignalOperator, TradeExecutor, TradingState},
     tui::TuiLogger,
 };
@@ -199,11 +200,13 @@ impl SignalOperator<SupportedSignal> for MultiSignalOperatorTemplate {
 
         // Iterate over running trades
         for ((creation_time, trade_id), (trade, tsl)) in running_trades_map {
-            // Example: Check current profit/loss
-            let pl = trade.est_pl(trading_state.market_price());
+            // Access trade properties
 
-            // Suppress unused warnings
-            let _ = (creation_time, trade_id, tsl);
+            let client_id = trade.client_id(); // e.g. for signal <-> trade mapping
+            let side = trade.side();
+            let pl = trade.est_pl(market_price); // Check current profit/loss
+            // ...
+            // All `TradeRunning` and `TradeCore` methods are available on `trade`
 
             // Take action based on trade status
 
@@ -219,7 +222,7 @@ impl SignalOperator<SupportedSignal> for MultiSignalOperatorTemplate {
         //             Leverage::try_from(6)?,  // Leverage 6x
         //             Some(Stoploss::trailing(PercentageCapped::try_from(5)?)), // 5% trailing stoploss
         //             None,                                                     // No takeprofit
-        //             None,                                                     // No client_id
+        //             Some(ClientId::try_from("custom-client-id")?),            // Custom `client_id`
         //         )
         //         .await?;
         // }
