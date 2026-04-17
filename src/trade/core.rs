@@ -33,9 +33,11 @@ impl crate::sealed::Sealed for Trade {}
 
 /// Generic trade interface used in extension traits.
 ///
-/// Not publically exported. Public access via the sealed [`TradeRunning`] and [`TradeClosed`]
-/// traits.
-pub trait TradeCore: Send + Sync + fmt::Debug + 'static {
+/// Provides shared accessors for both running and closed trades. Extended by the [`TradeRunning`]
+/// and [`TradeClosed`] traits, which add lifecycle-specific functionality.
+///
+/// This trait is sealed and not meant to be implemented outside of `quantoxide`.
+pub trait TradeCore: crate::sealed::Sealed + Send + Sync + fmt::Debug + 'static {
     /// Returns the unique identifier for this trade.
     fn id(&self) -> Uuid;
 
@@ -204,7 +206,7 @@ impl TradeCore for Trade {
 /// # Ok(())
 /// # }
 /// ```
-pub trait TradeRunning: crate::sealed::Sealed + TradeCore {
+pub trait TradeRunning: TradeCore {
     /// Estimates the profit/loss for the trade at a given market price.
     ///
     /// Returns the estimated profit or loss in satoshis if the trade were closed at the specified
@@ -348,7 +350,7 @@ impl TradeRunning for Trade {
 /// [`Trade`] trait with functionality specific to completed positions.
 ///
 /// This trait is sealed and not meant to be implemented outside of `quantoxide`.
-pub trait TradeClosed: crate::sealed::Sealed + TradeCore {
+pub trait TradeClosed: TradeCore {
     /// Returns the realized profit/loss of the closed trade in satoshis.
     ///
     /// A positive value indicates profit, while a negative value indicates a loss.
