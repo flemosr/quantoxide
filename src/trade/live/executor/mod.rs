@@ -44,8 +44,8 @@ use error::{
     LiveTradeExecutorResult,
 };
 use state::{
-    LiveTradeExecutorState, LiveTradeExecutorStateManager, LiveTradeExecutorStatus,
-    LiveTradeExecutorStatusNotReady, live_trading_session::LiveTradingSession,
+    LiveTradeExecutorState, LiveTradeExecutorStateManager, LiveTradeExecutorStatusNotReady,
+    live_trading_session::LiveTradingSession,
 };
 use update::{
     LiveTradeExecutorReceiver, LiveTradeExecutorTransmitter, LiveTradeExecutorUpdate,
@@ -553,13 +553,11 @@ impl LiveTradeExecutorLauncher {
     ) -> AbortOnDropHandle<()> {
         tokio::spawn(async move {
             let refresh_trading_session = async || {
-                // Phase 1: clone the current trading session under a short-lived lock
-                let prev_session = {
-                    let locked_state = state_manager.lock_state().await;
-                    locked_state.trading_session().cloned()
-                };
+                // Hold the state lock across the entire REST + DB cycle so that mutating executor
+                // actions (open/close/update) cannot interleave with the rebuild's reads.
+                let locked_state = state_manager.lock_state().await;
+                let prev_session = locked_state.trading_session().cloned();
 
-                // Phase 2: perform DB + REST work without holding the lock
                 let result = match prev_session {
                     Some(old_trading_session) if !old_trading_session.is_expired() => {
                         let mut restored_trading_session = old_trading_session;
@@ -590,18 +588,8 @@ impl LiveTradeExecutorLauncher {
                     }
                 };
 
-                // Phase 3: re-acquire lock and commit if state is still valid
-                let locked_state = state_manager.lock_state().await;
-
                 match result {
                     Ok((trading_session, closed_trades)) => {
-                        if let LiveTradeExecutorStatus::NotReady(status) = locked_state.status()
-                            && status.is_unrecoverable()
-                        {
-                            // Unrecoverable state reached while unlocked, discard stale result
-                            return;
-                        }
-
                         locked_state.update_status_ready(trading_session);
 
                         for closed_trade in closed_trades {
