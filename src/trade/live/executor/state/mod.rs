@@ -123,10 +123,6 @@ pub(super) struct LockedLiveTradeExecutorState<'a> {
 }
 
 impl<'a> LockedLiveTradeExecutorState<'a> {
-    pub fn status(&self) -> &LiveTradeExecutorStatus {
-        self.state_guard.status()
-    }
-
     pub fn trading_session(&self) -> Option<&LiveTradingSession> {
         self.state_guard.trading_session()
     }
