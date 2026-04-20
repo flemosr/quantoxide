@@ -127,6 +127,9 @@ pub enum LiveTradeExecutorError {
     #[error("Launch clean up error {0}")]
     LaunchCleanUp(ExecutorActionError),
 
+    #[error("Launch account resolution error {0}")]
+    LaunchAccountResolution(ExecutorActionError),
+
     #[error("API credentials were not set")]
     ApiCredentialsNotSet,
 
