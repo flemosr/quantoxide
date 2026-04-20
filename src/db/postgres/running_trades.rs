@@ -32,14 +32,16 @@ impl PgRunningTradesRepo {
 impl RunningTradesRepository for PgRunningTradesRepo {
     async fn add_running_trade(
         &self,
-        trade_id: uuid::Uuid,
+        account_id: Uuid,
+        trade_id: Uuid,
         trailing_stoploss: Option<TradeTrailingStoploss>,
     ) -> Result<()> {
         sqlx::query!(
             r#"
-                INSERT INTO running_trades (trade_id, trailing_stoploss)
-                VALUES ($1, $2)
+                INSERT INTO running_trades (account_id, trade_id, trailing_stoploss)
+                VALUES ($1, $2, $3)
             "#,
+            account_id,
             trade_id,
             trailing_stoploss.map(|tsl| tsl.as_f64()),
         )
@@ -50,14 +52,19 @@ impl RunningTradesRepository for PgRunningTradesRepo {
         Ok(())
     }
 
-    async fn get_running_trades_map(&self) -> Result<HashMap<Uuid, Option<TradeTrailingStoploss>>> {
+    async fn get_running_trades_map(
+        &self,
+        account_id: Uuid,
+    ) -> Result<HashMap<Uuid, Option<TradeTrailingStoploss>>> {
         let running_trades = sqlx::query_as!(
             RunningTrade,
             r#"
                 SELECT trade_id, trailing_stoploss
                 FROM running_trades
+                WHERE account_id = $1
                 ORDER BY created_at ASC
-            "#
+            "#,
+            account_id,
         )
         .fetch_all(self.pool())
         .await
@@ -85,10 +92,11 @@ impl RunningTradesRepository for PgRunningTradesRepo {
         Ok(running_trades_map)
     }
 
-    async fn remove_running_trades(&self, trade_ids: &[Uuid]) -> Result<()> {
+    async fn remove_running_trades(&self, account_id: Uuid, trade_ids: &[Uuid]) -> Result<()> {
         sqlx::query!(
-            "DELETE FROM running_trades WHERE trade_id = ANY($1)",
-            trade_ids
+            "DELETE FROM running_trades WHERE account_id = $1 AND trade_id = ANY($2)",
+            account_id,
+            trade_ids,
         )
         .execute(self.pool())
         .await
