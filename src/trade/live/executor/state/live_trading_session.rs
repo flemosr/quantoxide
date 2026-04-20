@@ -50,6 +50,7 @@ impl LiveTradingSession {
         tsl_step_size: PercentageCapped,
         db: &Database,
         api: &WrappedRestClient,
+        account_id: Uuid,
         prev_trading_session: Option<Self>,
     ) -> ExecutorActionResult<Self> {
         let (lastest_entry_time, lastest_entry_price) = db
@@ -161,7 +162,8 @@ impl LiveTradingSession {
 
         // Try to recover trades 'trailing stoploss' config from db
 
-        let mut registered_trades_map = db.running_trades.get_running_trades_map().await?;
+        let mut registered_trades_map =
+            db.running_trades.get_running_trades_map(account_id).await?;
 
         for trade in running_trades {
             let trade_tsl = registered_trades_map.remove(&trade.id()).flatten();
@@ -185,7 +187,7 @@ impl LiveTradingSession {
                 registered_trades_map.keys().cloned().collect();
 
             db.running_trades
-                .remove_running_trades(dangling_registered_trades.as_slice())
+                .remove_running_trades(account_id, dangling_registered_trades.as_slice())
                 .await?;
         }
 
