@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM running_trades WHERE account_id = $1 AND trade_id = ANY($2)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "UuidArray"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "2206435c3ce6ba96151d6d9f89495e104bd4508e92de8860f9d4b12d782ea86b"
+}
