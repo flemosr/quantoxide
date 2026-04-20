@@ -58,6 +58,7 @@ pub struct LiveTradeExecutor {
     config: LiveTradeExecutorConfig,
     db: Arc<Database>,
     api: WrappedRestClient,
+    account_id: Uuid,
     update_tx: LiveTradeExecutorTransmitter,
     state_manager: Arc<LiveTradeExecutorStateManager>,
     handle: Mutex<Option<AbortOnDropHandle<()>>>,
@@ -68,6 +69,7 @@ impl LiveTradeExecutor {
         config: LiveTradeExecutorConfig,
         db: Arc<Database>,
         api: WrappedRestClient,
+        account_id: Uuid,
         update_tx: LiveTradeExecutorTransmitter,
         state_manager: Arc<LiveTradeExecutorStateManager>,
         handle: AbortOnDropHandle<()>,
@@ -76,6 +78,7 @@ impl LiveTradeExecutor {
             config,
             db,
             api,
+            account_id,
             update_tx,
             state_manager,
             handle: Mutex::new(Some(handle)),
@@ -168,7 +171,7 @@ impl LiveTradeExecutor {
 
         self.db
             .running_trades
-            .add_running_trade(trade_id, trade_tsl)
+            .add_running_trade(self.account_id, trade_id, trade_tsl)
             .await?;
 
         let mut new_trading_session = locked_ready_state.trading_session().to_owned();
@@ -223,7 +226,7 @@ impl LiveTradeExecutor {
 
             self.db
                 .running_trades
-                .remove_running_trades(closed_ids.as_slice())
+                .remove_running_trades(self.account_id, closed_ids.as_slice())
                 .await?;
 
             all_closed_ids.extend(closed_ids);
@@ -420,7 +423,7 @@ impl TradeExecutor for LiveTradeExecutor {
 
         self.db
             .running_trades
-            .remove_running_trades(&[closed_trade.id()])
+            .remove_running_trades(self.account_id, &[closed_trade.id()])
             .await
             .map_err(ExecutorActionError::Db)?;
 
