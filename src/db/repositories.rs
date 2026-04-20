@@ -38,13 +38,17 @@ pub(crate) trait PriceTicksRepository: Send + Sync {
 pub(crate) trait RunningTradesRepository: Send + Sync {
     async fn add_running_trade(
         &self,
+        account_id: Uuid,
         trade_id: Uuid,
         trailing_stoploss: Option<TradeTrailingStoploss>,
     ) -> Result<()>;
 
-    async fn get_running_trades_map(&self) -> Result<HashMap<Uuid, Option<TradeTrailingStoploss>>>;
+    async fn get_running_trades_map(
+        &self,
+        account_id: Uuid,
+    ) -> Result<HashMap<Uuid, Option<TradeTrailingStoploss>>>;
 
-    async fn remove_running_trades(&self, trade_ids: &[Uuid]) -> Result<()>;
+    async fn remove_running_trades(&self, account_id: Uuid, trade_ids: &[Uuid]) -> Result<()>;
 }
 
 #[async_trait]
