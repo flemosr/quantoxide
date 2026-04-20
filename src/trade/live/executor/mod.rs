@@ -550,6 +550,7 @@ impl LiveTradeExecutorLauncher {
         trading_session_refresh_interval: time::Duration,
         db: Arc<Database>,
         api: WrappedRestClient,
+        account_id: Uuid,
         update_tx: LiveTradeExecutorTransmitter,
         state_manager: Arc<LiveTradeExecutorStateManager>,
         sync_reader: Arc<dyn SyncReader>,
@@ -580,6 +581,7 @@ impl LiveTradeExecutorLauncher {
                             trade_tsl_step_size,
                             db.as_ref(),
                             &api,
+                            account_id,
                             prev_session,
                         )
                         .await
@@ -715,12 +717,20 @@ impl LiveTradeExecutorLauncher {
             .map_err(LiveTradeExecutorError::LaunchCleanUp)?;
         }
 
+        let account_id = self
+            .api_rest
+            .get_user()
+            .await
+            .map_err(LiveTradeExecutorError::LaunchAccountResolution)?
+            .id();
+
         let handle = Self::spawn_sync_processor(
             self.config.startup_recover_trades(),
             self.config.trailing_stoploss_step_size(),
             self.config.trading_session_refresh_interval(),
             self.db.clone(),
             self.api_rest.clone(),
+            account_id,
             self.update_tx.clone(),
             self.state_manager.clone(),
             self.sync_reader,
@@ -730,6 +740,7 @@ impl LiveTradeExecutorLauncher {
             self.config,
             self.db,
             self.api_rest,
+            account_id,
             self.update_tx,
             self.state_manager,
             handle,
