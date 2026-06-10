@@ -5,15 +5,17 @@ use chrono::{DateTime, Duration, Utc};
 use tokio::sync::Mutex;
 use uuid::Uuid;
 
-use lnm_sdk::api_v3::models::{ClientId, Leverage, Price, TradeSide, TradeSize};
+use lnm_sdk::api_v3::models::{
+    ClientId, CrossLeverage, Leverage, Price, Quantity, TradeSide, TradeSize,
+};
 
 use crate::db::models::{FundingSettlementRow, OhlcCandleRow};
 
 use super::{
     super::{
         core::{
-            ClosedTradeHistory, PriceTrigger, RunningTradesMap, Stoploss, TradeClosed, TradeCore,
-            TradeExecutor, TradeRunning, TradeRunningExt, TradingState,
+            ClosedTradeHistory, CrossTradingState, PriceTrigger, RunningTradesMap, Stoploss,
+            TradeClosed, TradeCore, TradeExecutor, TradeRunning, TradeRunningExt, TradingState,
         },
         error::TradeExecutorResult,
     },
@@ -49,6 +51,7 @@ struct SimulatedTradeExecutorState {
     realized_pl: i64,
     closed_history: Arc<ClosedTradeHistory>,
     closed_fees: u64,
+    cross_state: CrossTradingState,
 }
 
 pub(super) struct SimulatedTradeExecutor {
@@ -73,6 +76,7 @@ impl SimulatedTradeExecutor {
             realized_pl: 0,
             closed_history: Arc::new(ClosedTradeHistory::new()),
             closed_fees: 0,
+            cross_state: CrossTradingState::initial(),
         };
 
         Arc::new(Self {
@@ -587,6 +591,42 @@ impl TradeExecutor for SimulatedTradeExecutor {
         Ok(self.close_running(Close::All).await?)
     }
 
+    async fn cross_deposit(&self, _amount: NonZeroU64) -> TradeExecutorResult<()> {
+        Err(SimulatedTradeExecutorError::CrossMarginNotImplemented {
+            operation: "cross_deposit",
+        })?
+    }
+
+    async fn cross_withdraw(&self, _amount: NonZeroU64) -> TradeExecutorResult<()> {
+        Err(SimulatedTradeExecutorError::CrossMarginNotImplemented {
+            operation: "cross_withdraw",
+        })?
+    }
+
+    async fn cross_set_leverage(&self, _leverage: CrossLeverage) -> TradeExecutorResult<()> {
+        Err(SimulatedTradeExecutorError::CrossMarginNotImplemented {
+            operation: "cross_set_leverage",
+        })?
+    }
+
+    async fn cross_market_long(&self, _quantity: Quantity) -> TradeExecutorResult<Uuid> {
+        Err(SimulatedTradeExecutorError::CrossMarginNotImplemented {
+            operation: "cross_market_long",
+        })?
+    }
+
+    async fn cross_market_short(&self, _quantity: Quantity) -> TradeExecutorResult<Uuid> {
+        Err(SimulatedTradeExecutorError::CrossMarginNotImplemented {
+            operation: "cross_market_short",
+        })?
+    }
+
+    async fn cross_close_position(&self) -> TradeExecutorResult<Option<Uuid>> {
+        Err(SimulatedTradeExecutorError::CrossMarginNotImplemented {
+            operation: "cross_close_position",
+        })?
+    }
+
     async fn trading_state(&self) -> TradeExecutorResult<TradingState> {
         let state_guard = self.state.lock().await;
 
@@ -600,6 +640,7 @@ impl TradeExecutor for SimulatedTradeExecutor {
             state_guard.realized_pl,
             state_guard.closed_history.clone(),
             state_guard.closed_fees,
+            state_guard.cross_state,
         );
 
         Ok(trades_state)

@@ -51,6 +51,9 @@ pub enum SimulatedTradeExecutorError {
     #[error("Stoploss evaluation error")]
     StoplossEvaluation(TradeCoreError),
 
+    #[error("Cross-margin operation {operation} is not implemented for simulated backtests yet")]
+    CrossMarginNotImplemented { operation: &'static str },
+
     #[error("Closed history update error")]
     ClosedHistoryUpdate(TradeCoreError),
 }
