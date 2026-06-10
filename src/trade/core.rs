@@ -1386,6 +1386,25 @@ pub trait TradeExecutor: Send + Sync {
     /// Closes all open positions (both long and short). Returns the UUIDs of the closed trades.
     async fn close_all(&self) -> TradeExecutorResult<Vec<Uuid>>;
 
+    /// Transfers satoshis from isolated/free balance into the cross-margin account.
+    async fn cross_deposit(&self, amount: NonZeroU64) -> TradeExecutorResult<()>;
+
+    /// Transfers satoshis from the cross-margin account back to isolated/free balance.
+    async fn cross_withdraw(&self, amount: NonZeroU64) -> TradeExecutorResult<()>;
+
+    /// Sets the account-level cross-margin leverage.
+    async fn cross_set_leverage(&self, leverage: CrossLeverage) -> TradeExecutorResult<()>;
+
+    /// Places a cross-margin market long order and returns the cross-order UUID.
+    async fn cross_market_long(&self, quantity: Quantity) -> TradeExecutorResult<Uuid>;
+
+    /// Places a cross-margin market short order and returns the cross-order UUID.
+    async fn cross_market_short(&self, quantity: Quantity) -> TradeExecutorResult<Uuid>;
+
+    /// Closes the full cross-margin position, returning the closing cross-order UUID when a
+    /// position was open.
+    async fn cross_close_position(&self) -> TradeExecutorResult<Option<Uuid>>;
+
     /// Returns the current trading state including balance, positions, and metrics.
     async fn trading_state(&self) -> TradeExecutorResult<TradingState>;
 }
