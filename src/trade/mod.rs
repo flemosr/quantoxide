@@ -13,8 +13,8 @@ pub use backtest::{
     },
 };
 pub use core::{
-    ClosedTradeHistory, DynRunningTradesMap, Raw, RawOperator, RunningTradesMap, SignalOperator,
-    Stoploss, TradeClosed, TradeCore, TradeExecutor, TradeReference, TradeRunning,
+    ClosedTradeHistory, CrossTradingState, DynRunningTradesMap, Raw, RawOperator, RunningTradesMap,
+    SignalOperator, Stoploss, TradeClosed, TradeCore, TradeExecutor, TradeReference, TradeRunning,
     TradeTrailingStoploss, TradingState,
 };
 pub use live::{
