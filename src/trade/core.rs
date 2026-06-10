@@ -669,6 +669,7 @@ pub struct TradingState {
     realized_pl: i64,
     closed_history: Arc<ClosedTradeHistory>,
     closed_fees: u64,
+    cross_state: CrossTradingState,
 }
 
 impl TradingState {
@@ -683,6 +684,7 @@ impl TradingState {
         realized_pl: i64,
         closed_history: Arc<ClosedTradeHistory>,
         closed_fees: u64,
+        cross_state: CrossTradingState,
     ) -> Self {
         Self {
             last_tick_time,
@@ -695,6 +697,7 @@ impl TradingState {
             realized_pl,
             closed_history,
             closed_fees,
+            cross_state,
         }
     }
 
@@ -751,6 +754,7 @@ impl TradingState {
         self.balance
             .saturating_add(self.running_margin())
             .saturating_add_signed(self.running_pl())
+            .saturating_add(self.cross_state.net_value())
     }
 
     /// Returns the available balance (in satoshis) not locked in trades.
@@ -867,6 +871,11 @@ impl TradingState {
         self.running_fees() + self.closed_fees()
     }
 
+    /// Returns the cross-margin state snapshot.
+    pub fn cross_state(&self) -> &CrossTradingState {
+        &self.cross_state
+    }
+
     /// Returns a formatted string containing a comprehensive summary of the trading state including
     /// timing information, balances, positions, and metrics.
     pub fn summary(&self) -> String {
@@ -933,6 +942,62 @@ impl TradingState {
         result.push_str(&format!("  P/L:    {:>w$} sats\n", rpl));
         result.push_str(&format!("  Fees:   {:>w$} sats\n", rf));
         result.push_str(&format!("  Margin: {:>w$} sats\n\n", rm));
+
+        // Cross Margin
+        let cross_state = self.cross_state();
+        let cross_entry = cross_state
+            .entry_price()
+            .map_or("-".to_string(), |p| format!("{:.1}", p));
+        let cross_liquidation = cross_state
+            .liquidation()
+            .map_or("-".to_string(), |p| format!("{:.1}", p));
+        let cm = cross_state.margin().to_string();
+        let cf = cross_state.free_margin().to_string();
+        let cnv = cross_state.net_value().to_string();
+        let cq = cross_state.quantity().to_string();
+        let clev = cross_state.leverage().as_u64().to_string();
+        let cim = cross_state.initial_margin().to_string();
+        let cmm = cross_state.maintenance_margin().to_string();
+        let crm = cross_state.running_margin().to_string();
+        let ctf = cross_state.trading_fees().to_string();
+        let cff = cross_state.session_funding_fees().to_string();
+        let cpl = cross_state.total_pl().to_string();
+        let cdp = cross_state.delta_pl().to_string();
+        let w = [
+            &cm,
+            &cf,
+            &cnv,
+            &cq,
+            &clev,
+            &cross_entry,
+            &cross_liquidation,
+            &cim,
+            &cmm,
+            &crm,
+            &ctf,
+            &cff,
+            &cpl,
+            &cdp,
+        ]
+        .iter()
+        .map(|s| s.len())
+        .max()
+        .unwrap_or(0);
+        result.push_str("Cross Margin:\n");
+        result.push_str(&format!("  Margin:           {:>w$} sats\n", cm));
+        result.push_str(&format!("  Free margin:      {:>w$} sats\n", cf));
+        result.push_str(&format!("  Net value:        {:>w$} sats\n", cnv));
+        result.push_str(&format!("  Quantity:         {:>w$} USD\n", cq));
+        result.push_str(&format!("  Leverage:         {:>w$}\n", clev));
+        result.push_str(&format!("  Entry price:      {:>w$}\n", cross_entry));
+        result.push_str(&format!("  Liquidation:      {:>w$}\n", cross_liquidation));
+        result.push_str(&format!("  Initial margin:   {:>w$} sats\n", cim));
+        result.push_str(&format!("  Maintenance:      {:>w$} sats\n", cmm));
+        result.push_str(&format!("  Running margin:   {:>w$} sats\n", crm));
+        result.push_str(&format!("  Trading fees:     {:>w$} sats\n", ctf));
+        result.push_str(&format!("  Funding fees:     {:>w$} sats\n", cff));
+        result.push_str(&format!("  Total P/L:        {:>w$} sats\n", cpl));
+        result.push_str(&format!("  Delta P/L:        {:>w$} sats\n\n", cdp));
 
         // Funding / Realized
         let ff = self.funding_fees.to_string();
