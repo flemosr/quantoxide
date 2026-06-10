@@ -14,8 +14,8 @@ use crate::{db::Database, util::DateTimeExt};
 
 use super::super::super::{
     super::core::{
-        ClosedTradeHistory, DynRunningTradesMap, PriceTrigger, RunningTradesMap, TradeRunningExt,
-        TradeTrailingStoploss, TradingState,
+        ClosedTradeHistory, CrossTradingState, DynRunningTradesMap, PriceTrigger, RunningTradesMap,
+        TradeRunningExt, TradeTrailingStoploss, TradingState,
     },
     executor::{
         WrappedRestClient,
@@ -499,6 +499,7 @@ impl From<LiveTradingSession> for TradingState {
             value.realized_pl,
             value.closed_history,
             value.closed_fees,
+            CrossTradingState::initial(),
         )
     }
 }

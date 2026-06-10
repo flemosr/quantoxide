@@ -81,6 +81,9 @@ pub enum ExecutorActionError {
     #[error("Unexpected closed trade returned by the server. Id: {trade_id}")]
     UnexpectedClosedTrade { trade_id: Uuid },
 
+    #[error("Cross-margin operation {operation} is not supported by the live trade executor yet")]
+    CrossMarginUnsupported { operation: &'static str },
+
     #[error("Closed trade not confirmed by the server. Id: {trade_id}")]
     ClosedTradeNotConfirmed { trade_id: Uuid },
 }

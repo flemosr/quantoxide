@@ -17,7 +17,10 @@ use uuid::Uuid;
 
 use lnm_sdk::api_v3::{
     RestClient,
-    models::{ClientId, Leverage, PercentageCapped, Price, TradeSide, TradeSize, trade_util},
+    models::{
+        ClientId, CrossLeverage, Leverage, PercentageCapped, Price, Quantity, TradeSide, TradeSize,
+        trade_util,
+    },
 };
 
 use crate::{
@@ -477,6 +480,43 @@ impl TradeExecutor for LiveTradeExecutor {
             .await;
 
         Ok(closed_ids)
+    }
+
+    async fn cross_deposit(&self, _amount: NonZeroU64) -> TradeExecutorResult<()> {
+        Err(ExecutorActionError::CrossMarginUnsupported {
+            operation: "cross_deposit",
+        })?
+    }
+
+    async fn cross_withdraw(&self, _amount: NonZeroU64) -> TradeExecutorResult<()> {
+        Err(ExecutorActionError::CrossMarginUnsupported {
+            operation: "cross_withdraw",
+        })?
+    }
+
+    async fn cross_set_leverage(&self, _leverage: CrossLeverage) -> TradeExecutorResult<()> {
+        Err(ExecutorActionError::CrossMarginUnsupported {
+            operation: "cross_set_leverage",
+        })?
+    }
+
+    async fn cross_market_long(&self, _quantity: Quantity) -> TradeExecutorResult<Uuid> {
+        Err(ExecutorActionError::CrossMarginUnsupported {
+            operation: "cross_market_long",
+        })?
+    }
+
+    async fn cross_market_short(&self, _quantity: Quantity) -> TradeExecutorResult<Uuid> {
+        Err(ExecutorActionError::CrossMarginUnsupported {
+            operation: "cross_market_short",
+        })?
+    }
+
+    async fn cross_close_position(&self) -> TradeExecutorResult<Option<Uuid>> {
+        // Future live cross support must use `FuturesCrossRepository::close_position`.
+        Err(ExecutorActionError::CrossMarginUnsupported {
+            operation: "cross_close_position",
+        })?
     }
 
     async fn trading_state(&self) -> TradeExecutorResult<TradingState> {
