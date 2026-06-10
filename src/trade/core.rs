@@ -14,8 +14,8 @@ use uuid::Uuid;
 use lnm_sdk::api_v3::{
     error::TradeValidationError,
     models::{
-        ClientId, Leverage, Margin, Percentage, PercentageCapped, Price, Quantity, SATS_PER_BTC,
-        Trade, TradeSide, TradeSize, trade_util,
+        ClientId, CrossLeverage, Leverage, Margin, Percentage, PercentageCapped, Price, Quantity,
+        SATS_PER_BTC, Trade, TradeSide, TradeSize, trade_util,
     },
 };
 
@@ -522,6 +522,136 @@ struct RunningStats {
     short_quantity: u64,
     pl: i64,
     fees: u64,
+}
+
+/// Snapshot of the account-level cross-margin state.
+///
+/// This mirrors the cross-position metrics exposed by LN Markets while keeping cross-margin
+/// accounting separate from isolated running/closed trade metrics.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct CrossTradingState {
+    margin: u64,
+    quantity: i64,
+    leverage: CrossLeverage,
+    entry_price: Option<Price>,
+    liquidation: Option<Price>,
+    running_margin: u64,
+    maintenance_margin: u64,
+    trading_fees: u64,
+    session_funding_fees: i64,
+    total_pl: i64,
+    delta_pl: i64,
+}
+
+impl CrossTradingState {
+    /// Returns the initial/empty cross-margin state.
+    pub fn initial() -> Self {
+        Self {
+            margin: 0,
+            quantity: 0,
+            leverage: CrossLeverage::MIN,
+            entry_price: None,
+            liquidation: None,
+            running_margin: 0,
+            maintenance_margin: 0,
+            trading_fees: 0,
+            session_funding_fees: 0,
+            total_pl: 0,
+            delta_pl: 0,
+        }
+    }
+
+    /// Returns the cross account margin in satoshis.
+    pub fn margin(&self) -> u64 {
+        self.margin
+    }
+
+    /// Returns the signed cross position quantity in USD notional.
+    pub fn quantity(&self) -> i64 {
+        self.quantity
+    }
+
+    /// Returns the configured cross account leverage.
+    pub fn leverage(&self) -> CrossLeverage {
+        self.leverage
+    }
+
+    /// Returns the cross position entry price, if a position is open.
+    pub fn entry_price(&self) -> Option<Price> {
+        self.entry_price
+    }
+
+    /// Returns the cross position liquidation price, if a position is open.
+    pub fn liquidation(&self) -> Option<Price> {
+        self.liquidation
+    }
+
+    /// Returns the current initial margin allocated to the cross position.
+    ///
+    /// Our observed LN Markets model reports this as equal to `running_margin`, and both values
+    /// update with the current position allocation. The simulator stores the value as running
+    /// margin and exposes it here for SDK-shaped state reporting.
+    pub fn initial_margin(&self) -> u64 {
+        self.running_margin
+    }
+
+    /// Returns the current maintenance margin for the cross position.
+    pub fn maintenance_margin(&self) -> u64 {
+        self.maintenance_margin
+    }
+
+    /// Returns the current running margin for the cross position.
+    pub fn running_margin(&self) -> u64 {
+        self.running_margin
+    }
+
+    /// Returns current-session cross trading fees.
+    pub fn trading_fees(&self) -> u64 {
+        self.trading_fees
+    }
+
+    /// Returns current-session cross funding fees.
+    ///
+    /// Positive -> net cost
+    /// Negative -> net revenue
+    pub fn session_funding_fees(&self) -> i64 {
+        self.session_funding_fees
+    }
+
+    /// Returns current-session realized plus unrealized cross P/L.
+    pub fn total_pl(&self) -> i64 {
+        self.total_pl
+    }
+
+    /// Returns the latest cross P/L delta.
+    pub fn delta_pl(&self) -> i64 {
+        self.delta_pl
+    }
+
+    /// Returns the cross account net asset value in satoshis.
+    pub fn net_value(&self) -> u64 {
+        self.margin.saturating_add_signed(self.total_pl)
+    }
+
+    /// Returns cross free margin in satoshis.
+    ///
+    /// Running margin absorbs negative P/L first. When the loss exceeds running margin, the excess
+    /// loss is deducted from free margin.
+    pub fn free_margin(&self) -> u64 {
+        let loss = self.total_pl.min(0).unsigned_abs();
+        let excess_loss = loss.saturating_sub(self.running_margin);
+
+        self.margin
+            .saturating_sub(self.running_margin)
+            .saturating_sub(self.maintenance_margin)
+            .saturating_sub(excess_loss)
+    }
+}
+
+impl Default for CrossTradingState {
+    fn default() -> Self {
+        Self::initial()
+    }
 }
 
 /// Comprehensive snapshot of the current trading state including balance, running trades, and
