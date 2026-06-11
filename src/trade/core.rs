@@ -530,6 +530,7 @@ struct RunningStats {
 /// accounting separate from isolated running/closed trade metrics.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CrossTradingState {
+    market_price: Price,
     margin: u64,
     quantity: i64,
     leverage: CrossLeverage,
@@ -539,26 +540,39 @@ pub struct CrossTradingState {
     maintenance_margin: u64,
     trading_fees: u64,
     session_funding_fees: i64,
-    total_pl: i64,
-    delta_pl: i64,
 }
 
 impl CrossTradingState {
-    /// Returns the initial/empty cross-margin state.
-    pub fn initial() -> Self {
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn new(
+        market_price: Price,
+        margin: u64,
+        quantity: i64,
+        leverage: CrossLeverage,
+        entry_price: Option<Price>,
+        liquidation: Option<Price>,
+        running_margin: u64,
+        maintenance_margin: u64,
+        trading_fees: u64,
+        session_funding_fees: i64,
+    ) -> Self {
         Self {
-            margin: 0,
-            quantity: 0,
-            leverage: CrossLeverage::MIN,
-            entry_price: None,
-            liquidation: None,
-            running_margin: 0,
-            maintenance_margin: 0,
-            trading_fees: 0,
-            session_funding_fees: 0,
-            total_pl: 0,
-            delta_pl: 0,
+            market_price,
+            margin,
+            quantity,
+            leverage,
+            entry_price,
+            liquidation,
+            running_margin,
+            maintenance_margin,
+            trading_fees,
+            session_funding_fees,
         }
+    }
+
+    /// Returns the market price used for cross P/L calculations.
+    pub fn market_price(&self) -> Price {
+        self.market_price
     }
 
     /// Returns the cross account margin in satoshis.
@@ -618,19 +632,29 @@ impl CrossTradingState {
         self.session_funding_fees
     }
 
-    /// Returns current-session realized plus unrealized cross P/L.
-    pub fn total_pl(&self) -> i64 {
-        self.total_pl
-    }
+    /// Returns current cross position running P/L at the stored market price.
+    pub fn running_pl(&self) -> i64 {
+        let Some(entry_price) = self.entry_price else {
+            return 0;
+        };
+        if self.quantity == 0 {
+            return 0;
+        }
 
-    /// Returns the latest cross P/L delta.
-    pub fn delta_pl(&self) -> i64 {
-        self.delta_pl
+        let side = if self.quantity > 0 {
+            TradeSide::Buy
+        } else {
+            TradeSide::Sell
+        };
+        let quantity = Quantity::try_from(self.quantity.unsigned_abs())
+            .expect("cross position quantity must fit Quantity");
+
+        trade_util::estimate_pl(side, quantity, entry_price, self.market_price).floor() as i64
     }
 
     /// Returns the cross account net asset value in satoshis.
     pub fn net_value(&self) -> u64 {
-        self.margin.saturating_add_signed(self.total_pl)
+        self.margin.saturating_add_signed(self.running_pl())
     }
 
     /// Returns cross free margin in satoshis.
@@ -638,19 +662,13 @@ impl CrossTradingState {
     /// Running margin absorbs negative P/L first. When the loss exceeds running margin, the excess
     /// loss is deducted from free margin.
     pub fn free_margin(&self) -> u64 {
-        let loss = self.total_pl.min(0).unsigned_abs();
+        let loss = self.running_pl().min(0).unsigned_abs();
         let excess_loss = loss.saturating_sub(self.running_margin);
 
         self.margin
             .saturating_sub(self.running_margin)
             .saturating_sub(self.maintenance_margin)
             .saturating_sub(excess_loss)
-    }
-}
-
-impl Default for CrossTradingState {
-    fn default() -> Self {
-        Self::initial()
     }
 }
 
@@ -961,8 +979,7 @@ impl TradingState {
         let crm = cross_state.running_margin().to_string();
         let ctf = cross_state.trading_fees().to_string();
         let cff = cross_state.session_funding_fees().to_string();
-        let cpl = cross_state.total_pl().to_string();
-        let cdp = cross_state.delta_pl().to_string();
+        let cpl = cross_state.running_pl().to_string();
         let w = [
             &cm,
             &cf,
@@ -977,7 +994,6 @@ impl TradingState {
             &ctf,
             &cff,
             &cpl,
-            &cdp,
         ]
         .iter()
         .map(|s| s.len())
@@ -996,8 +1012,7 @@ impl TradingState {
         result.push_str(&format!("  Running margin:   {:>w$} sats\n", crm));
         result.push_str(&format!("  Trading fees:     {:>w$} sats\n", ctf));
         result.push_str(&format!("  Funding fees:     {:>w$} sats\n", cff));
-        result.push_str(&format!("  Total P/L:        {:>w$} sats\n", cpl));
-        result.push_str(&format!("  Delta P/L:        {:>w$} sats\n\n", cdp));
+        result.push_str(&format!("  P/L:              {:>w$} sats\n\n", cpl));
 
         // Funding / Realized
         let ff = self.funding_fees.to_string();
