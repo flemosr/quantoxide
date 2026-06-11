@@ -6,17 +6,119 @@ use uuid::Uuid;
 use lnm_sdk::api_v3::{
     error::LeverageValidationError,
     models::{
-        ClientId, Leverage, Margin, PercentageCapped, Price, Quantity, SATS_PER_BTC, TradeSide,
-        TradeSize, trade_util,
+        ClientId, CrossLeverage, Leverage, Margin, PercentageCapped, Price, Quantity, SATS_PER_BTC,
+        TradeSide, TradeSize, trade_util,
     },
 };
 
-use crate::db::models::FundingSettlementRow;
+use crate::db::models::{FundingSettlementRow, OhlcCandleRow};
 
 use super::{
-    super::super::core::{TradeClosed, TradeCore, TradeRunning},
+    super::super::core::{CrossPositionCore, TradeClosed, TradeCore, TradeRunning},
+    cross_helpers::{
+        abs_cross_quantity, cross_maintenance_margin, cross_running_margin,
+        estimate_cross_liquidation,
+    },
     error::{SimulatedTradeExecutorError, SimulatedTradeExecutorResult},
 };
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(super) struct SimulatedCrossPosition {
+    margin: u64,
+    quantity: i64,
+    leverage: CrossLeverage,
+    entry_price: Option<Price>,
+    trading_fees: u64,
+    session_funding_fees: i64,
+}
+
+impl SimulatedCrossPosition {
+    pub fn initial(start_candle: &OhlcCandleRow) -> Self {
+        Self::new(start_candle.open, 0, 0, CrossLeverage::MIN, None, 0, 0)
+            .expect("initial simulated cross position must be valid")
+    }
+
+    pub fn new(
+        market_price: f64,
+        margin: u64,
+        quantity: i64,
+        leverage: CrossLeverage,
+        entry_price: Option<Price>,
+        trading_fees: u64,
+        session_funding_fees: i64,
+    ) -> SimulatedTradeExecutorResult<Self> {
+        let state = Self {
+            margin,
+            quantity,
+            leverage,
+            entry_price,
+            trading_fees,
+            session_funding_fees,
+        };
+
+        let free_margin = state.est_free_margin(Price::bounded(market_price));
+
+        if state.quantity != 0 && free_margin == 0 {
+            return Err(SimulatedTradeExecutorError::CrossMarginTooLow);
+        }
+
+        Ok(state)
+    }
+}
+
+impl SimulatedCrossPosition {
+    pub fn session_funding_fees(&self) -> i64 {
+        self.session_funding_fees
+    }
+}
+
+impl crate::sealed::Sealed for SimulatedCrossPosition {}
+
+impl CrossPositionCore for SimulatedCrossPosition {
+    fn margin(&self) -> u64 {
+        self.margin
+    }
+
+    fn quantity(&self) -> i64 {
+        self.quantity
+    }
+
+    fn leverage(&self) -> CrossLeverage {
+        self.leverage
+    }
+
+    fn entry_price(&self) -> Option<Price> {
+        self.entry_price
+    }
+
+    fn liquidation(&self) -> Option<Price> {
+        estimate_cross_liquidation(self.quantity, self.entry_price, self.margin)
+    }
+
+    fn initial_margin(&self) -> u64 {
+        self.running_margin()
+    }
+
+    fn running_margin(&self) -> u64 {
+        abs_cross_quantity(self.quantity)
+            .zip(self.entry_price)
+            .map(|(quantity, entry_price)| {
+                cross_running_margin(quantity, entry_price, self.leverage)
+            })
+            .unwrap_or_default()
+    }
+
+    fn maintenance_margin(&self) -> u64 {
+        abs_cross_quantity(self.quantity)
+            .zip(self.entry_price)
+            .map(|(quantity, entry_price)| cross_maintenance_margin(quantity, entry_price))
+            .unwrap_or_default()
+    }
+
+    fn trading_fees(&self) -> u64 {
+        self.trading_fees
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct SimulatedTradeRunning {
