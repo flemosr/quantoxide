@@ -709,10 +709,10 @@ impl TradeExecutor for SimulatedTradeExecutor {
             .await?)
     }
 
-    async fn cross_market_short(&self, _quantity: Quantity) -> TradeExecutorResult<Uuid> {
-        Err(SimulatedTradeExecutorError::CrossMarginNotImplemented {
-            operation: "cross_market_short",
-        })?
+    async fn cross_market_short(&self, quantity: Quantity) -> TradeExecutorResult<Uuid> {
+        Ok(self
+            .execute_cross_market_order(TradeSide::Sell, quantity)
+            .await?)
     }
 
     async fn cross_close_position(&self) -> TradeExecutorResult<Option<Uuid>> {
