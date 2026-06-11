@@ -42,6 +42,15 @@ pub enum SimulatedTradeExecutorError {
     #[error("Balance is too high error")]
     BalanceTooHigh,
 
+    #[error("Cross margin is too low error")]
+    CrossMarginTooLow,
+
+    #[error("Cross margin is too high error")]
+    CrossMarginTooHigh,
+
+    #[error("Cross free margin is too low error")]
+    CrossFreeMarginTooLow,
+
     #[error("Trade {trade_id} is not running")]
     TradeNotRunning { trade_id: Uuid },
 
