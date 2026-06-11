@@ -638,7 +638,6 @@ impl CrossPositionCore for CrossPosition {
     }
 }
 
-
 /// Comprehensive snapshot of the current trading state including balance, running trades, and
 /// performance metrics. This type provides a complete view of a trading session at a specific point
 /// in time.
@@ -937,7 +936,9 @@ impl TradingState {
             .liquidation()
             .map_or("-".to_string(), |p| format!("{:.1}", p));
         let cm = cross_position.margin().to_string();
-        let cf = cross_position.est_free_margin(self.market_price).to_string();
+        let cf = cross_position
+            .est_free_margin(self.market_price)
+            .to_string();
         let cnv = cross_position.est_net_value(self.market_price).to_string();
         let cq = cross_position.quantity().to_string();
         let clev = cross_position.leverage().as_u64().to_string();
