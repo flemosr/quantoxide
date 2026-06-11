@@ -1,3 +1,5 @@
+use std::num::NonZeroU64;
+
 use crate::{db::models::FundingSettlementRow, util::DateTimeExt};
 
 use super::*;
@@ -5,7 +7,7 @@ use super::*;
 use chrono::Duration;
 
 use lnm_sdk::api_v3::models::{
-    ClientId, Leverage, Margin, PercentageCapped, Quantity, SATS_PER_BTC,
+    ClientId, CrossLeverage, Leverage, Margin, PercentageCapped, Quantity, SATS_PER_BTC,
 };
 
 fn next_candle(prev: &OhlcCandleRow, price: f64) -> OhlcCandleRow {
@@ -1858,6 +1860,293 @@ async fn test_funding_settlement_margin_sized_1x_not_force_closed() -> TradeExec
         trade.leverage(),
         Leverage::MIN,
         "Post-settlement leverage should be clamped to `Leverage::MIN`",
+    );
+
+    Ok(())
+}
+
+async fn seed_cross_position(
+    executor: &SimulatedTradeExecutor,
+    margin: u64,
+    quantity: i64,
+    leverage: CrossLeverage,
+    entry_price: Price,
+) {
+    let mut state_guard = executor.state.lock().await;
+    state_guard.cross_position = SimulatedCrossPosition::new(
+        state_guard.market_price,
+        margin,
+        quantity,
+        leverage,
+        Some(entry_price),
+        0,
+        0,
+    )
+    .expect("seeded cross position must be valid");
+}
+
+#[tokio::test]
+async fn test_simulated_trade_executor_cross_deposit_moves_balance_to_margin()
+-> TradeExecutorResult<()> {
+    let candle = OhlcCandleRow::new_simple(Utc::now().floor_minute(), 100_000.0, 1_000);
+    let start_balance = 1_000_000;
+    let executor = SimulatedTradeExecutor::new(
+        SimulatedTradeExecutorConfig::default(),
+        &candle,
+        start_balance,
+    );
+
+    let cross_position = executor
+        .cross_deposit(NonZeroU64::new(100_000).unwrap())
+        .await?;
+    assert_eq!(cross_position.margin(), 100_000);
+
+    let state = executor.trading_state().await?;
+    assert_eq!(state.balance(), 900_000);
+    assert_eq!(state.cross_position().margin(), 100_000);
+    assert_eq!(
+        state.cross_position().est_free_margin(state.market_price()),
+        100_000
+    );
+    assert_eq!(
+        state.cross_position().est_net_value(state.market_price()),
+        100_000
+    );
+    assert_eq!(state.cross_position().quantity(), 0);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_simulated_trade_executor_cross_deposit_rejects_insufficient_balance()
+-> TradeExecutorResult<()> {
+    let candle = OhlcCandleRow::new_simple(Utc::now().floor_minute(), 100_000.0, 1_000);
+    let start_balance = 1_000_000;
+    let executor = SimulatedTradeExecutor::new(
+        SimulatedTradeExecutorConfig::default(),
+        &candle,
+        start_balance,
+    );
+
+    let result = executor
+        .cross_deposit(NonZeroU64::new(1_000_001).unwrap())
+        .await;
+
+    assert!(result.is_err());
+    let state = executor.trading_state().await?;
+    assert_eq!(state.balance(), start_balance);
+    assert_eq!(state.cross_position().margin(), 0);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_simulated_trade_executor_cross_withdraw_moves_margin_to_balance()
+-> TradeExecutorResult<()> {
+    let candle = OhlcCandleRow::new_simple(Utc::now().floor_minute(), 100_000.0, 1_000);
+    let start_balance = 1_000_000;
+    let executor = SimulatedTradeExecutor::new(
+        SimulatedTradeExecutorConfig::default(),
+        &candle,
+        start_balance,
+    );
+
+    executor
+        .cross_deposit(NonZeroU64::new(100_000).unwrap())
+        .await?;
+    let cross_position = executor
+        .cross_withdraw(NonZeroU64::new(40_000).unwrap())
+        .await?;
+    assert_eq!(cross_position.margin(), 60_000);
+
+    let state = executor.trading_state().await?;
+    assert_eq!(state.balance(), 940_000);
+    assert_eq!(state.cross_position().margin(), 60_000);
+    assert_eq!(
+        state.cross_position().est_free_margin(state.market_price()),
+        60_000
+    );
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_simulated_trade_executor_cross_withdraw_rejects_amount_above_free_margin()
+-> TradeExecutorResult<()> {
+    let candle = OhlcCandleRow::new_simple(Utc::now().floor_minute(), 100_000.0, 1_000);
+    let start_balance = 1_000_000;
+    let executor = SimulatedTradeExecutor::new(
+        SimulatedTradeExecutorConfig::default(),
+        &candle,
+        start_balance,
+    );
+
+    executor
+        .cross_deposit(NonZeroU64::new(100_000).unwrap())
+        .await?;
+    let result = executor
+        .cross_withdraw(NonZeroU64::new(100_001).unwrap())
+        .await;
+
+    assert!(result.is_err());
+    let state = executor.trading_state().await?;
+    assert_eq!(state.balance(), 900_000);
+    assert_eq!(state.cross_position().margin(), 100_000);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_simulated_trade_executor_cross_withdraw_respects_nav_constraint()
+-> TradeExecutorResult<()> {
+    let candle = OhlcCandleRow::new_simple(Utc::now().floor_minute(), 100_000.0, 1_000);
+    let start_balance = 1_000_000;
+    let executor = SimulatedTradeExecutor::new(
+        SimulatedTradeExecutorConfig::default(),
+        &candle,
+        start_balance,
+    );
+
+    seed_cross_position(
+        &executor,
+        113_000,
+        1_000,
+        CrossLeverage::try_from(10).unwrap(),
+        Price::bounded(100_000.0),
+    )
+    .await;
+    executor
+        .candle_update(&next_candle(&candle, 90_000.0))
+        .await?;
+
+    // Add one sat so the fixture has exactly 389 sats of estimated free margin after the loss.
+    executor.cross_deposit(NonZeroU64::new(1).unwrap()).await?;
+
+    let state = executor.trading_state().await?;
+    assert!(state.cross_position().est_running_pl(state.market_price()) < 0);
+    assert!(
+        state
+            .cross_position()
+            .est_running_pl(state.market_price())
+            .unsigned_abs()
+            > state.cross_position().running_margin()
+    );
+    assert_eq!(
+        state.cross_position().est_free_margin(state.market_price()),
+        389
+    );
+
+    let result = executor.cross_withdraw(NonZeroU64::new(390).unwrap()).await;
+    assert!(result.is_err());
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_simulated_trade_executor_cross_set_leverage_persists_while_flat()
+-> TradeExecutorResult<()> {
+    let candle = OhlcCandleRow::new_simple(Utc::now().floor_minute(), 100_000.0, 1_000);
+    let start_balance = 1_000_000;
+    let executor = SimulatedTradeExecutor::new(
+        SimulatedTradeExecutorConfig::default(),
+        &candle,
+        start_balance,
+    );
+    let leverage = CrossLeverage::try_from(10).unwrap();
+
+    let cross_position = executor.cross_set_leverage(leverage).await?;
+    assert_eq!(cross_position.leverage(), leverage);
+
+    let state = executor.trading_state().await?;
+    assert_eq!(state.balance(), start_balance);
+    assert_eq!(state.cross_position().margin(), 0);
+    assert_eq!(state.cross_position().leverage(), leverage);
+    assert_eq!(state.cross_position().running_margin(), 0);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_simulated_trade_executor_cross_set_leverage_reallocates_running_margin()
+-> TradeExecutorResult<()> {
+    let candle = OhlcCandleRow::new_simple(Utc::now().floor_minute(), 100_000.0, 1_000);
+    let start_balance = 1_000_000;
+    let executor = SimulatedTradeExecutor::new(
+        SimulatedTradeExecutorConfig::default(),
+        &candle,
+        start_balance,
+    );
+    let entry_price = Price::bounded(100_000.0);
+
+    seed_cross_position(
+        &executor,
+        500_000,
+        1_000,
+        CrossLeverage::try_from(10).unwrap(),
+        entry_price,
+    )
+    .await;
+    executor
+        .cross_set_leverage(CrossLeverage::try_from(20).unwrap())
+        .await?;
+
+    let state = executor.trading_state().await?;
+    assert_eq!(state.cross_position().margin(), 500_000);
+    assert_eq!(state.cross_position().running_margin(), 50_000);
+    assert_eq!(state.cross_position().maintenance_margin(), 1_500);
+    assert_eq!(
+        state.cross_position().est_free_margin(state.market_price()),
+        448_500
+    );
+    assert_eq!(state.cross_position().entry_price(), Some(entry_price));
+
+    executor
+        .cross_set_leverage(CrossLeverage::try_from(5).unwrap())
+        .await?;
+
+    let state = executor.trading_state().await?;
+    assert_eq!(state.cross_position().margin(), 500_000);
+    assert_eq!(state.cross_position().running_margin(), 200_000);
+    assert_eq!(state.cross_position().maintenance_margin(), 1_500);
+    assert_eq!(
+        state.cross_position().est_free_margin(state.market_price()),
+        298_500
+    );
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_simulated_trade_executor_cross_set_leverage_rejects_insufficient_free_margin()
+-> TradeExecutorResult<()> {
+    let candle = OhlcCandleRow::new_simple(Utc::now().floor_minute(), 100_000.0, 1_000);
+    let start_balance = 1_000_000;
+    let executor = SimulatedTradeExecutor::new(
+        SimulatedTradeExecutorConfig::default(),
+        &candle,
+        start_balance,
+    );
+    let leverage = CrossLeverage::try_from(10).unwrap();
+
+    seed_cross_position(
+        &executor,
+        101_501,
+        1_000,
+        leverage,
+        Price::bounded(100_000.0),
+    )
+    .await;
+    let result = executor
+        .cross_set_leverage(CrossLeverage::try_from(5).unwrap())
+        .await;
+
+    assert!(result.is_err());
+    let state = executor.trading_state().await?;
+    assert_eq!(state.cross_position().leverage(), leverage);
+    assert_eq!(state.cross_position().running_margin(), 100_000);
+    assert_eq!(
+        state.cross_position().est_free_margin(state.market_price()),
+        1
     );
 
     Ok(())
