@@ -14,8 +14,8 @@ use crate::{db::Database, util::DateTimeExt};
 
 use super::super::super::{
     super::core::{
-        ClosedTradeHistory, CrossTradingState, DynRunningTradesMap, PriceTrigger, RunningTradesMap,
-        TradeRunningExt, TradeTrailingStoploss, TradingState,
+        ClosedTradeHistory, CrossPositionCore, DynRunningTradesMap, PriceTrigger,
+        RunningTradesMap, TradeRunningExt, TradeTrailingStoploss, TradingState,
     },
     executor::{
         WrappedRestClient,
@@ -26,6 +26,56 @@ use super::super::super::{
 /// Sessions expire 5 minutes past each hour to ensure funding fees settled at the rounded hour are
 /// reflected in the API state before renewal.
 const SESSION_EXPIRY_OFFSET_MIN: u32 = 5;
+
+/// Placeholder cross-position state for live sessions while live cross-margin support is disabled.
+///
+/// This is deliberately scoped to live session construction instead of the shared trade core: it is
+/// not a domain model and should not be used by simulated execution. It only gives `TradingState` a
+/// valid neutral `CrossPositionCore` object until live cross support starts fetching real
+/// `lnm_sdk::api_v3::models::CrossPosition` values from `futures_cross.get_position()` or from
+/// cross mutator responses.
+#[derive(Debug)]
+struct LiveUnsupportedCrossPosition;
+
+impl crate::sealed::Sealed for LiveUnsupportedCrossPosition {}
+
+impl CrossPositionCore for LiveUnsupportedCrossPosition {
+    fn margin(&self) -> u64 {
+        0
+    }
+
+    fn quantity(&self) -> i64 {
+        0
+    }
+
+    fn leverage(&self) -> CrossLeverage {
+        CrossLeverage::MIN
+    }
+
+    fn entry_price(&self) -> Option<Price> {
+        None
+    }
+
+    fn liquidation(&self) -> Option<Price> {
+        None
+    }
+
+    fn initial_margin(&self) -> u64 {
+        0
+    }
+
+    fn running_margin(&self) -> u64 {
+        0
+    }
+
+    fn maintenance_margin(&self) -> u64 {
+        0
+    }
+
+    fn trading_fees(&self) -> u64 {
+        0
+    }
+}
 
 #[derive(Debug, Clone)]
 pub(in crate::trade) struct LiveTradingSession {
@@ -500,18 +550,7 @@ impl From<LiveTradingSession> for TradingState {
             value.realized_pl,
             value.closed_history,
             value.closed_fees,
-            CrossTradingState::new(
-                market_price,
-                0,
-                0,
-                CrossLeverage::MIN,
-                None,
-                None,
-                0,
-                0,
-                0,
-                0,
-            ),
+            Arc::new(LiveUnsupportedCrossPosition),
         )
     }
 }

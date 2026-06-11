@@ -14,8 +14,8 @@ use uuid::Uuid;
 use lnm_sdk::api_v3::{
     error::TradeValidationError,
     models::{
-        ClientId, CrossLeverage, Leverage, Margin, Percentage, PercentageCapped, Price, Quantity,
-        SATS_PER_BTC, Trade, TradeSide, TradeSize, trade_util,
+        ClientId, CrossLeverage, CrossPosition, Leverage, Margin, Percentage, PercentageCapped,
+        Price, Quantity, SATS_PER_BTC, Trade, TradeSide, TradeSize, trade_util,
     },
 };
 
@@ -30,6 +30,7 @@ use crate::{
 use super::error::{TradeCoreError, TradeCoreResult, TradeExecutorResult};
 
 impl crate::sealed::Sealed for Trade {}
+impl crate::sealed::Sealed for CrossPosition {}
 
 /// Generic trade interface used in extension traits.
 ///
@@ -524,153 +525,119 @@ struct RunningStats {
     fees: u64,
 }
 
-/// Snapshot of the account-level cross-margin state.
+/// Generic cross-margin position interface used by both live SDK positions and simulated positions.
 ///
-/// This mirrors the cross-position metrics exposed by LN Markets while keeping cross-margin
-/// accounting separate from isolated running/closed trade metrics.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct CrossTradingState {
-    market_price: Price,
-    margin: u64,
-    quantity: i64,
-    leverage: CrossLeverage,
-    entry_price: Option<Price>,
-    liquidation: Option<Price>,
-    running_margin: u64,
-    maintenance_margin: u64,
-    trading_fees: u64,
-    session_funding_fees: i64,
-}
-
-impl CrossTradingState {
-    #[allow(clippy::too_many_arguments)]
-    pub(crate) fn new(
-        market_price: Price,
-        margin: u64,
-        quantity: i64,
-        leverage: CrossLeverage,
-        entry_price: Option<Price>,
-        liquidation: Option<Price>,
-        running_margin: u64,
-        maintenance_margin: u64,
-        trading_fees: u64,
-        session_funding_fees: i64,
-    ) -> Self {
-        Self {
-            market_price,
-            margin,
-            quantity,
-            leverage,
-            entry_price,
-            liquidation,
-            running_margin,
-            maintenance_margin,
-            trading_fees,
-            session_funding_fees,
-        }
-    }
-
-    /// Returns the market price used for cross P/L calculations.
-    pub fn market_price(&self) -> Price {
-        self.market_price
-    }
-
-    /// Returns the cross account margin in satoshis.
-    pub fn margin(&self) -> u64 {
-        self.margin
-    }
+/// The estimated P/L, NAV, and free-margin helpers take an explicit market price because LN
+/// Markets' live `CrossPosition` does not expose the reference/mark price used for its own P/L
+/// fields. Passing the price explicitly keeps the estimate source clear and lets simulated and live
+/// callers use the same formula.
+pub trait CrossPositionCore: crate::sealed::Sealed + Send + Sync + fmt::Debug + 'static {
+    /// Returns the cross account margin/collateral in satoshis.
+    fn margin(&self) -> u64;
 
     /// Returns the signed cross position quantity in USD notional.
-    pub fn quantity(&self) -> i64 {
-        self.quantity
-    }
+    fn quantity(&self) -> i64;
 
     /// Returns the configured cross account leverage.
-    pub fn leverage(&self) -> CrossLeverage {
-        self.leverage
-    }
+    fn leverage(&self) -> CrossLeverage;
 
     /// Returns the cross position entry price, if a position is open.
-    pub fn entry_price(&self) -> Option<Price> {
-        self.entry_price
-    }
+    fn entry_price(&self) -> Option<Price>;
 
     /// Returns the cross position liquidation price, if a position is open.
-    pub fn liquidation(&self) -> Option<Price> {
-        self.liquidation
-    }
+    fn liquidation(&self) -> Option<Price>;
 
     /// Returns the current initial margin allocated to the cross position.
-    ///
-    /// Our observed LN Markets model reports this as equal to `running_margin`, and both values
-    /// update with the current position allocation. The simulator stores the value as running
-    /// margin and exposes it here for SDK-shaped state reporting.
-    pub fn initial_margin(&self) -> u64 {
-        self.running_margin
-    }
-
-    /// Returns the current maintenance margin for the cross position.
-    pub fn maintenance_margin(&self) -> u64 {
-        self.maintenance_margin
-    }
+    fn initial_margin(&self) -> u64;
 
     /// Returns the current running margin for the cross position.
-    pub fn running_margin(&self) -> u64 {
-        self.running_margin
-    }
+    fn running_margin(&self) -> u64;
 
-    /// Returns current-session cross trading fees.
-    pub fn trading_fees(&self) -> u64 {
-        self.trading_fees
-    }
+    /// Returns the current maintenance margin for the cross position.
+    fn maintenance_margin(&self) -> u64;
 
-    /// Returns current-session cross funding fees.
-    ///
-    /// Positive -> net cost
-    /// Negative -> net revenue
-    pub fn session_funding_fees(&self) -> i64 {
-        self.session_funding_fees
-    }
+    /// Returns cross trading fees.
+    fn trading_fees(&self) -> u64;
 
-    /// Returns current cross position running P/L at the stored market price.
-    pub fn running_pl(&self) -> i64 {
-        let Some(entry_price) = self.entry_price else {
+    /// Estimates current cross position running P/L at the supplied market price.
+    fn est_running_pl(&self, market_price: Price) -> i64 {
+        let Some(entry_price) = self.entry_price() else {
             return 0;
         };
-        if self.quantity == 0 {
+        if self.quantity() == 0 {
             return 0;
         }
 
-        let side = if self.quantity > 0 {
+        let side = if self.quantity() > 0 {
             TradeSide::Buy
         } else {
             TradeSide::Sell
         };
-        let quantity = Quantity::try_from(self.quantity.unsigned_abs())
+        let quantity = Quantity::try_from(self.quantity().unsigned_abs())
             .expect("cross position quantity must fit Quantity");
 
-        trade_util::estimate_pl(side, quantity, entry_price, self.market_price).floor() as i64
+        trade_util::estimate_pl(side, quantity, entry_price, market_price).floor() as i64
     }
 
-    /// Returns the cross account net asset value in satoshis.
-    pub fn net_value(&self) -> u64 {
-        self.margin.saturating_add_signed(self.running_pl())
+    /// Estimates the cross account net asset value at the supplied market price.
+    fn est_net_value(&self, market_price: Price) -> u64 {
+        self.margin()
+            .saturating_add_signed(self.est_running_pl(market_price))
     }
 
-    /// Returns cross free margin in satoshis.
+    /// Estimates cross free margin at the supplied market price.
     ///
     /// Running margin absorbs negative P/L first. When the loss exceeds running margin, the excess
     /// loss is deducted from free margin.
-    pub fn free_margin(&self) -> u64 {
-        let loss = self.running_pl().min(0).unsigned_abs();
-        let excess_loss = loss.saturating_sub(self.running_margin);
+    fn est_free_margin(&self, market_price: Price) -> u64 {
+        let loss = self.est_running_pl(market_price).min(0).unsigned_abs();
+        let excess_loss = loss.saturating_sub(self.running_margin());
 
-        self.margin
-            .saturating_sub(self.running_margin)
-            .saturating_sub(self.maintenance_margin)
+        self.margin()
+            .saturating_sub(self.running_margin())
+            .saturating_sub(self.maintenance_margin())
             .saturating_sub(excess_loss)
     }
 }
+
+impl CrossPositionCore for CrossPosition {
+    fn margin(&self) -> u64 {
+        self.margin()
+    }
+
+    fn quantity(&self) -> i64 {
+        self.quantity()
+    }
+
+    fn leverage(&self) -> CrossLeverage {
+        self.leverage()
+    }
+
+    fn entry_price(&self) -> Option<Price> {
+        self.entry_price()
+    }
+
+    fn liquidation(&self) -> Option<Price> {
+        self.liquidation()
+    }
+
+    fn initial_margin(&self) -> u64 {
+        self.initial_margin()
+    }
+
+    fn running_margin(&self) -> u64 {
+        self.running_margin()
+    }
+
+    fn maintenance_margin(&self) -> u64 {
+        self.maintenance_margin()
+    }
+
+    fn trading_fees(&self) -> u64 {
+        self.trading_fees()
+    }
+}
+
 
 /// Comprehensive snapshot of the current trading state including balance, running trades, and
 /// performance metrics. This type provides a complete view of a trading session at a specific point
@@ -687,7 +654,7 @@ pub struct TradingState {
     realized_pl: i64,
     closed_history: Arc<ClosedTradeHistory>,
     closed_fees: u64,
-    cross_state: CrossTradingState,
+    cross_position: Arc<dyn CrossPositionCore>,
 }
 
 impl TradingState {
@@ -702,7 +669,7 @@ impl TradingState {
         realized_pl: i64,
         closed_history: Arc<ClosedTradeHistory>,
         closed_fees: u64,
-        cross_state: CrossTradingState,
+        cross_position: Arc<dyn CrossPositionCore>,
     ) -> Self {
         Self {
             last_tick_time,
@@ -715,7 +682,7 @@ impl TradingState {
             realized_pl,
             closed_history,
             closed_fees,
-            cross_state,
+            cross_position,
         }
     }
 
@@ -772,7 +739,7 @@ impl TradingState {
         self.balance
             .saturating_add(self.running_margin())
             .saturating_add_signed(self.running_pl())
-            .saturating_add(self.cross_state.net_value())
+            .saturating_add(self.cross_position.est_net_value(self.market_price))
     }
 
     /// Returns the available balance (in satoshis) not locked in trades.
@@ -889,9 +856,9 @@ impl TradingState {
         self.running_fees() + self.closed_fees()
     }
 
-    /// Returns the cross-margin state snapshot.
-    pub fn cross_state(&self) -> &CrossTradingState {
-        &self.cross_state
+    /// Returns the cross-margin position snapshot.
+    pub fn cross_position(&self) -> &dyn CrossPositionCore {
+        self.cross_position.as_ref()
     }
 
     /// Returns a formatted string containing a comprehensive summary of the trading state including
@@ -962,24 +929,23 @@ impl TradingState {
         result.push_str(&format!("  Margin: {:>w$} sats\n\n", rm));
 
         // Cross Margin
-        let cross_state = self.cross_state();
-        let cross_entry = cross_state
+        let cross_position = self.cross_position();
+        let cross_entry = cross_position
             .entry_price()
             .map_or("-".to_string(), |p| format!("{:.1}", p));
-        let cross_liquidation = cross_state
+        let cross_liquidation = cross_position
             .liquidation()
             .map_or("-".to_string(), |p| format!("{:.1}", p));
-        let cm = cross_state.margin().to_string();
-        let cf = cross_state.free_margin().to_string();
-        let cnv = cross_state.net_value().to_string();
-        let cq = cross_state.quantity().to_string();
-        let clev = cross_state.leverage().as_u64().to_string();
-        let cim = cross_state.initial_margin().to_string();
-        let cmm = cross_state.maintenance_margin().to_string();
-        let crm = cross_state.running_margin().to_string();
-        let ctf = cross_state.trading_fees().to_string();
-        let cff = cross_state.session_funding_fees().to_string();
-        let cpl = cross_state.running_pl().to_string();
+        let cm = cross_position.margin().to_string();
+        let cf = cross_position.est_free_margin(self.market_price).to_string();
+        let cnv = cross_position.est_net_value(self.market_price).to_string();
+        let cq = cross_position.quantity().to_string();
+        let clev = cross_position.leverage().as_u64().to_string();
+        let cim = cross_position.initial_margin().to_string();
+        let cmm = cross_position.maintenance_margin().to_string();
+        let crm = cross_position.running_margin().to_string();
+        let ctf = cross_position.trading_fees().to_string();
+        let cpl = cross_position.est_running_pl(self.market_price).to_string();
         let w = [
             &cm,
             &cf,
@@ -992,7 +958,6 @@ impl TradingState {
             &cmm,
             &crm,
             &ctf,
-            &cff,
             &cpl,
         ]
         .iter()
@@ -1001,8 +966,8 @@ impl TradingState {
         .unwrap_or(0);
         result.push_str("Cross Margin:\n");
         result.push_str(&format!("  Margin:           {:>w$} sats\n", cm));
-        result.push_str(&format!("  Free margin:      {:>w$} sats\n", cf));
-        result.push_str(&format!("  Net value:        {:>w$} sats\n", cnv));
+        result.push_str(&format!("  Est free margin:  {:>w$} sats\n", cf));
+        result.push_str(&format!("  Est net value:    {:>w$} sats\n", cnv));
         result.push_str(&format!("  Quantity:         {:>w$} USD\n", cq));
         result.push_str(&format!("  Leverage:         {:>w$}\n", clev));
         result.push_str(&format!("  Entry price:      {:>w$}\n", cross_entry));
@@ -1011,8 +976,7 @@ impl TradingState {
         result.push_str(&format!("  Maintenance:      {:>w$} sats\n", cmm));
         result.push_str(&format!("  Running margin:   {:>w$} sats\n", crm));
         result.push_str(&format!("  Trading fees:     {:>w$} sats\n", ctf));
-        result.push_str(&format!("  Funding fees:     {:>w$} sats\n", cff));
-        result.push_str(&format!("  P/L:              {:>w$} sats\n\n", cpl));
+        result.push_str(&format!("  Est P/L:          {:>w$} sats\n\n", cpl));
 
         // Funding / Realized
         let ff = self.funding_fees.to_string();
