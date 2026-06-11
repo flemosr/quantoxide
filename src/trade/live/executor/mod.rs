@@ -31,7 +31,7 @@ use crate::{
 
 use super::{
     super::{
-        core::{Stoploss, TradeExecutor, TradingState},
+        core::{CrossPositionCore, Stoploss, TradeExecutor, TradingState},
         error::TradeExecutorResult,
     },
     config::LiveTradeExecutorConfig,
@@ -482,19 +482,28 @@ impl TradeExecutor for LiveTradeExecutor {
         Ok(closed_ids)
     }
 
-    async fn cross_deposit(&self, _amount: NonZeroU64) -> TradeExecutorResult<()> {
+    async fn cross_deposit(
+        &self,
+        _amount: NonZeroU64,
+    ) -> TradeExecutorResult<Arc<dyn CrossPositionCore>> {
         Err(ExecutorActionError::CrossMarginUnsupported {
             operation: "cross_deposit",
         })?
     }
 
-    async fn cross_withdraw(&self, _amount: NonZeroU64) -> TradeExecutorResult<()> {
+    async fn cross_withdraw(
+        &self,
+        _amount: NonZeroU64,
+    ) -> TradeExecutorResult<Arc<dyn CrossPositionCore>> {
         Err(ExecutorActionError::CrossMarginUnsupported {
             operation: "cross_withdraw",
         })?
     }
 
-    async fn cross_set_leverage(&self, _leverage: CrossLeverage) -> TradeExecutorResult<()> {
+    async fn cross_set_leverage(
+        &self,
+        _leverage: CrossLeverage,
+    ) -> TradeExecutorResult<Arc<dyn CrossPositionCore>> {
         Err(ExecutorActionError::CrossMarginUnsupported {
             operation: "cross_set_leverage",
         })?
