@@ -625,10 +625,38 @@ impl TradeExecutor for SimulatedTradeExecutor {
         Ok(Arc::new(state_guard.cross_position))
     }
 
-    async fn cross_withdraw(&self, _amount: NonZeroU64) -> TradeExecutorResult<()> {
-        Err(SimulatedTradeExecutorError::CrossMarginNotImplemented {
-            operation: "cross_withdraw",
-        })?
+    async fn cross_withdraw(
+        &self,
+        amount: NonZeroU64,
+    ) -> TradeExecutorResult<Arc<dyn CrossPositionCore>> {
+        let mut state_guard = self.state.lock().await;
+        let amount_i64 =
+            i64::try_from(amount.get()).map_err(|_| SimulatedTradeExecutorError::BalanceTooHigh)?;
+        let cross_position = state_guard.cross_position;
+
+        if amount.get() > cross_position.est_free_margin(Price::bounded(state_guard.market_price)) {
+            return Err(SimulatedTradeExecutorError::CrossFreeMarginTooLow)?;
+        }
+
+        let balance = state_guard
+            .balance
+            .checked_add(amount_i64)
+            .ok_or(SimulatedTradeExecutorError::CrossMarginTooHigh)?;
+        let new_cross_margin = cross_position.margin() - amount.get();
+        let new_cross_position = SimulatedCrossPosition::new(
+            state_guard.market_price,
+            new_cross_margin,
+            cross_position.quantity(),
+            cross_position.leverage(),
+            cross_position.entry_price(),
+            cross_position.trading_fees(),
+            cross_position.session_funding_fees(),
+        )?;
+
+        state_guard.balance = balance;
+        state_guard.cross_position = new_cross_position;
+
+        Ok(Arc::new(state_guard.cross_position))
     }
 
     async fn cross_set_leverage(&self, _leverage: CrossLeverage) -> TradeExecutorResult<()> {
