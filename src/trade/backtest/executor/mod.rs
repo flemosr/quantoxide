@@ -716,9 +716,34 @@ impl TradeExecutor for SimulatedTradeExecutor {
     }
 
     async fn cross_close_position(&self) -> TradeExecutorResult<Option<Uuid>> {
-        Err(SimulatedTradeExecutorError::CrossMarginNotImplemented {
-            operation: "cross_close_position",
-        })?
+        let mut state_guard = self.state.lock().await;
+        let current_quantity = state_guard.cross_position.quantity();
+
+        if current_quantity == 0 {
+            return Ok(None);
+        }
+
+        let market_price = Price::round(state_guard.market_price)
+            .map_err(SimulatedTradeExecutorError::InvalidMarketPrice)?;
+        let side = if current_quantity > 0 {
+            TradeSide::Sell
+        } else {
+            TradeSide::Buy
+        };
+        let quantity = Quantity::try_from(current_quantity.unsigned_abs())
+            .expect("cross position quantity must fit `Quantity`");
+        let new_cross_position = state_guard.cross_position.with_market_order(
+            market_price,
+            side,
+            quantity,
+            self.config.fee_perc(),
+        )?;
+        let order_id = Uuid::new_v4();
+
+        state_guard.cross_position = new_cross_position;
+        state_guard.last_trade_time = Some(state_guard.time);
+
+        Ok(Some(order_id))
     }
 
     async fn trading_state(&self) -> TradeExecutorResult<TradingState> {
