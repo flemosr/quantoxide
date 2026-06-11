@@ -14,8 +14,8 @@ use crate::{db::Database, util::DateTimeExt};
 
 use super::super::super::{
     super::core::{
-        ClosedTradeHistory, CrossPositionCore, DynRunningTradesMap, PriceTrigger,
-        RunningTradesMap, TradeRunningExt, TradeTrailingStoploss, TradingState,
+        ClosedTradeHistory, CrossPositionCore, DynRunningTradesMap, PriceTrigger, RunningTradesMap,
+        TradeRunningExt, TradeTrailingStoploss, TradingState,
     },
     executor::{
         WrappedRestClient,
