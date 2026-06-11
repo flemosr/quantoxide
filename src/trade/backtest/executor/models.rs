@@ -16,8 +16,8 @@ use crate::db::models::{FundingSettlementRow, OhlcCandleRow};
 use super::{
     super::super::core::{CrossPositionCore, TradeClosed, TradeCore, TradeRunning},
     cross_helpers::{
-        abs_cross_quantity, cross_maintenance_margin, cross_running_margin,
-        estimate_cross_liquidation,
+        abs_cross_quantity, aggregate_cross_entry_price, cross_maintenance_margin,
+        cross_running_margin, cross_trading_fee, estimate_cross_liquidation,
     },
     error::{SimulatedTradeExecutorError, SimulatedTradeExecutorResult},
 };
@@ -58,15 +58,201 @@ impl SimulatedCrossPosition {
 
         let free_margin = state.est_free_margin(Price::bounded(market_price));
 
-        if state.quantity != 0 && free_margin == 0 {
+        if state.quantity != 0
+            && (state.entry_price.is_none()
+                || abs_cross_quantity(state.quantity).is_none()
+                || free_margin == 0)
+        {
             return Err(SimulatedTradeExecutorError::CrossMarginTooLow);
         }
 
         Ok(state)
     }
-}
 
-impl SimulatedCrossPosition {
+    pub fn with_market_order(
+        &self,
+        market_price: Price,
+        side: TradeSide,
+        quantity: Quantity,
+        fee_perc: PercentageCapped,
+    ) -> SimulatedTradeExecutorResult<Self> {
+        let signed_order_quantity = match side {
+            TradeSide::Buy => quantity.as_u64() as i64,
+            TradeSide::Sell => -(quantity.as_u64() as i64),
+        };
+        let order_fee = cross_trading_fee(quantity, market_price, fee_perc);
+        let margin_after_order_fee = self
+            .margin
+            .checked_sub(order_fee)
+            .ok_or(SimulatedTradeExecutorError::CrossFreeMarginTooLow)?;
+        let cumulative_trading_fees = self
+            .trading_fees
+            .checked_add(order_fee)
+            .ok_or(SimulatedTradeExecutorError::CrossMarginTooHigh)?;
+
+        // Opening from flat uses the execution price as the new entry price.
+        if self.quantity == 0 {
+            return Self::new(
+                market_price.as_f64(),
+                margin_after_order_fee,
+                signed_order_quantity,
+                self.leverage,
+                Some(market_price),
+                cumulative_trading_fees,
+                self.session_funding_fees,
+            );
+        }
+
+        let current_entry_price = self
+            .entry_price
+            .ok_or(SimulatedTradeExecutorError::CrossMarginTooLow)?;
+        let resulting_quantity = self
+            .quantity
+            .checked_add(signed_order_quantity)
+            .ok_or(SimulatedTradeExecutorError::CrossMarginTooHigh)?;
+
+        // Same-side orders increase exposure and update the weighted entry price.
+        if self.quantity.signum() == signed_order_quantity.signum() {
+            let resulting_entry_price = aggregate_cross_entry_price(
+                self.quantity,
+                current_entry_price,
+                signed_order_quantity,
+                market_price,
+            )
+            .ok_or(SimulatedTradeExecutorError::CrossMarginTooLow)?;
+
+            return Self::new(
+                market_price.as_f64(),
+                margin_after_order_fee,
+                resulting_quantity,
+                self.leverage,
+                Some(resulting_entry_price),
+                cumulative_trading_fees,
+                self.session_funding_fees,
+            );
+        }
+
+        let current_side = if self.quantity > 0 {
+            TradeSide::Buy
+        } else {
+            TradeSide::Sell
+        };
+        let reduced_quantity = Quantity::try_from(
+            self.quantity
+                .unsigned_abs()
+                .min(signed_order_quantity.unsigned_abs()),
+        )
+        .expect("cross order quantity must fit `Quantity`");
+        let realized_reduction_pl = trade_util::estimate_pl(
+            current_side,
+            reduced_quantity,
+            current_entry_price,
+            market_price,
+        )
+        .floor() as i64;
+
+        let apply_realized_pl_to_margin =
+            |margin: u64, realized_pl: i64| -> SimulatedTradeExecutorResult<u64> {
+                if realized_pl >= 0 {
+                    margin
+                        .checked_add(realized_pl as u64)
+                        .ok_or(SimulatedTradeExecutorError::CrossMarginTooHigh)
+                } else {
+                    margin
+                        .checked_sub(realized_pl.unsigned_abs())
+                        .ok_or(SimulatedTradeExecutorError::CrossMarginTooLow)
+                }
+            };
+
+        // Exact close resets position-only fields and books realized P/L into margin.
+        if resulting_quantity == 0 {
+            let margin =
+                apply_realized_pl_to_margin(margin_after_order_fee, realized_reduction_pl)?;
+            return Self::new(
+                market_price.as_f64(),
+                margin,
+                0,
+                self.leverage,
+                None,
+                cumulative_trading_fees,
+                self.session_funding_fees,
+            );
+        }
+
+        // Reversals book the old position P/L and start the residual side at execution price.
+        if resulting_quantity.signum() != self.quantity.signum() {
+            let margin =
+                apply_realized_pl_to_margin(margin_after_order_fee, realized_reduction_pl)?;
+            return Self::new(
+                market_price.as_f64(),
+                margin,
+                resulting_quantity,
+                self.leverage,
+                Some(market_price),
+                cumulative_trading_fees,
+                self.session_funding_fees,
+            );
+        }
+
+        // Break-even partial reduction: fee is already paid, entry is unchanged.
+        if realized_reduction_pl == 0 {
+            return Self::new(
+                market_price.as_f64(),
+                margin_after_order_fee,
+                resulting_quantity,
+                self.leverage,
+                Some(current_entry_price),
+                cumulative_trading_fees,
+                self.session_funding_fees,
+            );
+        }
+
+        // Profitable partial reductions realize P/L into margin and keep entry unchanged.
+        if realized_reduction_pl > 0 {
+            let margin =
+                apply_realized_pl_to_margin(margin_after_order_fee, realized_reduction_pl)?;
+            return Self::new(
+                market_price.as_f64(),
+                margin,
+                resulting_quantity,
+                self.leverage,
+                Some(current_entry_price),
+                cumulative_trading_fees,
+                self.session_funding_fees,
+            );
+        }
+
+        // Losing partial reductions carry the loss in the remaining position entry price.
+
+        let remaining_quantity = Quantity::try_from(resulting_quantity.unsigned_abs())
+            .expect("remaining cross quantity must fit `Quantity`");
+        let full_position_pl = trade_util::estimate_pl(
+            current_side,
+            Quantity::try_from(self.quantity.unsigned_abs())
+                .expect("old cross quantity must fit `Quantity`"),
+            current_entry_price,
+            market_price,
+        );
+        let inverse_market_price = SATS_PER_BTC / market_price.as_f64();
+        let carried_inverse_entry_price = match current_side {
+            TradeSide::Buy => inverse_market_price + full_position_pl / remaining_quantity.as_f64(),
+            TradeSide::Sell => {
+                inverse_market_price - full_position_pl / remaining_quantity.as_f64()
+            }
+        };
+        let carried_entry_price = Price::bounded(SATS_PER_BTC / carried_inverse_entry_price);
+
+        return Self::new(
+            market_price.as_f64(),
+            margin_after_order_fee,
+            resulting_quantity,
+            self.leverage,
+            Some(carried_entry_price),
+            cumulative_trading_fees,
+            self.session_funding_fees,
+        );
+    }
+
     pub fn session_funding_fees(&self) -> i64 {
         self.session_funding_fees
     }
