@@ -8,7 +8,7 @@ use chrono::{DateTime, Duration, Timelike, Utc};
 use futures::future;
 use uuid::Uuid;
 
-use lnm_sdk::api_v3::models::{PercentageCapped, Price, Trade};
+use lnm_sdk::api_v3::models::{CrossLeverage, PercentageCapped, Price, Trade};
 
 use crate::{db::Database, util::DateTimeExt};
 
@@ -489,17 +489,29 @@ impl LiveTradingSession {
 
 impl From<LiveTradingSession> for TradingState {
     fn from(value: LiveTradingSession) -> Self {
+        let market_price = Price::bounded(value.last_price);
         TradingState::new(
             value.last_evaluation_time,
             value.balance,
-            Price::bounded(value.last_price),
+            market_price,
             value.last_trade_time,
             value.running_map,
             value.funding_fees,
             value.realized_pl,
             value.closed_history,
             value.closed_fees,
-            CrossTradingState::initial(),
+            CrossTradingState::new(
+                market_price,
+                0,
+                0,
+                CrossLeverage::MIN,
+                None,
+                None,
+                0,
+                0,
+                0,
+                0,
+            ),
         )
     }
 }
