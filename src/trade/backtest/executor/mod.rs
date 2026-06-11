@@ -76,7 +76,18 @@ impl SimulatedTradeExecutor {
             realized_pl: 0,
             closed_history: Arc::new(ClosedTradeHistory::new()),
             closed_fees: 0,
-            cross_state: CrossTradingState::initial(),
+            cross_state: CrossTradingState::new(
+                Price::bounded(start_candle.open),
+                0,
+                0,
+                CrossLeverage::MIN,
+                None,
+                None,
+                0,
+                0,
+                0,
+                0,
+            ),
         };
 
         Arc::new(Self {
