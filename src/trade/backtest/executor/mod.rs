@@ -14,7 +14,7 @@ use crate::db::models::{FundingSettlementRow, OhlcCandleRow};
 use super::{
     super::{
         core::{
-            ClosedTradeHistory, CrossTradingState, PriceTrigger, RunningTradesMap, Stoploss,
+            ClosedTradeHistory, CrossPositionCore, PriceTrigger, RunningTradesMap, Stoploss,
             TradeClosed, TradeCore, TradeExecutor, TradeRunning, TradeRunningExt, TradingState,
         },
         error::TradeExecutorResult,
@@ -27,7 +27,7 @@ pub(crate) mod error;
 mod models;
 
 use error::{SimulatedTradeExecutorError, SimulatedTradeExecutorResult};
-use models::SimulatedTradeRunning;
+use models::{SimulatedCrossPosition, SimulatedTradeRunning};
 
 enum Close {
     Single(Uuid),
@@ -52,7 +52,7 @@ struct SimulatedTradeExecutorState {
     realized_pl: i64,
     closed_history: Arc<ClosedTradeHistory>,
     closed_fees: u64,
-    cross_state: CrossTradingState,
+    cross_position: SimulatedCrossPosition,
 }
 
 pub(super) struct SimulatedTradeExecutor {
@@ -77,18 +77,7 @@ impl SimulatedTradeExecutor {
             realized_pl: 0,
             closed_history: Arc::new(ClosedTradeHistory::new()),
             closed_fees: 0,
-            cross_state: CrossTradingState::new(
-                Price::bounded(start_candle.open),
-                0,
-                0,
-                CrossLeverage::MIN,
-                None,
-                None,
-                0,
-                0,
-                0,
-                0,
-            ),
+            cross_position: SimulatedCrossPosition::initial(start_candle),
         };
 
         Arc::new(Self {
@@ -603,10 +592,37 @@ impl TradeExecutor for SimulatedTradeExecutor {
         Ok(self.close_running(Close::All).await?)
     }
 
-    async fn cross_deposit(&self, _amount: NonZeroU64) -> TradeExecutorResult<()> {
-        Err(SimulatedTradeExecutorError::CrossMarginNotImplemented {
-            operation: "cross_deposit",
-        })?
+    async fn cross_deposit(
+        &self,
+        amount: NonZeroU64,
+    ) -> TradeExecutorResult<Arc<dyn CrossPositionCore>> {
+        let mut state_guard = self.state.lock().await;
+        let amount_i64 =
+            i64::try_from(amount.get()).map_err(|_| SimulatedTradeExecutorError::BalanceTooLow)?;
+
+        if state_guard.balance < amount_i64 {
+            return Err(SimulatedTradeExecutorError::BalanceTooLow)?;
+        }
+
+        let cross_position = state_guard.cross_position;
+        let new_cross_margin = cross_position
+            .margin()
+            .checked_add(amount.get())
+            .ok_or(SimulatedTradeExecutorError::CrossMarginTooHigh)?;
+        let new_cross_position = SimulatedCrossPosition::new(
+            state_guard.market_price,
+            new_cross_margin,
+            cross_position.quantity(),
+            cross_position.leverage(),
+            cross_position.entry_price(),
+            cross_position.trading_fees(),
+            cross_position.session_funding_fees(),
+        )?;
+
+        state_guard.balance -= amount_i64;
+        state_guard.cross_position = new_cross_position;
+
+        Ok(Arc::new(state_guard.cross_position))
     }
 
     async fn cross_withdraw(&self, _amount: NonZeroU64) -> TradeExecutorResult<()> {
@@ -652,7 +668,7 @@ impl TradeExecutor for SimulatedTradeExecutor {
             state_guard.realized_pl,
             state_guard.closed_history.clone(),
             state_guard.closed_fees,
-            state_guard.cross_state,
+            Arc::new(state_guard.cross_position),
         );
 
         Ok(trades_state)
