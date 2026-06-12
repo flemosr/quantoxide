@@ -1878,13 +1878,10 @@ async fn seed_cross_position(
     entry_price: Price,
 ) {
     let mut state_guard = executor.state.lock().await;
-    state_guard.cross_position = SimulatedCrossPosition::from_running_params(
-        state_guard.market_price,
+    state_guard.cross_position = SimulatedCrossPosition::new(
         margin,
         leverage,
-        side,
-        quantity.into(),
-        entry_price,
+        Some((side, quantity.into(), entry_price)),
         0,
         0,
     )
@@ -2195,14 +2192,14 @@ async fn test_simulated_trade_executor_cross_market_long_opens_position() -> Tra
     assert_eq!(state.cross_position().maintenance_margin(), 1_500);
     assert_eq!(
         state.cross_position().exposure(),
-        CrossExposure::Running {
-            quantity: CrossQuantity::try_from(1_000).unwrap(),
-            side: TradeSide::Buy,
-            entry_price: Price::bounded(100_000.0),
-            liquidation: state.cross_position().liquidation().unwrap(),
-            running_margin: Margin::try_from(100_000).unwrap(),
-            maintenance_margin: Margin::try_from(1_500).unwrap(),
-        }
+        CrossExposure::running(
+            state.cross_position().margin(),
+            state.cross_position().leverage(),
+            TradeSide::Buy,
+            CrossQuantity::try_from(1_000).unwrap(),
+            Price::bounded(100_000.0),
+        )
+        .unwrap()
     );
     assert_eq!(state.cross_position().trading_fees(), 1_000);
     assert_eq!(
@@ -2243,14 +2240,14 @@ async fn test_simulated_trade_executor_cross_exposure_quantity_can_exceed_order_
     assert_eq!(state.cross_position().trading_fees(), 1_000_000);
     assert_eq!(
         state.cross_position().exposure(),
-        CrossExposure::Running {
-            quantity: CrossQuantity::try_from(1_000_000).unwrap(),
-            side: TradeSide::Buy,
-            entry_price: Price::bounded(100_000.0),
-            liquidation: state.cross_position().liquidation().unwrap(),
-            running_margin: Margin::try_from(100_000_000).unwrap(),
-            maintenance_margin: Margin::try_from(1_500_000).unwrap(),
-        }
+        CrossExposure::running(
+            state.cross_position().margin(),
+            state.cross_position().leverage(),
+            TradeSide::Buy,
+            CrossQuantity::try_from(1_000_000).unwrap(),
+            Price::bounded(100_000.0),
+        )
+        .unwrap()
     );
 
     let close_id = executor.cross_close_position().await?;
@@ -2494,6 +2491,273 @@ async fn test_simulated_trade_executor_cross_orders_coexist_with_isolated_trades
     assert_eq!(state.cross_position().quantity(), 0);
     assert_eq!(state.cross_position().margin(), 498_000);
     assert_eq!(state.cross_position().trading_fees(), 2_000);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_simulated_trade_executor_cross_funding_long_pays_from_margin()
+-> TradeExecutorResult<()> {
+    let candle = OhlcCandleRow::new_simple(Utc::now().floor_minute(), 100_000.0, 1_000);
+    let executor =
+        SimulatedTradeExecutor::new(SimulatedTradeExecutorConfig::default(), &candle, 1_000_000);
+
+    executor
+        .cross_deposit(NonZeroU64::new(500_000).unwrap())
+        .await?;
+    executor
+        .cross_set_leverage(CrossLeverage::try_from(10).unwrap())
+        .await?;
+    executor
+        .cross_market_long(Quantity::try_from(1_000).unwrap())
+        .await?;
+
+    let state = executor.trading_state().await?;
+    let margin_before = state.cross_position().margin();
+    let liquidation_before = state.cross_position().liquidation().unwrap();
+    let running_pl_before = state.cross_position().est_running_pl(state.market_price());
+
+    let settlement = make_settlement(candle.time, 100_000.0, 0.01);
+    executor.apply_funding_settlement(&settlement).await?;
+
+    let expected_fee = expected_funding_fee(TradeSide::Buy, 1_000.0, 100_000.0, 0.01);
+    assert_eq!(expected_fee, 10_000);
+
+    let state = executor.trading_state().await?;
+    assert_eq!(state.funding_fees(), 0);
+    assert_eq!(state.balance(), 500_000);
+    assert_eq!(
+        state.cross_position().margin(),
+        margin_before - expected_fee as u64
+    );
+    assert_eq!(
+        state.cross_position().est_running_pl(state.market_price()),
+        running_pl_before
+    );
+    assert!(state.cross_position().liquidation().unwrap() > liquidation_before);
+
+    let cross_session_funding_fees = executor
+        .state
+        .lock()
+        .await
+        .cross_position
+        .session_funding_fees();
+    assert_eq!(cross_session_funding_fees, expected_fee);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_simulated_trade_executor_cross_funding_cost_can_force_flatten_profitable_position()
+-> TradeExecutorResult<()> {
+    let candle = OhlcCandleRow::new_simple(Utc::now().floor_minute(), 100_000.0, 1_000);
+    let executor =
+        SimulatedTradeExecutor::new(SimulatedTradeExecutorConfig::default(), &candle, 1_000_000);
+
+    executor
+        .cross_deposit(NonZeroU64::new(500_000).unwrap())
+        .await?;
+    executor
+        .cross_set_leverage(CrossLeverage::try_from(10).unwrap())
+        .await?;
+    executor
+        .cross_market_long(Quantity::try_from(1_000).unwrap())
+        .await?;
+
+    let candle = next_candle(&candle, 110_000.0);
+    executor.candle_update(&candle).await?;
+    let state = executor.trading_state().await?;
+    assert!(state.cross_position().est_running_pl(state.market_price()) > 0);
+
+    let settlement = make_settlement(candle.time + Duration::hours(8), 100_000.0, 0.5);
+    executor.apply_funding_settlement(&settlement).await?;
+
+    let expected_fee = expected_funding_fee(TradeSide::Buy, 1_000.0, 100_000.0, 0.5);
+    assert_eq!(expected_fee, 500_000);
+
+    let state = executor.trading_state().await?;
+    assert_eq!(state.funding_fees(), 0);
+    assert_eq!(state.balance(), 500_000);
+    assert_eq!(state.cross_position().exposure(), CrossExposure::Neutral);
+    assert_eq!(state.cross_position().margin(), 89_000);
+    assert_eq!(state.cross_position().quantity(), 0);
+    assert_eq!(state.closed_len(), 0);
+    assert_eq!(state.last_trade_time(), Some(settlement.time));
+    assert_eq!(state.cross_position().trading_fees(), 1_909);
+    assert_eq!(state.total_net_value(), state.balance() + 89_000);
+
+    let cross_session_funding_fees = executor
+        .state
+        .lock()
+        .await
+        .cross_position
+        .session_funding_fees();
+    assert_eq!(cross_session_funding_fees, expected_fee);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_simulated_trade_executor_cross_funding_short_receives_to_margin()
+-> TradeExecutorResult<()> {
+    let candle = OhlcCandleRow::new_simple(Utc::now().floor_minute(), 100_000.0, 1_000);
+    let executor =
+        SimulatedTradeExecutor::new(SimulatedTradeExecutorConfig::default(), &candle, 1_000_000);
+
+    executor
+        .cross_deposit(NonZeroU64::new(500_000).unwrap())
+        .await?;
+    executor
+        .cross_set_leverage(CrossLeverage::try_from(10).unwrap())
+        .await?;
+    executor
+        .cross_market_short(Quantity::try_from(1_000).unwrap())
+        .await?;
+
+    let state = executor.trading_state().await?;
+    let margin_before = state.cross_position().margin();
+    let liquidation_before = state.cross_position().liquidation().unwrap();
+
+    let settlement = make_settlement(candle.time, 100_000.0, 0.01);
+    executor.apply_funding_settlement(&settlement).await?;
+
+    let expected_fee = expected_funding_fee(TradeSide::Sell, 1_000.0, 100_000.0, 0.01);
+    assert_eq!(expected_fee, -10_000);
+
+    let state = executor.trading_state().await?;
+    assert_eq!(state.funding_fees(), 0);
+    assert_eq!(state.balance(), 500_000);
+    assert_eq!(
+        state.cross_position().margin(),
+        margin_before + expected_fee.unsigned_abs()
+    );
+    assert!(state.cross_position().liquidation().unwrap() > liquidation_before);
+
+    let cross_session_funding_fees = executor
+        .state
+        .lock()
+        .await
+        .cross_position
+        .session_funding_fees();
+    assert_eq!(cross_session_funding_fees, expected_fee);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_simulated_trade_executor_cross_long_liquidates_on_candle_low()
+-> TradeExecutorResult<()> {
+    let candle = OhlcCandleRow::new_simple(Utc::now().floor_minute(), 100_000.0, 1_000);
+    let executor =
+        SimulatedTradeExecutor::new(SimulatedTradeExecutorConfig::default(), &candle, 1_000_000);
+
+    executor
+        .cross_deposit(NonZeroU64::new(500_000).unwrap())
+        .await?;
+    executor
+        .cross_set_leverage(CrossLeverage::try_from(10).unwrap())
+        .await?;
+    executor
+        .cross_market_long(Quantity::try_from(1_000).unwrap())
+        .await?;
+
+    let state = executor.trading_state().await?;
+    let liquidation = state.cross_position().liquidation().unwrap().as_f64();
+    let candle = next_candle_ohlc(&candle, 100_000.0, 100_000.0, liquidation - 1.0, 90_000.0);
+    executor.candle_update(&candle).await?;
+
+    let state = executor.trading_state().await?;
+    assert_eq!(state.cross_position().exposure(), CrossExposure::Neutral);
+    assert_eq!(state.cross_position().margin(), 0);
+    assert_eq!(state.cross_position().quantity(), 0);
+    assert_eq!(state.closed_len(), 0);
+    assert_eq!(
+        state.last_trade_time(),
+        Some(candle.time + Duration::seconds(59))
+    );
+    assert_eq!(state.total_net_value(), state.balance());
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_simulated_trade_executor_cross_short_liquidates_on_candle_high()
+-> TradeExecutorResult<()> {
+    let candle = OhlcCandleRow::new_simple(Utc::now().floor_minute(), 100_000.0, 1_000);
+    let executor =
+        SimulatedTradeExecutor::new(SimulatedTradeExecutorConfig::default(), &candle, 1_000_000);
+
+    executor
+        .cross_deposit(NonZeroU64::new(500_000).unwrap())
+        .await?;
+    executor
+        .cross_set_leverage(CrossLeverage::try_from(10).unwrap())
+        .await?;
+    executor
+        .cross_market_short(Quantity::try_from(1_000).unwrap())
+        .await?;
+
+    let state = executor.trading_state().await?;
+    let liquidation = state.cross_position().liquidation().unwrap().as_f64();
+    let candle = next_candle_ohlc(&candle, 100_000.0, liquidation + 1.0, 100_000.0, 110_000.0);
+    executor.candle_update(&candle).await?;
+
+    let state = executor.trading_state().await?;
+    assert_eq!(state.cross_position().exposure(), CrossExposure::Neutral);
+    assert_eq!(state.cross_position().margin(), 0);
+    assert_eq!(state.cross_position().quantity(), 0);
+    assert_eq!(state.closed_len(), 0);
+    assert_eq!(
+        state.last_trade_time(),
+        Some(candle.time + Duration::seconds(59))
+    );
+    assert_eq!(state.total_net_value(), state.balance());
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_simulated_trade_executor_total_net_value_includes_isolated_and_cross_exposure()
+-> TradeExecutorResult<()> {
+    let candle = OhlcCandleRow::new_simple(Utc::now().floor_minute(), 100_000.0, 1_000);
+    let executor =
+        SimulatedTradeExecutor::new(SimulatedTradeExecutorConfig::default(), &candle, 2_000_000);
+
+    executor
+        .open_long(
+            Quantity::try_from(100).unwrap().into(),
+            Leverage::try_from(1).unwrap(),
+            None,
+            None,
+            None,
+        )
+        .await?;
+    executor
+        .cross_deposit(NonZeroU64::new(500_000).unwrap())
+        .await?;
+    executor
+        .cross_set_leverage(CrossLeverage::try_from(10).unwrap())
+        .await?;
+    executor
+        .cross_market_long(Quantity::try_from(1_000).unwrap())
+        .await?;
+
+    let candle = next_candle(&candle, 110_000.0);
+    executor.candle_update(&candle).await?;
+
+    let state = executor.trading_state().await?;
+    assert_eq!(state.running_long_len(), 1);
+    assert_eq!(state.cross_position().quantity(), 1_000);
+    assert!(state.running_pl() > 0);
+    assert!(state.cross_position().est_running_pl(state.market_price()) > 0);
+    assert_eq!(
+        state.total_net_value(),
+        state
+            .balance()
+            .saturating_add(state.running_margin())
+            .saturating_add_signed(state.running_pl())
+            .saturating_add(state.cross_position().est_net_value(state.market_price()))
+    );
 
     Ok(())
 }
