@@ -13,10 +13,11 @@ pub use backtest::{
     },
 };
 pub use core::{
-    ClosedTradeHistory, CrossExposure, CrossPositionCore, DynRunningTradesMap, Raw, RawOperator,
-    RunningTradesMap, SignalOperator, Stoploss, TradeClosed, TradeCore, TradeExecutor,
+    ClosedTradeHistory, CrossExposure, CrossPositionCore, CrossQuantity, DynRunningTradesMap, Raw,
+    RawOperator, RunningTradesMap, SignalOperator, Stoploss, TradeClosed, TradeCore, TradeExecutor,
     TradeReference, TradeRunning, TradeTrailingStoploss, TradingState,
 };
+pub use error::CrossQuantityValidationError;
 pub use live::{
     config::{LiveTradeConfig, LiveTradeExecutorConfig},
     engine::{LiveTradeController, LiveTradeEngine},

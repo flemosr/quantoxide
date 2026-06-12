@@ -27,7 +27,9 @@ use crate::{
     util::DateTimeExt,
 };
 
-use super::error::{TradeCoreError, TradeCoreResult, TradeExecutorResult};
+use super::error::{
+    CrossQuantityValidationError, TradeCoreError, TradeCoreResult, TradeExecutorResult,
+};
 
 impl crate::sealed::Sealed for Trade {}
 
@@ -522,6 +524,176 @@ struct RunningStats {
     short_quantity: u64,
     pl: i64,
     fees: u64,
+}
+
+/// A validated total cross-position quantity denominated in USD notional.
+///
+/// Individual cross market orders use LN Markets SDK [`Quantity`] and are capped at `$500,000`.
+/// `CrossQuantity` represents the resulting net cross-position exposure, which can grow up to
+/// `$10,000,000` through multiple orders.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct CrossQuantity(u64);
+
+impl CrossQuantity {
+    /// The minimum allowed cross-position quantity value (`$1`).
+    pub const MIN: Self = Self(1);
+
+    /// The maximum allowed cross-position quantity value (`$10,000,000`).
+    pub const MAX: Self = Self(10_000_000);
+
+    /// Creates a `CrossQuantity` by rounding and bounding the given value to the valid range.
+    pub fn bounded<T>(value: T) -> Self
+    where
+        T: Into<f64>,
+    {
+        let as_f64: f64 = value.into();
+        let rounded = as_f64.round().max(0.0) as u64;
+        let clamped = rounded.clamp(Self::MIN.0, Self::MAX.0);
+
+        Self(clamped)
+    }
+
+    /// Returns the cross quantity value as its underlying `u64` representation.
+    pub fn as_u64(&self) -> u64 {
+        self.0
+    }
+
+    /// Returns the cross quantity value as a `f64`.
+    pub fn as_f64(&self) -> f64 {
+        self.0 as f64
+    }
+}
+
+impl From<CrossQuantity> for u64 {
+    fn from(value: CrossQuantity) -> Self {
+        value.0
+    }
+}
+
+impl From<CrossQuantity> for f64 {
+    fn from(value: CrossQuantity) -> Self {
+        value.0 as f64
+    }
+}
+
+impl From<Quantity> for CrossQuantity {
+    fn from(value: Quantity) -> Self {
+        Self(value.as_u64())
+    }
+}
+
+impl TryFrom<u8> for CrossQuantity {
+    type Error = CrossQuantityValidationError;
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        Self::try_from(value as u64)
+    }
+}
+
+impl TryFrom<u16> for CrossQuantity {
+    type Error = CrossQuantityValidationError;
+
+    fn try_from(value: u16) -> Result<Self, Self::Error> {
+        Self::try_from(value as u64)
+    }
+}
+
+impl TryFrom<u32> for CrossQuantity {
+    type Error = CrossQuantityValidationError;
+
+    fn try_from(value: u32) -> Result<Self, Self::Error> {
+        Self::try_from(value as u64)
+    }
+}
+
+impl TryFrom<u64> for CrossQuantity {
+    type Error = CrossQuantityValidationError;
+
+    fn try_from(value: u64) -> Result<Self, Self::Error> {
+        if value < Self::MIN.0 {
+            return Err(CrossQuantityValidationError::TooLow { value });
+        }
+
+        if value > Self::MAX.0 {
+            return Err(CrossQuantityValidationError::TooHigh { value });
+        }
+
+        Ok(Self(value))
+    }
+}
+
+impl TryFrom<usize> for CrossQuantity {
+    type Error = CrossQuantityValidationError;
+
+    fn try_from(value: usize) -> Result<Self, Self::Error> {
+        Self::try_from(value as u64)
+    }
+}
+
+impl TryFrom<i8> for CrossQuantity {
+    type Error = CrossQuantityValidationError;
+
+    fn try_from(value: i8) -> Result<Self, Self::Error> {
+        Self::try_from(value.max(0) as u64)
+    }
+}
+
+impl TryFrom<i16> for CrossQuantity {
+    type Error = CrossQuantityValidationError;
+
+    fn try_from(value: i16) -> Result<Self, Self::Error> {
+        Self::try_from(value.max(0) as u64)
+    }
+}
+
+impl TryFrom<i32> for CrossQuantity {
+    type Error = CrossQuantityValidationError;
+
+    fn try_from(value: i32) -> Result<Self, Self::Error> {
+        Self::try_from(value.max(0) as u64)
+    }
+}
+
+impl TryFrom<i64> for CrossQuantity {
+    type Error = CrossQuantityValidationError;
+
+    fn try_from(value: i64) -> Result<Self, Self::Error> {
+        Self::try_from(value.max(0) as u64)
+    }
+}
+
+impl TryFrom<isize> for CrossQuantity {
+    type Error = CrossQuantityValidationError;
+
+    fn try_from(value: isize) -> Result<Self, Self::Error> {
+        Self::try_from(value.max(0) as u64)
+    }
+}
+
+impl TryFrom<f32> for CrossQuantity {
+    type Error = CrossQuantityValidationError;
+
+    fn try_from(value: f32) -> Result<Self, Self::Error> {
+        Self::try_from(value as f64)
+    }
+}
+
+impl TryFrom<f64> for CrossQuantity {
+    type Error = CrossQuantityValidationError;
+
+    fn try_from(value: f64) -> Result<Self, Self::Error> {
+        if value.fract() != 0.0 {
+            return Err(CrossQuantityValidationError::NotAnInteger { value });
+        }
+
+        Self::try_from(value.max(0.) as u64)
+    }
+}
+
+impl fmt::Display for CrossQuantity {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
+    }
 }
 
 /// Cross-margin market exposure derived from a cross account/position.

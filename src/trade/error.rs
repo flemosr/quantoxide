@@ -11,9 +11,31 @@ use lnm_sdk::api_v3::{
 use crate::util::PanicPayload;
 
 use super::{
-    backtest::executor::error::SimulatedTradeExecutorError,
+    backtest::executor::error::SimulatedTradeExecutorError, core::CrossQuantity,
     live::executor::error::ExecutorActionError,
 };
+
+/// Error returned when constructing an invalid [`CrossQuantity`].
+#[derive(Debug, Error)]
+pub enum CrossQuantityValidationError {
+    /// Cross quantity is below [`CrossQuantity::MIN`].
+    #[error(
+        "Cross quantity must be at least {}. Value: {value}",
+        CrossQuantity::MIN
+    )]
+    TooLow { value: u64 },
+
+    /// Cross quantity is above [`CrossQuantity::MAX`].
+    #[error(
+        "Cross quantity must be less than or equal to {}. Value: {value}",
+        CrossQuantity::MAX
+    )]
+    TooHigh { value: u64 },
+
+    /// Cross quantity is not a whole USD amount.
+    #[error("Cross quantity must be an integer. Value: {value}")]
+    NotAnInteger { value: f64 },
+}
 
 #[derive(Error, Debug)]
 #[non_exhaustive]
