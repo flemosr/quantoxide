@@ -14,9 +14,8 @@ use crate::db::models::{FundingSettlementRow, OhlcCandleRow};
 use super::{
     super::{
         core::{
-            ClosedTradeHistory, CrossPositionCore, CrossQuantity, PriceTrigger, RunningTradesMap,
-            Stoploss, TradeClosed, TradeCore, TradeExecutor, TradeRunning, TradeRunningExt,
-            TradingState,
+            ClosedTradeHistory, CrossPositionCore, PriceTrigger, RunningTradesMap, Stoploss,
+            TradeClosed, TradeCore, TradeExecutor, TradeRunning, TradeRunningExt, TradingState,
         },
         error::TradeExecutorResult,
     },
@@ -78,7 +77,7 @@ impl SimulatedTradeExecutor {
             realized_pl: 0,
             closed_history: Arc::new(ClosedTradeHistory::new()),
             closed_fees: 0,
-            cross_position: SimulatedCrossPosition::initial(start_candle),
+            cross_position: SimulatedCrossPosition::initial(),
         };
 
         Arc::new(Self {
@@ -114,12 +113,27 @@ impl SimulatedTradeExecutor {
             })?;
         }
 
-        state_guard.time = time;
-        state_guard.market_price = candle.close;
+        let mut new_last_trade_time = state_guard.last_trade_time;
+        let mut new_cross_position = state_guard.cross_position;
+
+        let cross_liquidated = state_guard.cross_position.liquidation_reached(candle);
+        if cross_liquidated {
+            new_cross_position = state_guard
+                .cross_position
+                .liquidate(self.config.fee_perc())?;
+
+            new_last_trade_time = Some(time);
+        }
 
         if !state_guard.trigger.was_reached(candle.low)
             && !state_guard.trigger.was_reached(candle.high)
         {
+            state_guard.time = time;
+            state_guard.market_price = candle.close;
+
+            state_guard.last_trade_time = new_last_trade_time;
+            state_guard.cross_position = new_cross_position;
+
             return Ok(());
         }
 
@@ -129,7 +143,7 @@ impl SimulatedTradeExecutor {
         let mut new_balance = state_guard.balance;
         let mut new_realized_pl = state_guard.realized_pl;
         let mut new_closed_fees = state_guard.closed_fees;
-        let mut new_last_trade_time = state_guard.last_trade_time;
+
         let mut closed_trades: Vec<Arc<dyn TradeClosed>> = Vec::new();
 
         let mut new_trigger = PriceTrigger::new();
@@ -257,14 +271,18 @@ impl SimulatedTradeExecutor {
             }
         }
 
+        state_guard.time = time;
+        state_guard.market_price = candle.close;
+
         state_guard.balance = new_balance;
+        state_guard.last_trade_time = new_last_trade_time;
 
         state_guard.trigger = new_trigger;
         state_guard.running_map = new_running_map;
 
         state_guard.realized_pl = new_realized_pl;
         state_guard.closed_fees = new_closed_fees;
-        state_guard.last_trade_time = new_last_trade_time;
+        state_guard.cross_position = new_cross_position;
 
         Ok(())
     }
@@ -275,7 +293,7 @@ impl SimulatedTradeExecutor {
     ) -> SimulatedTradeExecutorResult<()> {
         let mut state_guard = self.state.lock().await;
 
-        if state_guard.running_map.is_empty() {
+        if state_guard.running_map.is_empty() && state_guard.cross_position.quantity() == 0 {
             return Ok(());
         }
 
@@ -340,9 +358,21 @@ impl SimulatedTradeExecutor {
             }
         }
 
+        let (new_cross_position, _cross_funding_fee, cross_forced_flattened) =
+            state_guard.cross_position.apply_funding_settlement(
+                state_guard.market_price,
+                settlement,
+                self.config.fee_perc(),
+            )?;
+
+        if cross_forced_flattened {
+            new_last_trade_time = Some(settlement.time);
+        }
+
         state_guard.balance = new_balance;
         state_guard.trigger = new_trigger;
         state_guard.running_map = new_running_map;
+        state_guard.cross_position = new_cross_position;
         state_guard.funding_fees = new_funding_fees;
         state_guard.realized_pl = new_realized_pl;
         state_guard.closed_fees = new_closed_fees;
@@ -622,6 +652,7 @@ impl TradeExecutor for SimulatedTradeExecutor {
         let mut state_guard = self.state.lock().await;
         let amount_i64 =
             i64::try_from(amount.get()).map_err(|_| SimulatedTradeExecutorError::BalanceTooLow)?;
+        let market_price = Price::bounded(state_guard.market_price);
 
         if state_guard.balance < amount_i64 {
             return Err(SimulatedTradeExecutorError::BalanceTooLow)?;
@@ -632,8 +663,10 @@ impl TradeExecutor for SimulatedTradeExecutor {
             .margin()
             .checked_add(amount.get())
             .ok_or(SimulatedTradeExecutorError::CrossMarginTooHigh)?;
-        let new_cross_position =
-            cross_position.with_margin(state_guard.market_price, new_cross_margin)?;
+        let new_cross_position = cross_position.with_margin(new_cross_margin)?;
+        if !new_cross_position.is_coherent(market_price) {
+            return Err(SimulatedTradeExecutorError::CrossFreeMarginTooLow)?;
+        }
 
         state_guard.balance -= amount_i64;
         state_guard.cross_position = new_cross_position;
@@ -649,8 +682,12 @@ impl TradeExecutor for SimulatedTradeExecutor {
         let amount_i64 =
             i64::try_from(amount.get()).map_err(|_| SimulatedTradeExecutorError::BalanceTooHigh)?;
         let cross_position = state_guard.cross_position;
+        let market_price = Price::bounded(state_guard.market_price);
 
-        if amount.get() > cross_position.est_free_margin(Price::bounded(state_guard.market_price)) {
+        let free_margin = cross_position.est_free_margin(market_price);
+        if amount.get() > free_margin
+            || (cross_position.quantity() != 0 && amount.get() == free_margin)
+        {
             return Err(SimulatedTradeExecutorError::CrossFreeMarginTooLow)?;
         }
 
@@ -659,8 +696,10 @@ impl TradeExecutor for SimulatedTradeExecutor {
             .checked_add(amount_i64)
             .ok_or(SimulatedTradeExecutorError::CrossMarginTooHigh)?;
         let new_cross_margin = cross_position.margin() - amount.get();
-        let new_cross_position =
-            cross_position.with_margin(state_guard.market_price, new_cross_margin)?;
+        let new_cross_position = cross_position.with_margin(new_cross_margin)?;
+        if !new_cross_position.is_coherent(market_price) {
+            return Err(SimulatedTradeExecutorError::CrossFreeMarginTooLow)?;
+        }
 
         state_guard.balance = balance;
         state_guard.cross_position = new_cross_position;
@@ -674,9 +713,12 @@ impl TradeExecutor for SimulatedTradeExecutor {
     ) -> TradeExecutorResult<Arc<dyn CrossPositionCore>> {
         let mut state_guard = self.state.lock().await;
         let cross_position = state_guard.cross_position;
+        let market_price = Price::bounded(state_guard.market_price);
 
-        let new_cross_position =
-            cross_position.with_leverage(state_guard.market_price, leverage)?;
+        let new_cross_position = cross_position.with_leverage(leverage)?;
+        if !new_cross_position.is_coherent(market_price) {
+            return Err(SimulatedTradeExecutorError::CrossFreeMarginTooLow)?;
+        }
 
         state_guard.cross_position = new_cross_position;
 
@@ -697,27 +739,16 @@ impl TradeExecutor for SimulatedTradeExecutor {
 
     async fn cross_close_position(&self) -> TradeExecutorResult<Option<Uuid>> {
         let mut state_guard = self.state.lock().await;
-        let current_quantity = state_guard.cross_position.quantity();
 
-        if current_quantity == 0 {
+        if state_guard.cross_position.quantity() == 0 {
             return Ok(None);
         }
 
         let market_price = Price::round(state_guard.market_price)
             .map_err(SimulatedTradeExecutorError::InvalidMarketPrice)?;
-        let side = if current_quantity > 0 {
-            TradeSide::Sell
-        } else {
-            TradeSide::Buy
-        };
-        let quantity = CrossQuantity::try_from(current_quantity.unsigned_abs())
-            .map_err(SimulatedTradeExecutorError::CrossQuantityValidation)?;
-        let new_cross_position = state_guard.cross_position.with_market_order(
-            market_price,
-            side,
-            quantity,
-            self.config.fee_perc(),
-        )?;
+        let new_cross_position = state_guard
+            .cross_position
+            .close(market_price, self.config.fee_perc())?;
         let order_id = Uuid::new_v4();
 
         state_guard.cross_position = new_cross_position;
