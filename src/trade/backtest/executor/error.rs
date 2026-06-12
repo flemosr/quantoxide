@@ -4,7 +4,7 @@ use chrono::{DateTime, Utc};
 use thiserror::Error;
 use uuid::Uuid;
 
-use lnm_sdk::api_v3::error::{PriceValidationError, TradeValidationError};
+use lnm_sdk::api_v3::error::{PriceValidationError, QuantityValidationError, TradeValidationError};
 
 use crate::db::error::DbError;
 
@@ -35,6 +35,9 @@ pub enum SimulatedTradeExecutorError {
 
     #[error("TradeValidation error {0}")]
     TradeValidation(TradeValidationError),
+
+    #[error("QuantityValidation error {0}")]
+    QuantityValidation(QuantityValidationError),
 
     #[error("Balance is too low error")]
     BalanceTooLow,

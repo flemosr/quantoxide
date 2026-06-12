@@ -73,25 +73,18 @@ pub(super) fn estimate_cross_liquidation_for_side(
 
 #[allow(dead_code)]
 pub(super) fn aggregate_cross_entry_price(
-    existing_quantity: i64,
+    existing_quantity: Quantity,
     existing_entry_price: Price,
-    added_quantity: i64,
+    added_quantity: Quantity,
     added_price: Price,
-) -> Option<Price> {
-    if existing_quantity == 0 || added_quantity == 0 {
-        return None;
-    }
-    if existing_quantity.signum() != added_quantity.signum() {
-        return None;
-    }
-
-    let existing_quantity = existing_quantity.unsigned_abs() as f64;
-    let added_quantity = added_quantity.unsigned_abs() as f64;
+) -> Price {
+    let existing_quantity = existing_quantity.as_f64();
+    let added_quantity = added_quantity.as_f64();
     let total_quantity = existing_quantity + added_quantity;
     let weighted_inverse =
         existing_quantity / existing_entry_price.as_f64() + added_quantity / added_price.as_f64();
 
-    Some(Price::bounded(total_quantity / weighted_inverse))
+    Price::bounded(total_quantity / weighted_inverse)
 }
 
 #[allow(dead_code)]
@@ -165,13 +158,13 @@ mod tests {
 
     #[test]
     fn simulated_cross_aggregate_entry_price_uses_inverse_weighting() {
-        let aggregated =
-            aggregate_cross_entry_price(10, price(100_000.0), 10, price(200_000.0)).unwrap();
+        let aggregated = aggregate_cross_entry_price(
+            10.try_into().unwrap(),
+            price(100_000.0),
+            10.try_into().unwrap(),
+            price(200_000.0),
+        );
 
         assert!((aggregated.as_f64() - 133_333.5).abs() <= 0.5);
-        assert_eq!(
-            aggregate_cross_entry_price(10, price(100_000.0), -10, price(100_000.0),),
-            None
-        );
     }
 }
