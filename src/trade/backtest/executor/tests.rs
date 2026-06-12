@@ -1,13 +1,13 @@
 use std::num::NonZeroU64;
 
-use crate::{db::models::FundingSettlementRow, util::DateTimeExt};
+use crate::{db::models::FundingSettlementRow, trade::CrossExposure, util::DateTimeExt};
 
 use super::*;
 
 use chrono::Duration;
 
 use lnm_sdk::api_v3::models::{
-    ClientId, CrossLeverage, Leverage, Margin, PercentageCapped, Quantity, SATS_PER_BTC,
+    ClientId, CrossLeverage, Leverage, Margin, PercentageCapped, Quantity, SATS_PER_BTC, TradeSide,
 };
 
 fn next_candle(prev: &OhlcCandleRow, price: f64) -> OhlcCandleRow {
@@ -1868,17 +1868,19 @@ async fn test_funding_settlement_margin_sized_1x_not_force_closed() -> TradeExec
 async fn seed_cross_position(
     executor: &SimulatedTradeExecutor,
     margin: u64,
-    quantity: i64,
     leverage: CrossLeverage,
+    side: TradeSide,
+    quantity: Quantity,
     entry_price: Price,
 ) {
     let mut state_guard = executor.state.lock().await;
-    state_guard.cross_position = SimulatedCrossPosition::new(
+    state_guard.cross_position = SimulatedCrossPosition::from_running_params(
         state_guard.market_price,
         margin,
-        quantity,
         leverage,
-        Some(entry_price),
+        side,
+        quantity,
+        entry_price,
         0,
         0,
     )
@@ -2010,8 +2012,9 @@ async fn test_simulated_trade_executor_cross_withdraw_respects_nav_constraint()
     seed_cross_position(
         &executor,
         113_000,
-        1_000,
         CrossLeverage::try_from(10).unwrap(),
+        TradeSide::Buy,
+        Quantity::try_from(1_000).unwrap(),
         Price::bounded(100_000.0),
     )
     .await;
@@ -2081,8 +2084,9 @@ async fn test_simulated_trade_executor_cross_set_leverage_reallocates_running_ma
     seed_cross_position(
         &executor,
         500_000,
-        1_000,
         CrossLeverage::try_from(10).unwrap(),
+        TradeSide::Buy,
+        Quantity::try_from(1_000).unwrap(),
         entry_price,
     )
     .await;
@@ -2131,8 +2135,9 @@ async fn test_simulated_trade_executor_cross_set_leverage_rejects_insufficient_f
     seed_cross_position(
         &executor,
         101_501,
-        1_000,
         leverage,
+        TradeSide::Buy,
+        Quantity::try_from(1_000).unwrap(),
         Price::bounded(100_000.0),
     )
     .await;
@@ -2184,6 +2189,17 @@ async fn test_simulated_trade_executor_cross_market_long_opens_position() -> Tra
     );
     assert_eq!(state.cross_position().running_margin(), 100_000);
     assert_eq!(state.cross_position().maintenance_margin(), 1_500);
+    assert_eq!(
+        state.cross_position().exposure(),
+        CrossExposure::Running {
+            quantity: Quantity::try_from(1_000).unwrap(),
+            side: TradeSide::Buy,
+            entry_price: Price::bounded(100_000.0),
+            liquidation: state.cross_position().liquidation().unwrap(),
+            running_margin: Margin::try_from(100_000).unwrap(),
+            maintenance_margin: Margin::try_from(1_500).unwrap(),
+        }
+    );
     assert_eq!(state.cross_position().trading_fees(), 1_000);
     assert_eq!(
         state.cross_position().est_free_margin(state.market_price()),
@@ -2326,6 +2342,7 @@ async fn test_simulated_trade_executor_cross_close_position_books_pl_and_flatten
     assert_eq!(state.cross_position().entry_price(), None);
     assert_eq!(state.cross_position().running_margin(), 0);
     assert_eq!(state.cross_position().maintenance_margin(), 0);
+    assert_eq!(state.cross_position().exposure(), CrossExposure::Neutral);
     assert_eq!(state.cross_position().trading_fees(), 1_909);
     assert_eq!(state.closed_len(), 0);
 
@@ -2384,6 +2401,7 @@ async fn test_simulated_trade_executor_cross_close_position_returns_none_when_fl
     assert_eq!(close_id, None);
     assert_eq!(state.last_trade_time(), None);
     assert_eq!(state.cross_position().quantity(), 0);
+    assert_eq!(state.cross_position().exposure(), CrossExposure::Neutral);
 
     Ok(())
 }
