@@ -631,15 +631,8 @@ impl TradeExecutor for SimulatedTradeExecutor {
             .margin()
             .checked_add(amount.get())
             .ok_or(SimulatedTradeExecutorError::CrossMarginTooHigh)?;
-        let new_cross_position = SimulatedCrossPosition::new(
-            state_guard.market_price,
-            new_cross_margin,
-            cross_position.quantity(),
-            cross_position.leverage(),
-            cross_position.entry_price(),
-            cross_position.trading_fees(),
-            cross_position.session_funding_fees(),
-        )?;
+        let new_cross_position =
+            cross_position.with_margin(state_guard.market_price, new_cross_margin)?;
 
         state_guard.balance -= amount_i64;
         state_guard.cross_position = new_cross_position;
@@ -665,15 +658,8 @@ impl TradeExecutor for SimulatedTradeExecutor {
             .checked_add(amount_i64)
             .ok_or(SimulatedTradeExecutorError::CrossMarginTooHigh)?;
         let new_cross_margin = cross_position.margin() - amount.get();
-        let new_cross_position = SimulatedCrossPosition::new(
-            state_guard.market_price,
-            new_cross_margin,
-            cross_position.quantity(),
-            cross_position.leverage(),
-            cross_position.entry_price(),
-            cross_position.trading_fees(),
-            cross_position.session_funding_fees(),
-        )?;
+        let new_cross_position =
+            cross_position.with_margin(state_guard.market_price, new_cross_margin)?;
 
         state_guard.balance = balance;
         state_guard.cross_position = new_cross_position;
@@ -688,15 +674,8 @@ impl TradeExecutor for SimulatedTradeExecutor {
         let mut state_guard = self.state.lock().await;
         let cross_position = state_guard.cross_position;
 
-        let new_cross_position = SimulatedCrossPosition::new(
-            state_guard.market_price,
-            cross_position.margin(),
-            cross_position.quantity(),
-            leverage,
-            cross_position.entry_price(),
-            cross_position.trading_fees(),
-            cross_position.session_funding_fees(),
-        )?;
+        let new_cross_position =
+            cross_position.with_leverage(state_guard.market_price, leverage)?;
 
         state_guard.cross_position = new_cross_position;
 
@@ -731,7 +710,7 @@ impl TradeExecutor for SimulatedTradeExecutor {
             TradeSide::Buy
         };
         let quantity = Quantity::try_from(current_quantity.unsigned_abs())
-            .expect("cross position quantity must fit `Quantity`");
+            .map_err(SimulatedTradeExecutorError::QuantityValidation)?;
         let new_cross_position = state_guard.cross_position.with_market_order(
             market_price,
             side,
