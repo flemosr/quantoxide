@@ -705,7 +705,7 @@ pub enum CrossExposure {
     /// Active net market exposure.
     Running {
         /// Absolute cross position quantity in USD notional.
-        quantity: Quantity,
+        quantity: CrossQuantity,
         /// Net cross position side.
         side: TradeSide,
         /// Cross position entry price.
@@ -801,7 +801,9 @@ pub trait CrossPositionCore: crate::sealed::Sealed + Send + Sync + fmt::Debug + 
                 side,
                 entry_price,
                 ..
-            } => trade_util::estimate_pl(side, quantity, entry_price, market_price).floor() as i64,
+            } => {
+                estimate_cross_position_pl(side, quantity, entry_price, market_price).floor() as i64
+            }
         }
     }
 
@@ -824,6 +826,23 @@ pub trait CrossPositionCore: crate::sealed::Sealed + Send + Sync + fmt::Debug + 
             .saturating_sub(self.maintenance_margin())
             .saturating_sub(excess_loss)
     }
+}
+
+fn estimate_cross_position_pl(
+    side: TradeSide,
+    quantity: CrossQuantity,
+    start_price: Price,
+    end_price: Price,
+) -> f64 {
+    let start_price = start_price.as_f64();
+    let end_price = end_price.as_f64();
+
+    let inverse_price_delta = match side {
+        TradeSide::Buy => SATS_PER_BTC / start_price - SATS_PER_BTC / end_price,
+        TradeSide::Sell => SATS_PER_BTC / end_price - SATS_PER_BTC / start_price,
+    };
+
+    quantity.as_f64() * inverse_price_delta
 }
 
 /// Comprehensive snapshot of the current trading state including balance, running trades, and
