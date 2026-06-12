@@ -6,7 +6,7 @@ use uuid::Uuid;
 
 use lnm_sdk::api_v3::error::{PriceValidationError, QuantityValidationError, TradeValidationError};
 
-use crate::db::error::DbError;
+use crate::{db::error::DbError, trade::CrossQuantityValidationError};
 
 use super::super::super::error::TradeCoreError;
 
@@ -38,6 +38,9 @@ pub enum SimulatedTradeExecutorError {
 
     #[error("QuantityValidation error {0}")]
     QuantityValidation(QuantityValidationError),
+
+    #[error("CrossQuantityValidation error {0}")]
+    CrossQuantityValidation(CrossQuantityValidationError),
 
     #[error("Balance is too low error")]
     BalanceTooLow,

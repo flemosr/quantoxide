@@ -1,13 +1,13 @@
-use lnm_sdk::api_v3::models::{
-    CrossLeverage, PercentageCapped, Price, Quantity, SATS_PER_BTC, TradeSide,
-};
+use lnm_sdk::api_v3::models::{CrossLeverage, PercentageCapped, Price, SATS_PER_BTC, TradeSide};
+
+use crate::trade::CrossQuantity;
 
 #[allow(dead_code)]
 const CROSS_MAINTENANCE_MARGIN_RATE: f64 = 0.0015;
 
 #[allow(dead_code)]
 pub(super) fn cross_running_margin(
-    quantity: Quantity,
+    quantity: CrossQuantity,
     entry_price: Price,
     leverage: CrossLeverage,
 ) -> u64 {
@@ -16,14 +16,14 @@ pub(super) fn cross_running_margin(
 }
 
 #[allow(dead_code)]
-pub(super) fn cross_maintenance_margin(quantity: Quantity, entry_price: Price) -> u64 {
+pub(super) fn cross_maintenance_margin(quantity: CrossQuantity, entry_price: Price) -> u64 {
     (quantity.as_f64() * SATS_PER_BTC / entry_price.as_f64() * CROSS_MAINTENANCE_MARGIN_RATE).ceil()
         as u64
 }
 
 #[allow(dead_code)]
 pub(super) fn cross_trading_fee(
-    quantity: Quantity,
+    quantity: CrossQuantity,
     execution_price: Price,
     fee_perc: PercentageCapped,
 ) -> u64 {
@@ -56,7 +56,7 @@ pub(super) fn estimate_cross_liquidation(
 #[allow(dead_code)]
 pub(super) fn estimate_cross_liquidation_for_side(
     side: TradeSide,
-    quantity: Quantity,
+    quantity: CrossQuantity,
     entry_price: Price,
     effective_collateral: u64,
 ) -> Price {
@@ -73,9 +73,9 @@ pub(super) fn estimate_cross_liquidation_for_side(
 
 #[allow(dead_code)]
 pub(super) fn aggregate_cross_entry_price(
-    existing_quantity: Quantity,
+    existing_quantity: CrossQuantity,
     existing_entry_price: Price,
-    added_quantity: Quantity,
+    added_quantity: CrossQuantity,
     added_price: Price,
 ) -> Price {
     let existing_quantity = existing_quantity.as_f64();
@@ -88,12 +88,30 @@ pub(super) fn aggregate_cross_entry_price(
 }
 
 #[allow(dead_code)]
-pub(super) fn abs_cross_quantity(quantity: i64) -> Option<Quantity> {
+pub(super) fn estimate_cross_pl(
+    side: TradeSide,
+    quantity: CrossQuantity,
+    start_price: Price,
+    end_price: Price,
+) -> f64 {
+    let start_price = start_price.as_f64();
+    let end_price = end_price.as_f64();
+
+    let inverse_price_delta = match side {
+        TradeSide::Buy => SATS_PER_BTC / start_price - SATS_PER_BTC / end_price,
+        TradeSide::Sell => SATS_PER_BTC / end_price - SATS_PER_BTC / start_price,
+    };
+
+    quantity.as_f64() * inverse_price_delta
+}
+
+#[allow(dead_code)]
+pub(super) fn abs_cross_quantity(quantity: i64) -> Option<CrossQuantity> {
     if quantity == 0 {
         return None;
     }
 
-    Quantity::try_from(quantity.unsigned_abs()).ok()
+    CrossQuantity::try_from(quantity.unsigned_abs()).ok()
 }
 
 #[cfg(test)]
@@ -104,8 +122,8 @@ mod tests {
         Price::try_from(value).unwrap()
     }
 
-    fn quantity(value: u64) -> Quantity {
-        Quantity::try_from(value).unwrap()
+    fn quantity(value: u64) -> CrossQuantity {
+        CrossQuantity::try_from(value).unwrap()
     }
 
     #[test]

@@ -17,10 +17,12 @@ use crate::{
 };
 
 use super::{
-    super::super::core::{CrossExposure, CrossPositionCore, TradeClosed, TradeCore, TradeRunning},
+    super::super::core::{
+        CrossExposure, CrossPositionCore, CrossQuantity, TradeClosed, TradeCore, TradeRunning,
+    },
     cross_helpers::{
         aggregate_cross_entry_price, cross_maintenance_margin, cross_running_margin,
-        cross_trading_fee,
+        cross_trading_fee, estimate_cross_pl,
     },
     error::{SimulatedTradeExecutorError, SimulatedTradeExecutorResult},
 };
@@ -77,7 +79,7 @@ impl SimulatedCrossPosition {
         margin: u64,
         leverage: CrossLeverage,
         side: TradeSide,
-        quantity: Quantity,
+        quantity: CrossQuantity,
         entry_price: Price,
         trading_fees: u64,
         session_funding_fees: i64,
@@ -98,7 +100,7 @@ impl SimulatedCrossPosition {
         margin: u64,
         leverage: CrossLeverage,
         side: TradeSide,
-        quantity: Quantity,
+        quantity: CrossQuantity,
         entry_price: Price,
     ) -> SimulatedTradeExecutorResult<CrossExposure> {
         let liquidation = estimate_cross_liquidation_for_side(side, quantity, entry_price, margin);
@@ -201,7 +203,7 @@ impl SimulatedCrossPosition {
         &self,
         market_price: Price,
         order_side: TradeSide,
-        order_quantity: Quantity,
+        order_quantity: CrossQuantity,
         fee_perc: PercentageCapped,
     ) -> SimulatedTradeExecutorResult<Self> {
         let order_fee = cross_trading_fee(order_quantity, market_price, fee_perc);
@@ -237,8 +239,8 @@ impl SimulatedCrossPosition {
         // Same-side orders increase exposure and update the weighted entry price.
         if current_side == order_side {
             let resulting_quantity =
-                Quantity::try_from(current_quantity.as_u64() + order_quantity.as_u64())
-                    .map_err(SimulatedTradeExecutorError::QuantityValidation)?;
+                CrossQuantity::try_from(current_quantity.as_u64() + order_quantity.as_u64())
+                    .map_err(SimulatedTradeExecutorError::CrossQuantityValidation)?;
             let resulting_entry_price = aggregate_cross_entry_price(
                 current_quantity,
                 current_entry_price,
@@ -261,9 +263,9 @@ impl SimulatedCrossPosition {
         // Order doesn't have the same side as current position
 
         let reduced_quantity =
-            Quantity::try_from(current_quantity.as_u64().min(order_quantity.as_u64()))
-                .map_err(SimulatedTradeExecutorError::QuantityValidation)?;
-        let realized_reduction_pl = trade_util::estimate_pl(
+            CrossQuantity::try_from(current_quantity.as_u64().min(order_quantity.as_u64()))
+                .map_err(SimulatedTradeExecutorError::CrossQuantityValidation)?;
+        let realized_reduction_pl = estimate_cross_pl(
             current_side,
             reduced_quantity,
             current_entry_price,
@@ -304,8 +306,8 @@ impl SimulatedCrossPosition {
             current_side
         };
         let resulting_quantity =
-            Quantity::try_from(current_quantity.as_u64().abs_diff(order_quantity.as_u64()))
-                .map_err(SimulatedTradeExecutorError::QuantityValidation)?;
+            CrossQuantity::try_from(current_quantity.as_u64().abs_diff(order_quantity.as_u64()))
+                .map_err(SimulatedTradeExecutorError::CrossQuantityValidation)?;
 
         // Reversals book the old position P/L and start the residual side at execution price.
         if resulting_side != current_side {
@@ -355,7 +357,7 @@ impl SimulatedCrossPosition {
         }
 
         // Losing partial reductions carry the loss in the remaining position entry price.
-        let full_position_pl = trade_util::estimate_pl(
+        let full_position_pl = estimate_cross_pl(
             current_side,
             current_quantity,
             current_entry_price,
