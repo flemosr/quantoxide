@@ -14,8 +14,8 @@ use uuid::Uuid;
 use lnm_sdk::api_v3::{
     error::TradeValidationError,
     models::{
-        ClientId, CrossLeverage, CrossPosition, Leverage, Margin, Percentage, PercentageCapped,
-        Price, Quantity, SATS_PER_BTC, Trade, TradeSide, TradeSize, trade_util,
+        ClientId, CrossLeverage, Leverage, Margin, Percentage, PercentageCapped, Price, Quantity,
+        SATS_PER_BTC, Trade, TradeSide, TradeSize, trade_util,
     },
 };
 
@@ -30,7 +30,6 @@ use crate::{
 use super::error::{TradeCoreError, TradeCoreResult, TradeExecutorResult};
 
 impl crate::sealed::Sealed for Trade {}
-impl crate::sealed::Sealed for CrossPosition {}
 
 /// Generic trade interface used in extension traits.
 ///
@@ -525,7 +524,30 @@ struct RunningStats {
     fees: u64,
 }
 
-/// Generic cross-margin position interface used by both live SDK positions and simulated positions.
+/// Cross-margin market exposure derived from a cross account/position.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum CrossExposure {
+    /// No active market exposure. The cross account may still hold margin/collateral.
+    Neutral,
+
+    /// Active net market exposure.
+    Running {
+        /// Absolute cross position quantity in USD notional.
+        quantity: Quantity,
+        /// Net cross position side.
+        side: TradeSide,
+        /// Cross position entry price.
+        entry_price: Price,
+        /// Cross position liquidation price.
+        liquidation: Price,
+        /// Current running margin allocated to the cross position.
+        running_margin: Margin,
+        /// Current maintenance margin required by the cross position.
+        maintenance_margin: Margin,
+    },
+}
+
+/// Generic cross-margin position interface used by both live and simulated positions.
 ///
 /// The estimated P/L, NAV, and free-margin helpers take an explicit market price because LN
 /// Markets' live `CrossPosition` does not expose the reference/mark price used for its own P/L
@@ -535,48 +557,80 @@ pub trait CrossPositionCore: crate::sealed::Sealed + Send + Sync + fmt::Debug + 
     /// Returns the cross account margin/collateral in satoshis.
     fn margin(&self) -> u64;
 
-    /// Returns the signed cross position quantity in USD notional.
-    fn quantity(&self) -> i64;
-
     /// Returns the configured cross account leverage.
     fn leverage(&self) -> CrossLeverage;
 
-    /// Returns the cross position entry price, if a position is open.
-    fn entry_price(&self) -> Option<Price>;
-
-    /// Returns the cross position liquidation price, if a position is open.
-    fn liquidation(&self) -> Option<Price>;
-
-    /// Returns the current initial margin allocated to the cross position.
-    fn initial_margin(&self) -> u64;
-
-    /// Returns the current running margin for the cross position.
-    fn running_margin(&self) -> u64;
-
-    /// Returns the current maintenance margin for the cross position.
-    fn maintenance_margin(&self) -> u64;
+    /// Returns the active cross market exposure, if any.
+    fn exposure(&self) -> CrossExposure;
 
     /// Returns cross trading fees.
     fn trading_fees(&self) -> u64;
 
+    /// Returns the signed cross position quantity in USD notional.
+    fn quantity(&self) -> i64 {
+        match self.exposure() {
+            CrossExposure::Neutral => 0,
+            CrossExposure::Running { quantity, side, .. } => {
+                let quantity =
+                    i64::try_from(quantity.as_u64()).expect("cross exposure quantity must fit i64");
+                match side {
+                    TradeSide::Buy => quantity,
+                    TradeSide::Sell => -quantity,
+                }
+            }
+        }
+    }
+
+    /// Returns the cross position entry price, if a position is open.
+    fn entry_price(&self) -> Option<Price> {
+        match self.exposure() {
+            CrossExposure::Neutral => None,
+            CrossExposure::Running { entry_price, .. } => Some(entry_price),
+        }
+    }
+
+    /// Returns the cross position liquidation price, if a position is open.
+    fn liquidation(&self) -> Option<Price> {
+        match self.exposure() {
+            CrossExposure::Neutral => None,
+            CrossExposure::Running { liquidation, .. } => Some(liquidation),
+        }
+    }
+
+    /// Returns the current initial margin allocated to the cross position.
+    fn initial_margin(&self) -> u64 {
+        self.running_margin()
+    }
+
+    /// Returns the current running margin for the cross position.
+    fn running_margin(&self) -> u64 {
+        match self.exposure() {
+            CrossExposure::Neutral => 0,
+            CrossExposure::Running { running_margin, .. } => running_margin.as_u64(),
+        }
+    }
+
+    /// Returns the current maintenance margin for the cross position.
+    fn maintenance_margin(&self) -> u64 {
+        match self.exposure() {
+            CrossExposure::Neutral => 0,
+            CrossExposure::Running {
+                maintenance_margin, ..
+            } => maintenance_margin.as_u64(),
+        }
+    }
+
     /// Estimates current cross position running P/L at the supplied market price.
     fn est_running_pl(&self, market_price: Price) -> i64 {
-        let Some(entry_price) = self.entry_price() else {
-            return 0;
-        };
-        if self.quantity() == 0 {
-            return 0;
+        match self.exposure() {
+            CrossExposure::Neutral => 0,
+            CrossExposure::Running {
+                quantity,
+                side,
+                entry_price,
+                ..
+            } => trade_util::estimate_pl(side, quantity, entry_price, market_price).floor() as i64,
         }
-
-        let side = if self.quantity() > 0 {
-            TradeSide::Buy
-        } else {
-            TradeSide::Sell
-        };
-        let quantity = Quantity::try_from(self.quantity().unsigned_abs())
-            .expect("cross position quantity must fit Quantity");
-
-        trade_util::estimate_pl(side, quantity, entry_price, market_price).floor() as i64
     }
 
     /// Estimates the cross account net asset value at the supplied market price.
@@ -597,44 +651,6 @@ pub trait CrossPositionCore: crate::sealed::Sealed + Send + Sync + fmt::Debug + 
             .saturating_sub(self.running_margin())
             .saturating_sub(self.maintenance_margin())
             .saturating_sub(excess_loss)
-    }
-}
-
-impl CrossPositionCore for CrossPosition {
-    fn margin(&self) -> u64 {
-        self.margin()
-    }
-
-    fn quantity(&self) -> i64 {
-        self.quantity()
-    }
-
-    fn leverage(&self) -> CrossLeverage {
-        self.leverage()
-    }
-
-    fn entry_price(&self) -> Option<Price> {
-        self.entry_price()
-    }
-
-    fn liquidation(&self) -> Option<Price> {
-        self.liquidation()
-    }
-
-    fn initial_margin(&self) -> u64 {
-        self.initial_margin()
-    }
-
-    fn running_margin(&self) -> u64 {
-        self.running_margin()
-    }
-
-    fn maintenance_margin(&self) -> u64 {
-        self.maintenance_margin()
-    }
-
-    fn trading_fees(&self) -> u64 {
-        self.trading_fees()
     }
 }
 

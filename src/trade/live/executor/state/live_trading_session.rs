@@ -14,8 +14,8 @@ use crate::{db::Database, util::DateTimeExt};
 
 use super::super::super::{
     super::core::{
-        ClosedTradeHistory, CrossPositionCore, DynRunningTradesMap, PriceTrigger, RunningTradesMap,
-        TradeRunningExt, TradeTrailingStoploss, TradingState,
+        ClosedTradeHistory, CrossExposure, CrossPositionCore, DynRunningTradesMap, PriceTrigger,
+        RunningTradesMap, TradeRunningExt, TradeTrailingStoploss, TradingState,
     },
     executor::{
         WrappedRestClient,
@@ -44,32 +44,12 @@ impl CrossPositionCore for LiveUnsupportedCrossPosition {
         0
     }
 
-    fn quantity(&self) -> i64 {
-        0
-    }
-
     fn leverage(&self) -> CrossLeverage {
         CrossLeverage::MIN
     }
 
-    fn entry_price(&self) -> Option<Price> {
-        None
-    }
-
-    fn liquidation(&self) -> Option<Price> {
-        None
-    }
-
-    fn initial_margin(&self) -> u64 {
-        0
-    }
-
-    fn running_margin(&self) -> u64 {
-        0
-    }
-
-    fn maintenance_margin(&self) -> u64 {
-        0
+    fn exposure(&self) -> CrossExposure {
+        CrossExposure::Neutral
     }
 
     fn trading_fees(&self) -> u64 {
