@@ -14,8 +14,9 @@ use crate::db::models::{FundingSettlementRow, OhlcCandleRow};
 use super::{
     super::{
         core::{
-            ClosedTradeHistory, CrossPositionCore, PriceTrigger, RunningTradesMap, Stoploss,
-            TradeClosed, TradeCore, TradeExecutor, TradeRunning, TradeRunningExt, TradingState,
+            ClosedTradeHistory, CrossPositionCore, CrossQuantity, PriceTrigger, RunningTradesMap,
+            Stoploss, TradeClosed, TradeCore, TradeExecutor, TradeRunning, TradeRunningExt,
+            TradingState,
         },
         error::TradeExecutorResult,
     },
@@ -432,7 +433,7 @@ impl SimulatedTradeExecutor {
         let new_cross_position = state_guard.cross_position.with_market_order(
             market_price,
             side,
-            quantity,
+            quantity.into(),
             self.config.fee_perc(),
         )?;
         let order_id = Uuid::new_v4();
@@ -709,8 +710,8 @@ impl TradeExecutor for SimulatedTradeExecutor {
         } else {
             TradeSide::Buy
         };
-        let quantity = Quantity::try_from(current_quantity.unsigned_abs())
-            .map_err(SimulatedTradeExecutorError::QuantityValidation)?;
+        let quantity = CrossQuantity::try_from(current_quantity.unsigned_abs())
+            .map_err(SimulatedTradeExecutorError::CrossQuantityValidation)?;
         let new_cross_position = state_guard.cross_position.with_market_order(
             market_price,
             side,
