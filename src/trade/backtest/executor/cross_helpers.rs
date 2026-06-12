@@ -26,9 +26,9 @@ pub(super) fn cross_trading_fee(
     quantity: CrossQuantity,
     execution_price: Price,
     fee_perc: PercentageCapped,
-) -> u64 {
+) -> i64 {
     let fee_calc = SATS_PER_BTC * fee_perc.as_f64() / 100.;
-    (fee_calc * quantity.as_f64() / execution_price.as_f64()).floor() as u64
+    (fee_calc * quantity.as_f64() / execution_price.as_f64()).floor() as i64
 }
 
 #[allow(dead_code)]

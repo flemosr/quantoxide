@@ -1,4 +1,4 @@
-use std::{num::NonZeroU64, sync::Arc};
+use std::{cmp::Ordering, num::NonZeroU64, sync::Arc};
 
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
@@ -52,6 +52,16 @@ impl SimulatedCrossPosition {
 
     pub fn initial() -> Self {
         Self::new(0, CrossLeverage::MIN, None, 0, 0).expect("must be valid `CrossPosition` params")
+    }
+
+    fn apply_amount_to_margin(margin: u64, amount: i64) -> SimulatedTradeExecutorResult<u64> {
+        if amount < 0 {
+            Ok(margin.saturating_sub(amount.unsigned_abs()))
+        } else {
+            margin
+                .checked_add(amount.unsigned_abs())
+                .ok_or(SimulatedTradeExecutorError::CrossMarginTooHigh)
+        }
     }
 
     pub fn is_coherent(&self, market_price: Price) -> bool {
@@ -113,13 +123,12 @@ impl SimulatedCrossPosition {
             .ok_or(SimulatedTradeExecutorError::CrossMarginTooHigh)?;
 
         let update_margin = |margin: u64| -> SimulatedTradeExecutorResult<u64> {
-            if funding_fee < 0 {
-                margin
-                    .checked_add(funding_fee.unsigned_abs())
-                    .ok_or(SimulatedTradeExecutorError::CrossMarginTooHigh)
-            } else {
-                Ok(margin.saturating_sub(funding_fee as u64))
-            }
+            Self::apply_amount_to_margin(
+                margin,
+                funding_fee
+                    .checked_neg()
+                    .ok_or(SimulatedTradeExecutorError::CrossMarginTooHigh)?,
+            )
         };
 
         let force_close = || -> SimulatedTradeExecutorResult<_> {
@@ -198,14 +207,11 @@ impl SimulatedCrossPosition {
             close_price,
         )
         .floor() as i64;
-        let remaining_margin =
-            i128::from(self.margin) + i128::from(close_pl) - i128::from(close_fee);
-        let remaining_margin = if remaining_margin <= 0 {
-            0
-        } else {
-            u64::try_from(remaining_margin)
-                .map_err(|_| SimulatedTradeExecutorError::CrossMarginTooHigh)?
-        };
+        let margin_delta = close_pl
+            .checked_sub(close_fee)
+            .ok_or(SimulatedTradeExecutorError::CrossMarginTooLow)?;
+        let remaining_margin = Self::apply_amount_to_margin(self.margin, margin_delta)?;
+        let close_fee = close_fee.unsigned_abs();
         let trading_fees = self
             .trading_fees
             .checked_add(close_fee)
@@ -227,32 +233,58 @@ impl SimulatedCrossPosition {
         order_quantity: CrossQuantity,
         fee_perc: PercentageCapped,
     ) -> SimulatedTradeExecutorResult<Self> {
+        let curr_exposure = match self.exposure {
+            CrossExposure::Neutral => None,
+            CrossExposure::Running(exposure) => Some(exposure),
+        };
+
+        if let Some(curr_exposure) = curr_exposure
+            && curr_exposure.side() != order_side
+            && order_quantity == curr_exposure.quantity()
+        {
+            return self.close(market_price, fee_perc);
+        }
+
         let order_fee = cross_trading_fee(order_quantity, market_price, fee_perc);
-        let margin_after_order_fee = self
-            .margin
-            .checked_sub(order_fee)
-            .ok_or(SimulatedTradeExecutorError::CrossFreeMarginTooLow)?;
+        let margin_after_order_fee = Self::apply_amount_to_margin(
+            self.margin,
+            order_fee
+                .checked_neg()
+                .ok_or(SimulatedTradeExecutorError::CrossMarginTooHigh)?,
+        )?;
         let cumulative_trading_fees = self
             .trading_fees
-            .checked_add(order_fee)
+            .checked_add(order_fee.unsigned_abs())
             .ok_or(SimulatedTradeExecutorError::CrossMarginTooHigh)?;
 
-        let CrossExposure::Running(current_exposure) = self.exposure else {
-            // Opening from flat uses the execution price as the new entry price.
-            let exposure_running = Some((order_side, order_quantity, market_price));
-            return Self::new(
-                margin_after_order_fee,
+        let with_running_exposure = |margin: u64,
+                                     side: TradeSide,
+                                     quantity: CrossQuantity,
+                                     entry_price: Price|
+         -> SimulatedTradeExecutorResult<Self> {
+            Self::new(
+                margin,
                 self.leverage,
-                exposure_running,
+                Some((side, quantity, entry_price)),
                 cumulative_trading_fees,
                 self.session_funding_fees,
+            )
+        };
+
+        let Some(curr_exposure) = curr_exposure else {
+            // Opening from flat uses the execution price as the new entry price.
+            return with_running_exposure(
+                margin_after_order_fee,
+                order_side,
+                order_quantity,
+                market_price,
             );
         };
-        let current_quantity = current_exposure.quantity();
-        let current_side = current_exposure.side();
-        let current_entry_price = current_exposure.entry_price();
 
-        // Same-side orders increase exposure and update the weighted entry price.
+        let current_quantity = curr_exposure.quantity();
+        let current_side = curr_exposure.side();
+        let current_entry_price = curr_exposure.entry_price();
+
         if current_side == order_side {
             let resulting_quantity =
                 CrossQuantity::try_from(current_quantity.as_u64() + order_quantity.as_u64())
@@ -263,125 +295,84 @@ impl SimulatedCrossPosition {
                 order_quantity,
                 market_price,
             );
-            let exposure_running = Some((order_side, resulting_quantity, resulting_entry_price));
 
-            return Self::new(
+            return with_running_exposure(
                 margin_after_order_fee,
-                self.leverage,
-                exposure_running,
-                cumulative_trading_fees,
-                self.session_funding_fees,
+                order_side,
+                resulting_quantity,
+                resulting_entry_price,
             );
         }
 
-        // Order doesn't have the same side as current position
+        match order_quantity.cmp(&current_quantity) {
+            Ordering::Equal => unreachable!("exact close is handled before order-fee accounting"),
+            Ordering::Greater => {
+                let realized_pl = estimate_cross_pl(
+                    current_side,
+                    current_quantity,
+                    current_entry_price,
+                    market_price,
+                )
+                .floor() as i64;
+                let margin = Self::apply_amount_to_margin(margin_after_order_fee, realized_pl)?;
+                let resulting_quantity =
+                    CrossQuantity::try_from(order_quantity.as_u64() - current_quantity.as_u64())
+                        .map_err(SimulatedTradeExecutorError::CrossQuantityValidation)?;
 
-        let reduced_quantity =
-            CrossQuantity::try_from(current_quantity.as_u64().min(order_quantity.as_u64()))
-                .map_err(SimulatedTradeExecutorError::CrossQuantityValidation)?;
-        let realized_reduction_pl = estimate_cross_pl(
-            current_side,
-            reduced_quantity,
-            current_entry_price,
-            market_price,
-        )
-        .floor() as i64;
-
-        let apply_realized_pl_to_margin =
-            |margin: u64, realized_pl: i64| -> SimulatedTradeExecutorResult<u64> {
-                if realized_pl >= 0 {
-                    margin
-                        .checked_add(realized_pl as u64)
-                        .ok_or(SimulatedTradeExecutorError::CrossMarginTooHigh)
-                } else {
-                    margin
-                        .checked_sub(realized_pl.unsigned_abs())
-                        .ok_or(SimulatedTradeExecutorError::CrossMarginTooLow)
-                }
-            };
-
-        // Exact close resets position-only fields and books realized P/L into margin.
-        if current_quantity == order_quantity {
-            return self.close(market_price, fee_perc);
-        }
-
-        let resulting_side = if current_quantity < order_quantity {
-            order_side
-        } else {
-            current_side
-        };
-        let resulting_quantity =
-            CrossQuantity::try_from(current_quantity.as_u64().abs_diff(order_quantity.as_u64()))
-                .map_err(SimulatedTradeExecutorError::CrossQuantityValidation)?;
-
-        // Reversals book the old position P/L and start the residual side at execution price.
-        if resulting_side != current_side {
-            let margin =
-                apply_realized_pl_to_margin(margin_after_order_fee, realized_reduction_pl)?;
-
-            let exposure_running = Some((resulting_side, resulting_quantity, market_price));
-
-            return Self::new(
-                margin,
-                self.leverage,
-                exposure_running,
-                cumulative_trading_fees,
-                self.session_funding_fees,
-            );
-        }
-
-        // Break-even partial reduction: fee is already paid, entry is unchanged.
-        if realized_reduction_pl == 0 {
-            let exposure_running = Some((resulting_side, resulting_quantity, current_entry_price));
-
-            return Self::new(
-                margin_after_order_fee,
-                self.leverage,
-                exposure_running,
-                cumulative_trading_fees,
-                self.session_funding_fees,
-            );
-        }
-
-        // Profitable partial reductions realize P/L into margin and keep entry unchanged.
-        if realized_reduction_pl > 0 {
-            let margin =
-                apply_realized_pl_to_margin(margin_after_order_fee, realized_reduction_pl)?;
-            let exposure_running = Some((resulting_side, resulting_quantity, current_entry_price));
-
-            return Self::new(
-                margin,
-                self.leverage,
-                exposure_running,
-                cumulative_trading_fees,
-                self.session_funding_fees,
-            );
-        }
-
-        // Losing partial reductions carry the loss in the remaining position entry price.
-        let full_position_pl = estimate_cross_pl(
-            current_side,
-            current_quantity,
-            current_entry_price,
-            market_price,
-        );
-        let inverse_market_price = SATS_PER_BTC / market_price.as_f64();
-        let carried_inverse_entry_price = match current_side {
-            TradeSide::Buy => inverse_market_price + full_position_pl / resulting_quantity.as_f64(),
-            TradeSide::Sell => {
-                inverse_market_price - full_position_pl / resulting_quantity.as_f64()
+                // Reversals book the old position P/L and start the residual side at execution price.
+                with_running_exposure(margin, order_side, resulting_quantity, market_price)
             }
-        };
-        let carried_entry_price = Price::bounded(SATS_PER_BTC / carried_inverse_entry_price);
-        let exposure_running = Some((resulting_side, resulting_quantity, carried_entry_price));
+            Ordering::Less => {
+                let resulting_quantity =
+                    CrossQuantity::try_from(current_quantity.as_u64() - order_quantity.as_u64())
+                        .map_err(SimulatedTradeExecutorError::CrossQuantityValidation)?;
+                let realized_pl = estimate_cross_pl(
+                    current_side,
+                    order_quantity,
+                    current_entry_price,
+                    market_price,
+                )
+                .floor() as i64;
 
-        Self::new(
-            margin_after_order_fee,
-            self.leverage,
-            exposure_running,
-            cumulative_trading_fees,
-            self.session_funding_fees,
-        )
+                if realized_pl >= 0 {
+                    let margin = Self::apply_amount_to_margin(margin_after_order_fee, realized_pl)?;
+
+                    // Profitable partial reductions realize P/L into margin and keep entry unchanged.
+                    return with_running_exposure(
+                        margin,
+                        current_side,
+                        resulting_quantity,
+                        current_entry_price,
+                    );
+                }
+
+                // Losing partial reductions carry the loss in the remaining position entry price.
+                let full_position_pl = estimate_cross_pl(
+                    current_side,
+                    current_quantity,
+                    current_entry_price,
+                    market_price,
+                );
+                let inverse_market_price = SATS_PER_BTC / market_price.as_f64();
+                let carried_inverse_entry_price = match current_side {
+                    TradeSide::Buy => {
+                        inverse_market_price + full_position_pl / resulting_quantity.as_f64()
+                    }
+                    TradeSide::Sell => {
+                        inverse_market_price - full_position_pl / resulting_quantity.as_f64()
+                    }
+                };
+                let carried_entry_price =
+                    Price::bounded(SATS_PER_BTC / carried_inverse_entry_price);
+
+                with_running_exposure(
+                    margin_after_order_fee,
+                    current_side,
+                    resulting_quantity,
+                    carried_entry_price,
+                )
+            }
+        }
     }
 
     #[allow(dead_code)]
