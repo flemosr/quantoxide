@@ -11,19 +11,13 @@ use lnm_sdk::api_v3::{
     },
 };
 
-use crate::{
-    db::models::{FundingSettlementRow, OhlcCandleRow},
-    trade::backtest::executor::cross_helpers::estimate_cross_liquidation_for_side,
-};
+use crate::db::models::{FundingSettlementRow, OhlcCandleRow};
 
 use super::{
     super::super::core::{
         CrossExposure, CrossPositionCore, CrossQuantity, TradeClosed, TradeCore, TradeRunning,
     },
-    cross_helpers::{
-        aggregate_cross_entry_price, cross_maintenance_margin, cross_running_margin,
-        cross_trading_fee, estimate_cross_pl,
-    },
+    cross_helpers::{aggregate_cross_entry_price, cross_trading_fee, estimate_cross_pl},
     error::{SimulatedTradeExecutorError, SimulatedTradeExecutorResult},
 };
 
@@ -38,163 +32,190 @@ pub(super) struct SimulatedCrossPosition {
 
 impl SimulatedCrossPosition {
     pub fn new(
-        market_price: f64,
         margin: u64,
         leverage: CrossLeverage,
-        exposure: CrossExposure,
+        exposure_running: Option<(TradeSide, CrossQuantity, Price)>,
         trading_fees: u64,
         session_funding_fees: i64,
     ) -> SimulatedTradeExecutorResult<Self> {
-        let state = Self {
+        let exposure = CrossExposure::new(margin, leverage, exposure_running)
+            .map_err(SimulatedTradeExecutorError::CrossExposureValidation)?;
+
+        Ok(Self {
             margin,
             leverage,
             exposure,
             trading_fees,
             session_funding_fees,
-        };
-
-        if matches!(state.exposure, CrossExposure::Running { .. })
-            && state.est_free_margin(Price::bounded(market_price)) == 0
-        {
-            return Err(SimulatedTradeExecutorError::CrossMarginTooLow);
-        }
-
-        Ok(state)
-    }
-
-    pub fn initial(start_candle: &OhlcCandleRow) -> Self {
-        Self::new(
-            start_candle.open,
-            0,
-            CrossLeverage::MIN,
-            CrossExposure::Neutral,
-            0,
-            0,
-        )
-        .expect("initial simulated cross position must be valid")
-    }
-
-    pub fn from_running_params(
-        market_price: f64,
-        margin: u64,
-        leverage: CrossLeverage,
-        side: TradeSide,
-        quantity: CrossQuantity,
-        entry_price: Price,
-        trading_fees: u64,
-        session_funding_fees: i64,
-    ) -> SimulatedTradeExecutorResult<Self> {
-        let exposure =
-            Self::evaluate_running_exposure(margin, leverage, side, quantity, entry_price)?;
-        Self::new(
-            market_price,
-            margin,
-            leverage,
-            exposure,
-            trading_fees,
-            session_funding_fees,
-        )
-    }
-
-    fn evaluate_running_exposure(
-        margin: u64,
-        leverage: CrossLeverage,
-        side: TradeSide,
-        quantity: CrossQuantity,
-        entry_price: Price,
-    ) -> SimulatedTradeExecutorResult<CrossExposure> {
-        let liquidation = estimate_cross_liquidation_for_side(side, quantity, entry_price, margin);
-        let running_margin =
-            Margin::try_from(cross_running_margin(quantity, entry_price, leverage))
-                .map_err(|_| SimulatedTradeExecutorError::CrossMarginTooLow)?;
-        let maintenance_margin = Margin::try_from(cross_maintenance_margin(quantity, entry_price))
-            .map_err(|_| SimulatedTradeExecutorError::CrossMarginTooLow)?;
-
-        Ok(CrossExposure::Running {
-            quantity,
-            side,
-            entry_price,
-            liquidation,
-            running_margin,
-            maintenance_margin,
         })
     }
 
-    pub fn with_margin(
-        &self,
-        market_price: f64,
-        new_margin: u64,
-    ) -> SimulatedTradeExecutorResult<Self> {
-        let new_exposure = match self.exposure {
-            CrossExposure::Neutral => CrossExposure::Neutral,
-            CrossExposure::Running {
-                quantity,
-                side,
-                entry_price,
-                running_margin,
-                maintenance_margin,
-                ..
-            } => {
-                let new_liquidation =
-                    estimate_cross_liquidation_for_side(side, quantity, entry_price, new_margin);
+    pub fn initial() -> Self {
+        Self::new(0, CrossLeverage::MIN, None, 0, 0).expect("must be valid `CrossPosition` params")
+    }
 
-                CrossExposure::Running {
-                    quantity,
-                    side,
-                    entry_price,
-                    liquidation: new_liquidation,
-                    running_margin,
-                    maintenance_margin,
-                }
+    pub fn is_coherent(&self, market_price: Price) -> bool {
+        match self.exposure {
+            CrossExposure::Neutral => true,
+            CrossExposure::Running(cross_exposure_running) => {
+                let is_liquid = match cross_exposure_running.side() {
+                    TradeSide::Buy => market_price > cross_exposure_running.liquidation(),
+                    TradeSide::Sell => market_price < cross_exposure_running.liquidation(),
+                };
+
+                is_liquid && self.est_free_margin(market_price) > 0
             }
-        };
+        }
+    }
 
+    pub fn with_margin(&self, new_margin: u64) -> SimulatedTradeExecutorResult<Self> {
         Self::new(
-            market_price,
             new_margin,
             self.leverage,
-            new_exposure,
+            self.exposure.to_running_params(),
             self.trading_fees,
             self.session_funding_fees,
         )
     }
 
-    pub fn with_leverage(
+    pub fn with_leverage(&self, new_leverage: CrossLeverage) -> SimulatedTradeExecutorResult<Self> {
+        Self::new(
+            self.margin,
+            new_leverage,
+            self.exposure.to_running_params(),
+            self.trading_fees,
+            self.session_funding_fees,
+        )
+    }
+
+    pub fn apply_funding_settlement(
         &self,
         market_price: f64,
-        new_leverage: CrossLeverage,
-    ) -> SimulatedTradeExecutorResult<Self> {
-        let new_exposure = match self.exposure {
-            CrossExposure::Neutral => CrossExposure::Neutral,
-            CrossExposure::Running {
-                quantity,
-                side,
-                entry_price,
-                liquidation,
-                maintenance_margin,
-                ..
-            } => {
-                let new_running_margin =
-                    Margin::try_from(cross_running_margin(quantity, entry_price, new_leverage))
-                        .map_err(|_| SimulatedTradeExecutorError::CrossMarginTooLow)?;
+        settlement: &FundingSettlementRow,
+        fee_perc: PercentageCapped,
+    ) -> SimulatedTradeExecutorResult<(Self, i64, bool)> {
+        let CrossExposure::Running(exposure) = self.exposure else {
+            return Ok((*self, 0, false));
+        };
+        let quantity = exposure.quantity();
+        let side = exposure.side();
+        let market_price = Price::bounded(market_price);
+        let raw_fee =
+            (quantity.as_f64() / settlement.fixing_price) * settlement.funding_rate * SATS_PER_BTC;
+        let funding_fee = match side {
+            TradeSide::Buy => raw_fee,
+            TradeSide::Sell => -raw_fee,
+        }
+        .round() as i64;
+        let new_session_funding_fees = self
+            .session_funding_fees
+            .checked_add(funding_fee)
+            .ok_or(SimulatedTradeExecutorError::CrossMarginTooHigh)?;
 
-                CrossExposure::Running {
-                    quantity,
-                    side,
-                    entry_price,
-                    liquidation,
-                    running_margin: new_running_margin,
-                    maintenance_margin,
-                }
+        let update_margin = |margin: u64| -> SimulatedTradeExecutorResult<u64> {
+            if funding_fee < 0 {
+                margin
+                    .checked_add(funding_fee.unsigned_abs())
+                    .ok_or(SimulatedTradeExecutorError::CrossMarginTooHigh)
+            } else {
+                Ok(margin.saturating_sub(funding_fee as u64))
             }
         };
 
-        Self::new(
-            market_price,
-            self.margin,
-            new_leverage,
-            new_exposure,
+        let force_close = || -> SimulatedTradeExecutorResult<_> {
+            let closed_position = self.close(market_price, fee_perc)?;
+            let remaining_margin = update_margin(closed_position.margin)?;
+            let final_position = Self::new(
+                remaining_margin,
+                closed_position.leverage,
+                None,
+                closed_position.trading_fees,
+                new_session_funding_fees,
+            )?;
+
+            Ok((final_position, funding_fee, true))
+        };
+
+        if funding_fee > 0 && funding_fee as u64 >= self.est_free_margin(market_price) {
+            return force_close();
+        }
+
+        let new_margin = update_margin(self.margin)?;
+
+        let new_position = match Self::new(
+            new_margin,
+            self.leverage,
+            self.exposure.to_running_params(),
             self.trading_fees,
+            new_session_funding_fees,
+        ) {
+            Ok(position) => position,
+            Err(SimulatedTradeExecutorError::CrossExposureValidation(_)) => {
+                return force_close();
+            }
+            Err(error) => return Err(error),
+        };
+
+        if !new_position.is_coherent(market_price) {
+            return force_close();
+        }
+
+        Ok((new_position, funding_fee, false))
+    }
+
+    pub fn liquidation_reached(&self, candle: &OhlcCandleRow) -> bool {
+        match self.exposure {
+            CrossExposure::Neutral => false,
+            CrossExposure::Running(exposure) => match exposure.side() {
+                TradeSide::Buy => candle.low <= exposure.liquidation().as_f64(),
+                TradeSide::Sell => candle.high >= exposure.liquidation().as_f64(),
+            },
+        }
+    }
+
+    pub fn liquidate(&self, fee_perc: PercentageCapped) -> SimulatedTradeExecutorResult<Self> {
+        if let CrossExposure::Running(exposure_running) = self.exposure {
+            return self.close(exposure_running.liquidation(), fee_perc);
+        }
+
+        Ok(*self)
+    }
+
+    pub fn close(
+        &self,
+        close_price: Price,
+        fee_perc: PercentageCapped,
+    ) -> SimulatedTradeExecutorResult<Self> {
+        let CrossExposure::Running(exposure) = self.exposure else {
+            return Ok(*self);
+        };
+
+        let close_fee = cross_trading_fee(exposure.quantity(), close_price, fee_perc);
+        let close_pl = estimate_cross_pl(
+            exposure.side(),
+            exposure.quantity(),
+            exposure.entry_price(),
+            close_price,
+        )
+        .floor() as i64;
+        let remaining_margin =
+            i128::from(self.margin) + i128::from(close_pl) - i128::from(close_fee);
+        let remaining_margin = if remaining_margin <= 0 {
+            0
+        } else {
+            u64::try_from(remaining_margin)
+                .map_err(|_| SimulatedTradeExecutorError::CrossMarginTooHigh)?
+        };
+        let trading_fees = self
+            .trading_fees
+            .checked_add(close_fee)
+            .ok_or(SimulatedTradeExecutorError::CrossMarginTooHigh)?;
+
+        Self::new(
+            remaining_margin,
+            self.leverage,
+            None,
+            trading_fees,
             self.session_funding_fees,
         )
     }
@@ -216,25 +237,20 @@ impl SimulatedCrossPosition {
             .checked_add(order_fee)
             .ok_or(SimulatedTradeExecutorError::CrossMarginTooHigh)?;
 
-        let CrossExposure::Running {
-            quantity: current_quantity,
-            side: current_side,
-            entry_price: current_entry_price,
-            ..
-        } = self.exposure
-        else {
+        let CrossExposure::Running(current_exposure) = self.exposure else {
             // Opening from flat uses the execution price as the new entry price.
-            return Self::from_running_params(
-                market_price.as_f64(),
+            let exposure_running = Some((order_side, order_quantity, market_price));
+            return Self::new(
                 margin_after_order_fee,
                 self.leverage,
-                order_side,
-                order_quantity,
-                market_price,
+                exposure_running,
                 cumulative_trading_fees,
                 self.session_funding_fees,
             );
         };
+        let current_quantity = current_exposure.quantity();
+        let current_side = current_exposure.side();
+        let current_entry_price = current_exposure.entry_price();
 
         // Same-side orders increase exposure and update the weighted entry price.
         if current_side == order_side {
@@ -247,14 +263,12 @@ impl SimulatedCrossPosition {
                 order_quantity,
                 market_price,
             );
+            let exposure_running = Some((order_side, resulting_quantity, resulting_entry_price));
 
-            return Self::from_running_params(
-                market_price.as_f64(),
+            return Self::new(
                 margin_after_order_fee,
                 self.leverage,
-                order_side,
-                resulting_quantity,
-                resulting_entry_price,
+                exposure_running,
                 cumulative_trading_fees,
                 self.session_funding_fees,
             );
@@ -288,16 +302,7 @@ impl SimulatedCrossPosition {
 
         // Exact close resets position-only fields and books realized P/L into margin.
         if current_quantity == order_quantity {
-            let margin =
-                apply_realized_pl_to_margin(margin_after_order_fee, realized_reduction_pl)?;
-            return Self::new(
-                market_price.as_f64(),
-                margin,
-                self.leverage,
-                CrossExposure::Neutral,
-                cumulative_trading_fees,
-                self.session_funding_fees,
-            );
+            return self.close(market_price, fee_perc);
         }
 
         let resulting_side = if current_quantity < order_quantity {
@@ -314,13 +319,12 @@ impl SimulatedCrossPosition {
             let margin =
                 apply_realized_pl_to_margin(margin_after_order_fee, realized_reduction_pl)?;
 
-            return Self::from_running_params(
-                market_price.as_f64(),
+            let exposure_running = Some((resulting_side, resulting_quantity, market_price));
+
+            return Self::new(
                 margin,
                 self.leverage,
-                resulting_side,
-                resulting_quantity,
-                market_price,
+                exposure_running,
                 cumulative_trading_fees,
                 self.session_funding_fees,
             );
@@ -328,13 +332,12 @@ impl SimulatedCrossPosition {
 
         // Break-even partial reduction: fee is already paid, entry is unchanged.
         if realized_reduction_pl == 0 {
-            return Self::from_running_params(
-                market_price.as_f64(),
+            let exposure_running = Some((resulting_side, resulting_quantity, current_entry_price));
+
+            return Self::new(
                 margin_after_order_fee,
                 self.leverage,
-                resulting_side,
-                resulting_quantity,
-                current_entry_price,
+                exposure_running,
                 cumulative_trading_fees,
                 self.session_funding_fees,
             );
@@ -344,13 +347,12 @@ impl SimulatedCrossPosition {
         if realized_reduction_pl > 0 {
             let margin =
                 apply_realized_pl_to_margin(margin_after_order_fee, realized_reduction_pl)?;
-            return Self::from_running_params(
-                market_price.as_f64(),
+            let exposure_running = Some((resulting_side, resulting_quantity, current_entry_price));
+
+            return Self::new(
                 margin,
                 self.leverage,
-                resulting_side,
-                resulting_quantity,
-                current_entry_price,
+                exposure_running,
                 cumulative_trading_fees,
                 self.session_funding_fees,
             );
@@ -371,14 +373,12 @@ impl SimulatedCrossPosition {
             }
         };
         let carried_entry_price = Price::bounded(SATS_PER_BTC / carried_inverse_entry_price);
+        let exposure_running = Some((resulting_side, resulting_quantity, carried_entry_price));
 
-        Self::from_running_params(
-            market_price.as_f64(),
+        Self::new(
             margin_after_order_fee,
             self.leverage,
-            resulting_side,
-            resulting_quantity,
-            carried_entry_price,
+            exposure_running,
             cumulative_trading_fees,
             self.session_funding_fees,
         )
