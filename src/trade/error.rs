@@ -15,6 +15,14 @@ use super::{
     live::executor::error::ExecutorActionError,
 };
 
+/// Error returned when constructing an invalid cross exposure.
+#[derive(Debug, Error)]
+pub enum CrossExposureValidationError {
+    /// Cross margin is insufficient for the requested running cross exposure.
+    #[error("Cross margin is too low error")]
+    CrossMarginTooLow,
+}
+
 /// Error returned when constructing an invalid [`CrossQuantity`].
 #[derive(Debug, Error)]
 pub enum CrossQuantityValidationError {
