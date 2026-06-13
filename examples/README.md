@@ -11,10 +11,12 @@ Direct source code links for quick reference:
 | **Trade Operator Templates** | [raw.rs](https://raw.githubusercontent.com/flemosr/quantoxide/main/examples/operators/raw.rs) | [signal/mod.rs](https://raw.githubusercontent.com/flemosr/quantoxide/main/examples/operators/signal/mod.rs) / [signal/evaluator.rs](https://raw.githubusercontent.com/flemosr/quantoxide/refs/heads/main/examples/operators/signal/evaluator.rs) | - |
 | **Synchronization** | [sync_tui.rs](https://raw.githubusercontent.com/flemosr/quantoxide/main/examples/sync_tui.rs) | - | [sync_direct.rs](https://raw.githubusercontent.com/flemosr/quantoxide/main/examples/sync_direct.rs) |
 | **Backtesting** | [backtest_raw_tui.rs](https://raw.githubusercontent.com/flemosr/quantoxide/main/examples/backtest_raw_tui.rs) | [backtest_signal_tui.rs](https://raw.githubusercontent.com/flemosr/quantoxide/main/examples/backtest_signal_tui.rs) | [backtest_direct.rs](https://raw.githubusercontent.com/flemosr/quantoxide/main/examples/backtest_direct.rs) |
+| **Carry Trade Backtesting** | [backtest_cross_carry_tui.rs](https://raw.githubusercontent.com/flemosr/quantoxide/main/examples/backtest_cross_carry_tui.rs) | - | [backtest_cross_carry.rs](https://raw.githubusercontent.com/flemosr/quantoxide/main/examples/backtest_cross_carry.rs) |
 | **Parallel Backtesting** | - | - | [backtest_direct_parallel.rs](https://raw.githubusercontent.com/flemosr/quantoxide/main/examples/backtest_direct_parallel.rs) |
 | **Live Trading** | [live_raw_tui.rs](https://raw.githubusercontent.com/flemosr/quantoxide/main/examples/live_raw_tui.rs) | [live_signal_tui.rs](https://raw.githubusercontent.com/flemosr/quantoxide/main/examples/live_signal_tui.rs) | [live_direct.rs](https://raw.githubusercontent.com/flemosr/quantoxide/main/examples/live_direct.rs) |
 
-Utilities shared across examples:
+Utilities and operators shared across examples:
+- [operators/cross_carry.rs](https://raw.githubusercontent.com/flemosr/quantoxide/main/examples/operators/cross_carry.rs) - Cross-margin carry-trade raw operator used by the direct and TUI examples
 - [util/input.rs](https://raw.githubusercontent.com/flemosr/quantoxide/main/examples/util/input.rs) - CLI argument parsing and date handling
 - [util/metrics.rs](https://raw.githubusercontent.com/flemosr/quantoxide/main/examples/util/metrics.rs) - Financial metrics (Sharpe ratio, max drawdown)
 
@@ -132,6 +134,42 @@ Options:
 Example:
 ```bash
 cargo run --example backtest_direct -- --start 2025-09-01 --end 2025-12-01 --balance 10000000 --rfr-sats 0.0 --rfr-usd 0.05
+```
+
+### backtest_cross_carry_tui / backtest_cross_carry
+
+Demonstrates a simulated cross-margin carry trade through the explicit `TradeExecutor::cross_*`
+API. The operator moves the full starting isolated balance into cross margin, shorts the account's
+initial net value in USD, inspects `TradingState::cross_position()`, and rebalances the short hedge
+whenever hedge drift exceeds 1% of the current account net value. Positive funding rates are
+expected to pay shorts, and simulated cross funding receipts flow through cross
+margin into the account net value used as the hedge target.
+
+Usage with the **TUI**:
+```bash
+cargo run --example backtest_cross_carry_tui
+```
+
+Usage without the TUI:
+```bash
+cargo run --example backtest_cross_carry -- --start <DATE> --end <DATE> [OPTIONS]
+```
+
+The TUI variant prompts for start date, starting balance, and end date before launching the
+terminal interface.
+
+The direct variant accepts the following arguments.
+
+Required:
+- `--start <DATE>` - Start date in YYYY-MM-DD format
+- `--end <DATE>` - End date in YYYY-MM-DD format
+
+Options:
+- `--balance <SATS>` - Starting balance in sats (default: 10000000)
+
+Example:
+```bash
+cargo run --example backtest_cross_carry -- --start 2025-09-01 --end 2025-12-01 --balance 10000000
 ```
 
 ### backtest_direct_parallel
