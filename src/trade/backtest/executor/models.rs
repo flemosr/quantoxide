@@ -286,9 +286,9 @@ impl SimulatedCrossPosition {
         let current_entry_price = curr_exposure.entry_price();
 
         if current_side == order_side {
-            let resulting_quantity =
-                CrossQuantity::try_from(current_quantity.as_u64() + order_quantity.as_u64())
-                    .map_err(SimulatedTradeExecutorError::CrossQuantityValidation)?;
+            let resulting_quantity = current_quantity
+                .try_add(order_quantity)
+                .map_err(SimulatedTradeExecutorError::CrossQuantityValidation)?;
             let resulting_entry_price = trade_util::aggregate_cross_entry_price(
                 current_quantity,
                 current_entry_price,
@@ -315,17 +315,17 @@ impl SimulatedCrossPosition {
                 )
                 .floor() as i64;
                 let margin = Self::apply_amount_to_margin(margin_after_order_fee, realized_pl)?;
-                let resulting_quantity =
-                    CrossQuantity::try_from(order_quantity.as_u64() - current_quantity.as_u64())
-                        .map_err(SimulatedTradeExecutorError::CrossQuantityValidation)?;
+                let resulting_quantity = order_quantity
+                    .try_sub(current_quantity)
+                    .map_err(SimulatedTradeExecutorError::CrossQuantityValidation)?;
 
                 // Reversals book the old position P/L and start the residual side at execution price.
                 with_running_exposure(margin, order_side, resulting_quantity, market_price)
             }
             Ordering::Less => {
-                let resulting_quantity =
-                    CrossQuantity::try_from(current_quantity.as_u64() - order_quantity.as_u64())
-                        .map_err(SimulatedTradeExecutorError::CrossQuantityValidation)?;
+                let resulting_quantity = current_quantity
+                    .try_sub(order_quantity)
+                    .map_err(SimulatedTradeExecutorError::CrossQuantityValidation)?;
                 let realized_pl = trade_util::estimate_pl(
                     current_side,
                     order_quantity,
