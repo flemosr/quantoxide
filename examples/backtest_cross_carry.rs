@@ -57,7 +57,7 @@ fn print_final_summary(state: &TradingState) {
 /// Prints usage information and exits.
 fn print_usage() {
     eprintln!(
-        "Usage: cargo run --example backtest_cross_margin -- --start <DATE> --end <DATE> [OPTIONS]"
+        "Usage: cargo run --example backtest_cross_carry -- --start <DATE> --end <DATE> [OPTIONS]"
     );
     eprintln!();
     eprintln!("Required:");
@@ -71,7 +71,7 @@ fn print_usage() {
     eprintln!();
     eprintln!("Example:");
     eprintln!(
-        "  cargo run --example backtest_cross_margin -- --start 2025-09-01 --end 2025-09-02 --balance {DEFAULT_START_BALANCE_SATS}"
+        "  cargo run --example backtest_cross_carry -- --start 2025-09-01 --end 2025-09-02 --balance {DEFAULT_START_BALANCE_SATS}"
     );
 }
 
