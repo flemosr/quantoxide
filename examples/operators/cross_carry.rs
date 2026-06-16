@@ -13,8 +13,8 @@ use async_trait::async_trait;
 use quantoxide::{
     error::Result,
     models::{
-        CrossLeverage, Lookback, MinIterationInterval, OhlcCandleRow, PercentageCapped, Quantity,
-        SATS_PER_BTC, TradeSide,
+        CrossLeverage, Lookback, MinIterationInterval, OhlcCandleRow, OrderQuantity,
+        PercentageCapped, SATS_PER_BTC, TradeSide,
     },
     trade::{RawOperator, TradeExecutor, TradingState},
     tui::TuiLogger,
@@ -35,7 +35,7 @@ pub fn hedge_drift_usd(state: &TradingState) -> f64 {
 pub fn hedge_difference_usd(
     state: &TradingState,
     threshold_usd: f64,
-) -> Option<(TradeSide, Quantity)> {
+) -> Option<(TradeSide, OrderQuantity)> {
     let diff_usd = hedge_drift_usd(state);
 
     let mut hedge_order_usd = diff_usd.abs().floor();
@@ -57,7 +57,7 @@ pub fn hedge_difference_usd(
         hedge_order_usd = hedge_order_usd.min(max_reduction_usd);
     }
 
-    let quantity = Quantity::try_from(hedge_order_usd.round()).ok()?;
+    let quantity = OrderQuantity::try_from(hedge_order_usd.round()).ok()?;
 
     Some((side, quantity))
 }
@@ -180,7 +180,11 @@ impl CrossCarryOperator {
         Ok(())
     }
 
-    async fn adjust_hedge(&self, order_side: TradeSide, order_quantity: Quantity) -> Result<()> {
+    async fn adjust_hedge(
+        &self,
+        order_side: TradeSide,
+        order_quantity: OrderQuantity,
+    ) -> Result<()> {
         let trade_executor = self.trade_executor()?;
 
         match order_side {

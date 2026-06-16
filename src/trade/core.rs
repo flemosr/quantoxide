@@ -14,8 +14,8 @@ use uuid::Uuid;
 use lnm_sdk::api_v3::{
     error::TradeValidationError,
     models::{
-        ClientId, CrossExposure, CrossLeverage, Leverage, Margin, Percentage, PercentageCapped,
-        Price, Quantity, SATS_PER_BTC, Trade, TradeSide, TradeSize, trade_util,
+        ClientId, CrossExposure, CrossLeverage, Leverage, Margin, OrderQuantity, Percentage,
+        PercentageCapped, Price, SATS_PER_BTC, Trade, TradeSide, TradeSize, trade_util,
     },
 };
 
@@ -54,7 +54,7 @@ pub trait TradeCore: crate::sealed::Sealed + Send + Sync + fmt::Debug + 'static 
     fn maintenance_margin(&self) -> i64;
 
     /// Returns the quantity (notional value in USD) of the trade.
-    fn quantity(&self) -> Quantity;
+    fn quantity(&self) -> OrderQuantity;
 
     /// Returns the margin (collateral in satoshis) allocated to the trade.
     fn margin(&self) -> Margin;
@@ -114,7 +114,7 @@ impl TradeCore for Trade {
         self.maintenance_margin()
     }
 
-    fn quantity(&self) -> Quantity {
+    fn quantity(&self) -> OrderQuantity {
         self.quantity()
     }
 
@@ -1378,10 +1378,10 @@ pub trait TradeExecutor: Send + Sync {
     ) -> TradeExecutorResult<Arc<dyn CrossPositionCore>>;
 
     /// Places a cross-margin market long order and returns the cross-order UUID.
-    async fn cross_market_long(&self, quantity: Quantity) -> TradeExecutorResult<Uuid>;
+    async fn cross_market_long(&self, quantity: OrderQuantity) -> TradeExecutorResult<Uuid>;
 
     /// Places a cross-margin market short order and returns the cross-order UUID.
-    async fn cross_market_short(&self, quantity: Quantity) -> TradeExecutorResult<Uuid>;
+    async fn cross_market_short(&self, quantity: OrderQuantity) -> TradeExecutorResult<Uuid>;
 
     /// Closes the full cross-margin position, returning the closing cross-order UUID when a
     /// position was open.

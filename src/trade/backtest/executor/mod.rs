@@ -6,7 +6,7 @@ use tokio::sync::Mutex;
 use uuid::Uuid;
 
 use lnm_sdk::api_v3::models::{
-    ClientId, CrossLeverage, Leverage, Price, Quantity, TradeSide, TradeSize,
+    ClientId, CrossLeverage, Leverage, OrderQuantity, Price, TradeSide, TradeSize,
 };
 
 use crate::db::models::{FundingSettlementRow, OhlcCandleRow};
@@ -454,7 +454,7 @@ impl SimulatedTradeExecutor {
     async fn execute_cross_market_order(
         &self,
         side: TradeSide,
-        quantity: Quantity,
+        quantity: OrderQuantity,
     ) -> SimulatedTradeExecutorResult<Uuid> {
         let mut state_guard = self.state.lock().await;
         let market_price = Price::round(state_guard.market_price)
@@ -724,13 +724,13 @@ impl TradeExecutor for SimulatedTradeExecutor {
         Ok(Arc::new(state_guard.cross_position))
     }
 
-    async fn cross_market_long(&self, quantity: Quantity) -> TradeExecutorResult<Uuid> {
+    async fn cross_market_long(&self, quantity: OrderQuantity) -> TradeExecutorResult<Uuid> {
         Ok(self
             .execute_cross_market_order(TradeSide::Buy, quantity)
             .await?)
     }
 
-    async fn cross_market_short(&self, quantity: Quantity) -> TradeExecutorResult<Uuid> {
+    async fn cross_market_short(&self, quantity: OrderQuantity) -> TradeExecutorResult<Uuid> {
         Ok(self
             .execute_cross_market_order(TradeSide::Sell, quantity)
             .await?)

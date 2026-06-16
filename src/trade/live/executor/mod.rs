@@ -18,8 +18,8 @@ use uuid::Uuid;
 use lnm_sdk::api_v3::{
     RestClient,
     models::{
-        ClientId, CrossLeverage, Leverage, PercentageCapped, Price, Quantity, TradeSide, TradeSize,
-        trade_util,
+        ClientId, CrossLeverage, Leverage, OrderQuantity, PercentageCapped, Price, TradeSide,
+        TradeSize, trade_util,
     },
 };
 
@@ -509,13 +509,13 @@ impl TradeExecutor for LiveTradeExecutor {
         })?
     }
 
-    async fn cross_market_long(&self, _quantity: Quantity) -> TradeExecutorResult<Uuid> {
+    async fn cross_market_long(&self, _quantity: OrderQuantity) -> TradeExecutorResult<Uuid> {
         Err(ExecutorActionError::CrossMarginUnsupported {
             operation: "cross_market_long",
         })?
     }
 
-    async fn cross_market_short(&self, _quantity: Quantity) -> TradeExecutorResult<Uuid> {
+    async fn cross_market_short(&self, _quantity: OrderQuantity) -> TradeExecutorResult<Uuid> {
         Err(ExecutorActionError::CrossMarginUnsupported {
             operation: "cross_market_short",
         })?

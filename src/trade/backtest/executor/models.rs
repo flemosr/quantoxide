@@ -6,8 +6,8 @@ use uuid::Uuid;
 use lnm_sdk::api_v3::{
     error::LeverageValidationError,
     models::{
-        ClientId, CrossExposure, CrossLeverage, CrossQuantity, Leverage, Margin, PercentageCapped,
-        Price, Quantity, SATS_PER_BTC, TradeSide, TradeSize, trade_util,
+        ClientId, CrossExposure, CrossLeverage, CrossQuantity, Leverage, Margin, OrderQuantity,
+        PercentageCapped, Price, SATS_PER_BTC, TradeSide, TradeSize, trade_util,
     },
 };
 
@@ -407,7 +407,7 @@ pub(super) struct SimulatedTradeRunning {
     side: TradeSide,
     opening_fee: u64,
     closing_fee_reserved: u64,
-    quantity: Quantity,
+    quantity: OrderQuantity,
     margin: Margin,
     leverage: Leverage,
     price: Price,
@@ -669,7 +669,7 @@ impl TradeCore for SimulatedTradeRunning {
         self.opening_fee as i64 + self.closing_fee_reserved as i64
     }
 
-    fn quantity(&self) -> Quantity {
+    fn quantity(&self) -> OrderQuantity {
         self.quantity
     }
 
@@ -741,7 +741,7 @@ pub(super) struct SimulatedTradeClosed {
     stoploss: Option<Price>,
     takeprofit: Option<Price>,
     margin: Margin,
-    quantity: Quantity,
+    quantity: OrderQuantity,
     leverage: Leverage,
     close_time: DateTime<Utc>,
     close_price: Price,
@@ -772,7 +772,7 @@ impl TradeCore for SimulatedTradeClosed {
         self.opening_fee as i64 + self.closing_fee_reserved as i64
     }
 
-    fn quantity(&self) -> Quantity {
+    fn quantity(&self) -> OrderQuantity {
         self.quantity
     }
 
