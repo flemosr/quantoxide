@@ -22,7 +22,6 @@ use super::{
     config::SimulatedTradeExecutorConfig,
 };
 
-mod cross_helpers;
 pub(crate) mod error;
 mod models;
 
