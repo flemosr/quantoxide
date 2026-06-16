@@ -6,18 +6,15 @@ use uuid::Uuid;
 use lnm_sdk::api_v3::{
     error::LeverageValidationError,
     models::{
-        ClientId, CrossLeverage, Leverage, Margin, PercentageCapped, Price, Quantity, SATS_PER_BTC,
-        TradeSide, TradeSize, trade_util,
+        ClientId, CrossExposure, CrossLeverage, CrossQuantity, Leverage, Margin, PercentageCapped,
+        Price, Quantity, SATS_PER_BTC, TradeSide, TradeSize, trade_util,
     },
 };
 
 use crate::db::models::{FundingSettlementRow, OhlcCandleRow};
 
 use super::{
-    super::super::core::{
-        CrossExposure, CrossPositionCore, CrossQuantity, TradeClosed, TradeCore, TradeRunning,
-    },
-    cross_helpers::{aggregate_cross_entry_price, cross_trading_fee, estimate_cross_pl},
+    super::super::core::{CrossPositionCore, TradeClosed, TradeCore, TradeRunning},
     error::{SimulatedTradeExecutorError, SimulatedTradeExecutorResult},
 };
 
@@ -82,7 +79,7 @@ impl SimulatedCrossPosition {
         Self::new(
             new_margin,
             self.leverage,
-            self.exposure.to_running_params(),
+            self.exposure.as_running_params(),
             self.trading_fees,
             self.session_funding_fees,
         )
@@ -92,7 +89,7 @@ impl SimulatedCrossPosition {
         Self::new(
             self.margin,
             new_leverage,
-            self.exposure.to_running_params(),
+            self.exposure.as_running_params(),
             self.trading_fees,
             self.session_funding_fees,
         )
@@ -154,7 +151,7 @@ impl SimulatedCrossPosition {
         let new_position = match Self::new(
             new_margin,
             self.leverage,
-            self.exposure.to_running_params(),
+            self.exposure.as_running_params(),
             self.trading_fees,
             new_session_funding_fees,
         ) {
@@ -199,8 +196,10 @@ impl SimulatedCrossPosition {
             return Ok(*self);
         };
 
-        let close_fee = cross_trading_fee(exposure.quantity(), close_price, fee_perc);
-        let close_pl = estimate_cross_pl(
+        let close_fee = trade_util::evaluate_order_fee(fee_perc, exposure.quantity(), close_price);
+        let close_fee_i64 = i64::try_from(close_fee)
+            .map_err(|_| SimulatedTradeExecutorError::CrossMarginTooHigh)?;
+        let close_pl = trade_util::estimate_pl(
             exposure.side(),
             exposure.quantity(),
             exposure.entry_price(),
@@ -208,10 +207,9 @@ impl SimulatedCrossPosition {
         )
         .floor() as i64;
         let margin_delta = close_pl
-            .checked_sub(close_fee)
+            .checked_sub(close_fee_i64)
             .ok_or(SimulatedTradeExecutorError::CrossMarginTooLow)?;
         let remaining_margin = Self::apply_amount_to_margin(self.margin, margin_delta)?;
-        let close_fee = close_fee.unsigned_abs();
         let trading_fees = self
             .trading_fees
             .checked_add(close_fee)
@@ -245,16 +243,18 @@ impl SimulatedCrossPosition {
             return self.close(market_price, fee_perc);
         }
 
-        let order_fee = cross_trading_fee(order_quantity, market_price, fee_perc);
+        let order_fee = trade_util::evaluate_order_fee(fee_perc, order_quantity, market_price);
+        let order_fee_i64 = i64::try_from(order_fee)
+            .map_err(|_| SimulatedTradeExecutorError::CrossMarginTooHigh)?;
         let margin_after_order_fee = Self::apply_amount_to_margin(
             self.margin,
-            order_fee
+            order_fee_i64
                 .checked_neg()
                 .ok_or(SimulatedTradeExecutorError::CrossMarginTooHigh)?,
         )?;
         let cumulative_trading_fees = self
             .trading_fees
-            .checked_add(order_fee.unsigned_abs())
+            .checked_add(order_fee)
             .ok_or(SimulatedTradeExecutorError::CrossMarginTooHigh)?;
 
         let with_running_exposure = |margin: u64,
@@ -289,7 +289,7 @@ impl SimulatedCrossPosition {
             let resulting_quantity =
                 CrossQuantity::try_from(current_quantity.as_u64() + order_quantity.as_u64())
                     .map_err(SimulatedTradeExecutorError::CrossQuantityValidation)?;
-            let resulting_entry_price = aggregate_cross_entry_price(
+            let resulting_entry_price = trade_util::aggregate_cross_entry_price(
                 current_quantity,
                 current_entry_price,
                 order_quantity,
@@ -307,7 +307,7 @@ impl SimulatedCrossPosition {
         match order_quantity.cmp(&current_quantity) {
             Ordering::Equal => unreachable!("exact close is handled before order-fee accounting"),
             Ordering::Greater => {
-                let realized_pl = estimate_cross_pl(
+                let realized_pl = trade_util::estimate_pl(
                     current_side,
                     current_quantity,
                     current_entry_price,
@@ -326,7 +326,7 @@ impl SimulatedCrossPosition {
                 let resulting_quantity =
                     CrossQuantity::try_from(current_quantity.as_u64() - order_quantity.as_u64())
                         .map_err(SimulatedTradeExecutorError::CrossQuantityValidation)?;
-                let realized_pl = estimate_cross_pl(
+                let realized_pl = trade_util::estimate_pl(
                     current_side,
                     order_quantity,
                     current_entry_price,
@@ -347,7 +347,7 @@ impl SimulatedCrossPosition {
                 }
 
                 // Losing partial reductions carry the loss in the remaining position entry price.
-                let full_position_pl = estimate_cross_pl(
+                let full_position_pl = trade_util::estimate_pl(
                     current_side,
                     current_quantity,
                     current_entry_price,
@@ -600,7 +600,7 @@ impl SimulatedTradeRunning {
             Err(LeverageValidationError::TooHigh { .. }) => return Ok((None, funding_fee)),
         };
 
-        let new_liquidation = trade_util::estimate_liquidation_price(
+        let new_liquidation = trade_util::est_liquidation_from_leverage(
             self.side,
             self.quantity,
             self.price,
@@ -624,7 +624,7 @@ impl SimulatedTradeRunning {
         close_time: DateTime<Utc>,
         close_price: Price,
     ) -> Arc<SimulatedTradeClosed> {
-        let closing_fee = trade_util::evaluate_closing_fee(fee_perc, self.quantity, close_price);
+        let closing_fee = trade_util::evaluate_order_fee(fee_perc, self.quantity, close_price);
 
         Arc::new(SimulatedTradeClosed {
             id: self.id,

@@ -2222,7 +2222,8 @@ async fn test_simulated_trade_executor_cross_exposure_quantity_can_exceed_order_
 
     assert!(Quantity::try_from(500_001).is_err());
     assert!(CrossQuantity::try_from(1_000_000).is_ok());
-    assert!(CrossQuantity::try_from(10_000_001).is_err());
+    assert!(CrossQuantity::try_from(CrossQuantity::HARD_MAX.as_u64()).is_ok());
+    assert!(CrossQuantity::try_from(CrossQuantity::HARD_MAX.as_u64() + 1).is_err());
 
     executor
         .cross_deposit(NonZeroU64::new(200_000_000).unwrap())
@@ -2287,7 +2288,7 @@ async fn test_simulated_trade_executor_cross_market_same_side_aggregates_entry()
     assert_eq!(state.cross_position().margin(), 498_500);
     assert_eq!(state.cross_position().quantity(), 2_000);
     assert!((state.cross_position().entry_price().unwrap().as_f64() - 133_333.5).abs() <= 0.5);
-    assert_eq!(state.cross_position().running_margin(), 150_000);
+    assert_eq!(state.cross_position().running_margin(), 149_999);
     assert_eq!(state.cross_position().trading_fees(), 1_500);
 
     Ok(())
@@ -2668,14 +2669,17 @@ async fn test_simulated_trade_executor_cross_long_liquidates_on_candle_low()
 
     let state = executor.trading_state().await?;
     assert_eq!(state.cross_position().exposure(), CrossExposure::Neutral);
-    assert_eq!(state.cross_position().margin(), 0);
+    assert_eq!(state.cross_position().margin(), 3);
     assert_eq!(state.cross_position().quantity(), 0);
     assert_eq!(state.closed_len(), 0);
     assert_eq!(
         state.last_trade_time(),
         Some(candle.time + Duration::seconds(59))
     );
-    assert_eq!(state.total_net_value(), state.balance());
+    assert_eq!(
+        state.total_net_value(),
+        state.balance() + state.cross_position().margin()
+    );
 
     Ok(())
 }
@@ -2704,14 +2708,17 @@ async fn test_simulated_trade_executor_cross_short_liquidates_on_candle_high()
 
     let state = executor.trading_state().await?;
     assert_eq!(state.cross_position().exposure(), CrossExposure::Neutral);
-    assert_eq!(state.cross_position().margin(), 0);
+    assert_eq!(state.cross_position().margin(), 997);
     assert_eq!(state.cross_position().quantity(), 0);
     assert_eq!(state.closed_len(), 0);
     assert_eq!(
         state.last_trade_time(),
         Some(candle.time + Duration::seconds(59))
     );
-    assert_eq!(state.total_net_value(), state.balance());
+    assert_eq!(
+        state.total_net_value(),
+        state.balance() + state.cross_position().margin()
+    );
 
     Ok(())
 }

@@ -8,14 +8,17 @@ use chrono::{DateTime, Duration, Timelike, Utc};
 use futures::future;
 use uuid::Uuid;
 
-use lnm_sdk::api_v3::models::{CrossLeverage, PercentageCapped, Price, Trade};
+use lnm_sdk::api_v3::{
+    error::CrossExposureValidationError,
+    models::{CrossExposure, CrossLeverage, CrossPosition, PercentageCapped, Price, Trade},
+};
 
 use crate::{db::Database, util::DateTimeExt};
 
 use super::super::super::{
     super::core::{
-        ClosedTradeHistory, CrossExposure, CrossPositionCore, DynRunningTradesMap, PriceTrigger,
-        RunningTradesMap, TradeRunningExt, TradeTrailingStoploss, TradingState,
+        ClosedTradeHistory, CrossPositionCore, DynRunningTradesMap, PriceTrigger, RunningTradesMap,
+        TradeRunningExt, TradeTrailingStoploss, TradingState,
     },
     executor::{
         WrappedRestClient,
@@ -27,33 +30,67 @@ use super::super::super::{
 /// reflected in the API state before renewal.
 const SESSION_EXPIRY_OFFSET_MIN: u32 = 5;
 
-/// Placeholder cross-position state for live sessions while live cross-margin support is disabled.
+/// Validated live-domain cross position.
 ///
-/// This is deliberately scoped to live session construction instead of the shared trade core: it is
-/// not a domain model and should not be used by simulated execution. It only gives `TradingState` a
-/// valid neutral `CrossPositionCore` object until live cross support starts fetching real
-/// `lnm_sdk::api_v3::models::CrossPosition` values from `futures_cross.get_position()` or from
-/// cross mutator responses.
-#[derive(Debug)]
-struct LiveUnsupportedCrossPosition;
+/// The SDK `CrossPosition` is treated as a transport shape. This wrapper validates the SDK-derived
+/// `CrossExposure` at construction, then stores only the fields needed by `CrossPositionCore` plus
+/// the SDK position ID for diagnostics/future reconciliation.
+#[allow(dead_code)]
+#[derive(Debug, Clone)]
+pub(in crate::trade) struct LiveCrossPosition {
+    id: Uuid,
+    margin: u64,
+    leverage: CrossLeverage,
+    exposure: CrossExposure,
+    trading_fees: u64,
+}
 
-impl crate::sealed::Sealed for LiveUnsupportedCrossPosition {}
+impl LiveCrossPosition {
+    /// Placeholder cross-position state for live sessions while live cross-margin support is disabled.
+    fn empty() -> Self {
+        Self {
+            id: Uuid::new_v4(),
+            margin: 0,
+            leverage: CrossLeverage::MIN,
+            exposure: CrossExposure::Neutral,
+            trading_fees: 0,
+        }
+    }
+}
 
-impl CrossPositionCore for LiveUnsupportedCrossPosition {
+impl TryFrom<CrossPosition> for LiveCrossPosition {
+    type Error = CrossExposureValidationError;
+
+    fn try_from(position: CrossPosition) -> Result<Self, Self::Error> {
+        let exposure = position.exposure()?;
+
+        Ok(Self {
+            id: position.id(),
+            margin: position.margin(),
+            leverage: position.leverage(),
+            exposure,
+            trading_fees: position.trading_fees(),
+        })
+    }
+}
+
+impl crate::sealed::Sealed for LiveCrossPosition {}
+
+impl CrossPositionCore for LiveCrossPosition {
     fn margin(&self) -> u64 {
-        0
+        self.margin
     }
 
     fn leverage(&self) -> CrossLeverage {
-        CrossLeverage::MIN
+        self.leverage
     }
 
     fn exposure(&self) -> CrossExposure {
-        CrossExposure::Neutral
+        self.exposure
     }
 
     fn trading_fees(&self) -> u64 {
-        0
+        self.trading_fees
     }
 }
 
@@ -530,7 +567,7 @@ impl From<LiveTradingSession> for TradingState {
             value.realized_pl,
             value.closed_history,
             value.closed_fees,
-            Arc::new(LiveUnsupportedCrossPosition),
+            Arc::new(LiveCrossPosition::empty()),
         )
     }
 }

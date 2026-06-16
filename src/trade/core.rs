@@ -14,8 +14,8 @@ use uuid::Uuid;
 use lnm_sdk::api_v3::{
     error::TradeValidationError,
     models::{
-        ClientId, CrossLeverage, Leverage, Margin, Percentage, PercentageCapped, Price, Quantity,
-        SATS_PER_BTC, Trade, TradeSide, TradeSize, trade_util,
+        ClientId, CrossExposure, CrossLeverage, Leverage, Margin, Percentage, PercentageCapped,
+        Price, Quantity, SATS_PER_BTC, Trade, TradeSide, TradeSize, trade_util,
     },
 };
 
@@ -27,10 +27,7 @@ use crate::{
     util::DateTimeExt,
 };
 
-use super::error::{
-    CrossExposureValidationError, CrossQuantityValidationError, TradeCoreError, TradeCoreResult,
-    TradeExecutorResult,
-};
+use super::error::{TradeCoreError, TradeCoreResult, TradeExecutorResult};
 
 impl crate::sealed::Sealed for Trade {}
 
@@ -527,318 +524,6 @@ struct RunningStats {
     fees: u64,
 }
 
-/// A validated total cross-position quantity denominated in USD notional.
-///
-/// Individual cross market orders use LN Markets SDK [`Quantity`] and are capped at `$500,000`.
-/// `CrossQuantity` represents the resulting net cross-position exposure, which can grow up to
-/// `$10,000,000` through multiple orders.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct CrossQuantity(u64);
-
-impl CrossQuantity {
-    /// The minimum allowed cross-position quantity value (`$1`).
-    pub const MIN: Self = Self(1);
-
-    /// The maximum allowed cross-position quantity value (`$10,000,000`).
-    pub const MAX: Self = Self(10_000_000);
-
-    /// Creates a `CrossQuantity` by rounding and bounding the given value to the valid range.
-    pub fn bounded<T>(value: T) -> Self
-    where
-        T: Into<f64>,
-    {
-        let as_f64: f64 = value.into();
-        let rounded = as_f64.round().max(0.0) as u64;
-        let clamped = rounded.clamp(Self::MIN.0, Self::MAX.0);
-
-        Self(clamped)
-    }
-
-    /// Returns the cross quantity value as its underlying `u64` representation.
-    pub fn as_u64(&self) -> u64 {
-        self.0
-    }
-
-    /// Returns the cross quantity value as a `f64`.
-    pub fn as_f64(&self) -> f64 {
-        self.0 as f64
-    }
-}
-
-impl From<CrossQuantity> for u64 {
-    fn from(value: CrossQuantity) -> Self {
-        value.0
-    }
-}
-
-impl From<CrossQuantity> for f64 {
-    fn from(value: CrossQuantity) -> Self {
-        value.0 as f64
-    }
-}
-
-impl From<Quantity> for CrossQuantity {
-    fn from(value: Quantity) -> Self {
-        Self(value.as_u64())
-    }
-}
-
-impl TryFrom<u8> for CrossQuantity {
-    type Error = CrossQuantityValidationError;
-
-    fn try_from(value: u8) -> Result<Self, Self::Error> {
-        Self::try_from(value as u64)
-    }
-}
-
-impl TryFrom<u16> for CrossQuantity {
-    type Error = CrossQuantityValidationError;
-
-    fn try_from(value: u16) -> Result<Self, Self::Error> {
-        Self::try_from(value as u64)
-    }
-}
-
-impl TryFrom<u32> for CrossQuantity {
-    type Error = CrossQuantityValidationError;
-
-    fn try_from(value: u32) -> Result<Self, Self::Error> {
-        Self::try_from(value as u64)
-    }
-}
-
-impl TryFrom<u64> for CrossQuantity {
-    type Error = CrossQuantityValidationError;
-
-    fn try_from(value: u64) -> Result<Self, Self::Error> {
-        if value < Self::MIN.0 {
-            return Err(CrossQuantityValidationError::TooLow { value });
-        }
-
-        if value > Self::MAX.0 {
-            return Err(CrossQuantityValidationError::TooHigh { value });
-        }
-
-        Ok(Self(value))
-    }
-}
-
-impl TryFrom<usize> for CrossQuantity {
-    type Error = CrossQuantityValidationError;
-
-    fn try_from(value: usize) -> Result<Self, Self::Error> {
-        Self::try_from(value as u64)
-    }
-}
-
-impl TryFrom<i8> for CrossQuantity {
-    type Error = CrossQuantityValidationError;
-
-    fn try_from(value: i8) -> Result<Self, Self::Error> {
-        Self::try_from(value.max(0) as u64)
-    }
-}
-
-impl TryFrom<i16> for CrossQuantity {
-    type Error = CrossQuantityValidationError;
-
-    fn try_from(value: i16) -> Result<Self, Self::Error> {
-        Self::try_from(value.max(0) as u64)
-    }
-}
-
-impl TryFrom<i32> for CrossQuantity {
-    type Error = CrossQuantityValidationError;
-
-    fn try_from(value: i32) -> Result<Self, Self::Error> {
-        Self::try_from(value.max(0) as u64)
-    }
-}
-
-impl TryFrom<i64> for CrossQuantity {
-    type Error = CrossQuantityValidationError;
-
-    fn try_from(value: i64) -> Result<Self, Self::Error> {
-        Self::try_from(value.max(0) as u64)
-    }
-}
-
-impl TryFrom<isize> for CrossQuantity {
-    type Error = CrossQuantityValidationError;
-
-    fn try_from(value: isize) -> Result<Self, Self::Error> {
-        Self::try_from(value.max(0) as u64)
-    }
-}
-
-impl TryFrom<f32> for CrossQuantity {
-    type Error = CrossQuantityValidationError;
-
-    fn try_from(value: f32) -> Result<Self, Self::Error> {
-        Self::try_from(value as f64)
-    }
-}
-
-impl TryFrom<f64> for CrossQuantity {
-    type Error = CrossQuantityValidationError;
-
-    fn try_from(value: f64) -> Result<Self, Self::Error> {
-        if value.fract() != 0.0 {
-            return Err(CrossQuantityValidationError::NotAnInteger { value });
-        }
-
-        Self::try_from(value.max(0.) as u64)
-    }
-}
-
-impl fmt::Display for CrossQuantity {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.0.fmt(f)
-    }
-}
-
-const CROSS_MAINTENANCE_MARGIN_RATE: f64 = 0.0015;
-
-/// Active cross-margin market exposure.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct CrossExposureRunning {
-    side: TradeSide,
-    quantity: CrossQuantity,
-    entry_price: Price,
-    liquidation: Price,
-    running_margin: Margin,
-    maintenance_margin: Margin,
-}
-
-impl CrossExposureRunning {
-    fn new(
-        margin: u64,
-        leverage: CrossLeverage,
-        side: TradeSide,
-        quantity: CrossQuantity,
-        entry_price: Price,
-    ) -> Result<Self, CrossExposureValidationError> {
-        let margin =
-            NonZeroU64::new(margin).ok_or(CrossExposureValidationError::CrossMarginTooLow)?;
-        let quantity_f64 = quantity.as_f64();
-        let inverse_entry = 1.0 / entry_price.as_f64();
-        let collateral_per_contract = margin.get() as f64 / SATS_PER_BTC / quantity_f64;
-        let liquidation = match side {
-            TradeSide::Buy => 1.0 / (inverse_entry + collateral_per_contract),
-            TradeSide::Sell => 1.0 / (inverse_entry - collateral_per_contract).max(0.0),
-        };
-        let inverse_notional_margin = quantity_f64 * SATS_PER_BTC / entry_price.as_f64();
-        let running_margin =
-            Margin::bounded((inverse_notional_margin / leverage.as_u64() as f64).ceil());
-        let maintenance_margin =
-            Margin::bounded((inverse_notional_margin * CROSS_MAINTENANCE_MARGIN_RATE).ceil());
-
-        if running_margin
-            .as_u64()
-            .saturating_add(maintenance_margin.as_u64())
-            >= margin.get()
-        {
-            return Err(CrossExposureValidationError::CrossMarginTooLow);
-        }
-
-        Ok(Self {
-            side,
-            quantity,
-            entry_price,
-            liquidation: Price::bounded(liquidation),
-            running_margin,
-            maintenance_margin,
-        })
-    }
-
-    /// Returns the net cross position side.
-    pub fn side(&self) -> TradeSide {
-        self.side
-    }
-
-    /// Returns the absolute cross position quantity in USD notional.
-    pub fn quantity(&self) -> CrossQuantity {
-        self.quantity
-    }
-
-    /// Returns the cross position entry price.
-    pub fn entry_price(&self) -> Price {
-        self.entry_price
-    }
-
-    /// Returns the cross position liquidation price.
-    pub fn liquidation(&self) -> Price {
-        self.liquidation
-    }
-
-    /// Returns the current running margin allocated to the cross position.
-    pub fn running_margin(&self) -> Margin {
-        self.running_margin
-    }
-
-    /// Returns the current maintenance margin required by the cross position.
-    pub fn maintenance_margin(&self) -> Margin {
-        self.maintenance_margin
-    }
-}
-
-/// Cross-margin market exposure derived from a cross account/position.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum CrossExposure {
-    /// No active market exposure. The cross account may still hold margin/collateral.
-    Neutral,
-
-    /// Active net market exposure.
-    Running(CrossExposureRunning),
-}
-
-impl CrossExposure {
-    pub(in crate::trade) fn new(
-        margin: u64,
-        leverage: CrossLeverage,
-        exposure_running: Option<(TradeSide, CrossQuantity, Price)>,
-    ) -> Result<Self, CrossExposureValidationError> {
-        match exposure_running {
-            None => Ok(Self::Neutral),
-            Some((side, quantity, entry_price)) => Ok(Self::Running(CrossExposureRunning::new(
-                margin,
-                leverage,
-                side,
-                quantity,
-                entry_price,
-            )?)),
-        }
-    }
-
-    pub(in crate::trade) fn to_running_params(&self) -> Option<(TradeSide, CrossQuantity, Price)> {
-        match self {
-            CrossExposure::Neutral => None,
-            CrossExposure::Running(exposure_running) => Some((
-                exposure_running.side(),
-                exposure_running.quantity(),
-                exposure_running.entry_price(),
-            )),
-        }
-    }
-
-    /// Builds a running cross exposure from the account margin/collateral and market inputs.
-    pub fn running(
-        margin: u64,
-        leverage: CrossLeverage,
-        side: TradeSide,
-        quantity: CrossQuantity,
-        entry_price: Price,
-    ) -> Result<Self, CrossExposureValidationError> {
-        Ok(Self::Running(CrossExposureRunning::new(
-            margin,
-            leverage,
-            side,
-            quantity,
-            entry_price,
-        )?))
-    }
-}
-
 /// Generic cross-margin position interface used by both live and simulated positions.
 ///
 /// The estimated P/L, NAV, and free-margin helpers take an explicit market price because LN
@@ -913,7 +598,7 @@ pub trait CrossPositionCore: crate::sealed::Sealed + Send + Sync + fmt::Debug + 
     fn est_running_pl(&self, market_price: Price) -> i64 {
         match self.exposure() {
             CrossExposure::Neutral => 0,
-            CrossExposure::Running(exposure) => estimate_cross_position_pl(
+            CrossExposure::Running(exposure) => trade_util::estimate_pl(
                 exposure.side(),
                 exposure.quantity(),
                 exposure.entry_price(),
@@ -942,23 +627,6 @@ pub trait CrossPositionCore: crate::sealed::Sealed + Send + Sync + fmt::Debug + 
             .saturating_sub(self.maintenance_margin())
             .saturating_sub(excess_loss)
     }
-}
-
-fn estimate_cross_position_pl(
-    side: TradeSide,
-    quantity: CrossQuantity,
-    start_price: Price,
-    end_price: Price,
-) -> f64 {
-    let start_price = start_price.as_f64();
-    let end_price = end_price.as_f64();
-
-    let inverse_price_delta = match side {
-        TradeSide::Buy => SATS_PER_BTC / start_price - SATS_PER_BTC / end_price,
-        TradeSide::Sell => SATS_PER_BTC / end_price - SATS_PER_BTC / start_price,
-    };
-
-    quantity.as_f64() * inverse_price_delta
 }
 
 /// Comprehensive snapshot of the current trading state including balance, running trades, and

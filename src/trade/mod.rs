@@ -13,11 +13,10 @@ pub use backtest::{
     },
 };
 pub use core::{
-    ClosedTradeHistory, CrossExposure, CrossExposureRunning, CrossPositionCore, CrossQuantity,
-    DynRunningTradesMap, Raw, RawOperator, RunningTradesMap, SignalOperator, Stoploss, TradeClosed,
-    TradeCore, TradeExecutor, TradeReference, TradeRunning, TradeTrailingStoploss, TradingState,
+    ClosedTradeHistory, CrossPositionCore, DynRunningTradesMap, Raw, RawOperator, RunningTradesMap,
+    SignalOperator, Stoploss, TradeClosed, TradeCore, TradeExecutor, TradeReference, TradeRunning,
+    TradeTrailingStoploss, TradingState,
 };
-pub use error::{CrossExposureValidationError, CrossQuantityValidationError};
 pub use live::{
     config::{LiveTradeConfig, LiveTradeExecutorConfig},
     engine::{LiveTradeController, LiveTradeEngine},
@@ -29,4 +28,8 @@ pub use live::{
         },
     },
     state::{LiveTradeReader, LiveTradeReceiver, LiveTradeStatus, LiveTradeUpdate},
+};
+pub use lnm_sdk::api_v3::{
+    error::{CrossExposureValidationError, CrossQuantityValidationError},
+    models::{CrossExposure, CrossExposureRunning, CrossQuantity},
 };

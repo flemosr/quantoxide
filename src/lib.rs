@@ -55,7 +55,6 @@ pub mod error {
         },
     };
     pub use super::trade::{
-        CrossQuantityValidationError,
         backtest::error::BacktestError,
         error::{TradeCoreError, TradeExecutorError},
         live::{
@@ -74,6 +73,7 @@ pub mod error {
 
     // Re-export selected `lnm-sdk::api_v3` errors for convenience
     pub use lnm_sdk::api_v3::error::{
+        CrossExposureValidationError, CrossQuantityValidationError,
         FuturesIsolatedTradeRequestValidationError, LeverageValidationError, MarginValidationError,
         PercentageCappedValidationError, PercentageValidationError, PriceValidationError,
         QuantityValidationError, RestApiError, RestApiV3Error, TradeValidationError,
@@ -87,13 +87,11 @@ pub mod error {
 pub mod models {
     pub use super::db::models::{FundingSettlementRow, OhlcCandleRow, PriceTickRow};
     pub use super::shared::{Lookback, MinIterationInterval, OhlcResolution, Period};
-    pub use super::trade::CrossQuantity;
-
     // Re-export selected `lnm-sdk::api_v3` models and utils for convenience
     pub use lnm_sdk::api_v3::models::{
-        ClientId, CrossLeverage, Leverage, Margin, Percentage, PercentageCapped, Price, Quantity,
-        SATS_PER_BTC, Trade, TradeExecution, TradeExecutionType, TradeSide, TradeSize, TradeStatus,
-        Uuid, trade_util,
+        ClientId, CrossExposure, CrossExposureRunning, CrossLeverage, CrossQuantity, Leverage,
+        Margin, Percentage, PercentageCapped, Price, Quantity, SATS_PER_BTC, Trade, TradeExecution,
+        TradeExecutionType, TradeSide, TradeSize, TradeStatus, Uuid, trade_util,
     };
 }
 

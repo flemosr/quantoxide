@@ -4,12 +4,12 @@ use chrono::{DateTime, Utc};
 use thiserror::Error;
 use uuid::Uuid;
 
-use lnm_sdk::api_v3::error::{PriceValidationError, QuantityValidationError, TradeValidationError};
-
-use crate::{
-    db::error::DbError,
-    trade::{CrossExposureValidationError, CrossQuantityValidationError},
+use lnm_sdk::api_v3::error::{
+    CrossExposureValidationError, CrossQuantityValidationError, PriceValidationError,
+    QuantityValidationError, TradeValidationError,
 };
+
+use crate::db::error::DbError;
 
 use super::super::super::error::TradeCoreError;
 
