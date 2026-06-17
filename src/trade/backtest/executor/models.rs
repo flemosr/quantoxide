@@ -586,7 +586,7 @@ impl SimulatedTradeRunning {
             return Ok((Some(Arc::new(self.clone())), funding_fee));
         }
 
-        let Ok(new_margin) = Margin::try_from(self.margin.as_i64() - funding_fee) else {
+        let Ok(new_margin) = self.margin.try_sub(funding_fee) else {
             return Ok((None, funding_fee));
         };
 
@@ -598,6 +598,7 @@ impl SimulatedTradeRunning {
             Ok(leverage) => leverage,
             Err(LeverageValidationError::TooLow { .. }) => Leverage::MIN,
             Err(LeverageValidationError::TooHigh { .. }) => return Ok((None, funding_fee)),
+            Err(LeverageValidationError::NotANumber) => unreachable!("using validated types"),
         };
 
         let new_liquidation = trade_util::est_liquidation_from_leverage(
