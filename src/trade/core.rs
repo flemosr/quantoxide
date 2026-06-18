@@ -1,4 +1,5 @@
 use std::{
+    cmp::Ordering,
     collections::{BTreeMap, HashMap},
     fmt,
     num::NonZeroU64,
@@ -14,8 +15,8 @@ use uuid::Uuid;
 use lnm_sdk::api_v3::{
     error::TradeValidationError,
     models::{
-        ClientId, CrossExposure, CrossLeverage, Leverage, Margin, OrderQuantity, Percentage,
-        PercentageCapped, Price, SATS_PER_BTC, Trade, TradeSide, TradeSize, trade_util,
+        ClientId, CrossExposure, CrossLeverage, CrossQuantity, Leverage, Margin, OrderQuantity,
+        Percentage, PercentageCapped, Price, SATS_PER_BTC, Trade, TradeSide, TradeSize, trade_util,
     },
 };
 
@@ -626,6 +627,253 @@ pub trait CrossPositionCore: crate::sealed::Sealed + Send + Sync + fmt::Debug + 
             .saturating_sub(self.running_margin())
             .saturating_sub(self.maintenance_margin())
             .saturating_sub(excess_loss)
+    }
+
+    /// Estimates the entry price that would result from changing this cross position to
+    /// `new_side` / `new_quantity` with one market adjustment at `market_price`.
+    ///
+    /// Same-side increases aggregate the current entry with the added quantity. Same-side
+    /// reductions follow the simulator's current accounting: profitable reductions keep the current
+    /// entry and losing reductions carry the loss in the remaining entry. Reversals and flat opens
+    /// use the market price as the new entry.
+    fn est_entry_price_for_exposure(
+        &self,
+        new_side: TradeSide,
+        new_quantity: CrossQuantity,
+        market_price: Price,
+    ) -> Option<Price> {
+        let CrossExposure::Running(exposure) = self.exposure() else {
+            return Some(market_price);
+        };
+
+        if exposure.side() != new_side {
+            return Some(market_price);
+        }
+
+        match new_quantity.cmp(&exposure.quantity()) {
+            Ordering::Greater => {
+                let added_quantity = new_quantity.try_sub(exposure.quantity()).ok()?;
+                Some(trade_util::aggregate_cross_entry_price(
+                    exposure.quantity(),
+                    exposure.entry_price(),
+                    added_quantity,
+                    market_price,
+                ))
+            }
+            Ordering::Equal => Some(exposure.entry_price()),
+            Ordering::Less => {
+                let reduced_quantity = exposure.quantity().try_sub(new_quantity).ok()?;
+                let realized_pl = trade_util::estimate_pl(
+                    exposure.side(),
+                    reduced_quantity,
+                    exposure.entry_price(),
+                    market_price,
+                )
+                .floor() as i64;
+
+                if realized_pl >= 0 {
+                    return Some(exposure.entry_price());
+                }
+
+                let full_position_pl = trade_util::estimate_pl(
+                    exposure.side(),
+                    exposure.quantity(),
+                    exposure.entry_price(),
+                    market_price,
+                );
+                let inverse_market_price = SATS_PER_BTC / market_price.as_f64();
+                let carried_inverse_entry_price = match exposure.side() {
+                    TradeSide::Buy => {
+                        inverse_market_price + full_position_pl / new_quantity.as_f64()
+                    }
+                    TradeSide::Sell => {
+                        inverse_market_price - full_position_pl / new_quantity.as_f64()
+                    }
+                };
+
+                Some(Price::bounded(SATS_PER_BTC / carried_inverse_entry_price))
+            }
+        }
+    }
+
+    /// Estimates the raw cross margin that would result from changing this cross position to
+    /// `new_side` / `new_quantity` with one fee-free market adjustment at `market_price`.
+    ///
+    /// This follows the same realized-P/L margin accounting as
+    /// [`est_entry_price_for_exposure`](Self::est_entry_price_for_exposure): full reversals realize
+    /// the full current P/L, profitable partial reductions realize reduced-quantity P/L into raw
+    /// margin, and losing partial reductions carry the loss in the remaining entry instead of
+    /// deducting it from raw margin.
+    fn est_margin_for_exposure(
+        &self,
+        new_side: TradeSide,
+        new_quantity: CrossQuantity,
+        market_price: Price,
+    ) -> Option<i64> {
+        let current_margin = i64::try_from(self.margin()).ok()?;
+        let CrossExposure::Running(exposure) = self.exposure() else {
+            return Some(current_margin);
+        };
+
+        if exposure.side() != new_side {
+            let realized_pl = trade_util::estimate_pl(
+                exposure.side(),
+                exposure.quantity(),
+                exposure.entry_price(),
+                market_price,
+            )
+            .floor() as i64;
+
+            return current_margin.checked_add(realized_pl);
+        }
+
+        if new_quantity >= exposure.quantity() {
+            return Some(current_margin);
+        }
+
+        let reduced_quantity = exposure.quantity().try_sub(new_quantity).ok()?;
+        let realized_pl = trade_util::estimate_pl(
+            exposure.side(),
+            reduced_quantity,
+            exposure.entry_price(),
+            market_price,
+        )
+        .floor() as i64;
+
+        if realized_pl >= 0 {
+            current_margin.checked_add(realized_pl)
+        } else {
+            Some(current_margin)
+        }
+    }
+
+    /// Estimates the market-order fee for changing this cross position to `new_side` /
+    /// `new_quantity` at `market_price`.
+    ///
+    /// The estimate uses the absolute USD exposure delta between the current and target net
+    /// positions. It returns zero when the target exposure already matches the current exposure.
+    fn est_order_fee_for_exposure(
+        &self,
+        new_side: TradeSide,
+        new_quantity: CrossQuantity,
+        market_price: Price,
+        fee_perc: PercentageCapped,
+    ) -> Option<u64> {
+        let target_quantity = match new_side {
+            TradeSide::Buy => new_quantity.as_i64(),
+            TradeSide::Sell => new_quantity.as_i64().checked_neg()?,
+        };
+        let order_quantity = target_quantity.checked_sub(self.quantity())?.unsigned_abs();
+
+        if order_quantity == 0 {
+            return Some(0);
+        }
+
+        let order_quantity = CrossQuantity::try_from(order_quantity).ok()?;
+        Some(trade_util::evaluate_order_fee(
+            fee_perc,
+            order_quantity,
+            market_price,
+        ))
+    }
+
+    /// Estimates the cross collateral change needed to hold a position of `new_side` /
+    /// `new_quantity` with liquidation at `new_liquidation`.
+    ///
+    /// The target entry, raw margin, net value, and order fee are derived as though the current
+    /// exposure were adjusted with one market order at `market_price`. The returned delta is the
+    /// larger of:
+    ///
+    /// - the net-collateral delta needed to put liquidation at `new_liquidation`, including the
+    ///   target exposure's maintenance margin; and
+    /// - the raw-margin delta needed to satisfy the SDK cross exposure coherence floor
+    ///   (`running_margin + maintenance_margin + 1`).
+    ///
+    /// A positive result is collateral that must be deposited; a negative result is collateral that
+    /// can be withdrawn. Returns `None` when the target liquidation is not on the liquidatable side
+    /// of `market_price` or the target exposure is invalid for the account leverage. If the
+    /// coherence floor dominates, depositing the returned amount makes the exposure valid but may
+    /// move liquidation farther from market than `new_liquidation`.
+    fn est_collateral_diff_for_exposure(
+        &self,
+        new_side: TradeSide,
+        new_quantity: CrossQuantity,
+        market_price: Price,
+        new_liquidation: Price,
+        fee_perc: PercentageCapped,
+    ) -> Option<i64> {
+        let new_entry_price =
+            self.est_entry_price_for_exposure(new_side, new_quantity, market_price)?;
+        let CrossExposure::Running(target_exposure) = CrossExposure::running(
+            Margin::MAX.as_u64(),
+            self.leverage(),
+            new_side,
+            new_quantity,
+            new_entry_price,
+        )
+        .ok()?
+        else {
+            unreachable!("running exposure requested")
+        };
+
+        let projected_order_fee =
+            self.est_order_fee_for_exposure(new_side, new_quantity, market_price, fee_perc)?;
+        let projected_margin = self
+            .est_margin_for_exposure(new_side, new_quantity, market_price)?
+            .checked_sub(i64::try_from(projected_order_fee).ok()?)?;
+        let projected_pl =
+            trade_util::estimate_pl(new_side, new_quantity, new_entry_price, market_price);
+        let projected_net_value = projected_margin.checked_add(projected_pl.floor() as i64)?;
+
+        let minimum_coherent_margin = target_exposure
+            .running_margin()
+            .try_add(target_exposure.maintenance_margin())
+            .ok()?
+            .try_add(1_u64)
+            .ok()?
+            .as_i64();
+
+        let coherence_delta = minimum_coherent_margin.checked_sub(projected_margin)?;
+
+        let target_net_collateral = Margin::est_from_liquidation_price(
+            new_side,
+            new_quantity,
+            market_price,
+            new_liquidation,
+        )
+        .ok()?
+        .try_add(target_exposure.maintenance_margin())
+        .ok()?
+        .as_i64();
+
+        let liquidation_delta = target_net_collateral.checked_sub(projected_net_value)?;
+
+        Some(liquidation_delta.max(coherence_delta))
+    }
+
+    /// Estimates the cross collateral change needed to move this position's liquidation to
+    /// `new_liquidation`, keeping its current side, quantity, and entry price.
+    ///
+    /// Convenience wrapper over [`est_collateral_diff_for_exposure`](Self::est_collateral_diff_for_exposure)
+    /// for the current running exposure and configured fee rate. Returns `None` when the position
+    /// is neutral.
+    fn est_collateral_diff_for_liquidation(
+        &self,
+        market_price: Price,
+        new_liquidation: Price,
+        fee_perc: PercentageCapped,
+    ) -> Option<i64> {
+        let CrossExposure::Running(exposure) = self.exposure() else {
+            return None;
+        };
+
+        self.est_collateral_diff_for_exposure(
+            exposure.side(),
+            exposure.quantity(),
+            market_price,
+            new_liquidation,
+            fee_perc,
+        )
     }
 }
 
