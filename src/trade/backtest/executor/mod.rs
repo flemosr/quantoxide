@@ -724,16 +724,12 @@ impl TradeExecutor for SimulatedTradeExecutor {
         Ok(Arc::new(state_guard.cross_position))
     }
 
-    async fn cross_market_long(&self, quantity: OrderQuantity) -> TradeExecutorResult<Uuid> {
-        Ok(self
-            .execute_cross_market_order(TradeSide::Buy, quantity)
-            .await?)
-    }
-
-    async fn cross_market_short(&self, quantity: OrderQuantity) -> TradeExecutorResult<Uuid> {
-        Ok(self
-            .execute_cross_market_order(TradeSide::Sell, quantity)
-            .await?)
+    async fn cross_market(
+        &self,
+        side: TradeSide,
+        quantity: OrderQuantity,
+    ) -> TradeExecutorResult<Uuid> {
+        Ok(self.execute_cross_market_order(side, quantity).await?)
     }
 
     async fn cross_close_position(&self) -> TradeExecutorResult<Option<Uuid>> {

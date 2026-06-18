@@ -509,15 +509,13 @@ impl TradeExecutor for LiveTradeExecutor {
         })?
     }
 
-    async fn cross_market_long(&self, _quantity: OrderQuantity) -> TradeExecutorResult<Uuid> {
+    async fn cross_market(
+        &self,
+        _side: TradeSide,
+        _quantity: OrderQuantity,
+    ) -> TradeExecutorResult<Uuid> {
         Err(ExecutorActionError::CrossMarginUnsupported {
-            operation: "cross_market_long",
-        })?
-    }
-
-    async fn cross_market_short(&self, _quantity: OrderQuantity) -> TradeExecutorResult<Uuid> {
-        Err(ExecutorActionError::CrossMarginUnsupported {
-            operation: "cross_market_short",
+            operation: "cross_market",
         })?
     }
 

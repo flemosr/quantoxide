@@ -2160,7 +2160,7 @@ async fn test_simulated_trade_executor_cross_set_leverage_rejects_insufficient_f
 }
 
 #[tokio::test]
-async fn test_simulated_trade_executor_cross_market_long_opens_position() -> TradeExecutorResult<()>
+async fn test_simulated_trade_executor_cross_market_opens_long_position() -> TradeExecutorResult<()>
 {
     let candle = OhlcCandleRow::new_simple(Utc::now().floor_minute(), 100_000.0, 1_000);
     let start_balance = 1_000_000;
@@ -2177,7 +2177,7 @@ async fn test_simulated_trade_executor_cross_market_long_opens_position() -> Tra
         .cross_set_leverage(CrossLeverage::try_from(10).unwrap())
         .await?;
     executor
-        .cross_market_long(OrderQuantity::try_from(1_000).unwrap())
+        .cross_market(TradeSide::Buy, OrderQuantity::try_from(1_000).unwrap())
         .await?;
 
     let state = executor.trading_state().await?;

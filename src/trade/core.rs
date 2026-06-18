@@ -1691,11 +1691,22 @@ pub trait TradeExecutor: Send + Sync {
         leverage: CrossLeverage,
     ) -> TradeExecutorResult<Arc<dyn CrossPositionCore>>;
 
+    /// Places a cross-margin market order and returns the cross-order UUID.
+    async fn cross_market(
+        &self,
+        side: TradeSide,
+        quantity: OrderQuantity,
+    ) -> TradeExecutorResult<Uuid>;
+
     /// Places a cross-margin market long order and returns the cross-order UUID.
-    async fn cross_market_long(&self, quantity: OrderQuantity) -> TradeExecutorResult<Uuid>;
+    async fn cross_market_long(&self, quantity: OrderQuantity) -> TradeExecutorResult<Uuid> {
+        self.cross_market(TradeSide::Buy, quantity).await
+    }
 
     /// Places a cross-margin market short order and returns the cross-order UUID.
-    async fn cross_market_short(&self, quantity: OrderQuantity) -> TradeExecutorResult<Uuid>;
+    async fn cross_market_short(&self, quantity: OrderQuantity) -> TradeExecutorResult<Uuid> {
+        self.cross_market(TradeSide::Sell, quantity).await
+    }
 
     /// Closes the full cross-margin position, returning the closing cross-order UUID when a
     /// position was open.
