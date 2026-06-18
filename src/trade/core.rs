@@ -886,104 +886,170 @@ impl TradingState {
         result.push_str(&format!("Available balance: {:>w$} sats\n", bal_sats));
         result.push_str(&format!("                   {:>w$} USD\n\n", bal_usd));
 
-        // Running Positions (aligned across Long and Short)
-        let lt = self.running_long_len().to_string();
-        let lm = self.running_long_margin().to_string();
-        let lq = self.running_long_quantity().to_string();
-        let st = self.running_short_len().to_string();
-        let sm = self.running_short_margin().to_string();
-        let sq = self.running_short_quantity().to_string();
-        let w = [&lt, &lm, &lq, &st, &sm, &sq]
+        result.push_str("Isolated:\n");
+
+        // Isolated - Running Positions (aligned across Long and Short)
+        let running_long_rows = [
+            ("      Trades:", self.running_long_len().to_string(), ""),
+            (
+                "      Margin:",
+                self.running_long_margin().to_string(),
+                " sats",
+            ),
+            (
+                "      Quantity:",
+                self.running_long_quantity().to_string(),
+                " USD",
+            ),
+        ];
+        let running_short_rows = [
+            ("      Trades:", self.running_short_len().to_string(), ""),
+            (
+                "      Margin:",
+                self.running_short_margin().to_string(),
+                " sats",
+            ),
+            (
+                "      Quantity:",
+                self.running_short_quantity().to_string(),
+                " USD",
+            ),
+        ];
+        let running_metric_rows = [
+            ("    P/L:", self.running_pl().to_string(), " sats"),
+            ("    Fees:", self.running_fees().to_string(), " sats"),
+            ("    Margin:", self.running_margin().to_string(), " sats"),
+        ];
+        let realized_rows = [
+            ("  Funding fees:", self.funding_fees.to_string(), " sats"),
+            ("  Realized P/L:", self.realized_pl.to_string(), " sats"),
+        ];
+        let closed_rows = [
+            ("    Trades:", self.closed_len().to_string(), ""),
+            ("    Fees:", self.closed_fees.to_string(), " sats"),
+        ];
+        let isolated_label_width = running_long_rows
             .iter()
-            .map(|s| s.len())
+            .chain(running_short_rows.iter())
+            .chain(running_metric_rows.iter())
+            .chain(realized_rows.iter())
+            .chain(closed_rows.iter())
+            .map(|(label, _, _)| label.len())
             .max()
             .unwrap_or(0);
-        result.push_str("Running Positions:\n");
-        result.push_str("  Long:\n");
-        result.push_str(&format!("    Trades:   {:>w$}\n", lt));
-        result.push_str(&format!("    Margin:   {:>w$} sats\n", lm));
-        result.push_str(&format!("    Quantity: {:>w$} USD\n", lq));
-        result.push_str("  Short:\n");
-        result.push_str(&format!("    Trades:   {:>w$}\n", st));
-        result.push_str(&format!("    Margin:   {:>w$} sats\n", sm));
-        result.push_str(&format!("    Quantity: {:>w$} USD\n\n", sq));
+        let w = running_long_rows
+            .iter()
+            .chain(running_short_rows.iter())
+            .chain(running_metric_rows.iter())
+            .chain(realized_rows.iter())
+            .chain(closed_rows.iter())
+            .map(|(_, value, _)| value.len())
+            .max()
+            .unwrap_or(0);
 
-        // Running Metrics
-        let rpl = self.running_pl().to_string();
-        let rf = self.running_fees().to_string();
-        let rm = self.running_margin().to_string();
-        let w = rpl.len().max(rf.len()).max(rm.len());
-        result.push_str("Running Metrics:\n");
-        result.push_str(&format!("  P/L:    {:>w$} sats\n", rpl));
-        result.push_str(&format!("  Fees:   {:>w$} sats\n", rf));
-        result.push_str(&format!("  Margin: {:>w$} sats\n\n", rm));
+        result.push_str("  Running Positions:\n");
+        result.push_str("    Long:\n");
+        for (label, value, suffix) in running_long_rows {
+            result.push_str(&format!(
+                "{label:<isolated_label_width$} {value:>w$}{suffix}\n"
+            ));
+        }
+        result.push_str("    Short:\n");
+        for (label, value, suffix) in running_short_rows {
+            result.push_str(&format!(
+                "{label:<isolated_label_width$} {value:>w$}{suffix}\n"
+            ));
+        }
 
-        // Cross Margin
+        // Isolated - Running Metrics
+        result.push_str("  Running Metrics:\n");
+        for (label, value, suffix) in running_metric_rows {
+            result.push_str(&format!(
+                "{label:<isolated_label_width$} {value:>w$}{suffix}\n"
+            ));
+        }
+
+        // Isolated - Funding / Realized
+        for (label, value, suffix) in realized_rows {
+            result.push_str(&format!(
+                "{label:<isolated_label_width$} {value:>w$}{suffix}\n"
+            ));
+        }
+
+        // Isolated - Closed
+        result.push_str("  Closed:\n");
+        for (label, value, suffix) in closed_rows {
+            result.push_str(&format!(
+                "{label:<isolated_label_width$} {value:>w$}{suffix}\n"
+            ));
+        }
+        result.push('\n');
+
+        // Cross
         let cross_position = self.cross_position();
-        let cross_entry = cross_position
-            .entry_price()
-            .map_or("-".to_string(), |p| format!("{:.1}", p));
-        let cross_liquidation = cross_position
-            .liquidation()
-            .map_or("-".to_string(), |p| format!("{:.1}", p));
-        let cm = cross_position.margin().to_string();
-        let cf = cross_position
+        let cross_margin = cross_position.margin().to_string();
+        let cross_free_margin = cross_position
             .est_free_margin(self.market_price)
             .to_string();
-        let cnv = cross_position.est_net_value(self.market_price).to_string();
-        let cq = cross_position.quantity().to_string();
-        let clev = cross_position.leverage().as_u64().to_string();
-        let cim = cross_position.initial_margin().to_string();
-        let cmm = cross_position.maintenance_margin().to_string();
-        let crm = cross_position.running_margin().to_string();
-        let ctf = cross_position.trading_fees().to_string();
-        let cpl = cross_position.est_running_pl(self.market_price).to_string();
-        let w = [
-            &cm,
-            &cf,
-            &cnv,
-            &cq,
-            &clev,
-            &cross_entry,
-            &cross_liquidation,
-            &cim,
-            &cmm,
-            &crm,
-            &ctf,
-            &cpl,
-        ]
-        .iter()
-        .map(|s| s.len())
-        .max()
-        .unwrap_or(0);
-        result.push_str("Cross Margin:\n");
-        result.push_str(&format!("  Margin:           {:>w$} sats\n", cm));
-        result.push_str(&format!("  Est free margin:  {:>w$} sats\n", cf));
-        result.push_str(&format!("  Est net value:    {:>w$} sats\n", cnv));
-        result.push_str(&format!("  Quantity:         {:>w$} USD\n", cq));
-        result.push_str(&format!("  Leverage:         {:>w$}\n", clev));
-        result.push_str(&format!("  Entry price:      {:>w$}\n", cross_entry));
-        result.push_str(&format!("  Liquidation:      {:>w$}\n", cross_liquidation));
-        result.push_str(&format!("  Initial margin:   {:>w$} sats\n", cim));
-        result.push_str(&format!("  Maintenance:      {:>w$} sats\n", cmm));
-        result.push_str(&format!("  Running margin:   {:>w$} sats\n", crm));
-        result.push_str(&format!("  Trading fees:     {:>w$} sats\n", ctf));
-        result.push_str(&format!("  Est P/L:          {:>w$} sats\n\n", cpl));
+        let mut cross_rows = vec![
+            (
+                "Leverage:",
+                cross_position.leverage().as_u64().to_string(),
+                "",
+            ),
+            ("Fees:", cross_position.trading_fees().to_string(), " sats"),
+        ];
 
-        // Funding / Realized
-        let ff = self.funding_fees.to_string();
-        let rp = self.realized_pl.to_string();
-        let w = ff.len().max(rp.len());
-        result.push_str(&format!("Funding fees: {:>w$} sats\n", ff));
-        result.push_str(&format!("Realized P/L: {:>w$} sats\n\n", rp));
+        if let CrossExposure::Running(exposure) = cross_position.exposure() {
+            let running_pl = trade_util::estimate_pl(
+                exposure.side(),
+                exposure.quantity(),
+                exposure.entry_price(),
+                self.market_price,
+            )
+            .floor() as i64;
 
-        // Closed
-        let ct = self.closed_len().to_string();
-        let cf = self.closed_fees.to_string();
-        let w = ct.len().max(cf.len());
-        result.push_str("Closed:\n");
-        result.push_str(&format!("  Trades: {:>w$}\n", ct));
-        result.push_str(&format!("  Fees:   {:>w$} sats", cf));
+            cross_rows.extend([
+                ("Side:", exposure.side().to_string(), ""),
+                (
+                    "Quantity:",
+                    exposure.quantity().as_u64().to_string(),
+                    " USD",
+                ),
+                ("P/L:", running_pl.to_string(), " sats"),
+                (
+                    "Liquidation:",
+                    format!("{:.1}", exposure.liquidation()),
+                    " USD",
+                ),
+            ]);
+        }
+
+        let label_width = cross_rows
+            .iter()
+            .map(|(label, _, _)| label.len())
+            .max()
+            .unwrap_or(0);
+        let margin_label_width = label_width.saturating_sub(2);
+        let w = cross_rows
+            .iter()
+            .map(|(_, value, _)| value.len())
+            .chain([cross_margin.len(), cross_free_margin.len()])
+            .max()
+            .unwrap_or(0);
+        result.push_str("Cross:\n");
+        result.push_str("  Margin:\n");
+        result.push_str(&format!(
+            "    {:<margin_label_width$} {cross_margin:>w$} sats\n",
+            "Total:"
+        ));
+        result.push_str(&format!(
+            "    {:<margin_label_width$} {cross_free_margin:>w$} sats\n",
+            "Free:"
+        ));
+        for (label, value, suffix) in cross_rows {
+            result.push_str(&format!("  {label:<label_width$} {value:>w$}{suffix}\n"));
+        }
 
         result
     }
