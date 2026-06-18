@@ -139,11 +139,13 @@ cargo run --example backtest_direct -- --start 2025-09-01 --end 2025-12-01 --bal
 ### backtest_cross_carry_tui / backtest_cross_carry
 
 Demonstrates a simulated cross-margin carry trade through the explicit `TradeExecutor::cross_*`
-API. The operator moves the full starting isolated balance into cross margin, shorts the account's
-initial net value in USD, inspects `TradingState::cross_position()`, and rebalances the short hedge
-whenever hedge drift exceeds 1% of the current account net value. Positive funding rates are
-expected to pay shorts, and simulated cross funding receipts flow through cross
-margin into the account net value used as the hedge target.
+API. The operator moves enough starting balance into cross margin to target a configured short
+liquidation distance above the current market price, shorts the account's initial net value in USD,
+inspects `TradingState::cross_position()`, and rebalances the short hedge whenever hedge drift
+exceeds the configured threshold. When liquidation drifts beyond the configured tolerance, it
+adjusts cross collateral with deposits from or withdrawals to isolated balance. Positive funding
+rates are expected to pay shorts, and simulated cross funding receipts flow through cross margin
+into the account net value used as the hedge target.
 
 Usage with the **TUI**:
 ```bash
