@@ -1,8 +1,9 @@
 //! Example demonstrating how to run the simulated cross-margin carry trade with the backtest TUI.
 //!
-//! The shared raw operator moves the full starting isolated balance into the cross-margin account,
-//! opens a short hedge equal to the account net value in USD, and rebalances whenever the hedge
-//! drifts more than 1% away from the current USD value of the account.
+//! The shared raw operator moves enough starting balance into cross margin to target a short
+//! liquidation price 20% above the current market price, opens a short hedge equal to the account
+//! net value in USD, and rebalances whenever the hedge drifts more than 1% away from the current USD
+//! value of the account.
 
 use std::env;
 
@@ -12,7 +13,7 @@ use lazy_static::lazy_static;
 use quantoxide::{
     Database,
     error::Result,
-    models::{CrossLeverage, PercentageCapped},
+    models::{CrossLeverage, Percentage, PercentageCapped},
     sync::PriceHistoryState,
     trade::{BacktestConfig, BacktestEngine},
     tui::{BacktestTui, TuiConfig},
@@ -31,6 +32,8 @@ const DEFAULT_START_BALANCE_SATS: u64 = 10_000_000;
 lazy_static! {
     static ref CROSS_LEVERAGE: CrossLeverage = CrossLeverage::bounded(10);
     static ref REBALANCE_THRESHOLD_PERCENT: PercentageCapped = PercentageCapped::bounded(1.0);
+    static ref TARGET_LIQUIDATION_BUFFER: Percentage = Percentage::bounded(20.0);
+    static ref LIQ_TOLERANCE: PercentageCapped = PercentageCapped::bounded(5.0);
 }
 
 #[tokio::main]
@@ -74,12 +77,16 @@ async fn main() -> Result<()> {
     println!("\nBacktest Cross-Margin Carry Trade TUI Configuration:");
     println!("Start date: {}", start_time.format("%Y-%m-%d %H:%M %Z"));
     println!("Start balance: {} sats", start_balance);
-    println!("Cross deposit: full isolated balance");
+    println!(
+        "Cross deposit: dynamic, targeting short liquidation {:.2}% above market",
+        TARGET_LIQUIDATION_BUFFER.as_f64()
+    );
     println!("Cross leverage: {}x", CROSS_LEVERAGE.as_u64());
     println!(
         "Rebalance threshold: {:.2}%",
         REBALANCE_THRESHOLD_PERCENT.as_f64()
     );
+    println!("Liquidation tolerance: {:.2}%", LIQ_TOLERANCE.as_f64());
     println!("End date: {}\n", end_time.format("%Y-%m-%d %H:%M %Z"));
 
     println!("Launching `BacktestTui`...");
@@ -91,14 +98,18 @@ async fn main() -> Result<()> {
         .log("Initializing `BacktestEngine`...".into())
         .await?;
 
+    let backtest_config = BacktestConfig::default();
     let operator = CrossCarryOperator::with_logger(
         *CROSS_LEVERAGE,
         *REBALANCE_THRESHOLD_PERCENT,
+        *TARGET_LIQUIDATION_BUFFER,
+        *LIQ_TOLERANCE,
+        backtest_config.fee_perc(),
         backtest_tui.as_logger(),
     );
 
     let backtest_engine = BacktestEngine::with_raw_operator(
-        BacktestConfig::default(),
+        backtest_config,
         db,
         operator,
         start_time,

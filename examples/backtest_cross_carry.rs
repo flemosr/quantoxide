@@ -1,10 +1,11 @@
 //! Example demonstrating a simulated cross-margin carry trade in a backtest.
 //!
-//! The shared raw operator moves the full starting balance into the cross-margin account, opens a
-//! short hedge equal to the account net value in USD, and rebalances whenever the hedge drifts more
-//! than 1% away from the current USD value of the account. Positive funding rates are expected to
-//! pay shorts; in the simulator, cross funding receipts are reflected in cross margin and therefore
-//! in the account net value used as the hedge target.
+//! The shared raw operator moves enough starting balance into cross margin to target a short
+//! liquidation price 20% above the current market price, opens a short hedge equal to the account
+//! net value in USD, and rebalances whenever the hedge drifts more than 1% away from the current USD
+//! value of the account. Positive funding rates are expected to pay shorts; in the simulator, cross
+//! funding receipts are reflected in cross margin and therefore in the account net value used as the
+//! hedge target.
 
 use std::env;
 
@@ -15,7 +16,7 @@ use tokio::time::{self, Duration};
 use quantoxide::{
     Database,
     error::Result,
-    models::{CrossLeverage, PercentageCapped},
+    models::{CrossLeverage, Percentage, PercentageCapped},
     sync::PriceHistoryState,
     trade::{BacktestConfig, BacktestEngine, BacktestStatus, BacktestUpdate, TradingState},
 };
@@ -25,10 +26,7 @@ mod operators;
 #[path = "util/mod.rs"]
 mod util;
 
-use operators::cross_carry::{
-    CrossCarryOperator, account_net_value_usd, hedge_difference_percent, hedge_drift_usd,
-    hedged_value_usd,
-};
+use operators::cross_carry::{CrossCarryOperator, TradingStateExt};
 use util::input;
 
 const DEFAULT_START_BALANCE_SATS: u64 = 10_000_000;
@@ -36,17 +34,19 @@ const DEFAULT_START_BALANCE_SATS: u64 = 10_000_000;
 lazy_static! {
     static ref CROSS_LEVERAGE: CrossLeverage = CrossLeverage::bounded(10);
     static ref REBALANCE_THRESHOLD_PERCENT: PercentageCapped = PercentageCapped::bounded(1.0);
+    static ref TARGET_LIQUIDATION_BUFFER: Percentage = Percentage::bounded(20.0);
+    static ref LIQ_TOLERANCE: PercentageCapped = PercentageCapped::bounded(5.0);
 }
 
 fn print_final_summary(state: &TradingState) {
     let cross_position = state.cross_position();
-    let account_net_value_usd = account_net_value_usd(state);
-    let hedged_value_usd = hedged_value_usd(state);
-    let hedge_difference_usd = hedge_drift_usd(state);
-    let hedge_difference_percent = hedge_difference_percent(state);
+    let account_net_value_usd = state.account_net_value_usd();
+    let hedged_value_usd = state.hedged_value_usd();
+    let hedge_drift_usd = state.hedge_drift_usd();
+    let hedge_drift_percent = state.hedge_drift_percent();
 
     println!(
-        "\nFinal: time={}, net={} sats (${account_net_value_usd:.2}), hedge=${hedged_value_usd:.2}, drift={hedge_difference_usd:+.2} ({hedge_difference_percent:+.2}%), cross_qty={} USD, cross_margin={} sats",
+        "\nFinal: time={}, net={} sats (${account_net_value_usd:.2}), hedge=${hedged_value_usd:.2}, drift={hedge_drift_usd:+.2} ({hedge_drift_percent:+.2}%), cross_qty={} USD, cross_margin={} sats",
         state.last_tick_time(),
         state.total_net_value(),
         cross_position.quantity(),
@@ -141,20 +141,33 @@ async fn main() -> Result<()> {
     println!("\nBacktest Cross-Margin Carry Trade Configuration:");
     println!("Start date: {}", start_time.format("%Y-%m-%d %H:%M %Z"));
     println!("Start balance: {} sats", start_balance);
-    println!("Cross deposit: full isolated balance");
+    println!(
+        "Cross deposit: dynamic, targeting short liquidation {:.2}% above market",
+        TARGET_LIQUIDATION_BUFFER.as_f64()
+    );
     println!("Cross leverage: {}x", CROSS_LEVERAGE.as_u64());
     println!(
         "Rebalance threshold: {:.2}%",
         REBALANCE_THRESHOLD_PERCENT.as_f64()
     );
+    println!("Liquidation tolerance: {:.2}%", LIQ_TOLERANCE.as_f64());
     println!("End date: {}\n", end_time.format("%Y-%m-%d %H:%M %Z"));
 
     println!("Initializing `BacktestEngine`...");
 
+    let backtest_config = BacktestConfig::default();
+    let operator = CrossCarryOperator::new(
+        *CROSS_LEVERAGE,
+        *REBALANCE_THRESHOLD_PERCENT,
+        *TARGET_LIQUIDATION_BUFFER,
+        *LIQ_TOLERANCE,
+        backtest_config.fee_perc(),
+    );
+
     let backtest_engine = BacktestEngine::with_raw_operator(
-        BacktestConfig::default(),
+        backtest_config,
         db,
-        CrossCarryOperator::new(*CROSS_LEVERAGE, *REBALANCE_THRESHOLD_PERCENT),
+        operator,
         start_time,
         start_balance,
         end_time,
