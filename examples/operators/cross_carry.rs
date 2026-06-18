@@ -5,7 +5,10 @@
 
 use std::{
     num::NonZeroU64,
-    sync::{Arc, Mutex, OnceLock},
+    sync::{
+        Arc, OnceLock,
+        atomic::{AtomicU64, Ordering as AtomicOrdering},
+    },
 };
 
 use async_trait::async_trait;
@@ -13,73 +16,149 @@ use async_trait::async_trait;
 use quantoxide::{
     error::Result,
     models::{
-        CrossLeverage, Lookback, MinIterationInterval, OhlcCandleRow, OrderQuantity,
-        PercentageCapped, SATS_PER_BTC, TradeSide,
+        CrossLeverage, CrossQuantity, Lookback, MinIterationInterval, OhlcCandleRow, OrderQuantity,
+        Percentage, PercentageCapped, Price, SATS_PER_BTC, TradeSide,
     },
     trade::{RawOperator, TradeExecutor, TradingState},
     tui::TuiLogger,
 };
 
-pub fn account_net_value_usd(state: &TradingState) -> f64 {
-    state.total_net_value() as f64 * state.market_price().as_f64() / SATS_PER_BTC
+pub trait TradingStateExt {
+    fn account_net_value_usd(&self) -> f64;
+    fn hedged_value_usd(&self) -> f64;
+    fn hedge_drift_usd(&self) -> f64;
+    fn hedge_drift_percent(&self) -> f64;
+    fn target_hedge_quantity(&self) -> Option<CrossQuantity>;
+    fn rebalance_threshold_usd(&self, rebalance_threshold_percent: PercentageCapped) -> f64;
+    fn order_for_target_hedge(
+        &self,
+        rebalance_threshold_percent: PercentageCapped,
+    ) -> Option<(TradeSide, OrderQuantity)>;
+    fn target_short_liquidation_price(&self, liquidation_buffer: Percentage) -> Option<Price>;
+    fn initial_cross_margin_for_hedge(
+        &self,
+        liquidation_buffer: Percentage,
+        fee_perc: PercentageCapped,
+    ) -> Result<NonZeroU64>;
+    fn cross_margin_deposit_for_hedge(
+        &self,
+        liquidation_buffer: Percentage,
+        fee_perc: PercentageCapped,
+    ) -> Option<NonZeroU64>;
 }
 
-pub fn hedged_value_usd(state: &TradingState) -> f64 {
-    -state.cross_position().quantity() as f64
-}
-
-pub fn hedge_drift_usd(state: &TradingState) -> f64 {
-    account_net_value_usd(state) - hedged_value_usd(state)
-}
-
-pub fn hedge_difference_usd(
-    state: &TradingState,
-    threshold_usd: f64,
-) -> Option<(TradeSide, OrderQuantity)> {
-    let diff_usd = hedge_drift_usd(state);
-
-    let mut hedge_order_usd = diff_usd.abs().floor();
-
-    if hedge_order_usd <= threshold_usd {
-        return None;
+impl TradingStateExt for TradingState {
+    fn account_net_value_usd(&self) -> f64 {
+        self.total_net_value() as f64 * self.market_price().as_f64() / SATS_PER_BTC
     }
 
-    let side = if diff_usd > 0.0 {
-        TradeSide::Sell
-    } else {
-        TradeSide::Buy
-    };
-
-    // If the account is over-hedged, use a long order to reduce the short. Clamp the order so the
-    // strategy does not intentionally flip net long when the USD account value is near zero.
-    if side == TradeSide::Buy {
-        let max_reduction_usd = hedged_value_usd(state).max(0.0);
-        hedge_order_usd = hedge_order_usd.min(max_reduction_usd);
+    fn hedged_value_usd(&self) -> f64 {
+        -self.cross_position().quantity() as f64
     }
 
-    let quantity = OrderQuantity::try_from(hedge_order_usd.round()).ok()?;
+    fn hedge_drift_usd(&self) -> f64 {
+        self.account_net_value_usd() - self.hedged_value_usd()
+    }
 
-    Some((side, quantity))
-}
+    fn hedge_drift_percent(&self) -> f64 {
+        let account_net_value_usd = self.account_net_value_usd();
 
-pub fn hedge_difference_percent(state: &TradingState) -> f64 {
-    let account_net_value_usd = account_net_value_usd(state);
+        if account_net_value_usd.abs() <= f64::EPSILON {
+            0.0
+        } else {
+            self.hedge_drift_usd() / account_net_value_usd * 100.0
+        }
+    }
 
-    if account_net_value_usd.abs() <= f64::EPSILON {
-        0.0
-    } else {
-        hedge_drift_usd(state) / account_net_value_usd * 100.0
+    /// Target short quantity that hedges the account net value in USD.
+    fn target_hedge_quantity(&self) -> Option<CrossQuantity> {
+        CrossQuantity::try_from(self.account_net_value_usd().floor()).ok()
+    }
+
+    fn rebalance_threshold_usd(&self, rebalance_threshold_percent: PercentageCapped) -> f64 {
+        self.account_net_value_usd().abs() * rebalance_threshold_percent.as_f64() / 100.0
+    }
+
+    /// Returns the order needed to reach the target short hedge, or `None` when the exposure delta
+    /// is already within `threshold_usd`.
+    fn order_for_target_hedge(
+        &self,
+        rebalance_threshold_percent: PercentageCapped,
+    ) -> Option<(TradeSide, OrderQuantity)> {
+        let threshold_usd = self.rebalance_threshold_usd(rebalance_threshold_percent);
+        let target_quantity = self.target_hedge_quantity()?.as_i64().checked_neg()?;
+        let current_quantity = self.cross_position().quantity();
+        let order_quantity = target_quantity
+            .checked_sub(current_quantity)?
+            .unsigned_abs();
+
+        if (order_quantity as f64) <= threshold_usd {
+            return None;
+        }
+
+        let side = if target_quantity > current_quantity {
+            TradeSide::Buy
+        } else {
+            TradeSide::Sell
+        };
+        let quantity = OrderQuantity::try_from(order_quantity).ok()?;
+
+        Some((side, quantity))
+    }
+
+    fn target_short_liquidation_price(&self, liquidation_buffer: Percentage) -> Option<Price> {
+        self.market_price().apply_gain(liquidation_buffer).ok()
+    }
+
+    fn initial_cross_margin_for_hedge(
+        &self,
+        liquidation_buffer: Percentage,
+        fee_perc: PercentageCapped,
+    ) -> Result<NonZeroU64> {
+        let target_liquidation = self
+            .target_short_liquidation_price(liquidation_buffer)
+            .ok_or_else(|| "unable to calculate target short liquidation price".to_string())?;
+        let target_quantity = self
+            .target_hedge_quantity()
+            .ok_or("unable to calculate initial cross hedge target")?;
+
+        // The cross account is neutral at initialization, so the collateral diff is the full deposit.
+        self.cross_position()
+            .est_collateral_diff_for_exposure(
+                TradeSide::Sell,
+                target_quantity,
+                self.market_price(),
+                target_liquidation,
+                fee_perc,
+            )
+            .filter(|diff| *diff > 0)
+            .map(|diff| NonZeroU64::new(diff as u64).expect("gt 0"))
+            .ok_or_else(|| "unable to calculate a positive initial cross margin target".into())
+    }
+
+    /// Sats to deposit before placing a hedge order so the target cross exposure keeps its short
+    /// liquidation at target and stays above the locked-margin floor, covering the estimated order fee.
+    fn cross_margin_deposit_for_hedge(
+        &self,
+        liquidation_buffer: Percentage,
+        fee_perc: PercentageCapped,
+    ) -> Option<NonZeroU64> {
+        let target_quantity = self.target_hedge_quantity()?;
+        let target_liquidation = self.target_short_liquidation_price(liquidation_buffer)?;
+
+        self.cross_position()
+            .est_collateral_diff_for_exposure(
+                TradeSide::Sell,
+                target_quantity,
+                self.market_price(),
+                target_liquidation,
+                fee_perc,
+            )
+            .filter(|collateral_diff| *collateral_diff > 0)
+            .map(|collateral_diff| NonZeroU64::new(collateral_diff as u64).expect("gt 0"))
     }
 }
 
-fn rebalance_threshold_usd(
-    state: &TradingState,
-    rebalance_threshold_percent: PercentageCapped,
-) -> f64 {
-    account_net_value_usd(state).abs() * rebalance_threshold_percent.as_f64() / 100.0
-}
-
-#[allow(dead_code)]
 enum OperatorOutput {
     Stdout,
     Tui(Arc<dyn TuiLogger>),
@@ -87,39 +166,57 @@ enum OperatorOutput {
 
 /// Cross-margin carry-trade operator.
 ///
-/// The operator deposits the entire starting isolated balance into cross margin, opens a short
+/// The operator deposits enough starting isolated balance into cross margin to place the short
+/// liquidation target at the configured percentage above the current market price, opens a short
 /// equal to the account NAV in USD, and rebalances whenever hedge drift exceeds the configured
 /// percentage of account NAV.
+/// During the run, cross collateral is moved to/from the isolated balance when liquidation drifts
+/// beyond the configured tolerance.
 pub struct CrossCarryOperator {
     trade_executor: OnceLock<Arc<dyn TradeExecutor>>,
     output: OperatorOutput,
     cross_leverage: CrossLeverage,
     rebalance_threshold_percent: PercentageCapped,
+    liquidation_buffer: Percentage,
+    liq_tolerance: PercentageCapped,
+    fee_perc: PercentageCapped,
     initialized: OnceLock<()>,
-    rebalance_count: Mutex<u64>,
+    rebalance_count: AtomicU64,
 }
 
 impl CrossCarryOperator {
     pub fn new(
         cross_leverage: CrossLeverage,
         rebalance_threshold_percent: PercentageCapped,
+        liquidation_buffer: Percentage,
+        liq_tolerance: PercentageCapped,
+        fee_perc: PercentageCapped,
     ) -> Box<Self> {
         Self::with_output(
             OperatorOutput::Stdout,
             cross_leverage,
             rebalance_threshold_percent,
+            liquidation_buffer,
+            liq_tolerance,
+            fee_perc,
         )
     }
 
     pub fn with_logger(
         cross_leverage: CrossLeverage,
         rebalance_threshold_percent: PercentageCapped,
+        liquidation_buffer: Percentage,
+        liq_tolerance: PercentageCapped,
+        fee_perc: PercentageCapped,
         logger: Arc<dyn TuiLogger>,
     ) -> Box<Self> {
         Self::with_output(
             OperatorOutput::Tui(logger),
             cross_leverage,
             rebalance_threshold_percent,
+            liquidation_buffer,
+            liq_tolerance,
+            fee_perc,
         )
     }
 
@@ -127,14 +224,20 @@ impl CrossCarryOperator {
         output: OperatorOutput,
         cross_leverage: CrossLeverage,
         rebalance_threshold_percent: PercentageCapped,
+        liquidation_buffer: Percentage,
+        liq_tolerance: PercentageCapped,
+        fee_perc: PercentageCapped,
     ) -> Box<Self> {
         Box::new(Self {
             trade_executor: OnceLock::new(),
             output,
             cross_leverage,
             rebalance_threshold_percent,
+            liquidation_buffer,
+            liq_tolerance,
+            fee_perc,
             initialized: OnceLock::new(),
-            rebalance_count: Mutex::new(0),
+            rebalance_count: AtomicU64::new(0),
         })
     }
 
@@ -156,19 +259,9 @@ impl CrossCarryOperator {
         Ok(())
     }
 
-    fn lock_rebalance_count(&self) -> Result<std::sync::MutexGuard<'_, u64>> {
-        self.rebalance_count
-            .lock()
-            .map_err(|_| "rebalance count mutex was poisoned".into())
-    }
-
-    fn increment_rebalance_count(&self) -> Result<u64> {
-        let mut rebalance_count = self.lock_rebalance_count()?;
-        let updated_count = (*rebalance_count)
-            .checked_add(1)
-            .ok_or("rebalance count overflowed")?;
-        *rebalance_count = updated_count;
-        Ok(updated_count)
+    /// Increments the rebalance counter and returns the new count.
+    fn increment_rebalance_count(&self) -> u64 {
+        self.rebalance_count.fetch_add(1, AtomicOrdering::Relaxed) + 1
     }
 
     async fn log(&self, text: impl Into<String>) -> Result<()> {
@@ -180,12 +273,33 @@ impl CrossCarryOperator {
         Ok(())
     }
 
-    async fn adjust_hedge(
-        &self,
-        order_side: TradeSide,
-        order_quantity: OrderQuantity,
-    ) -> Result<()> {
+    async fn adjust_hedge_size(&self, state: &TradingState) -> Result<()> {
         let trade_executor = self.trade_executor()?;
+
+        if let Some(needed_deposit) =
+            state.cross_margin_deposit_for_hedge(self.liquidation_buffer, self.fee_perc)
+        {
+            if state.balance() < needed_deposit.get() {
+                self.log(format!(
+                    "  Skipping cross hedge order; need {needed_deposit} sats to support the order but only {} sats are available",
+                    state.balance()
+                ))
+                .await?;
+                return Ok(());
+            }
+
+            let cross_position = trade_executor.cross_deposit(needed_deposit).await?;
+            self.log(format!(
+                "  Deposited {} sats to support hedge order; cross margin is now {} sats",
+                needed_deposit,
+                cross_position.margin()
+            ))
+            .await?;
+        }
+
+        let (order_side, order_quantity) = state
+            .order_for_target_hedge(self.rebalance_threshold_percent)
+            .ok_or_else(|| "unable to evaluate hedge order")?;
 
         match order_side {
             TradeSide::Sell => {
@@ -207,6 +321,75 @@ impl CrossCarryOperator {
         Ok(())
     }
 
+    async fn adjust_liquidation_price(&self, state: &TradingState) -> Result<()> {
+        let Some(current_liq) = state.cross_position().liquidation() else {
+            return Ok(());
+        };
+        let target_liq = state
+            .target_short_liquidation_price(self.liquidation_buffer)
+            .ok_or_else(|| "unable to calculate target short liquidation price".to_string())?;
+        let Some(collateral_delta) = state.cross_position().est_collateral_diff_for_liquidation(
+            state.market_price(),
+            target_liq,
+            self.fee_perc,
+        ) else {
+            return Ok(());
+        };
+
+        let liq_diff_percent =
+            ((current_liq.as_f64() - target_liq.as_f64()) / target_liq.as_f64()).abs() * 100.0;
+        if liq_diff_percent <= self.liq_tolerance.as_f64() {
+            return Ok(());
+        }
+
+        let trade_executor = self.trade_executor()?;
+
+        if collateral_delta > 0 {
+            let needed_deposit = collateral_delta as u64;
+            let deposit = needed_deposit.min(state.balance());
+            let Some(deposit) = NonZeroU64::new(deposit) else {
+                self.log(format!(
+                    "Cross margin is below liquidation target but no isolated balance is available: liquidation ${:.1}, target ${:.1}",
+                    current_liq.as_f64(),
+                    target_liq.as_f64()
+                ))
+                .await?;
+                return Ok(());
+            };
+
+            let cross_position = trade_executor.cross_deposit(deposit).await?;
+            self.log(format!(
+                "Deposited {} sats to cross margin; liquidation ${:.1}, target ${:.1}, cross margin {} sats",
+                deposit,
+                cross_position.liquidation().unwrap_or(current_liq).as_f64(),
+                target_liq.as_f64(),
+                cross_position.margin()
+            ))
+            .await?;
+        } else if collateral_delta < 0 {
+            let max_withdrawal = state
+                .cross_position()
+                .est_free_margin(state.market_price())
+                .saturating_sub(1);
+            let withdrawal = collateral_delta.unsigned_abs().min(max_withdrawal);
+            let Some(withdrawal) = NonZeroU64::new(withdrawal) else {
+                return Ok(());
+            };
+
+            let cross_position = trade_executor.cross_withdraw(withdrawal).await?;
+            self.log(format!(
+                "Withdrew {} sats from cross margin; liquidation ${:.1}, target ${:.1}, cross margin {} sats",
+                withdrawal,
+                cross_position.liquidation().unwrap_or(current_liq).as_f64(),
+                target_liq.as_f64(),
+                cross_position.margin()
+            ))
+            .await?;
+        }
+
+        Ok(())
+    }
+
     async fn handle_initialization(&self, trade_executor: &Arc<dyn TradeExecutor>) -> Result<bool> {
         if self.is_initialized() {
             return Ok(false);
@@ -215,8 +398,7 @@ impl CrossCarryOperator {
         self.log("Initializing cross-margin carry trade").await?;
 
         let starting_state = trade_executor.trading_state().await?;
-        let balance_to_deposit = starting_state.balance();
-        let starting_net_value_usd = account_net_value_usd(&starting_state);
+        let starting_net_value_usd = starting_state.account_net_value_usd();
 
         self.log(format!(
             "  Starting account net value: {} sats (${starting_net_value_usd:.2})",
@@ -224,18 +406,9 @@ impl CrossCarryOperator {
         ))
         .await?;
 
-        if balance_to_deposit == 0 {
+        if starting_state.balance() == 0 {
             return Err("starting isolated balance must be greater than zero".into());
         }
-
-        let cross_after_deposit = trade_executor
-            .cross_deposit(balance_to_deposit.try_into().expect("not zero"))
-            .await?;
-        self.log(format!(
-            "  Moved {balance_to_deposit} sats from isolated balance into cross margin; cross margin is now {} sats",
-            cross_after_deposit.margin()
-        ))
-        .await?;
 
         let cross_after_leverage = trade_executor
             .cross_set_leverage(self.cross_leverage)
@@ -246,13 +419,37 @@ impl CrossCarryOperator {
         ))
         .await?;
 
+        let state_after_leverage = trade_executor.trading_state().await?;
+        let target_liquidation = state_after_leverage
+            .target_short_liquidation_price(self.liquidation_buffer)
+            .ok_or_else(|| "unable to calculate target short liquidation price".to_string())?;
+        let balance_to_deposit = state_after_leverage
+            .initial_cross_margin_for_hedge(self.liquidation_buffer, self.fee_perc)?;
+        if balance_to_deposit.get() > state_after_leverage.balance() {
+            return Err(format!(
+                "initial cross margin target requires {balance_to_deposit} sats, but only {} sats are available",
+                state_after_leverage.balance()
+            )
+            .into());
+        }
+
+        let cross_after_deposit = trade_executor.cross_deposit(balance_to_deposit).await?;
+        self.log(format!(
+            "  Moved {balance_to_deposit} sats from isolated balance into cross margin to target liquidation ${:.1}; cross margin is now {} sats",
+            target_liquidation.as_f64(),
+            cross_after_deposit.margin()
+        ))
+        .await?;
+
         let state_after_deposit = trade_executor.trading_state().await?;
         self.log("  Opening initial short hedge for the full account net value in USD")
             .await?;
 
-        if let Some((order_side, order_quantity)) = hedge_difference_usd(&state_after_deposit, 0.0)
+        if state_after_deposit
+            .order_for_target_hedge(self.rebalance_threshold_percent)
+            .is_some()
         {
-            self.adjust_hedge(order_side, order_quantity).await?;
+            self.adjust_hedge_size(&state_after_deposit).await?;
         }
 
         self.set_initialized()?;
@@ -286,20 +483,25 @@ impl RawOperator for CrossCarryOperator {
         }
 
         let state = trade_executor.trading_state().await?;
-        let threshold_usd = rebalance_threshold_usd(&state, self.rebalance_threshold_percent);
 
-        if let Some((order_side, order_quantity)) = hedge_difference_usd(&state, threshold_usd) {
-            let diff_usd = hedge_drift_usd(&state);
-            let diff_percent = hedge_difference_percent(&state);
+        if state
+            .order_for_target_hedge(self.rebalance_threshold_percent)
+            .is_some()
+        {
+            let diff_usd = state.hedge_drift_usd();
+            let diff_percent = state.hedge_drift_percent();
             let threshold_percent = self.rebalance_threshold_percent;
+            let threshold_usd = state.rebalance_threshold_usd(self.rebalance_threshold_percent);
+            let rebalance_number = self.increment_rebalance_count();
 
-            let rebalance_number = self.increment_rebalance_count()?;
             self.log(format!(
                 "Rebalance #{rebalance_number}: hedge drift {diff_usd:+.2} USD ({diff_percent:+.2}%) exceeded {threshold_percent:.2}% (${threshold_usd:.2})"
             ))
             .await?;
 
-            self.adjust_hedge(order_side, order_quantity).await?;
+            self.adjust_hedge_size(&state).await?;
+        } else {
+            self.adjust_liquidation_price(&state).await?;
         }
 
         Ok(())
