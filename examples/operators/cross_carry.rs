@@ -301,22 +301,13 @@ impl CrossCarryOperator {
             .order_for_target_hedge(self.rebalance_threshold_percent)
             .ok_or_else(|| "unable to evaluate hedge order")?;
 
-        match order_side {
-            TradeSide::Sell => {
-                let order_id = trade_executor.cross_market_short(order_quantity).await?;
-                self.log(format!(
-                    "  Placed cross short order {order_id} for ${order_quantity}"
-                ))
-                .await?;
-            }
-            TradeSide::Buy => {
-                let order_id = trade_executor.cross_market_long(order_quantity).await?;
-                self.log(format!(
-                    "  Placed cross long order {order_id} for ${order_quantity}"
-                ))
-                .await?;
-            }
-        }
+        let order_id = trade_executor
+            .cross_market(order_side, order_quantity)
+            .await?;
+        self.log(format!(
+            "  Placed cross {order_side} order {order_id} for ${order_quantity}"
+        ))
+        .await?;
 
         Ok(())
     }
