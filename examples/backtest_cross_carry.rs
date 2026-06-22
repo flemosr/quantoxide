@@ -16,7 +16,7 @@ use tokio::time::{self, Duration};
 use quantoxide::{
     Database,
     error::Result,
-    models::{CrossLeverage, Percentage, PercentageCapped},
+    models::{CrossLeverage, Percentage, PercentageCapped, SATS_PER_BTC},
     sync::PriceHistoryState,
     trade::{BacktestConfig, BacktestEngine, BacktestStatus, BacktestUpdate, TradingState},
 };
@@ -26,7 +26,7 @@ mod operators;
 #[path = "util/mod.rs"]
 mod util;
 
-use operators::cross_carry::{CrossCarryOperator, TradingStateExt};
+use operators::cross_carry::CrossCarryOperator;
 use util::input;
 
 const DEFAULT_START_BALANCE_SATS: u64 = 10_000_000;
@@ -40,10 +40,15 @@ lazy_static! {
 
 fn print_final_summary(state: &TradingState) {
     let cross_position = state.cross_position();
-    let account_net_value_usd = state.account_net_value_usd();
-    let hedged_value_usd = state.hedged_value_usd();
-    let hedge_drift_usd = state.hedge_drift_usd();
-    let hedge_drift_percent = state.hedge_drift_percent();
+    let account_net_value_usd =
+        state.total_net_value() as f64 * state.market_price().as_f64() / SATS_PER_BTC;
+    let hedged_value_usd = -cross_position.quantity() as f64;
+    let hedge_drift_usd = account_net_value_usd - hedged_value_usd;
+    let hedge_drift_percent = if account_net_value_usd.abs() <= f64::EPSILON {
+        0.0
+    } else {
+        hedge_drift_usd / account_net_value_usd * 100.0
+    };
 
     println!(
         "\nFinal: time={}, net={} sats (${account_net_value_usd:.2}), hedge=${hedged_value_usd:.2}, drift={hedge_drift_usd:+.2} ({hedge_drift_percent:+.2}%), cross_qty={} USD, cross_margin={} sats",
@@ -156,12 +161,14 @@ async fn main() -> Result<()> {
     println!("Initializing `BacktestEngine`...");
 
     let backtest_config = BacktestConfig::default();
+    let liquidation_buffer = *TARGET_LIQUIDATION_BUFFER;
+    let fee_perc = backtest_config.fee_perc();
     let operator = CrossCarryOperator::new(
         *CROSS_LEVERAGE,
         *REBALANCE_THRESHOLD_PERCENT,
-        *TARGET_LIQUIDATION_BUFFER,
+        liquidation_buffer,
         *LIQ_TOLERANCE,
-        backtest_config.fee_perc(),
+        fee_perc,
     );
 
     let backtest_engine = BacktestEngine::with_raw_operator(
