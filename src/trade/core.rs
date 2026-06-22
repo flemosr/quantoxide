@@ -545,11 +545,14 @@ pub trait CrossPositionCore: crate::sealed::Sealed + Send + Sync + fmt::Debug + 
     fn trading_fees(&self) -> u64;
 
     /// Returns the signed cross position quantity in USD notional.
+    ///
+    /// Positive quantities correspond to long positions, negative quantities correspond to short
+    /// positions, and zero corresponds to a neutral position.
     fn quantity(&self) -> i64 {
         match self.exposure() {
             CrossExposure::Neutral => 0,
             CrossExposure::Running(exposure) => {
-                let quantity = i64::try_from(exposure.quantity().as_u64()).expect("must fit `i64`");
+                let quantity = exposure.quantity().as_i64();
                 match exposure.side() {
                     TradeSide::Buy => quantity,
                     TradeSide::Sell => -quantity,
