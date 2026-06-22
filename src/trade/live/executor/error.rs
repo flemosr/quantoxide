@@ -3,7 +3,9 @@ use std::{num::NonZeroU64, result, sync::Arc};
 use thiserror::Error;
 use uuid::Uuid;
 
-use lnm_sdk::api_v3::error::{PriceValidationError, RestApiError, TradeValidationError};
+use lnm_sdk::api_v3::error::{
+    CrossExposureValidationError, PriceValidationError, RestApiError, TradeValidationError,
+};
 
 use crate::{
     db::error::DbError,
@@ -80,6 +82,12 @@ pub enum ExecutorActionError {
 
     #[error("Unexpected closed trade returned by the server. Id: {trade_id}")]
     UnexpectedClosedTrade { trade_id: Uuid },
+
+    #[error("Live cross-position validation error: {0}")]
+    CrossPositionValidation(CrossExposureValidationError),
+
+    #[error("Cross order not filled by the server. Id: {order_id}")]
+    CrossOrderNotFilled { order_id: Uuid },
 
     #[error("Cross-margin operation {operation} is not supported by the live trade executor yet")]
     CrossMarginUnsupported { operation: &'static str },

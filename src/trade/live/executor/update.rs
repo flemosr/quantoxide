@@ -5,7 +5,10 @@ use uuid::Uuid;
 
 use lnm_sdk::api_v3::{
     RestClient,
-    models::{Account, ClientId, Leverage, Price, Trade, TradeExecution, TradeSide, TradeSize},
+    models::{
+        Account, ClientId, CrossLeverage, CrossOrder, CrossPosition, Leverage, OrderQuantity,
+        Price, Trade, TradeExecution, TradeSide, TradeSize,
+    },
 };
 
 use super::{
@@ -42,6 +45,21 @@ pub enum LiveTradeExecutorUpdateOrder {
     },
     CancelAllTrades,
     CloseAllTrades,
+    CrossDeposit {
+        amount: NonZeroU64,
+    },
+    CrossWithdraw {
+        amount: NonZeroU64,
+    },
+    CrossSetLeverage {
+        leverage: CrossLeverage,
+    },
+    CrossMarket {
+        side: TradeSide,
+        quantity: OrderQuantity,
+        client_id: Option<ClientId>,
+    },
+    CrossClosePosition,
 }
 
 impl fmt::Display for LiveTradeExecutorUpdateOrder {
@@ -92,6 +110,29 @@ impl fmt::Display for LiveTradeExecutorUpdateOrder {
             }
             Self::CancelAllTrades => write!(f, "Cancel All Trades"),
             Self::CloseAllTrades => write!(f, "Close All Trades"),
+            Self::CrossDeposit { amount } => {
+                write!(f, "Cross Deposit:\n  amount: {}", amount)
+            }
+            Self::CrossWithdraw { amount } => {
+                write!(f, "Cross Withdraw:\n  amount: {}", amount)
+            }
+            Self::CrossSetLeverage { leverage } => {
+                write!(f, "Cross Set Leverage:\n  leverage: {}", leverage)
+            }
+            Self::CrossMarket {
+                side,
+                quantity,
+                client_id,
+            } => {
+                let client_id_str = client_id.as_ref().map(|id| id.as_str()).unwrap_or("N/A");
+
+                write!(
+                    f,
+                    "Cross Market Order:\n  side: {}\n  quantity: {}\n  client_id: {}",
+                    side, quantity, client_id_str
+                )
+            }
+            Self::CrossClosePosition => write!(f, "Cross Close Position"),
         }
     }
 }
@@ -290,5 +331,78 @@ impl WrappedRestClient {
         }
 
         Ok(closed_trades)
+    }
+}
+
+#[allow(dead_code)]
+impl WrappedRestClient {
+    pub async fn cross_get_position(&self) -> ExecutorActionResult<CrossPosition> {
+        self.api_rest
+            .futures_cross
+            .get_position()
+            .await
+            .map_err(ExecutorActionError::RestApi)
+    }
+
+    pub async fn cross_deposit(&self, amount: NonZeroU64) -> ExecutorActionResult<CrossPosition> {
+        self.send_order_update(LiveTradeExecutorUpdateOrder::CrossDeposit { amount });
+
+        self.api_rest
+            .futures_cross
+            .deposit(amount)
+            .await
+            .map_err(ExecutorActionError::RestApi)
+    }
+
+    pub async fn cross_withdraw(&self, amount: NonZeroU64) -> ExecutorActionResult<CrossPosition> {
+        self.send_order_update(LiveTradeExecutorUpdateOrder::CrossWithdraw { amount });
+
+        self.api_rest
+            .futures_cross
+            .withdraw(amount)
+            .await
+            .map_err(ExecutorActionError::RestApi)
+    }
+
+    pub async fn cross_set_leverage(
+        &self,
+        leverage: CrossLeverage,
+    ) -> ExecutorActionResult<CrossPosition> {
+        self.send_order_update(LiveTradeExecutorUpdateOrder::CrossSetLeverage { leverage });
+
+        self.api_rest
+            .futures_cross
+            .set_leverage(leverage)
+            .await
+            .map_err(ExecutorActionError::RestApi)
+    }
+
+    pub async fn cross_market(
+        &self,
+        side: TradeSide,
+        quantity: OrderQuantity,
+        client_id: Option<ClientId>,
+    ) -> ExecutorActionResult<CrossOrder> {
+        self.send_order_update(LiveTradeExecutorUpdateOrder::CrossMarket {
+            side,
+            quantity,
+            client_id: client_id.clone(),
+        });
+
+        self.api_rest
+            .futures_cross
+            .place_order(side, quantity, TradeExecution::Market, client_id)
+            .await
+            .map_err(ExecutorActionError::RestApi)
+    }
+
+    pub async fn cross_close_position(&self) -> ExecutorActionResult<CrossOrder> {
+        self.send_order_update(LiveTradeExecutorUpdateOrder::CrossClosePosition);
+
+        self.api_rest
+            .futures_cross
+            .close_position()
+            .await
+            .map_err(ExecutorActionError::RestApi)
     }
 }
