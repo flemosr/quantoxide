@@ -1102,6 +1102,42 @@ impl TradingState {
         self.cross_position.as_ref()
     }
 
+    /// Returns a formatted table displaying the cross-margin position snapshot.
+    pub fn cross_position_table(&self) -> String {
+        let cross_position = self.cross_position();
+        let market_price = self.market_price();
+        let side = cross_position
+            .exposure()
+            .as_running_params()
+            .map_or_else(|| "Neutral".to_string(), |(side, _, _)| side.to_string());
+        let price_or_na = |price: Option<Price>| {
+            price.map_or_else(|| "N/A".to_string(), |price| format!("{price:.1}"))
+        };
+        let entry = price_or_na(cross_position.entry_price());
+        let liquidation = price_or_na(cross_position.liquidation());
+
+        format!(
+            "{:>7} | {:>11} | {:>11} | {:>11} | {:>8} | {:>11} | {:>11} | {:>11}\n{}\n{:>7} | {:>11} | {:>11} | {:>11} | {:>8} | {:>11} | {:>11} | {:>11}",
+            "side",
+            "quantity",
+            "entry",
+            "liquidation",
+            "leverage",
+            "margin",
+            "P/L",
+            "fees",
+            "-".repeat(102),
+            side,
+            cross_position.quantity().unsigned_abs(),
+            entry,
+            liquidation,
+            cross_position.leverage().as_u64(),
+            cross_position.margin(),
+            cross_position.est_running_pl(market_price),
+            cross_position.trading_fees(),
+        )
+    }
+
     /// Returns a formatted string containing a comprehensive summary of the trading state including
     /// timing information, balances, positions, and metrics.
     pub fn summary(&self) -> String {
