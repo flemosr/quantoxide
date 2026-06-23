@@ -128,7 +128,6 @@ impl LiveTui {
                     .map_err(|e| TuiError::LiveTuiSendFailed(Box::new(e)))
             }
 
-            let mut running_trades_table;
             let mut closed_trades_table = "No closed trades.".to_string();
             let mut closed_len = 0;
 
@@ -171,19 +170,26 @@ impl LiveTui {
                                 if summary_result.is_err() {
                                     summary_result
                                 } else {
-                                    running_trades_table = trading_state.running_trades_table();
-
                                     if trading_state.closed_len() > closed_len {
                                         closed_len = trading_state.closed_len();
                                         closed_trades_table =
                                             trading_state.closed_history().to_table();
                                     }
 
-                                    let tables = format!(
-                                        "\nRunning Trades\n\n{running_trades_table}\n\n\nClosed Trades\n\n{closed_trades_table}"
+                                    let cross_position_table = trading_state.cross_position_table();
+                                    let running_trades_table = trading_state.running_trades_table();
+
+                                    let trades_panel = format!(
+                                        "\nCross-Margin Position\n\n\
+                                        {cross_position_table}\n\n\n\
+                                        Isolated Trades: Running\n\n\
+                                        {running_trades_table}\n\n\n\
+                                        Isolated Trades: Closed\n\n\
+                                        {closed_trades_table}\n\n"
                                     );
 
-                                    send_ui_msg(&ui_tx, LiveUiMessage::TradesUpdate(tables)).await
+                                    send_ui_msg(&ui_tx, LiveUiMessage::TradesUpdate(trades_panel))
+                                        .await
                                 }
                             }
                             LiveTradeUpdate::ClosedTrade(trade) => {
@@ -203,8 +209,7 @@ impl LiveTui {
                     Err(RecvError::Lagged(skipped)) => {
                         let log_msg = format!("Live updates lagged by {skipped} messages");
 
-                        if let Err(e) =
-                            send_ui_msg(&ui_tx, LiveUiMessage::LogEntry(log_msg)).await
+                        if let Err(e) = send_ui_msg(&ui_tx, LiveUiMessage::LogEntry(log_msg)).await
                         {
                             status_manager.set_crashed(e);
                             return;
