@@ -23,6 +23,96 @@ use quantoxide::{
     tui::TuiLogger,
 };
 
+/// Configuration for the cross-margin carry-trade operator.
+#[derive(Clone, Copy, Debug)]
+pub struct CrossCarryOperatorConfig {
+    cross_leverage: CrossLeverage,
+    rebalance_threshold: PercentageCapped,
+    liquidation_buffer: Percentage,
+    liq_tolerance: PercentageCapped,
+    trade_estimated_fee: PercentageCapped,
+}
+
+impl Default for CrossCarryOperatorConfig {
+    fn default() -> Self {
+        Self {
+            cross_leverage: CrossLeverage::bounded(10),
+            rebalance_threshold: PercentageCapped::bounded(1.0),
+            liquidation_buffer: Percentage::bounded(20.0),
+            liq_tolerance: PercentageCapped::bounded(5.0),
+            trade_estimated_fee: PercentageCapped::try_from(0.1)
+                .expect("must be valid `PercentageCapped`"),
+        }
+    }
+}
+
+impl CrossCarryOperatorConfig {
+    /// Returns the cross leverage used by the carry operator.
+    pub fn cross_leverage(&self) -> CrossLeverage {
+        self.cross_leverage
+    }
+
+    /// Returns the hedge drift threshold that triggers a rebalance.
+    pub fn rebalance_threshold(&self) -> PercentageCapped {
+        self.rebalance_threshold
+    }
+
+    /// Returns the target buffer above market for the short liquidation price.
+    pub fn liquidation_buffer(&self) -> Percentage {
+        self.liquidation_buffer
+    }
+
+    /// Returns the liquidation drift tolerance before collateral is adjusted.
+    pub fn liq_tolerance(&self) -> PercentageCapped {
+        self.liq_tolerance
+    }
+
+    /// Returns the estimated trade fee used for collateral calculations.
+    pub fn trade_estimated_fee(&self) -> PercentageCapped {
+        self.trade_estimated_fee
+    }
+
+    /// Sets the cross leverage used by the carry operator.
+    ///
+    /// Default: `10x`
+    pub fn with_cross_leverage(mut self, cross_leverage: CrossLeverage) -> Self {
+        self.cross_leverage = cross_leverage;
+        self
+    }
+
+    /// Sets the hedge drift threshold that triggers a rebalance.
+    ///
+    /// Default: `1.0%`
+    pub fn with_rebalance_threshold(mut self, rebalance_threshold: PercentageCapped) -> Self {
+        self.rebalance_threshold = rebalance_threshold;
+        self
+    }
+
+    /// Sets the target buffer above market for the short liquidation price.
+    ///
+    /// Default: `20.0%`
+    pub fn with_liquidation_buffer(mut self, liquidation_buffer: Percentage) -> Self {
+        self.liquidation_buffer = liquidation_buffer;
+        self
+    }
+
+    /// Sets the liquidation drift tolerance before collateral is adjusted.
+    ///
+    /// Default: `5.0%`
+    pub fn with_liq_tolerance(mut self, liq_tolerance: PercentageCapped) -> Self {
+        self.liq_tolerance = liq_tolerance;
+        self
+    }
+
+    /// Sets the estimated trade fee used for collateral calculations.
+    ///
+    /// Default: `0.1%`
+    pub fn with_trade_estimated_fee(mut self, trade_estimated_fee: PercentageCapped) -> Self {
+        self.trade_estimated_fee = trade_estimated_fee;
+        self
+    }
+}
+
 enum OperatorOutput {
     Stdout,
     Tui(Arc<dyn TuiLogger>),
@@ -37,68 +127,26 @@ enum OperatorOutput {
 /// During the run, cross collateral is moved to/from the isolated balance when liquidation drifts
 /// beyond the configured tolerance.
 pub struct CrossCarryOperator {
-    trade_executor: OnceLock<Arc<dyn TradeExecutor>>,
+    config: CrossCarryOperatorConfig,
     output: OperatorOutput,
-    cross_leverage: CrossLeverage,
-    rebalance_threshold: PercentageCapped,
-    liquidation_buffer: Percentage,
-    liq_tolerance: PercentageCapped,
-    fee_perc: PercentageCapped,
+    trade_executor: OnceLock<Arc<dyn TradeExecutor>>,
     rebalance_count: AtomicU64,
 }
 
 impl CrossCarryOperator {
-    pub fn new(
-        cross_leverage: CrossLeverage,
-        rebalance_threshold_percent: PercentageCapped,
-        liquidation_buffer: Percentage,
-        liq_tolerance: PercentageCapped,
-        fee_perc: PercentageCapped,
-    ) -> Box<Self> {
-        Self::with_output(
-            OperatorOutput::Stdout,
-            cross_leverage,
-            rebalance_threshold_percent,
-            liquidation_buffer,
-            liq_tolerance,
-            fee_perc,
-        )
+    pub fn new(config: CrossCarryOperatorConfig) -> Box<Self> {
+        Self::with_output(config, OperatorOutput::Stdout)
     }
 
-    pub fn with_logger(
-        cross_leverage: CrossLeverage,
-        rebalance_threshold_percent: PercentageCapped,
-        liquidation_buffer: Percentage,
-        liq_tolerance: PercentageCapped,
-        fee_perc: PercentageCapped,
-        logger: Arc<dyn TuiLogger>,
-    ) -> Box<Self> {
-        Self::with_output(
-            OperatorOutput::Tui(logger),
-            cross_leverage,
-            rebalance_threshold_percent,
-            liquidation_buffer,
-            liq_tolerance,
-            fee_perc,
-        )
+    pub fn with_logger(config: CrossCarryOperatorConfig, logger: Arc<dyn TuiLogger>) -> Box<Self> {
+        Self::with_output(config, OperatorOutput::Tui(logger))
     }
 
-    fn with_output(
-        output: OperatorOutput,
-        cross_leverage: CrossLeverage,
-        rebalance_threshold_percent: PercentageCapped,
-        liquidation_buffer: Percentage,
-        liq_tolerance: PercentageCapped,
-        fee_perc: PercentageCapped,
-    ) -> Box<Self> {
+    fn with_output(config: CrossCarryOperatorConfig, output: OperatorOutput) -> Box<Self> {
         Box::new(Self {
-            trade_executor: OnceLock::new(),
+            config,
             output,
-            cross_leverage,
-            rebalance_threshold: rebalance_threshold_percent,
-            liquidation_buffer,
-            liq_tolerance,
-            fee_perc,
+            trade_executor: OnceLock::new(),
             rebalance_count: AtomicU64::new(0),
         })
     }
@@ -212,7 +260,7 @@ impl CrossCarryOperator {
     async fn adjust_cross_leverage(&self, current_leverage: CrossLeverage) -> Result<()> {
         let trade_executor = self.trade_executor()?;
         let cross_position = trade_executor
-            .cross_set_leverage(self.cross_leverage)
+            .cross_set_leverage(self.config.cross_leverage())
             .await?;
 
         self.log(format!(
@@ -248,23 +296,17 @@ impl RawOperator for CrossCarryOperator {
         let state = trade_executor.trading_state().await?;
         let current_leverage = state.cross_position().leverage();
 
-        if current_leverage != self.cross_leverage {
+        if current_leverage != self.config.cross_leverage() {
             self.adjust_cross_leverage(current_leverage).await?;
             return Ok(());
         }
 
-        let carry_status = CarryStatus::evaluate(
-            &state,
-            self.rebalance_threshold,
-            self.liquidation_buffer,
-            self.liq_tolerance,
-            self.fee_perc,
-        )?;
+        let carry_status = CarryStatus::evaluate(&self.config, &state)?;
         match carry_status {
             CarryStatus::HedgeImbalanced(imbalance) => {
                 let diff_usd = imbalance.drift_usd;
                 let diff_percent = imbalance.drift_percent;
-                let threshold_percent = self.rebalance_threshold;
+                let threshold_percent = self.config.rebalance_threshold();
                 let threshold_usd = imbalance.threshold_usd;
                 let rebalance_number = self.increment_rebalance_count();
 
@@ -293,18 +335,12 @@ pub enum CarryStatus {
 }
 
 impl CarryStatus {
-    pub fn evaluate(
-        state: &TradingState,
-        rebalance_threshold: PercentageCapped,
-        liquidation_buffer: Percentage,
-        liq_tolerance: PercentageCapped,
-        fee_perc: PercentageCapped,
-    ) -> Result<Self> {
+    pub fn evaluate(config: &CrossCarryOperatorConfig, state: &TradingState) -> Result<Self> {
         let balance = state.balance();
         let cross_position = state.cross_position();
         let market_price = state.market_price();
         let target_liquidation = market_price
-            .apply_gain(liquidation_buffer)
+            .apply_gain(config.liquidation_buffer())
             .map_err(|error| {
                 format!("unable to calculate target short liquidation price: {error}")
             })?;
@@ -313,24 +349,22 @@ impl CarryStatus {
         let target_hedge = CrossQuantity::try_from(account_net_value_usd.floor())?;
 
         if let Some(imbalance) = HedgeImbalance::check(
+            config,
+            balance,
             cross_position,
             market_price,
             target_liquidation,
             target_hedge,
-            rebalance_threshold,
-            fee_perc,
-            balance,
         )? {
             return Ok(Self::HedgeImbalanced(imbalance));
         }
 
         if let Some(imbalance) = LiquidationImbalance::check(
+            config,
+            balance,
             cross_position,
             market_price,
             target_liquidation,
-            liq_tolerance,
-            fee_perc,
-            balance,
         ) {
             return Ok(Self::LiquidationImbalanced(imbalance));
         }
@@ -352,16 +386,15 @@ pub struct HedgeImbalance {
 
 impl HedgeImbalance {
     fn check(
+        config: &CrossCarryOperatorConfig,
+        balance: u64,
         cross_position: &dyn CrossPositionCore,
         market_price: Price,
         target_liq: Price,
         target_hedge: CrossQuantity,
-        rebalance_threshold: PercentageCapped,
-        fee_perc: PercentageCapped,
-        balance: u64,
     ) -> Result<Option<Self>> {
         let drift_usd = target_hedge.as_i64() + cross_position.quantity();
-        let threshold_usd = target_hedge.as_f64() * rebalance_threshold.as_f64() / 100.0;
+        let threshold_usd = target_hedge.as_f64() * config.rebalance_threshold().as_f64() / 100.0;
 
         if drift_usd.unsigned_abs() as f64 <= threshold_usd {
             return Ok(None);
@@ -384,7 +417,7 @@ impl HedgeImbalance {
                 target_hedge,
                 market_price,
                 target_liq,
-                fee_perc,
+                config.trade_estimated_fee(),
             )
             .ok_or_else(|| {
                 format!(
@@ -417,24 +450,23 @@ pub struct LiquidationImbalance {
 
 impl LiquidationImbalance {
     fn check(
+        config: &CrossCarryOperatorConfig,
+        balance: u64,
         cross_position: &dyn CrossPositionCore,
         market_price: Price,
         target_liq: Price,
-        liq_tolerance: PercentageCapped,
-        fee_perc: PercentageCapped,
-        balance: u64,
     ) -> Option<Self> {
         let current_liq = cross_position.liquidation()?;
         let liq_diff_percent =
             ((current_liq.as_f64() - target_liq.as_f64()) / target_liq.as_f64()).abs() * 100.0;
-        if liq_diff_percent <= liq_tolerance.as_f64() {
+        if liq_diff_percent <= config.liq_tolerance().as_f64() {
             return None;
         }
 
         let collateral_delta = cross_position.est_collateral_diff_for_liquidation(
             market_price,
             target_liq,
-            fee_perc,
+            config.trade_estimated_fee(),
         )?;
         let adjustment = if collateral_delta > 0 {
             let needed = NonZeroU64::new(collateral_delta as u64)?;
