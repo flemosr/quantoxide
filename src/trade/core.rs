@@ -1173,6 +1173,57 @@ impl TradingState {
         result.push_str(&format!("Available balance: {:>w$} sats\n", bal_sats));
         result.push_str(&format!("                   {:>w$} USD\n\n", bal_usd));
 
+        // Cross
+        let cross_position = self.cross_position();
+        let cross_margin = cross_position.margin().to_string();
+        let cross_free_margin = cross_position
+            .est_free_margin(self.market_price)
+            .to_string();
+        let mut cross_rows = vec![("Fees:", cross_position.trading_fees().to_string(), " sats")];
+
+        if let CrossExposure::Running(exposure) = cross_position.exposure() {
+            cross_rows.extend([
+                ("Side:", exposure.side().to_string(), ""),
+                (
+                    "Quantity:",
+                    exposure.quantity().as_u64().to_string(),
+                    " USD",
+                ),
+                (
+                    "P/L:",
+                    cross_position.est_running_pl(self.market_price).to_string(),
+                    " sats",
+                ),
+            ]);
+        }
+
+        let label_width = cross_rows
+            .iter()
+            .map(|(label, _, _)| label.len())
+            .max()
+            .unwrap_or(0);
+        let margin_label_width = label_width.saturating_sub(2);
+        let w = cross_rows
+            .iter()
+            .map(|(_, value, _)| value.len())
+            .chain([cross_margin.len(), cross_free_margin.len()])
+            .max()
+            .unwrap_or(0);
+        result.push_str("Cross:\n");
+        result.push_str("  Margin:\n");
+        result.push_str(&format!(
+            "    {:<margin_label_width$} {cross_margin:>w$} sats\n",
+            "Total:"
+        ));
+        result.push_str(&format!(
+            "    {:<margin_label_width$} {cross_free_margin:>w$} sats\n",
+            "Free:"
+        ));
+        for (label, value, suffix) in cross_rows {
+            result.push_str(&format!("  {label:<label_width$} {value:>w$}{suffix}\n"));
+        }
+        result.push('\n');
+
         result.push_str("Isolated:\n");
 
         // Isolated - Running Positions (aligned across Long and Short)
@@ -1271,72 +1322,6 @@ impl TradingState {
             ));
         }
         result.push('\n');
-
-        // Cross
-        let cross_position = self.cross_position();
-        let cross_margin = cross_position.margin().to_string();
-        let cross_free_margin = cross_position
-            .est_free_margin(self.market_price)
-            .to_string();
-        let mut cross_rows = vec![
-            (
-                "Leverage:",
-                cross_position.leverage().as_u64().to_string(),
-                "",
-            ),
-            ("Fees:", cross_position.trading_fees().to_string(), " sats"),
-        ];
-
-        if let CrossExposure::Running(exposure) = cross_position.exposure() {
-            let running_pl = trade_util::estimate_pl(
-                exposure.side(),
-                exposure.quantity(),
-                exposure.entry_price(),
-                self.market_price,
-            )
-            .floor() as i64;
-
-            cross_rows.extend([
-                ("Side:", exposure.side().to_string(), ""),
-                (
-                    "Quantity:",
-                    exposure.quantity().as_u64().to_string(),
-                    " USD",
-                ),
-                ("P/L:", running_pl.to_string(), " sats"),
-                (
-                    "Liquidation:",
-                    format!("{:.1}", exposure.liquidation()),
-                    " USD",
-                ),
-            ]);
-        }
-
-        let label_width = cross_rows
-            .iter()
-            .map(|(label, _, _)| label.len())
-            .max()
-            .unwrap_or(0);
-        let margin_label_width = label_width.saturating_sub(2);
-        let w = cross_rows
-            .iter()
-            .map(|(_, value, _)| value.len())
-            .chain([cross_margin.len(), cross_free_margin.len()])
-            .max()
-            .unwrap_or(0);
-        result.push_str("Cross:\n");
-        result.push_str("  Margin:\n");
-        result.push_str(&format!(
-            "    {:<margin_label_width$} {cross_margin:>w$} sats\n",
-            "Total:"
-        ));
-        result.push_str(&format!(
-            "    {:<margin_label_width$} {cross_free_margin:>w$} sats\n",
-            "Free:"
-        ));
-        for (label, value, suffix) in cross_rows {
-            result.push_str(&format!("  {label:<label_width$} {value:>w$}{suffix}\n"));
-        }
 
         result
     }
