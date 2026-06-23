@@ -91,6 +91,7 @@ Follow this workflow when helping develop a trading strategy:
 8. **Implement a live trading TUI binary** when strategy is validated:
    - Fetch the live trading template first (see Code Templates section below)
    - Implement using `LiveTradeEngine`, inside the `bin` directory
+   - For API keys, recommend least-privilege permissions: `account:read`, `futures:isolated:read`, `futures:isolated:write`, `futures:cross:read` and `futures:cross:write`.
 
 ## Code Templates - DO NOT GUESS THE API
 
@@ -128,7 +129,7 @@ tokio = "<version-from-quantoxide-manifest>"
 
 ## Important Constraints
 
-- Only **isolated margin futures** are supported (no cross margin)
+- `TradeExecutor` uses market orders only for isolated and cross-margin trade entry/exit. Limit-order placement and general open-order management are not supported yet.
 - This is **alpha software** - bugs may result in loss of assets
 
 ## TUI vs Direct Mode
@@ -151,14 +152,16 @@ Each engine has two modes:
 
 2. **TradingState API** - When working with the `trading_state` returned by the executor:
    - Check: https://docs.rs/quantoxide/latest/quantoxide/trade/struct.TradingState.html
-   - Contains current position info, balance, entry price, leverage, etc.
+   - Contains current position info, balance, individual isolated trade state, cross-margin
+     position state, etc.
 
 3. **TradeRunning Trait** - When evaluating individual running trades:
    - Check: https://docs.rs/quantoxide/latest/quantoxide/trade/trait.TradeRunning.html
 
 4. **Validated Models** - Use strongly-typed validated models for type safety:
    - Check: https://docs.rs/quantoxide/latest/quantoxide/models/index.html
-   - Includes `OhlcCandleRow`, `Leverage`, `Quantity`, `Price`, `Percentage`, `PercentageCapped`, `Margin`, `TradeSize`, `TradeSide`, etc.
+   - Includes `OhlcCandleRow`, `Leverage`, `CrossLeverage`, `CrossQuantity`, `OrderQuantity`,
+     `Price`, `Percentage`, `PercentageCapped`, `Margin`, `TradeSize`, `TradeSide`, etc.
    - These models provide compile-time validation and prevent invalid values
 
 5. **Trade Utilities** - Use built-in utility functions for calculations and validations:
