@@ -10,13 +10,12 @@
 use std::env;
 
 use dotenvy::dotenv;
-use lazy_static::lazy_static;
 use tokio::time::{self, Duration};
 
 use quantoxide::{
     Database,
     error::Result,
-    models::{CrossLeverage, Percentage, PercentageCapped, SATS_PER_BTC},
+    models::SATS_PER_BTC,
     sync::PriceHistoryState,
     trade::{BacktestConfig, BacktestEngine, BacktestStatus, BacktestUpdate, TradingState},
 };
@@ -26,17 +25,10 @@ mod operators;
 #[path = "util/mod.rs"]
 mod util;
 
-use operators::cross_carry::CrossCarryOperator;
+use operators::cross_carry::{CrossCarryOperator, CrossCarryOperatorConfig};
 use util::input;
 
 const DEFAULT_START_BALANCE_SATS: u64 = 10_000_000;
-
-lazy_static! {
-    static ref CROSS_LEVERAGE: CrossLeverage = CrossLeverage::bounded(10);
-    static ref REBALANCE_THRESHOLD_PERCENT: PercentageCapped = PercentageCapped::bounded(1.0);
-    static ref TARGET_LIQUIDATION_BUFFER: Percentage = Percentage::bounded(20.0);
-    static ref LIQ_TOLERANCE: PercentageCapped = PercentageCapped::bounded(5.0);
-}
 
 fn print_final_summary(state: &TradingState) {
     let cross_position = state.cross_position();
@@ -146,33 +138,14 @@ async fn main() -> Result<()> {
     println!("\nBacktest Cross-Margin Carry Trade Configuration:");
     println!("Start date: {}", start_time.format("%Y-%m-%d %H:%M %Z"));
     println!("Start balance: {} sats", start_balance);
-    println!(
-        "Cross deposit: dynamic, targeting short liquidation {:.2}% above market",
-        TARGET_LIQUIDATION_BUFFER.as_f64()
-    );
-    println!("Cross leverage: {}x", CROSS_LEVERAGE.as_u64());
-    println!(
-        "Rebalance threshold: {:.2}%",
-        REBALANCE_THRESHOLD_PERCENT.as_f64()
-    );
-    println!("Liquidation tolerance: {:.2}%", LIQ_TOLERANCE.as_f64());
     println!("End date: {}\n", end_time.format("%Y-%m-%d %H:%M %Z"));
 
     println!("Initializing `BacktestEngine`...");
 
-    let backtest_config = BacktestConfig::default();
-    let liquidation_buffer = *TARGET_LIQUIDATION_BUFFER;
-    let fee_perc = backtest_config.fee_perc();
-    let operator = CrossCarryOperator::new(
-        *CROSS_LEVERAGE,
-        *REBALANCE_THRESHOLD_PERCENT,
-        liquidation_buffer,
-        *LIQ_TOLERANCE,
-        fee_perc,
-    );
+    let operator = CrossCarryOperator::new(CrossCarryOperatorConfig::default());
 
     let backtest_engine = BacktestEngine::with_raw_operator(
-        backtest_config,
+        BacktestConfig::default(),
         db,
         operator,
         start_time,
