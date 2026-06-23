@@ -14,9 +14,10 @@ Direct source code links for quick reference:
 | **Carry Trade Backtesting** | [backtest_cross_carry_tui.rs](https://raw.githubusercontent.com/flemosr/quantoxide/main/examples/backtest_cross_carry_tui.rs) | - | [backtest_cross_carry.rs](https://raw.githubusercontent.com/flemosr/quantoxide/main/examples/backtest_cross_carry.rs) |
 | **Parallel Backtesting** | - | - | [backtest_direct_parallel.rs](https://raw.githubusercontent.com/flemosr/quantoxide/main/examples/backtest_direct_parallel.rs) |
 | **Live Trading** | [live_raw_tui.rs](https://raw.githubusercontent.com/flemosr/quantoxide/main/examples/live_raw_tui.rs) | [live_signal_tui.rs](https://raw.githubusercontent.com/flemosr/quantoxide/main/examples/live_signal_tui.rs) | [live_direct.rs](https://raw.githubusercontent.com/flemosr/quantoxide/main/examples/live_direct.rs) |
+| **Live Carry Trading** | [live_cross_carry_tui.rs](https://raw.githubusercontent.com/flemosr/quantoxide/main/examples/live_cross_carry_tui.rs) | - | - |
 
 Utilities and operators shared across examples:
-- [operators/cross_carry.rs](https://raw.githubusercontent.com/flemosr/quantoxide/main/examples/operators/cross_carry.rs) - Cross-margin carry-trade raw operator used by the direct and TUI examples
+- [operators/cross_carry.rs](https://raw.githubusercontent.com/flemosr/quantoxide/main/examples/operators/cross_carry.rs) - Cross-margin carry-trade raw operator used by the backtest and live examples
 - [util/input.rs](https://raw.githubusercontent.com/flemosr/quantoxide/main/examples/util/input.rs) - CLI argument parsing and date handling
 - [util/metrics.rs](https://raw.githubusercontent.com/flemosr/quantoxide/main/examples/util/metrics.rs) - Financial metrics (Sharpe ratio, max drawdown)
 
@@ -230,6 +231,22 @@ cargo run --example live_raw_tui
 Usage with a **signal operator** and evaluators:
 ```bash
 cargo run --example live_signal_tui
+```
+
+### live_cross_carry_tui
+
+Demonstrates running the shared cross-margin carry raw operator against the live LN Markets account
+with the TUI. The operator uses `TradeExecutor::cross_*` methods to set cross leverage, transfer
+live balance between isolated/free balance and cross margin, and place live cross-margin market
+orders. It requires the recommended live API key permissions above, including `futures:cross:read`
+and `futures:cross:write`.
+
+**Warning:** this example results in real cross-margin exposure. Backtest the same operator with
+`backtest_cross_carry_tui` first and review your account state before running it live.
+
+Usage:
+```bash
+cargo run --example live_cross_carry_tui
 ```
 
 ### live_direct
