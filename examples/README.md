@@ -34,6 +34,13 @@ Live trading examples require:
 - `LNM_API_V3_SECRET` - The LN Markets API v3 secret
 - `LNM_API_V3_PASSPHRASE` - The LN Markets API v3 passphrase
 
+Recommended live API key permissions:
++ `account:read` to view account balance
++ `futures:isolated:read` to view isolated margin positions
++ `futures:isolated:write` to create and manage isolated positions
++ `futures:cross:read` to view the cross margin position
++ `futures:cross:write` to manage the cross margin position
+
 These environment variables should be set, or a `.env` file should be added in the project root.
 A [`.env.template`](https://github.com/flemosr/quantoxide/blob/main/.env.template) file is
 available.

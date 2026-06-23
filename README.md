@@ -124,12 +124,15 @@ granular permissions following the *principle of least privilege*.
 + `account:read` to view account balance
 + `futures:isolated:read` to view isolated margin positions
 + `futures:isolated:write` to create and manage isolated positions
++ `futures:cross:read` to view the cross margin position
++ `futures:cross:write` to manage the cross margin position
 
 ## Current Limitations
 
 This project is in active development and currently has the following limitations:
 
-- **Only isolated futures trades are supported**. Cross margin trades are not supported yet.
+- `TradeExecutor` uses market orders only for isolated and cross-margin trade entry/exit.
+  Limit-order placement and general open-order management are not supported yet.
 
 ## Examples
 
