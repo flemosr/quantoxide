@@ -332,10 +332,7 @@ impl WrappedRestClient {
 
         Ok(closed_trades)
     }
-}
 
-#[allow(dead_code)]
-impl WrappedRestClient {
     pub async fn cross_get_position(&self) -> ExecutorActionResult<CrossPosition> {
         self.api_rest
             .futures_cross
