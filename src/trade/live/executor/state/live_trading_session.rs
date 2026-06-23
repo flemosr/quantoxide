@@ -10,7 +10,9 @@ use uuid::Uuid;
 
 use lnm_sdk::api_v3::{
     error::CrossExposureValidationError,
-    models::{CrossExposure, CrossLeverage, CrossPosition, PercentageCapped, Price, Trade},
+    models::{
+        CrossExposure, CrossLeverage, CrossPosition, PercentageCapped, Price, Trade, TradeSide,
+    },
 };
 
 use crate::{db::Database, util::DateTimeExt};
@@ -46,14 +48,18 @@ pub(in crate::trade) struct LiveCrossPosition {
 }
 
 impl LiveCrossPosition {
-    /// Placeholder cross-position state for live sessions while live cross-margin support is disabled.
-    fn empty() -> Self {
-        Self {
-            id: Uuid::new_v4(),
-            margin: 0,
-            leverage: CrossLeverage::MIN,
-            exposure: CrossExposure::Neutral,
-            trading_fees: 0,
+    #[allow(dead_code)]
+    fn is_running(&self) -> bool {
+        matches!(self.exposure, CrossExposure::Running(_))
+    }
+
+    fn liquidation_was_reached(&self, range_min: f64, range_max: f64) -> bool {
+        match self.exposure {
+            CrossExposure::Neutral => false,
+            CrossExposure::Running(exposure) => match exposure.side() {
+                TradeSide::Buy => range_min <= exposure.liquidation().as_f64(),
+                TradeSide::Sell => range_max >= exposure.liquidation().as_f64(),
+            },
         }
     }
 }
@@ -109,6 +115,7 @@ pub(in crate::trade) struct LiveTradingSession {
     closed_fees: u64,
     funding_fees: i64,
     funding_snapshot: HashMap<Uuid, i64>,
+    cross_position: LiveCrossPosition,
 }
 
 impl LiveTradingSession {
@@ -143,6 +150,8 @@ impl LiveTradingSession {
                 (ps.funding_fees, ps.funding_snapshot.clone())
             });
 
+        let cross_position_raw = api.cross_get_position().await?;
+
         let mut session = Self {
             expires_at,
             tsl_step_size,
@@ -160,6 +169,8 @@ impl LiveTradingSession {
             closed_fees: prev_trading_session.as_ref().map_or(0, |ps| ps.closed_fees),
             funding_fees: prev_funding_fees,
             funding_snapshot: HashMap::new(),
+            cross_position: LiveCrossPosition::try_from(cross_position_raw)
+                .map_err(ExecutorActionError::CrossPositionValidation)?,
         };
 
         if !recover_trades_on_startup {
@@ -279,6 +290,11 @@ impl LiveTradingSession {
         &self.running_map
     }
 
+    #[allow(dead_code)]
+    pub fn cross_position(&self) -> &LiveCrossPosition {
+        &self.cross_position
+    }
+
     pub async fn reevaluate(
         &mut self,
         db: &Database,
@@ -292,6 +308,13 @@ impl LiveTradingSession {
 
         self.last_evaluation_time = lastest_entry_time;
         self.last_price = latest_entry_price;
+
+        if self
+            .cross_position
+            .liquidation_was_reached(range_min, range_max)
+        {
+            self.refresh_cross_position(api).await?;
+        }
 
         if !self.trigger.was_reached(range_min) && !self.trigger.was_reached(range_max) {
             // General trigger was not reached. No trades need to be checked
@@ -552,6 +575,25 @@ impl LiveTradingSession {
     pub fn close_trade(&mut self, closed_trade: &Trade) -> ExecutorActionResult<()> {
         self.close_trades(slice::from_ref(closed_trade))
     }
+
+    pub fn replace_cross_position(
+        &mut self,
+        cross_position_raw: CrossPosition,
+    ) -> ExecutorActionResult<()> {
+        self.cross_position = LiveCrossPosition::try_from(cross_position_raw)
+            .map_err(ExecutorActionError::CrossPositionValidation)?;
+
+        Ok(())
+    }
+
+    async fn refresh_cross_position(
+        &mut self,
+        api: &WrappedRestClient,
+    ) -> ExecutorActionResult<()> {
+        let cross_position_raw = api.cross_get_position().await?;
+
+        self.replace_cross_position(cross_position_raw)
+    }
 }
 
 impl From<LiveTradingSession> for TradingState {
@@ -567,7 +609,7 @@ impl From<LiveTradingSession> for TradingState {
             value.realized_pl,
             value.closed_history,
             value.closed_fees,
-            Arc::new(LiveCrossPosition::empty()),
+            Arc::new(value.cross_position),
         )
     }
 }
