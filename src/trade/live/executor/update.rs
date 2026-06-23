@@ -59,6 +59,7 @@ pub enum LiveTradeExecutorUpdateOrder {
         quantity: OrderQuantity,
         client_id: Option<ClientId>,
     },
+    CrossCancelAllOrders,
     CrossClosePosition,
 }
 
@@ -132,6 +133,7 @@ impl fmt::Display for LiveTradeExecutorUpdateOrder {
                     side, quantity, client_id_str
                 )
             }
+            Self::CrossCancelAllOrders => write!(f, "Cross Cancel All Orders"),
             Self::CrossClosePosition => write!(f, "Cross Close Position"),
         }
     }
@@ -389,6 +391,16 @@ impl WrappedRestClient {
         self.api_rest
             .futures_cross
             .place_order(side, quantity, TradeExecution::Market, client_id)
+            .await
+            .map_err(ExecutorActionError::RestApi)
+    }
+
+    pub async fn cross_cancel_all_orders(&self) -> ExecutorActionResult<Vec<CrossOrder>> {
+        self.send_order_update(LiveTradeExecutorUpdateOrder::CrossCancelAllOrders);
+
+        self.api_rest
+            .futures_cross
+            .cancel_all_orders()
             .await
             .map_err(ExecutorActionError::RestApi)
     }

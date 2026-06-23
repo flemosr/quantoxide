@@ -243,9 +243,10 @@ impl LiveTradeExecutor {
     }
 
     async fn clean_up_all_api_trades(api: &WrappedRestClient) -> ExecutorActionResult<()> {
-        let (_, _, _) = futures::try_join!(
+        let (_, _, _, _) = futures::try_join!(
             api.cancel_all_trades(),
             api.close_all_trades(),
+            api.cross_cancel_all_orders(),
             api.cross_close_position()
         )?;
 
