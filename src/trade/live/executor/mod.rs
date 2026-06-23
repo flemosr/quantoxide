@@ -242,6 +242,20 @@ impl LiveTradeExecutor {
         Ok(all_closed_ids)
     }
 
+    async fn clean_up_all_api_trades(api: &WrappedRestClient) -> ExecutorActionResult<()> {
+        let (_, _, _) = futures::try_join!(
+            api.cancel_all_trades(),
+            api.close_all_trades(),
+            api.cross_close_position()
+        )?;
+
+        Ok(())
+    }
+
+    async fn clean_up_all_trades(&self) -> ExecutorActionResult<()> {
+        Self::clean_up_all_api_trades(&self.api).await
+    }
+
     fn try_consume_handle(&self) -> Option<AbortOnDropHandle<()>> {
         self.handle
             .lock()
@@ -269,33 +283,31 @@ impl LiveTradeExecutor {
 
         handle.abort();
 
-        if !self.config.shutdown_clean_up_trades() {
+        if !self.config.shutdown_clean_up_trades()
+            || !self.state_manager.has_registered_running_trades().await
+        {
             self.state_manager
                 .update_status_not_ready(LiveTradeExecutorStatusNotReady::Shutdown)
                 .await;
             return Ok(());
         }
 
-        let (res, new_status) = if self.state_manager.has_registered_running_trades().await {
-            // Perform clean up if there are running trades registered
+        let (res, new_status) = match self
+            .clean_up_all_trades()
+            .await
+            .map_err(ExecutorProcessFatalError::FailedToCloseTradesOnShutdown)
+        {
+            Ok(()) => (Ok(()), LiveTradeExecutorStatusNotReady::Shutdown),
+            Err(e) => {
+                let e_ref = Arc::new(e);
 
-            match futures::try_join!(self.api.cancel_all_trades(), self.api.close_all_trades())
-                .map_err(ExecutorProcessFatalError::FailedToCloseTradesOnShutdown)
-            {
-                Ok(_) => (Ok(()), LiveTradeExecutorStatusNotReady::Shutdown),
-                Err(e) => {
-                    let e_ref = Arc::new(e);
-
-                    (
-                        Err(LiveTradeExecutorError::ExecutorShutdownFailed(
-                            e_ref.clone(),
-                        )),
-                        LiveTradeExecutorStatusNotReady::Terminated(e_ref),
-                    )
-                }
+                (
+                    Err(LiveTradeExecutorError::ExecutorShutdownFailed(
+                        e_ref.clone(),
+                    )),
+                    LiveTradeExecutorStatusNotReady::Terminated(e_ref),
+                )
             }
-        } else {
-            (Ok(()), LiveTradeExecutorStatusNotReady::Shutdown)
         };
 
         self.state_manager.update_status_not_ready(new_status).await;
@@ -484,46 +496,128 @@ impl TradeExecutor for LiveTradeExecutor {
 
     async fn cross_deposit(
         &self,
-        _amount: NonZeroU64,
+        amount: NonZeroU64,
     ) -> TradeExecutorResult<Arc<dyn CrossPositionCore>> {
-        Err(ExecutorActionError::CrossMarginUnsupported {
-            operation: "cross_deposit",
-        })?
+        let locked_ready_state = self.state_manager.try_lock_ready_state().await?;
+        let trading_session = locked_ready_state.trading_session();
+
+        if amount.get() > trading_session.balance() {
+            return Err(ExecutorActionError::BalanceTooLow)?;
+        }
+
+        let cross_position_raw = self.api.cross_deposit(amount).await?;
+
+        let mut new_trading_session = trading_session.to_owned();
+        new_trading_session.apply_cross_deposit(amount, cross_position_raw)?;
+        let cross_position = new_trading_session.cross_position();
+
+        locked_ready_state
+            .update_trading_session(new_trading_session)
+            .await;
+
+        Ok(cross_position)
     }
 
     async fn cross_withdraw(
         &self,
-        _amount: NonZeroU64,
+        amount: NonZeroU64,
     ) -> TradeExecutorResult<Arc<dyn CrossPositionCore>> {
-        Err(ExecutorActionError::CrossMarginUnsupported {
-            operation: "cross_withdraw",
-        })?
+        let locked_ready_state = self.state_manager.try_lock_ready_state().await?;
+
+        let cross_position_raw = self.api.cross_withdraw(amount).await?;
+
+        let mut new_trading_session = locked_ready_state.trading_session().to_owned();
+        new_trading_session.apply_cross_withdraw(amount, cross_position_raw)?;
+        let cross_position = new_trading_session.cross_position();
+
+        locked_ready_state
+            .update_trading_session(new_trading_session)
+            .await;
+
+        Ok(cross_position)
     }
 
     async fn cross_set_leverage(
         &self,
-        _leverage: CrossLeverage,
+        leverage: CrossLeverage,
     ) -> TradeExecutorResult<Arc<dyn CrossPositionCore>> {
-        Err(ExecutorActionError::CrossMarginUnsupported {
-            operation: "cross_set_leverage",
-        })?
+        let locked_ready_state = self.state_manager.try_lock_ready_state().await?;
+
+        let cross_position_raw = self.api.cross_set_leverage(leverage).await?;
+
+        let mut new_trading_session = locked_ready_state.trading_session().to_owned();
+        new_trading_session.replace_cross_position(cross_position_raw)?;
+        let cross_position = new_trading_session.cross_position();
+
+        locked_ready_state
+            .update_trading_session(new_trading_session)
+            .await;
+
+        Ok(cross_position)
     }
 
     async fn cross_market(
         &self,
-        _side: TradeSide,
-        _quantity: OrderQuantity,
+        side: TradeSide,
+        quantity: OrderQuantity,
     ) -> TradeExecutorResult<Uuid> {
-        Err(ExecutorActionError::CrossMarginUnsupported {
-            operation: "cross_market",
-        })?
+        let locked_ready_state = self.state_manager.try_lock_ready_state().await?;
+
+        let cross_order = self.api.cross_market(side, quantity, None).await?;
+        if !cross_order.filled() {
+            return Err(ExecutorActionError::CrossOrderNotFilled {
+                order_id: cross_order.id(),
+            }
+            .into());
+        }
+        let cross_position_raw = self.api.cross_get_position().await?;
+        let order_id = cross_order.id();
+
+        let mut new_trading_session = locked_ready_state.trading_session().to_owned();
+        new_trading_session.register_cross_order(&cross_order);
+        new_trading_session.replace_cross_position(cross_position_raw)?;
+
+        locked_ready_state
+            .update_trading_session(new_trading_session)
+            .await;
+
+        Ok(order_id)
     }
 
     async fn cross_close_position(&self) -> TradeExecutorResult<Option<Uuid>> {
-        // Future live cross support must use `FuturesCrossRepository::close_position`.
-        Err(ExecutorActionError::CrossMarginUnsupported {
-            operation: "cross_close_position",
-        })?
+        let locked_ready_state = self.state_manager.try_lock_ready_state().await?;
+
+        let latest_cross_position = self.api.cross_get_position().await?;
+
+        let mut new_trading_session = locked_ready_state.trading_session().to_owned();
+        new_trading_session.replace_cross_position(latest_cross_position)?;
+
+        if !new_trading_session.cross_position_is_running() {
+            locked_ready_state
+                .update_trading_session(new_trading_session)
+                .await;
+
+            return Ok(None);
+        }
+
+        let cross_order = self.api.cross_close_position().await?;
+        if !cross_order.filled() {
+            return Err(ExecutorActionError::CrossOrderNotFilled {
+                order_id: cross_order.id(),
+            }
+            .into());
+        }
+        let cross_position_raw = self.api.cross_get_position().await?;
+        let order_id = cross_order.id();
+
+        new_trading_session.register_cross_order(&cross_order);
+        new_trading_session.replace_cross_position(cross_position_raw)?;
+
+        locked_ready_state
+            .update_trading_session(new_trading_session)
+            .await;
+
+        Ok(Some(order_id))
     }
 
     async fn trading_state(&self) -> TradeExecutorResult<TradingState> {
@@ -757,11 +851,9 @@ impl LiveTradeExecutorLauncher {
     /// running executor instance.
     pub async fn launch(self) -> LiveTradeExecutorResult<Arc<LiveTradeExecutor>> {
         if self.config.startup_clean_up_trades() {
-            let (_, _) = futures::try_join!(
-                self.api_rest.cancel_all_trades(),
-                self.api_rest.close_all_trades()
-            )
-            .map_err(LiveTradeExecutorError::LaunchCleanUp)?;
+            LiveTradeExecutor::clean_up_all_api_trades(&self.api_rest)
+                .await
+                .map_err(LiveTradeExecutorError::LaunchCleanUp)?;
         }
 
         let account_id = self
