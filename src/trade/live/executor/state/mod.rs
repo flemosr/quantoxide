@@ -260,6 +260,8 @@ impl LiveTradeExecutorStateManager {
         self.lock_state()
             .await
             .trading_session()
-            .is_some_and(|session| !session.running_map().is_empty())
+            .is_some_and(|session| {
+                !session.running_map().is_empty() || session.cross_position_is_running()
+            })
     }
 }

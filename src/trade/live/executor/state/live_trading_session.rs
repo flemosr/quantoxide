@@ -1,5 +1,6 @@
 use std::{
     collections::{HashMap, HashSet},
+    num::NonZeroU64,
     slice,
     sync::Arc,
 };
@@ -11,7 +12,8 @@ use uuid::Uuid;
 use lnm_sdk::api_v3::{
     error::CrossExposureValidationError,
     models::{
-        CrossExposure, CrossLeverage, CrossPosition, PercentageCapped, Price, Trade, TradeSide,
+        CrossExposure, CrossLeverage, CrossOrder, CrossPosition, PercentageCapped, Price, Trade,
+        TradeSide,
     },
 };
 
@@ -290,9 +292,12 @@ impl LiveTradingSession {
         &self.running_map
     }
 
-    #[allow(dead_code)]
-    pub fn cross_position(&self) -> &LiveCrossPosition {
-        &self.cross_position
+    pub fn cross_position(&self) -> Arc<dyn CrossPositionCore> {
+        Arc::new(self.cross_position.clone())
+    }
+
+    pub fn cross_position_is_running(&self) -> bool {
+        self.cross_position.is_running()
     }
 
     pub async fn reevaluate(
@@ -584,6 +589,48 @@ impl LiveTradingSession {
             .map_err(ExecutorActionError::CrossPositionValidation)?;
 
         Ok(())
+    }
+
+    pub fn apply_cross_deposit(
+        &mut self,
+        amount: NonZeroU64,
+        cross_position_raw: CrossPosition,
+    ) -> ExecutorActionResult<()> {
+        let new_balance = self
+            .balance
+            .checked_sub(amount.get())
+            .ok_or(ExecutorActionError::BalanceTooLow)?;
+
+        self.replace_cross_position(cross_position_raw)?;
+        self.balance = new_balance;
+
+        Ok(())
+    }
+
+    pub fn apply_cross_withdraw(
+        &mut self,
+        amount: NonZeroU64,
+        cross_position_raw: CrossPosition,
+    ) -> ExecutorActionResult<()> {
+        let new_balance = self
+            .balance
+            .checked_add(amount.get())
+            .ok_or(ExecutorActionError::BalanceTooHigh)?;
+
+        self.replace_cross_position(cross_position_raw)?;
+        self.balance = new_balance;
+
+        Ok(())
+    }
+
+    pub fn register_cross_order(&mut self, cross_order: &CrossOrder) {
+        let trade_time = cross_order
+            .filled_at()
+            .unwrap_or_else(|| cross_order.created_at());
+
+        if self.last_trade_time.is_none_or(|last| trade_time > last) {
+            self.last_trade_time = Some(trade_time);
+        }
     }
 
     async fn refresh_cross_position(

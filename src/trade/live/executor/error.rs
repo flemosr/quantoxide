@@ -26,6 +26,9 @@ pub enum ExecutorActionError {
     #[error("Balance is too low error")]
     BalanceTooLow,
 
+    #[error("Balance is too high error")]
+    BalanceTooHigh,
+
     #[error("[Db] {0}")]
     Db(#[from] DbError),
 
