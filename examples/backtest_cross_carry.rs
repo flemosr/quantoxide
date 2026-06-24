@@ -1,11 +1,11 @@
 //! Example demonstrating a simulated cross-margin carry trade in a backtest.
 //!
 //! The shared raw operator moves enough starting balance into cross margin to target a short
-//! liquidation price 20% above the current market price, opens a short hedge equal to the account
-//! net value in USD, and rebalances whenever the hedge drifts more than 1% away from the current USD
-//! value of the account. Positive funding rates are expected to pay shorts; in the simulator, cross
-//! funding receipts are reflected in cross margin and therefore in the account net value used as the
-//! hedge target.
+//! liquidation price 20% above the current market price, opens a configurable short hedge as a
+//! percentage of account net value in USD, and rebalances whenever the hedge drifts more than 1%
+//! away from the hedge target. Positive funding rates are expected to pay shorts; in the simulator,
+//! cross funding receipts are reflected in cross margin and therefore in the account net value used
+//! as the hedge target.
 
 use std::env;
 
@@ -15,7 +15,7 @@ use tokio::time::{self, Duration};
 use quantoxide::{
     Database,
     error::Result,
-    models::SATS_PER_BTC,
+    models::{PercentageCapped, SATS_PER_BTC},
     sync::PriceHistoryState,
     trade::{BacktestConfig, BacktestEngine, BacktestStatus, BacktestUpdate, TradingState},
 };
@@ -29,6 +29,7 @@ use operators::cross_carry::{CrossCarryOperator, CrossCarryOperatorConfig};
 use util::input;
 
 const DEFAULT_START_BALANCE_SATS: u64 = 10_000_000;
+const DEFAULT_HEDGE_PERC: f64 = 100.0;
 
 fn print_final_summary(state: &TradingState) {
     let cross_position = state.cross_position();
@@ -65,10 +66,13 @@ fn print_usage() {
     eprintln!(
         "  --balance <SATS>     Starting balance in sats (default: {DEFAULT_START_BALANCE_SATS})"
     );
+    eprintln!(
+        "  --hedge-perc <PCT>   Target hedge percentage of account NAV (default: {DEFAULT_HEDGE_PERC})"
+    );
     eprintln!();
     eprintln!("Example:");
     eprintln!(
-        "  cargo run --example backtest_cross_carry -- --start 2025-09-01 --end 2025-09-02 --balance {DEFAULT_START_BALANCE_SATS}"
+        "  cargo run --example backtest_cross_carry -- --start 2025-09-01 --end 2025-09-02 --balance {DEFAULT_START_BALANCE_SATS} --hedge-perc {DEFAULT_HEDGE_PERC}"
     );
 }
 
@@ -135,14 +139,24 @@ async fn main() -> Result<()> {
         return Err("--balance must be greater than zero".into());
     }
 
+    let hedge_perc = match args.get("hedge-perc") {
+        Some(v) => input::parse_percentage_capped(v).map_err(|e| {
+            eprintln!("Error parsing --hedge-perc: {}", e);
+            print_usage();
+            e
+        })?,
+        None => PercentageCapped::bounded(DEFAULT_HEDGE_PERC),
+    };
+
     println!("\nBacktest Cross-Margin Carry Trade Configuration:");
     println!("Start date: {}", start_time.format("%Y-%m-%d %H:%M %Z"));
     println!("Start balance: {} sats", start_balance);
+    println!("Hedge percentage: {:.2}%", hedge_perc.as_f64());
     println!("End date: {}\n", end_time.format("%Y-%m-%d %H:%M %Z"));
 
     println!("Initializing `BacktestEngine`...");
 
-    let operator = CrossCarryOperator::new(CrossCarryOperatorConfig::default());
+    let operator = CrossCarryOperator::new(CrossCarryOperatorConfig::default(), hedge_perc);
 
     let backtest_engine = BacktestEngine::with_raw_operator(
         BacktestConfig::default(),
