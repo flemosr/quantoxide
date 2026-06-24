@@ -12,14 +12,20 @@ use dotenvy::dotenv;
 use quantoxide::{
     Database,
     error::Result,
+    models::PercentageCapped,
     trade::{LiveTradeConfig, LiveTradeEngine},
     tui::{LiveTui, TuiConfig},
 };
 
 #[path = "operators/mod.rs"]
 mod operators;
+#[path = "util/mod.rs"]
+mod util;
 
 use operators::cross_carry::{CrossCarryOperator, CrossCarryOperatorConfig};
+use util::input;
+
+const DEFAULT_HEDGE_PERC: f64 = 100.0;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -32,6 +38,14 @@ async fn main() -> Result<()> {
     let passphrase = env::var("LNM_API_V3_PASSPHRASE").expect("LNM_API_V3_PASSPHRASE must be set");
 
     println!("Stop now if you have not reviewed the operator and your LN Markets account state.\n");
+
+    let hedge_perc = input::prompt_percentage_capped(
+        &format!("Hedge percentage (default: {DEFAULT_HEDGE_PERC}): "),
+        PercentageCapped::bounded(DEFAULT_HEDGE_PERC),
+    )?;
+
+    println!("\nLive Cross-Margin Carry Trade TUI Configuration:");
+    println!("Hedge percentage: {:.2}%\n", hedge_perc.as_f64());
 
     println!("Launching `LiveTui`...");
 
@@ -46,8 +60,11 @@ async fn main() -> Result<()> {
         .log("Database ready. Initializing `LiveTradeEngine`...".into())
         .await?;
 
-    let operator =
-        CrossCarryOperator::with_logger(CrossCarryOperatorConfig::default(), live_tui.as_logger());
+    let operator = CrossCarryOperator::with_logger(
+        CrossCarryOperatorConfig::default(),
+        hedge_perc,
+        live_tui.as_logger(),
+    );
 
     let live_engine = LiveTradeEngine::with_raw_operator(
         LiveTradeConfig::default(),
