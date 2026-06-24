@@ -1,9 +1,9 @@
 //! Example demonstrating how to run the simulated cross-margin carry trade with the backtest TUI.
 //!
 //! The shared raw operator moves enough starting balance into cross margin to target a short
-//! liquidation price 20% above the current market price, opens a short hedge equal to the account
-//! net value in USD, and rebalances whenever the hedge drifts more than 1% away from the current USD
-//! value of the account.
+//! liquidation price 20% above the current market price, opens a configurable short hedge as a
+//! percentage of account net value in USD, and rebalances whenever the hedge drifts more than 1%
+//! away from the hedge target.
 
 use std::env;
 
@@ -12,6 +12,7 @@ use dotenvy::dotenv;
 use quantoxide::{
     Database,
     error::Result,
+    models::PercentageCapped,
     sync::PriceHistoryState,
     trade::{BacktestConfig, BacktestEngine},
     tui::{BacktestTui, TuiConfig},
@@ -26,6 +27,7 @@ use operators::cross_carry::{CrossCarryOperator, CrossCarryOperatorConfig};
 use util::input;
 
 const DEFAULT_START_BALANCE_SATS: u64 = 10_000_000;
+const DEFAULT_HEDGE_PERC: f64 = 100.0;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -59,6 +61,11 @@ async fn main() -> Result<()> {
         DEFAULT_START_BALANCE_SATS,
     )?;
 
+    let hedge_perc = input::prompt_percentage_capped(
+        &format!("Hedge percentage (default: {DEFAULT_HEDGE_PERC}): "),
+        PercentageCapped::bounded(DEFAULT_HEDGE_PERC),
+    )?;
+
     let end_time = input::prompt_date("End date (YYYY-MM-DD): ")?;
 
     if start_balance == 0 {
@@ -68,6 +75,7 @@ async fn main() -> Result<()> {
     println!("\nBacktest Cross-Margin Carry Trade TUI Configuration:");
     println!("Start date: {}", start_time.format("%Y-%m-%d %H:%M %Z"));
     println!("Start balance: {} sats", start_balance);
+    println!("Hedge percentage: {:.2}%", hedge_perc.as_f64());
     println!("End date: {}\n", end_time.format("%Y-%m-%d %H:%M %Z"));
 
     println!("Launching `BacktestTui`...");
@@ -81,6 +89,7 @@ async fn main() -> Result<()> {
 
     let operator = CrossCarryOperator::with_logger(
         CrossCarryOperatorConfig::default(),
+        hedge_perc,
         backtest_tui.as_logger(),
     );
 

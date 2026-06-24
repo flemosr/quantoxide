@@ -10,7 +10,7 @@ use std::{
 
 use chrono::{DateTime, NaiveDate, TimeZone, Utc};
 
-use quantoxide::error::Result;
+use quantoxide::{error::Result, models::PercentageCapped};
 
 /// Prompts the user and collects trimmed input from stdin.
 fn collect_input(prompt: &str) -> Result<String> {
@@ -37,6 +37,11 @@ fn parse_balance(balance_str: &str) -> Result<u64> {
     Ok(balance_str.parse::<u64>()?)
 }
 
+/// Parses a capped percentage string.
+pub fn parse_percentage_capped(percentage_str: &str) -> Result<PercentageCapped> {
+    Ok(PercentageCapped::try_from(percentage_str.parse::<f64>()?)?)
+}
+
 /// Prompts for a date in YYYY-MM-DD format, re-prompting on invalid input.
 pub fn prompt_date(prompt: &str) -> Result<DateTime<Utc>> {
     loop {
@@ -60,6 +65,26 @@ pub fn prompt_balance(prompt: &str, default: u64) -> Result<u64> {
         }
         match parse_balance(&input) {
             Ok(balance) => return Ok(balance),
+            Err(e) => {
+                println!("Error: {}. Please try again.", e);
+                continue;
+            }
+        }
+    }
+}
+
+/// Prompts for a capped percentage, returning the default if empty, re-prompting on invalid input.
+pub fn prompt_percentage_capped(
+    prompt: &str,
+    default: PercentageCapped,
+) -> Result<PercentageCapped> {
+    loop {
+        let input = collect_input(prompt)?;
+        if input.is_empty() {
+            return Ok(default);
+        }
+        match parse_percentage_capped(&input) {
+            Ok(percentage) => return Ok(percentage),
             Err(e) => {
                 println!("Error: {}. Please try again.", e);
                 continue;
