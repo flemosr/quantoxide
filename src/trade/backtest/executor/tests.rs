@@ -2543,13 +2543,7 @@ async fn test_simulated_trade_executor_cross_funding_long_pays_from_margin()
     );
     assert!(state.cross_position().liquidation().unwrap() > liquidation_before);
 
-    let cross_session_funding_fees = executor
-        .state
-        .lock()
-        .await
-        .cross_position
-        .session_funding_fees();
-    assert_eq!(cross_session_funding_fees, expected_fee);
+    assert_eq!(state.cross_position().session_funding_fees(), expected_fee);
 
     Ok(())
 }
@@ -2593,13 +2587,7 @@ async fn test_simulated_trade_executor_cross_funding_cost_can_force_flatten_prof
     assert_eq!(state.cross_position().trading_fees(), 1_909);
     assert_eq!(state.total_net_value(), state.balance() + 89_000);
 
-    let cross_session_funding_fees = executor
-        .state
-        .lock()
-        .await
-        .cross_position
-        .session_funding_fees();
-    assert_eq!(cross_session_funding_fees, expected_fee);
+    assert_eq!(state.cross_position().session_funding_fees(), expected_fee);
 
     Ok(())
 }
@@ -2640,13 +2628,7 @@ async fn test_simulated_trade_executor_cross_funding_short_receives_to_margin()
     );
     assert!(state.cross_position().liquidation().unwrap() > liquidation_before);
 
-    let cross_session_funding_fees = executor
-        .state
-        .lock()
-        .await
-        .cross_position
-        .session_funding_fees();
-    assert_eq!(cross_session_funding_fees, expected_fee);
+    assert_eq!(state.cross_position().session_funding_fees(), expected_fee);
 
     Ok(())
 }

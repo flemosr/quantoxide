@@ -429,6 +429,10 @@ impl CrossPositionCore for SimulatedCrossPosition {
         self.realized_pl
     }
 
+    fn session_funding_fees(&self) -> i64 {
+        self.session_funding_fees
+    }
+
     fn trading_fees(&self) -> u64 {
         self.trading_fees
     }
