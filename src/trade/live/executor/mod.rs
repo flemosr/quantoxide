@@ -575,8 +575,7 @@ impl TradeExecutor for LiveTradeExecutor {
         let order_id = cross_order.id();
 
         let mut new_trading_session = locked_ready_state.trading_session().to_owned();
-        new_trading_session.register_cross_order(&cross_order);
-        new_trading_session.replace_cross_position(cross_position_raw)?;
+        new_trading_session.register_cross_order(cross_position_raw, &cross_order)?;
 
         locked_ready_state
             .update_trading_session(new_trading_session)
@@ -611,8 +610,7 @@ impl TradeExecutor for LiveTradeExecutor {
         let cross_position_raw = self.api.cross_get_position().await?;
         let order_id = cross_order.id();
 
-        new_trading_session.register_cross_order(&cross_order);
-        new_trading_session.replace_cross_position(cross_position_raw)?;
+        new_trading_session.register_cross_order(cross_position_raw, &cross_order)?;
 
         locked_ready_state
             .update_trading_session(new_trading_session)

@@ -39,20 +39,64 @@ const SESSION_EXPIRY_OFFSET_MIN: u32 = 5;
 /// The SDK `CrossPosition` is treated as a transport shape. This wrapper validates the SDK-derived
 /// `CrossExposure` at construction, then stores only the fields needed by `CrossPositionCore` plus
 /// the SDK position ID for diagnostics/future reconciliation.
-#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub(in crate::trade) struct LiveCrossPosition {
+    #[allow(dead_code)]
     id: Uuid,
     margin: u64,
     leverage: CrossLeverage,
     exposure: CrossExposure,
+    realized_pl: i64,
     trading_fees: u64,
 }
 
 impl LiveCrossPosition {
-    #[allow(dead_code)]
     fn is_running(&self) -> bool {
         matches!(self.exposure, CrossExposure::Running(_))
+    }
+
+    fn from_raw(
+        position: CrossPosition,
+        realized_pl: i64,
+    ) -> Result<Self, CrossExposureValidationError> {
+        let exposure = position.exposure()?;
+
+        Ok(Self {
+            id: position.id(),
+            margin: position.margin(),
+            leverage: position.leverage(),
+            exposure,
+            realized_pl,
+            trading_fees: position.trading_fees(),
+        })
+    }
+
+    fn update_after_order(self, new_position: CrossPosition) -> ExecutorActionResult<Self> {
+        let new_margin = i64::try_from(new_position.margin())
+            .map_err(|_| ExecutorActionError::BalanceTooHigh)?;
+        let prev_margin =
+            i64::try_from(self.margin).map_err(|_| ExecutorActionError::BalanceTooHigh)?;
+        let margin_delta = new_margin
+            .checked_sub(prev_margin)
+            .ok_or(ExecutorActionError::BalanceTooHigh)?;
+
+        let fee_delta = new_position
+            .trading_fees()
+            .checked_sub(self.trading_fees)
+            .ok_or(ExecutorActionError::BalanceTooLow)?;
+        let fee_delta =
+            i64::try_from(fee_delta).map_err(|_| ExecutorActionError::BalanceTooHigh)?;
+
+        let realized_delta = margin_delta
+            .checked_add(fee_delta)
+            .ok_or(ExecutorActionError::BalanceTooHigh)?;
+        let realized_pl = self
+            .realized_pl
+            .checked_add(realized_delta)
+            .ok_or(ExecutorActionError::BalanceTooHigh)?;
+
+        Self::from_raw(new_position, realized_pl)
+            .map_err(ExecutorActionError::CrossPositionValidation)
     }
 
     fn liquidation_was_reached(&self, range_min: f64, range_max: f64) -> bool {
@@ -70,15 +114,7 @@ impl TryFrom<CrossPosition> for LiveCrossPosition {
     type Error = CrossExposureValidationError;
 
     fn try_from(position: CrossPosition) -> Result<Self, Self::Error> {
-        let exposure = position.exposure()?;
-
-        Ok(Self {
-            id: position.id(),
-            margin: position.margin(),
-            leverage: position.leverage(),
-            exposure,
-            trading_fees: position.trading_fees(),
-        })
+        Self::from_raw(position, 0)
     }
 }
 
@@ -95,6 +131,10 @@ impl CrossPositionCore for LiveCrossPosition {
 
     fn exposure(&self) -> CrossExposure {
         self.exposure
+    }
+
+    fn realized_pl(&self) -> i64 {
+        self.realized_pl
     }
 
     fn trading_fees(&self) -> u64 {
@@ -152,7 +192,15 @@ impl LiveTradingSession {
                 (ps.funding_fees, ps.funding_snapshot.clone())
             });
 
-        let cross_position_raw = api.cross_get_position().await?;
+        let cross_position = {
+            let cross_position_raw = api.cross_get_position().await?;
+            let prev_cross_realized_pl = prev_trading_session
+                .as_ref()
+                .map_or(0, |ps| ps.cross_position.realized_pl);
+
+            LiveCrossPosition::from_raw(cross_position_raw, prev_cross_realized_pl)
+                .map_err(ExecutorActionError::CrossPositionValidation)?
+        };
 
         let mut session = Self {
             expires_at,
@@ -171,8 +219,7 @@ impl LiveTradingSession {
             closed_fees: prev_trading_session.as_ref().map_or(0, |ps| ps.closed_fees),
             funding_fees: prev_funding_fees,
             funding_snapshot: HashMap::new(),
-            cross_position: LiveCrossPosition::try_from(cross_position_raw)
-                .map_err(ExecutorActionError::CrossPositionValidation)?,
+            cross_position,
         };
 
         if !recover_trades_on_startup {
@@ -585,8 +632,11 @@ impl LiveTradingSession {
         &mut self,
         cross_position_raw: CrossPosition,
     ) -> ExecutorActionResult<()> {
-        self.cross_position = LiveCrossPosition::try_from(cross_position_raw)
-            .map_err(ExecutorActionError::CrossPositionValidation)?;
+        let new_cross_position =
+            LiveCrossPosition::from_raw(cross_position_raw, self.cross_position.realized_pl)
+                .map_err(ExecutorActionError::CrossPositionValidation)?;
+
+        self.cross_position = new_cross_position;
 
         Ok(())
     }
@@ -623,7 +673,11 @@ impl LiveTradingSession {
         Ok(())
     }
 
-    pub fn register_cross_order(&mut self, cross_order: &CrossOrder) {
+    pub fn register_cross_order(
+        &mut self,
+        new_cross_position_raw: CrossPosition,
+        cross_order: &CrossOrder,
+    ) -> ExecutorActionResult<()> {
         let trade_time = cross_order
             .filled_at()
             .unwrap_or_else(|| cross_order.created_at());
@@ -631,6 +685,13 @@ impl LiveTradingSession {
         if self.last_trade_time.is_none_or(|last| trade_time > last) {
             self.last_trade_time = Some(trade_time);
         }
+
+        self.cross_position = self
+            .cross_position
+            .clone()
+            .update_after_order(new_cross_position_raw)?;
+
+        Ok(())
     }
 
     async fn refresh_cross_position(
