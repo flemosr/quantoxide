@@ -104,12 +104,12 @@ impl LiveCrossPosition {
 
     fn update_after_order(self, new_position: CrossPosition) -> ExecutorActionResult<Self> {
         let new_margin = i64::try_from(new_position.margin())
-            .map_err(|_| ExecutorActionError::BalanceTooHigh)?;
+            .map_err(|_| ExecutorActionError::CrossPositionOverflow)?;
         let prev_margin =
-            i64::try_from(self.margin).map_err(|_| ExecutorActionError::BalanceTooHigh)?;
+            i64::try_from(self.margin).map_err(|_| ExecutorActionError::CrossPositionOverflow)?;
         let margin_delta = new_margin
             .checked_sub(prev_margin)
-            .ok_or(ExecutorActionError::BalanceTooHigh)?;
+            .ok_or(ExecutorActionError::CrossPositionOverflow)?;
 
         let curr_trading_fees = new_position.trading_fees();
         let fee_delta = curr_trading_fees
@@ -119,21 +119,21 @@ impl LiveCrossPosition {
                 current_fees: curr_trading_fees,
             })?;
         let fee_delta =
-            i64::try_from(fee_delta).map_err(|_| ExecutorActionError::BalanceTooHigh)?;
+            i64::try_from(fee_delta).map_err(|_| ExecutorActionError::CrossPositionOverflow)?;
 
         let funding_delta = new_position
             .funding_fees()
             .checked_sub(self.curr_funding_fees)
-            .ok_or(ExecutorActionError::BalanceTooHigh)?;
+            .ok_or(ExecutorActionError::CrossPositionOverflow)?;
 
         let realized_delta = margin_delta
             .checked_add(fee_delta)
             .and_then(|delta| delta.checked_add(funding_delta))
-            .ok_or(ExecutorActionError::BalanceTooHigh)?;
+            .ok_or(ExecutorActionError::CrossPositionOverflow)?;
         let realized_pl = self
             .realized_pl
             .checked_add(realized_delta)
-            .ok_or(ExecutorActionError::BalanceTooHigh)?;
+            .ok_or(ExecutorActionError::CrossPositionOverflow)?;
 
         let exposure = new_position
             .exposure()
