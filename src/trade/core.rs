@@ -544,6 +544,11 @@ pub trait CrossPositionCore: crate::sealed::Sealed + Send + Sync + fmt::Debug + 
     /// Returns cumulative realized cross-position profit/loss in satoshis.
     fn realized_pl(&self) -> i64;
 
+    /// Returns session-local cross funding fees in satoshis.
+    ///
+    /// Positive values are net costs and negative values are net revenue.
+    fn session_funding_fees(&self) -> i64;
+
     /// Returns cross trading fees.
     fn trading_fees(&self) -> u64;
 
