@@ -650,7 +650,7 @@ impl TradeExecutor for SimulatedTradeExecutor {
     ) -> TradeExecutorResult<Arc<dyn CrossPositionCore>> {
         let mut state_guard = self.state.lock().await;
         let amount_i64 =
-            i64::try_from(amount.get()).map_err(|_| SimulatedTradeExecutorError::BalanceTooLow)?;
+            i64::try_from(amount.get()).map_err(|_| SimulatedTradeExecutorError::CrossPositionOverflow)?;
         let market_price = Price::bounded(state_guard.market_price);
 
         if state_guard.balance < amount_i64 {
@@ -661,7 +661,7 @@ impl TradeExecutor for SimulatedTradeExecutor {
         let new_cross_margin = cross_position
             .margin()
             .checked_add(amount.get())
-            .ok_or(SimulatedTradeExecutorError::CrossMarginTooHigh)?;
+            .ok_or(SimulatedTradeExecutorError::CrossPositionOverflow)?;
         let new_cross_position = cross_position.with_margin(new_cross_margin)?;
         if !new_cross_position.is_coherent(market_price) {
             return Err(SimulatedTradeExecutorError::CrossFreeMarginTooLow)?;
@@ -679,7 +679,7 @@ impl TradeExecutor for SimulatedTradeExecutor {
     ) -> TradeExecutorResult<Arc<dyn CrossPositionCore>> {
         let mut state_guard = self.state.lock().await;
         let amount_i64 =
-            i64::try_from(amount.get()).map_err(|_| SimulatedTradeExecutorError::BalanceTooHigh)?;
+            i64::try_from(amount.get()).map_err(|_| SimulatedTradeExecutorError::CrossPositionOverflow)?;
         let cross_position = state_guard.cross_position;
         let market_price = Price::bounded(state_guard.market_price);
 
@@ -693,7 +693,7 @@ impl TradeExecutor for SimulatedTradeExecutor {
         let balance = state_guard
             .balance
             .checked_add(amount_i64)
-            .ok_or(SimulatedTradeExecutorError::CrossMarginTooHigh)?;
+            .ok_or(SimulatedTradeExecutorError::CrossPositionOverflow)?;
         let new_cross_margin = cross_position.margin() - amount.get();
         let new_cross_position = cross_position.with_margin(new_cross_margin)?;
         if !new_cross_position.is_coherent(market_price) {

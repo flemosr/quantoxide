@@ -52,11 +52,8 @@ pub enum SimulatedTradeExecutorError {
     #[error("Balance is too high error")]
     BalanceTooHigh,
 
-    #[error("Cross margin is too low error")]
-    CrossMarginTooLow,
-
-    #[error("Cross margin is too high error")]
-    CrossMarginTooHigh,
+    #[error("Cross-position numeric overflow")]
+    CrossPositionOverflow,
 
     #[error("Cross free margin is too low error")]
     CrossFreeMarginTooLow,

@@ -61,7 +61,7 @@ impl SimulatedCrossPosition {
         } else {
             margin
                 .checked_add(amount.unsigned_abs())
-                .ok_or(SimulatedTradeExecutorError::CrossMarginTooHigh)
+                .ok_or(SimulatedTradeExecutorError::CrossPositionOverflow)
         }
     }
 
@@ -123,14 +123,14 @@ impl SimulatedCrossPosition {
         let new_session_funding_fees = self
             .session_funding_fees
             .checked_add(funding_fee)
-            .ok_or(SimulatedTradeExecutorError::CrossMarginTooHigh)?;
+            .ok_or(SimulatedTradeExecutorError::CrossPositionOverflow)?;
 
         let update_margin = |margin: u64| -> SimulatedTradeExecutorResult<u64> {
             Self::apply_amount_to_margin(
                 margin,
                 funding_fee
                     .checked_neg()
-                    .ok_or(SimulatedTradeExecutorError::CrossMarginTooHigh)?,
+                    .ok_or(SimulatedTradeExecutorError::CrossPositionOverflow)?,
             )
         };
 
@@ -206,7 +206,7 @@ impl SimulatedCrossPosition {
 
         let close_fee = trade_util::evaluate_order_fee(fee_perc, exposure.quantity(), close_price);
         let close_fee_i64 = i64::try_from(close_fee)
-            .map_err(|_| SimulatedTradeExecutorError::CrossMarginTooHigh)?;
+            .map_err(|_| SimulatedTradeExecutorError::CrossPositionOverflow)?;
         let close_pl = trade_util::estimate_pl(
             exposure.side(),
             exposure.quantity(),
@@ -216,12 +216,12 @@ impl SimulatedCrossPosition {
         .floor() as i64;
         let margin_delta = close_pl
             .checked_sub(close_fee_i64)
-            .ok_or(SimulatedTradeExecutorError::CrossMarginTooLow)?;
+            .ok_or(SimulatedTradeExecutorError::CrossPositionOverflow)?;
         let remaining_margin = Self::apply_amount_to_margin(self.margin, margin_delta)?;
         let trading_fees = self
             .trading_fees
             .checked_add(close_fee)
-            .ok_or(SimulatedTradeExecutorError::CrossMarginTooHigh)?;
+            .ok_or(SimulatedTradeExecutorError::CrossPositionOverflow)?;
 
         Self::new(
             remaining_margin,
@@ -231,7 +231,7 @@ impl SimulatedCrossPosition {
             self.session_funding_fees,
             self.realized_pl
                 .checked_add(close_pl)
-                .ok_or(SimulatedTradeExecutorError::CrossMarginTooHigh)?,
+                .ok_or(SimulatedTradeExecutorError::CrossPositionOverflow)?,
         )
     }
 
@@ -256,17 +256,17 @@ impl SimulatedCrossPosition {
 
         let order_fee = trade_util::evaluate_order_fee(fee_perc, order_quantity, market_price);
         let order_fee_i64 = i64::try_from(order_fee)
-            .map_err(|_| SimulatedTradeExecutorError::CrossMarginTooHigh)?;
+            .map_err(|_| SimulatedTradeExecutorError::CrossPositionOverflow)?;
         let margin_after_order_fee = Self::apply_amount_to_margin(
             self.margin,
             order_fee_i64
                 .checked_neg()
-                .ok_or(SimulatedTradeExecutorError::CrossMarginTooHigh)?,
+                .ok_or(SimulatedTradeExecutorError::CrossPositionOverflow)?,
         )?;
         let cumulative_trading_fees = self
             .trading_fees
             .checked_add(order_fee)
-            .ok_or(SimulatedTradeExecutorError::CrossMarginTooHigh)?;
+            .ok_or(SimulatedTradeExecutorError::CrossPositionOverflow)?;
 
         let with_running_exposure = |margin: u64,
                                      side: TradeSide,
@@ -338,7 +338,7 @@ impl SimulatedCrossPosition {
                 let new_realized_pl = self
                     .realized_pl
                     .checked_add(realized_pl)
-                    .ok_or(SimulatedTradeExecutorError::CrossMarginTooHigh)?;
+                    .ok_or(SimulatedTradeExecutorError::CrossPositionOverflow)?;
                 with_running_exposure(
                     margin,
                     order_side,
@@ -370,7 +370,7 @@ impl SimulatedCrossPosition {
                         current_entry_price,
                         self.realized_pl
                             .checked_add(realized_pl)
-                            .ok_or(SimulatedTradeExecutorError::CrossMarginTooHigh)?,
+                            .ok_or(SimulatedTradeExecutorError::CrossPositionOverflow)?,
                     );
                 }
 
