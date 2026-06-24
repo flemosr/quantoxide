@@ -1207,6 +1207,11 @@ impl TradingState {
 
         cross_rows.extend([
             (
+                "Funding fees:",
+                cross_position.session_funding_fees().to_string(),
+                " sats",
+            ),
+            (
                 "Realized P/L:",
                 cross_position.realized_pl().to_string(),
                 " sats",
