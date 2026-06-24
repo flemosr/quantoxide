@@ -47,6 +47,8 @@ pub(in crate::trade) struct LiveCrossPosition {
     leverage: CrossLeverage,
     exposure: CrossExposure,
     realized_pl: i64,
+    start_funding_fees: i64,
+    curr_funding_fees: i64,
     trading_fees: u64,
 }
 
@@ -67,7 +69,26 @@ impl LiveCrossPosition {
             leverage: position.leverage(),
             exposure,
             realized_pl,
+            start_funding_fees: position.funding_fees(),
+            curr_funding_fees: position.funding_fees(),
             trading_fees: position.trading_fees(),
+        })
+    }
+
+    fn update_from_raw(self, new_position: CrossPosition) -> ExecutorActionResult<Self> {
+        let exposure = new_position
+            .exposure()
+            .map_err(ExecutorActionError::CrossPositionValidation)?;
+
+        Ok(Self {
+            id: new_position.id(),
+            margin: new_position.margin(),
+            leverage: new_position.leverage(),
+            exposure,
+            realized_pl: self.realized_pl,
+            start_funding_fees: self.start_funding_fees,
+            curr_funding_fees: new_position.funding_fees(),
+            trading_fees: new_position.trading_fees(),
         })
     }
 
@@ -87,16 +108,34 @@ impl LiveCrossPosition {
         let fee_delta =
             i64::try_from(fee_delta).map_err(|_| ExecutorActionError::BalanceTooHigh)?;
 
+        let funding_delta = new_position
+            .funding_fees()
+            .checked_sub(self.curr_funding_fees)
+            .ok_or(ExecutorActionError::BalanceTooHigh)?;
+
         let realized_delta = margin_delta
             .checked_add(fee_delta)
+            .and_then(|delta| delta.checked_add(funding_delta))
             .ok_or(ExecutorActionError::BalanceTooHigh)?;
         let realized_pl = self
             .realized_pl
             .checked_add(realized_delta)
             .ok_or(ExecutorActionError::BalanceTooHigh)?;
 
-        Self::from_raw(new_position, realized_pl)
-            .map_err(ExecutorActionError::CrossPositionValidation)
+        let exposure = new_position
+            .exposure()
+            .map_err(ExecutorActionError::CrossPositionValidation)?;
+
+        Ok(Self {
+            id: new_position.id(),
+            margin: new_position.margin(),
+            leverage: new_position.leverage(),
+            exposure,
+            realized_pl,
+            start_funding_fees: self.start_funding_fees,
+            curr_funding_fees: new_position.funding_fees(),
+            trading_fees: new_position.trading_fees(),
+        })
     }
 
     fn liquidation_was_reached(&self, range_min: f64, range_max: f64) -> bool {
@@ -135,6 +174,10 @@ impl CrossPositionCore for LiveCrossPosition {
 
     fn realized_pl(&self) -> i64 {
         self.realized_pl
+    }
+
+    fn session_funding_fees(&self) -> i64 {
+        self.curr_funding_fees - self.start_funding_fees
     }
 
     fn trading_fees(&self) -> u64 {
@@ -194,12 +237,16 @@ impl LiveTradingSession {
 
         let cross_position = {
             let cross_position_raw = api.cross_get_position().await?;
-            let prev_cross_realized_pl = prev_trading_session
-                .as_ref()
-                .map_or(0, |ps| ps.cross_position.realized_pl);
 
-            LiveCrossPosition::from_raw(cross_position_raw, prev_cross_realized_pl)
-                .map_err(ExecutorActionError::CrossPositionValidation)?
+            if let Some(prev_session) = &prev_trading_session {
+                prev_session
+                    .cross_position
+                    .clone()
+                    .update_from_raw(cross_position_raw)?
+            } else {
+                LiveCrossPosition::from_raw(cross_position_raw, 0)
+                    .map_err(ExecutorActionError::CrossPositionValidation)?
+            }
         };
 
         let mut session = Self {
@@ -632,11 +679,10 @@ impl LiveTradingSession {
         &mut self,
         cross_position_raw: CrossPosition,
     ) -> ExecutorActionResult<()> {
-        let new_cross_position =
-            LiveCrossPosition::from_raw(cross_position_raw, self.cross_position.realized_pl)
-                .map_err(ExecutorActionError::CrossPositionValidation)?;
-
-        self.cross_position = new_cross_position;
+        self.cross_position = self
+            .cross_position
+            .clone()
+            .update_from_raw(cross_position_raw)?;
 
         Ok(())
     }
