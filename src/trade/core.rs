@@ -541,6 +541,9 @@ pub trait CrossPositionCore: crate::sealed::Sealed + Send + Sync + fmt::Debug + 
     /// Returns the active cross market exposure, if any.
     fn exposure(&self) -> CrossExposure;
 
+    /// Returns cumulative realized cross-position profit/loss in satoshis.
+    fn realized_pl(&self) -> i64;
+
     /// Returns cross trading fees.
     fn trading_fees(&self) -> u64;
 
