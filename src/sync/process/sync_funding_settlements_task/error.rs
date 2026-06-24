@@ -47,6 +47,7 @@ pub enum SyncFundingSettlementsFatalError {
 }
 
 #[derive(Error, Debug)]
+#[non_exhaustive]
 pub enum SyncFundingSettlementsError {
     #[error(transparent)]
     Recoverable(#[from] SyncFundingSettlementsRecoverableError),

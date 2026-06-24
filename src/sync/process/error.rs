@@ -64,6 +64,7 @@ pub enum SyncProcessFatalError {
 }
 
 #[derive(Error, Debug)]
+#[non_exhaustive]
 pub enum SyncProcessError {
     #[error(transparent)]
     Recoverable(#[from] SyncProcessRecoverableError),

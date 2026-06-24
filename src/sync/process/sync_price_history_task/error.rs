@@ -60,6 +60,7 @@ pub enum SyncPriceHistoryFatalError {
 }
 
 #[derive(Error, Debug)]
+#[non_exhaustive]
 pub enum SyncPriceHistoryError {
     #[error(transparent)]
     Recoverable(#[from] SyncPriceHistoryRecoverableError),

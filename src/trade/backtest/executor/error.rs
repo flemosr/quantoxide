@@ -14,6 +14,7 @@ use crate::db::error::DbError;
 use super::super::super::error::TradeCoreError;
 
 #[derive(Error, Debug)]
+#[non_exhaustive]
 pub enum SimulatedTradeExecutorError {
     #[error("[InvalidMarketPrice] {0}")]
     InvalidMarketPrice(PriceValidationError),
