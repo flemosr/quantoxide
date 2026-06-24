@@ -6,7 +6,7 @@ use uuid::Uuid;
 
 use lnm_sdk::api_v3::error::{
     CrossExposureValidationError, CrossQuantityValidationError, PriceValidationError,
-    QuantityValidationError, TradeValidationError,
+    TradeValidationError,
 };
 
 use crate::db::error::DbError;
@@ -39,9 +39,6 @@ pub enum SimulatedTradeExecutorError {
     #[error("TradeValidation error {0}")]
     TradeValidation(TradeValidationError),
 
-    #[error("QuantityValidation error {0}")]
-    QuantityValidation(QuantityValidationError),
-
     #[error("CrossQuantityValidation error {0}")]
     CrossQuantityValidation(CrossQuantityValidationError),
 
@@ -71,9 +68,6 @@ pub enum SimulatedTradeExecutorError {
 
     #[error("Stoploss evaluation error")]
     StoplossEvaluation(TradeCoreError),
-
-    #[error("Cross-margin operation {operation} is not implemented for simulated backtests yet")]
-    CrossMarginNotImplemented { operation: &'static str },
 
     #[error("Closed history update error")]
     ClosedHistoryUpdate(TradeCoreError),
