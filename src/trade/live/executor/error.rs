@@ -100,9 +100,6 @@ pub enum ExecutorActionError {
     #[error("Cross order not filled by the server. Id: {order_id}")]
     CrossOrderNotFilled { order_id: Uuid },
 
-    #[error("Cross-margin operation {operation} is not supported by the live trade executor yet")]
-    CrossMarginUnsupported { operation: &'static str },
-
     #[error("Closed trade not confirmed by the server. Id: {trade_id}")]
     ClosedTradeNotConfirmed { trade_id: Uuid },
 }
