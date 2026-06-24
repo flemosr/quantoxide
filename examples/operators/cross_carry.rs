@@ -122,29 +122,39 @@ enum OperatorOutput {
 ///
 /// The operator deposits enough starting isolated balance into cross margin to place the short
 /// liquidation target at the configured percentage above the current market price, opens a short
-/// equal to the account NAV in USD, and rebalances whenever hedge drift exceeds the configured
-/// percentage of account NAV.
+/// equal to the configured percentage of account NAV in USD, and rebalances whenever hedge drift
+/// exceeds the configured percentage of the hedge target.
 /// During the run, cross collateral is moved to/from the isolated balance when liquidation drifts
 /// beyond the configured tolerance.
 pub struct CrossCarryOperator {
     config: CrossCarryOperatorConfig,
+    hedge_perc: PercentageCapped,
     output: OperatorOutput,
     trade_executor: OnceLock<Arc<dyn TradeExecutor>>,
     rebalance_count: AtomicU64,
 }
 
 impl CrossCarryOperator {
-    pub fn new(config: CrossCarryOperatorConfig) -> Box<Self> {
-        Self::with_output(config, OperatorOutput::Stdout)
+    pub fn new(config: CrossCarryOperatorConfig, hedge_perc: PercentageCapped) -> Box<Self> {
+        Self::with_output(config, hedge_perc, OperatorOutput::Stdout)
     }
 
-    pub fn with_logger(config: CrossCarryOperatorConfig, logger: Arc<dyn TuiLogger>) -> Box<Self> {
-        Self::with_output(config, OperatorOutput::Tui(logger))
+    pub fn with_logger(
+        config: CrossCarryOperatorConfig,
+        hedge_perc: PercentageCapped,
+        logger: Arc<dyn TuiLogger>,
+    ) -> Box<Self> {
+        Self::with_output(config, hedge_perc, OperatorOutput::Tui(logger))
     }
 
-    fn with_output(config: CrossCarryOperatorConfig, output: OperatorOutput) -> Box<Self> {
+    fn with_output(
+        config: CrossCarryOperatorConfig,
+        hedge_perc: PercentageCapped,
+        output: OperatorOutput,
+    ) -> Box<Self> {
         Box::new(Self {
             config,
+            hedge_perc,
             output,
             trade_executor: OnceLock::new(),
             rebalance_count: AtomicU64::new(0),
@@ -301,7 +311,7 @@ impl RawOperator for CrossCarryOperator {
             return Ok(());
         }
 
-        let carry_status = CarryStatus::evaluate(&self.config, &state)?;
+        let carry_status = CarryStatus::evaluate(&self.config, self.hedge_perc, &state)?;
         match carry_status {
             CarryStatus::HedgeImbalanced(imbalance) => {
                 let diff_usd = imbalance.drift_usd;
@@ -335,7 +345,11 @@ pub enum CarryStatus {
 }
 
 impl CarryStatus {
-    pub fn evaluate(config: &CrossCarryOperatorConfig, state: &TradingState) -> Result<Self> {
+    pub fn evaluate(
+        config: &CrossCarryOperatorConfig,
+        hedge_perc: PercentageCapped,
+        state: &TradingState,
+    ) -> Result<Self> {
         let balance = state.balance();
         let cross_position = state.cross_position();
         let market_price = state.market_price();
@@ -346,7 +360,8 @@ impl CarryStatus {
             })?;
         let account_net_value_usd =
             state.total_net_value() as f64 * market_price.as_f64() / SATS_PER_BTC;
-        let target_hedge = CrossQuantity::try_from(account_net_value_usd.floor())?;
+        let target_hedge_usd = account_net_value_usd * hedge_perc.as_f64() / 100.0;
+        let target_hedge = CrossQuantity::try_from(target_hedge_usd.floor())?;
 
         if let Some(imbalance) = HedgeImbalance::check(
             config,
