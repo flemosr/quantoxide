@@ -49,7 +49,8 @@ pub(in crate::trade) struct LiveCrossPosition {
     realized_pl: i64,
     start_funding_fees: i64,
     curr_funding_fees: i64,
-    trading_fees: u64,
+    start_trading_fees: u64,
+    curr_trading_fees: u64,
 }
 
 impl LiveCrossPosition {
@@ -71,7 +72,8 @@ impl LiveCrossPosition {
             realized_pl,
             start_funding_fees: position.funding_fees(),
             curr_funding_fees: position.funding_fees(),
-            trading_fees: position.trading_fees(),
+            start_trading_fees: position.trading_fees(),
+            curr_trading_fees: position.trading_fees(),
         })
     }
 
@@ -79,6 +81,13 @@ impl LiveCrossPosition {
         let exposure = new_position
             .exposure()
             .map_err(ExecutorActionError::CrossPositionValidation)?;
+        let curr_trading_fees = new_position.trading_fees();
+        if curr_trading_fees < self.curr_trading_fees {
+            return Err(ExecutorActionError::CrossPositionTradingFeesDecreased {
+                previous_fees: self.curr_trading_fees,
+                current_fees: curr_trading_fees,
+            });
+        }
 
         Ok(Self {
             id: new_position.id(),
@@ -88,7 +97,8 @@ impl LiveCrossPosition {
             realized_pl: self.realized_pl,
             start_funding_fees: self.start_funding_fees,
             curr_funding_fees: new_position.funding_fees(),
-            trading_fees: new_position.trading_fees(),
+            start_trading_fees: self.start_trading_fees,
+            curr_trading_fees,
         })
     }
 
@@ -101,10 +111,13 @@ impl LiveCrossPosition {
             .checked_sub(prev_margin)
             .ok_or(ExecutorActionError::BalanceTooHigh)?;
 
-        let fee_delta = new_position
-            .trading_fees()
-            .checked_sub(self.trading_fees)
-            .ok_or(ExecutorActionError::BalanceTooLow)?;
+        let curr_trading_fees = new_position.trading_fees();
+        let fee_delta = curr_trading_fees
+            .checked_sub(self.curr_trading_fees)
+            .ok_or(ExecutorActionError::CrossPositionTradingFeesDecreased {
+                previous_fees: self.curr_trading_fees,
+                current_fees: curr_trading_fees,
+            })?;
         let fee_delta =
             i64::try_from(fee_delta).map_err(|_| ExecutorActionError::BalanceTooHigh)?;
 
@@ -134,7 +147,8 @@ impl LiveCrossPosition {
             realized_pl,
             start_funding_fees: self.start_funding_fees,
             curr_funding_fees: new_position.funding_fees(),
-            trading_fees: new_position.trading_fees(),
+            start_trading_fees: self.start_trading_fees,
+            curr_trading_fees,
         })
     }
 
@@ -181,7 +195,9 @@ impl CrossPositionCore for LiveCrossPosition {
     }
 
     fn trading_fees(&self) -> u64 {
-        self.trading_fees
+        debug_assert!(self.curr_trading_fees >= self.start_trading_fees);
+        self.curr_trading_fees
+            .saturating_sub(self.start_trading_fees)
     }
 }
 

@@ -89,6 +89,14 @@ pub enum ExecutorActionError {
     #[error("Live cross-position validation error: {0}")]
     CrossPositionValidation(CrossExposureValidationError),
 
+    #[error(
+        "Live cross-position cumulative order fees decreased from {previous_fees} to {current_fees}"
+    )]
+    CrossPositionTradingFeesDecreased {
+        previous_fees: u64,
+        current_fees: u64,
+    },
+
     #[error("Cross order not filled by the server. Id: {order_id}")]
     CrossOrderNotFilled { order_id: Uuid },
 
