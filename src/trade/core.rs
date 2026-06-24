@@ -1182,7 +1182,7 @@ impl TradingState {
         let cross_free_margin = cross_position
             .est_free_margin(self.market_price)
             .to_string();
-        let mut cross_rows = vec![("Fees:", cross_position.trading_fees().to_string(), " sats")];
+        let mut cross_rows = Vec::new();
 
         if let CrossExposure::Running(exposure) = cross_position.exposure() {
             cross_rows.extend([
@@ -1193,12 +1193,21 @@ impl TradingState {
                     " USD",
                 ),
                 (
-                    "P/L:",
+                    "Running P/L:",
                     cross_position.est_running_pl(self.market_price).to_string(),
                     " sats",
                 ),
             ]);
         }
+
+        cross_rows.extend([
+            (
+                "Realized P/L:",
+                cross_position.realized_pl().to_string(),
+                " sats",
+            ),
+            ("Fees:", cross_position.trading_fees().to_string(), " sats"),
+        ]);
 
         let label_width = cross_rows
             .iter()
