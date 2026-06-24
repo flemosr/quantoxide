@@ -58,6 +58,9 @@ pub enum SimulatedTradeExecutorError {
     #[error("Cross free margin is too low error")]
     CrossFreeMarginTooLow,
 
+    #[error("Cross position not coherent (illiquid or free margin exhausted)")]
+    CrossPositionIncoherent,
+
     #[error("Trade {trade_id} is not running")]
     TradeNotRunning { trade_id: Uuid },
 

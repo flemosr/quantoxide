@@ -664,7 +664,7 @@ impl TradeExecutor for SimulatedTradeExecutor {
             .ok_or(SimulatedTradeExecutorError::CrossPositionOverflow)?;
         let new_cross_position = cross_position.with_margin(new_cross_margin)?;
         if !new_cross_position.is_coherent(market_price) {
-            return Err(SimulatedTradeExecutorError::CrossFreeMarginTooLow)?;
+            return Err(SimulatedTradeExecutorError::CrossPositionIncoherent)?;
         }
 
         state_guard.balance -= amount_i64;
@@ -697,7 +697,7 @@ impl TradeExecutor for SimulatedTradeExecutor {
         let new_cross_margin = cross_position.margin() - amount.get();
         let new_cross_position = cross_position.with_margin(new_cross_margin)?;
         if !new_cross_position.is_coherent(market_price) {
-            return Err(SimulatedTradeExecutorError::CrossFreeMarginTooLow)?;
+            return Err(SimulatedTradeExecutorError::CrossPositionIncoherent)?;
         }
 
         state_guard.balance = balance;
@@ -716,7 +716,7 @@ impl TradeExecutor for SimulatedTradeExecutor {
 
         let new_cross_position = cross_position.with_leverage(leverage)?;
         if !new_cross_position.is_coherent(market_price) {
-            return Err(SimulatedTradeExecutorError::CrossFreeMarginTooLow)?;
+            return Err(SimulatedTradeExecutorError::CrossPositionIncoherent)?;
         }
 
         state_guard.cross_position = new_cross_position;
