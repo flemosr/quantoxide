@@ -25,6 +25,7 @@ pub(super) struct SimulatedCrossPosition {
     exposure: CrossExposure,
     trading_fees: u64,
     session_funding_fees: i64,
+    realized_pl: i64,
 }
 
 impl SimulatedCrossPosition {
@@ -34,6 +35,7 @@ impl SimulatedCrossPosition {
         exposure_running: Option<(TradeSide, CrossQuantity, Price)>,
         trading_fees: u64,
         session_funding_fees: i64,
+        realized_pl: i64,
     ) -> SimulatedTradeExecutorResult<Self> {
         let exposure = CrossExposure::new(margin, leverage, exposure_running)
             .map_err(SimulatedTradeExecutorError::CrossExposureValidation)?;
@@ -44,11 +46,13 @@ impl SimulatedCrossPosition {
             exposure,
             trading_fees,
             session_funding_fees,
+            realized_pl,
         })
     }
 
     pub fn initial() -> Self {
-        Self::new(0, CrossLeverage::MIN, None, 0, 0).expect("must be valid `CrossPosition` params")
+        Self::new(0, CrossLeverage::MIN, None, 0, 0, 0)
+            .expect("must be valid `CrossPosition` params")
     }
 
     fn apply_amount_to_margin(margin: u64, amount: i64) -> SimulatedTradeExecutorResult<u64> {
@@ -82,6 +86,7 @@ impl SimulatedCrossPosition {
             self.exposure.as_running_params(),
             self.trading_fees,
             self.session_funding_fees,
+            self.realized_pl,
         )
     }
 
@@ -92,6 +97,7 @@ impl SimulatedCrossPosition {
             self.exposure.as_running_params(),
             self.trading_fees,
             self.session_funding_fees,
+            self.realized_pl,
         )
     }
 
@@ -137,6 +143,7 @@ impl SimulatedCrossPosition {
                 None,
                 closed_position.trading_fees,
                 new_session_funding_fees,
+                closed_position.realized_pl,
             )?;
 
             Ok((final_position, funding_fee, true))
@@ -154,6 +161,7 @@ impl SimulatedCrossPosition {
             self.exposure.as_running_params(),
             self.trading_fees,
             new_session_funding_fees,
+            self.realized_pl,
         ) {
             Ok(position) => position,
             Err(SimulatedTradeExecutorError::CrossExposureValidation(_)) => {
@@ -221,6 +229,9 @@ impl SimulatedCrossPosition {
             None,
             trading_fees,
             self.session_funding_fees,
+            self.realized_pl
+                .checked_add(close_pl)
+                .ok_or(SimulatedTradeExecutorError::CrossMarginTooHigh)?,
         )
     }
 
@@ -260,7 +271,8 @@ impl SimulatedCrossPosition {
         let with_running_exposure = |margin: u64,
                                      side: TradeSide,
                                      quantity: CrossQuantity,
-                                     entry_price: Price|
+                                     entry_price: Price,
+                                     realized_pl: i64|
          -> SimulatedTradeExecutorResult<Self> {
             Self::new(
                 margin,
@@ -268,6 +280,7 @@ impl SimulatedCrossPosition {
                 Some((side, quantity, entry_price)),
                 cumulative_trading_fees,
                 self.session_funding_fees,
+                realized_pl,
             )
         };
 
@@ -278,6 +291,7 @@ impl SimulatedCrossPosition {
                 order_side,
                 order_quantity,
                 market_price,
+                self.realized_pl,
             );
         };
 
@@ -301,6 +315,7 @@ impl SimulatedCrossPosition {
                 order_side,
                 resulting_quantity,
                 resulting_entry_price,
+                self.realized_pl,
             );
         }
 
@@ -320,7 +335,17 @@ impl SimulatedCrossPosition {
                     .map_err(SimulatedTradeExecutorError::CrossQuantityValidation)?;
 
                 // Reversals book the old position P/L and start the residual side at execution price.
-                with_running_exposure(margin, order_side, resulting_quantity, market_price)
+                let new_realized_pl = self
+                    .realized_pl
+                    .checked_add(realized_pl)
+                    .ok_or(SimulatedTradeExecutorError::CrossMarginTooHigh)?;
+                with_running_exposure(
+                    margin,
+                    order_side,
+                    resulting_quantity,
+                    market_price,
+                    new_realized_pl,
+                )
             }
             Ordering::Less => {
                 let resulting_quantity = current_quantity
@@ -343,6 +368,9 @@ impl SimulatedCrossPosition {
                         current_side,
                         resulting_quantity,
                         current_entry_price,
+                        self.realized_pl
+                            .checked_add(realized_pl)
+                            .ok_or(SimulatedTradeExecutorError::CrossMarginTooHigh)?,
                     );
                 }
 
@@ -370,6 +398,7 @@ impl SimulatedCrossPosition {
                     current_side,
                     resulting_quantity,
                     carried_entry_price,
+                    self.realized_pl,
                 )
             }
         }
@@ -394,6 +423,10 @@ impl CrossPositionCore for SimulatedCrossPosition {
 
     fn exposure(&self) -> CrossExposure {
         self.exposure
+    }
+
+    fn realized_pl(&self) -> i64 {
+        self.realized_pl
     }
 
     fn trading_fees(&self) -> u64 {

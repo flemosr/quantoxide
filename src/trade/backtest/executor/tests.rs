@@ -1885,6 +1885,7 @@ async fn seed_cross_position(
         Some((side, quantity.into(), entry_price)),
         0,
         0,
+        0,
     )
     .expect("seeded cross position must be valid");
 }
@@ -2324,6 +2325,7 @@ async fn test_simulated_trade_executor_cross_market_profitable_partial_reduce_bo
         state.cross_position().entry_price(),
         Some(Price::bounded(100_000.0))
     );
+    assert_eq!(state.cross_position().realized_pl(), 36_363);
     assert_eq!(state.cross_position().trading_fees(), 1_363);
     assert_eq!(state.closed_len(), 0);
 
@@ -2363,6 +2365,7 @@ async fn test_simulated_trade_executor_cross_market_losing_partial_reduce_carrie
         state.cross_position().est_running_pl(state.market_price()),
         -111_112
     );
+    assert_eq!(state.cross_position().realized_pl(), 0);
     assert_eq!(state.cross_position().trading_fees(), 1_444);
     assert_eq!(state.closed_len(), 0);
 
@@ -2397,6 +2400,7 @@ async fn test_simulated_trade_executor_cross_close_position_books_pl_and_flatten
     assert_eq!(state.cross_position().running_margin(), 0);
     assert_eq!(state.cross_position().maintenance_margin(), 0);
     assert_eq!(state.cross_position().exposure(), CrossExposure::Neutral);
+    assert_eq!(state.cross_position().realized_pl(), 90_909);
     assert_eq!(state.cross_position().trading_fees(), 1_909);
     assert_eq!(state.closed_len(), 0);
 
@@ -2432,6 +2436,7 @@ async fn test_simulated_trade_executor_cross_market_reversal_books_pl_and_resets
         state.cross_position().entry_price(),
         Some(Price::bounded(90_000.0))
     );
+    assert_eq!(state.cross_position().realized_pl(), -111_112);
     assert_eq!(state.cross_position().trading_fees(), 2_666);
     assert_eq!(
         state.cross_position().est_running_pl(state.market_price()),
