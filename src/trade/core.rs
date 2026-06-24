@@ -549,7 +549,7 @@ pub trait CrossPositionCore: crate::sealed::Sealed + Send + Sync + fmt::Debug + 
     /// Positive values are net costs and negative values are net revenue.
     fn session_funding_fees(&self) -> i64;
 
-    /// Returns cross trading fees.
+    /// Returns cross order fees.
     fn trading_fees(&self) -> u64;
 
     /// Returns the signed cross position quantity in USD notional.
@@ -1056,7 +1056,7 @@ impl TradingState {
         self.get_running_stats().pl
     }
 
-    /// Returns the total fees for all running positions (in satoshis).
+    /// Returns the total order fees for all running positions (in satoshis).
     pub fn running_fees(&self) -> u64 {
         self.get_running_stats().fees
     }
@@ -1085,12 +1085,12 @@ impl TradingState {
         self.closed_history.len()
     }
 
-    /// Returns the total fees paid for closed trades (in satoshis).
+    /// Returns the total order fees paid for closed trades (in satoshis).
     pub fn closed_fees(&self) -> u64 {
         self.closed_fees
     }
 
-    /// Returns the net profit/loss of closed trades after fees (in satoshis).
+    /// Returns the net profit/loss of closed trades after order fees (in satoshis).
     pub fn closed_net_pl(&self) -> i64 {
         self.realized_pl - self.closed_fees() as i64
     }
@@ -1100,7 +1100,7 @@ impl TradingState {
         self.running_pl() + self.realized_pl
     }
 
-    /// Returns the total fees across both running and closed trades (in satoshis).
+    /// Returns the total order fees across both running and closed trades (in satoshis).
     pub fn fees(&self) -> u64 {
         self.running_fees() + self.closed_fees()
     }
@@ -1133,7 +1133,7 @@ impl TradingState {
             "leverage",
             "margin",
             "P/L",
-            "fees",
+            "order fees",
             "-".repeat(102),
             side,
             cross_position.quantity().unsigned_abs(),
@@ -1216,7 +1216,11 @@ impl TradingState {
                 cross_position.realized_pl().to_string(),
                 " sats",
             ),
-            ("Fees:", cross_position.trading_fees().to_string(), " sats"),
+            (
+                "Order fees:",
+                cross_position.trading_fees().to_string(),
+                " sats",
+            ),
         ]);
 
         let label_width = cross_rows
@@ -1277,7 +1281,7 @@ impl TradingState {
         ];
         let running_metric_rows = [
             ("    P/L:", self.running_pl().to_string(), " sats"),
-            ("    Fees:", self.running_fees().to_string(), " sats"),
+            ("    Order fees:", self.running_fees().to_string(), " sats"),
             ("    Margin:", self.running_margin().to_string(), " sats"),
         ];
         let realized_rows = [
@@ -1286,7 +1290,7 @@ impl TradingState {
         ];
         let closed_rows = [
             ("    Trades:", self.closed_len().to_string(), ""),
-            ("    Fees:", self.closed_fees.to_string(), " sats"),
+            ("    Order fees:", self.closed_fees.to_string(), " sats"),
         ];
         let isolated_label_width = running_long_rows
             .iter()
@@ -1349,7 +1353,7 @@ impl TradingState {
     }
 
     /// Returns a formatted table displaying all running trades with their details including price,
-    /// leverage, margin, profit/loss, and fees.
+    /// leverage, margin, profit/loss, and order fees.
     pub fn running_trades_table(&self) -> String {
         if self.running_map.is_empty() {
             return "No running trades.".to_string();
@@ -1359,7 +1363,7 @@ impl TradingState {
 
         table.push_str(&format!(
             "{:>14} | {:>5} | {:>11} | {:>11} | {:>11} | {:>11} | {:>5} | {:>11} | {:>8} | {:>11} | {:>11} | {:>11}",
-            "creation_time",
+            "creation time",
             "side",
             "quantity",
             "price",
@@ -1369,8 +1373,8 @@ impl TradingState {
             "takeprofit",
             "leverage",
             "margin",
-            "pl",
-            "fees"
+            "P/L",
+            "order fees"
         ));
 
         table.push_str(&format!("\n{}", "-".repeat(153)));
@@ -1482,7 +1486,7 @@ impl ClosedTradeHistory {
     }
 
     /// Returns a formatted table displaying all closed trades with their entry/exit details,
-    /// profit/loss, and fees.
+    /// profit/loss, and order fees.
     pub fn to_table(&self) -> String {
         if self.trades.is_empty() {
             return "No closed trades.".to_string();
@@ -1492,16 +1496,16 @@ impl ClosedTradeHistory {
 
         table.push_str(&format!(
             "{:>14} | {:>5} | {:>11} | {:>11} | {:>11} | {:>11} | {:>14} | {:>11} | {:>11} | {:>11}",
-            "creation_time",
+            "creation time",
             "side",
             "quantity",
             "margin",
             "price",
-            "exit_price",
-            "exit_time",
+            "exit price",
+            "exit time",
             "pl",
-            "fees",
-            "net_pl"
+            "order fees",
+            "net P/L"
         ));
 
         table.push_str(&format!("\n{}", "-".repeat(137)));
