@@ -205,7 +205,7 @@ impl SyncProcess {
         self.status_manager
             .update(SyncStatusNotSynced::InProgress.into());
 
-        if self.config.ws_enabled() {
+        if self.config.stream_enabled() {
             api_ws.reset().await;
 
             // Start to collect real-time data
@@ -302,7 +302,7 @@ impl SyncProcess {
         self.run_price_history_task_live(api_rest.clone(), history_state_tx.clone(), lookback)
             .await?;
 
-        if self.config.ws_enabled() {
+        if self.config.stream_enabled() {
             api_ws.reset().await;
 
             // Start to collect real-time data
@@ -445,7 +445,7 @@ impl SyncProcess {
             }
         };
 
-        if self.config.ws_enabled() {
+        if self.config.stream_enabled() {
             api_ws.reset().await;
 
             // Start to collect real-time data

@@ -20,8 +20,8 @@ pub struct LiveTradeConfig {
     rest_api_timeout: time::Duration,
     rest_api_rate_limit_auth_requests_per_second: NonZeroU32,
     rest_api_rate_limit_unauth_requests_per_second: NonZeroU32,
-    ws_enabled: bool,
-    ws_api_disconnect_timeout: time::Duration,
+    stream_enabled: bool,
+    stream_api_disconnect_timeout: time::Duration,
     rest_api_error_cooldown: time::Duration,
     rest_api_error_max_trials: NonZeroU64,
     price_history_batch_size: NonZeroU64,
@@ -49,7 +49,7 @@ pub struct LiveTradeConfig {
 impl Default for LiveTradeConfig {
     fn default() -> Self {
         let rest_config_default = RestClientConfig::default();
-        let ws_config_default = StreamClientConfig::default();
+        let stream_config_default = StreamClientConfig::default();
         Self {
             rest_api_timeout: rest_config_default.timeout(),
             rest_api_rate_limit_auth_requests_per_second: rest_config_default
@@ -60,8 +60,8 @@ impl Default for LiveTradeConfig {
                 .rate_limit_unauth_requests_per_second()
                 .try_into()
                 .expect("not zero"),
-            ws_enabled: true,
-            ws_api_disconnect_timeout: ws_config_default.disconnect_timeout(),
+            stream_enabled: true,
+            stream_api_disconnect_timeout: stream_config_default.disconnect_timeout(),
             rest_api_error_cooldown: time::Duration::from_secs(10),
             rest_api_error_max_trials: 3.try_into().expect("not zero"),
             price_history_batch_size: 1000.try_into().expect("not zero"),
@@ -107,13 +107,13 @@ impl LiveTradeConfig {
     }
 
     /// Returns whether Stream data collection is enabled in live modes.
-    pub fn ws_enabled(&self) -> bool {
-        self.ws_enabled
+    pub fn stream_enabled(&self) -> bool {
+        self.stream_enabled
     }
 
     /// Returns the disconnect timeout for Stream API connections.
-    pub fn ws_api_disconnect_timeout(&self) -> time::Duration {
-        self.ws_api_disconnect_timeout
+    pub fn stream_api_disconnect_timeout(&self) -> time::Duration {
+        self.stream_api_disconnect_timeout
     }
 
     /// Returns the cooldown period after REST API errors before retrying.
@@ -260,16 +260,16 @@ impl LiveTradeConfig {
     /// When `false`, live modes rely solely on REST polling instead of Stream feeds.
     ///
     /// Default: `true`
-    pub fn with_ws_enabled(mut self, enabled: bool) -> Self {
-        self.ws_enabled = enabled;
+    pub fn with_stream_enabled(mut self, enabled: bool) -> Self {
+        self.stream_enabled = enabled;
         self
     }
 
     /// Sets the disconnect timeout for Stream API connections.
     ///
     /// Default: [`StreamClientConfig`](lnm_sdk::stream::v1::StreamClientConfig) default
-    pub fn with_ws_api_disconnect_timeout(mut self, secs: u64) -> Self {
-        self.ws_api_disconnect_timeout = time::Duration::from_secs(secs);
+    pub fn with_stream_api_disconnect_timeout(mut self, secs: u64) -> Self {
+        self.stream_api_disconnect_timeout = time::Duration::from_secs(secs);
         self
     }
 
@@ -492,7 +492,7 @@ impl From<&LiveTradeConfig> for RestClientConfig {
 
 impl From<&LiveTradeConfig> for StreamClientConfig {
     fn from(value: &LiveTradeConfig) -> Self {
-        StreamClientConfig::default().with_disconnect_timeout(value.ws_api_disconnect_timeout())
+        StreamClientConfig::default().with_disconnect_timeout(value.stream_api_disconnect_timeout())
     }
 }
 
