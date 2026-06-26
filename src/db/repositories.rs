@@ -4,10 +4,7 @@ use async_trait::async_trait;
 use chrono::{DateTime, Duration, Utc};
 use uuid::Uuid;
 
-use lnm_sdk::{
-    api_v2::models::PriceTick,
-    rest::v3::models::{FundingSettlement, OhlcCandle},
-};
+use lnm_sdk::rest::v3::models::{FundingSettlement, LastPrice, OhlcCandle};
 
 use crate::{shared::OhlcResolution, trade::TradeTrailingStoploss};
 
@@ -22,7 +19,7 @@ pub(crate) trait PriceTicksRepository: Send + Sync {
     /// Uses INSERT ON CONFLICT DO NOTHING to avoid duplicate entries.
     ///
     /// Returns only the ticks that were successfully inserted (new entries).
-    async fn add_ticks(&self, ticks: &[PriceTick]) -> Result<Vec<PriceTickRow>>;
+    async fn add_ticks(&self, ticks: &[LastPrice]) -> Result<Vec<PriceTickRow>>;
 
     async fn get_latest_entry(&self) -> Result<Option<(DateTime<Utc>, f64)>>;
 

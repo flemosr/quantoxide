@@ -9,7 +9,7 @@ use tokio::{
     time,
 };
 
-use lnm_sdk::{api_v2::WebSocketClient, rest::v3::RestClient};
+use lnm_sdk::{rest::v3::RestClient, stream::v1::StreamClient};
 
 use crate::{
     db::Database,
@@ -183,7 +183,7 @@ pub enum SyncMode {
     /// This mode does not maintain live price feeds and is suitable for populating historical data
     /// in batch.
     Backfill,
-    /// Live mode: maintains real-time price feeds via WebSocket.
+    /// Live mode: maintains real-time price feeds via the Stream API.
     ///
     /// Includes a candle configuration to also fetch recent historical data before starting the
     /// live feed.
@@ -246,16 +246,16 @@ pub(super) enum SyncModeInt {
     },
     LiveNoLookback {
         api_rest: Arc<RestClient>,
-        api_ws: Arc<WebSocketClient>,
+        api_ws: Arc<StreamClient>,
     },
     LiveWithLookback {
         api_rest: Arc<RestClient>,
-        api_ws: Arc<WebSocketClient>,
+        api_ws: Arc<StreamClient>,
         lookback: Lookback,
     },
     Full {
         api_rest: Arc<RestClient>,
-        api_ws: Arc<WebSocketClient>,
+        api_ws: Arc<StreamClient>,
     },
 }
 
@@ -314,7 +314,7 @@ impl SyncEngine {
         config: impl Into<SyncConfig>,
         db: Arc<Database>,
         api_rest: Arc<RestClient>,
-        api_ws: Arc<WebSocketClient>,
+        api_ws: Arc<StreamClient>,
     ) -> Self {
         let mode_int = SyncModeInt::LiveNoLookback { api_rest, api_ws };
 
@@ -325,7 +325,7 @@ impl SyncEngine {
         config: impl Into<SyncConfig>,
         db: Arc<Database>,
         api_rest: Arc<RestClient>,
-        api_ws: Arc<WebSocketClient>,
+        api_ws: Arc<StreamClient>,
         lookback: Lookback,
     ) -> Self {
         let mode_int = SyncModeInt::LiveWithLookback {
@@ -341,7 +341,7 @@ impl SyncEngine {
         config: impl Into<SyncConfig>,
         db: Arc<Database>,
         api_rest: Arc<RestClient>,
-        api_ws: Arc<WebSocketClient>,
+        api_ws: Arc<StreamClient>,
     ) -> Self {
         let mode_int = SyncModeInt::Full { api_rest, api_ws };
 
@@ -358,10 +358,10 @@ impl SyncEngine {
         mode: SyncMode,
     ) -> Result<Self> {
         let config: SyncConfig = config.into();
-        let domain = api_domain.to_string();
+        let _ = api_domain;
 
         let api_rest = RestClient::new(&config).map_err(SyncError::RestApiInit)?;
-        let api_ws = WebSocketClient::new(&config, domain);
+        let api_ws = StreamClient::new(&config);
 
         let mode = match mode {
             SyncMode::Backfill => SyncModeInt::Backfill { api_rest },

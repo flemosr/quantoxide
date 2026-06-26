@@ -5,7 +5,10 @@ use tokio::{
     task::JoinHandle,
 };
 
-use lnm_sdk::api_v2::{WebSocketChannel, WebSocketClient, WebSocketUpdate, models::PriceTick};
+use lnm_sdk::stream::v1::{
+    StreamClient,
+    models::{LastPrice, StreamTopic, StreamUpdate},
+};
 
 use crate::db::{Database, error::Result as DbResult, models::PriceTickRow};
 
@@ -15,7 +18,7 @@ use error::{RealTimeCollectionError, Result};
 
 pub(super) struct RealTimeCollectionTask {
     db: Arc<Database>,
-    api_ws: Arc<WebSocketClient>,
+    api_ws: Arc<StreamClient>,
     shutdown_tx: broadcast::Sender<()>,
     price_tick_tx: broadcast::Sender<PriceTickRow>,
 }
@@ -23,7 +26,7 @@ pub(super) struct RealTimeCollectionTask {
 impl RealTimeCollectionTask {
     pub fn new(
         db: Arc<Database>,
-        api_ws: Arc<WebSocketClient>,
+        api_ws: Arc<StreamClient>,
         shutdown_tx: broadcast::Sender<()>,
         price_tick_tx: broadcast::Sender<PriceTickRow>,
     ) -> Self {
@@ -36,40 +39,41 @@ impl RealTimeCollectionTask {
     }
 
     pub async fn run(self) -> Result<()> {
-        let ws = self.api_ws.connect().await?;
+        let stream = self.api_ws.connect().await?;
 
-        let mut ws_rx = ws.receiver().await?;
+        let mut stream_rx = stream.receiver().await?;
 
-        ws.subscribe(vec![WebSocketChannel::FuturesBtcUsdLastPrice])
+        stream
+            .subscribe(vec![StreamTopic::FuturesInverseBtcUsdLastPrice])
             .await?;
 
         let mut shutdown_rx = self.shutdown_tx.subscribe();
 
-        let mut pending_ticks: Vec<PriceTick> = Vec::new();
+        let mut pending_ticks: Vec<LastPrice> = Vec::new();
         let mut db_op: Option<JoinHandle<DbResult<Vec<PriceTickRow>>>> = None;
 
         loop {
             tokio::select! {
                 biased;
 
-                ws_res = ws_rx.recv() => {
-                    match ws_res {
+                stream_res = stream_rx.recv() => {
+                    match stream_res {
                         Ok(res) => match res {
-                            WebSocketUpdate::PriceTick(tick) => {
+                            StreamUpdate::FuturesInverseBtcUsdLastPrice(tick) => {
                                 pending_ticks.push(tick);
                             }
-                            WebSocketUpdate::PriceIndex(_index) => {}
-                            WebSocketUpdate::ConnectionStatus(new_status) => {
+                            StreamUpdate::ConnectionStatus(new_status) => {
                                 if !new_status.is_connected() {
                                     return Err(RealTimeCollectionError::BadConnectionUpdate(new_status));
                                 }
                             },
+                            _ => {}
                         },
                         Err(RecvError::Lagged(skipped)) => {
-                            return Err(RealTimeCollectionError::WebSocketRecvLagged { skipped });
+                            return Err(RealTimeCollectionError::StreamRecvLagged { skipped });
                         },
                         Err(RecvError::Closed) => {
-                            return Err(RealTimeCollectionError::WebSocketRecvClosed);
+                            return Err(RealTimeCollectionError::StreamRecvClosed);
                         }
                     }
                 }

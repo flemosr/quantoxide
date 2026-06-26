@@ -7,7 +7,7 @@ use tokio::{
     time,
 };
 
-use lnm_sdk::{api_v2::WebSocketClient, rest::v3::RestClient};
+use lnm_sdk::{rest::v3::RestClient, stream::v1::StreamClient};
 
 use crate::{
     db::{Database, models::PriceTickRow},
@@ -200,7 +200,7 @@ impl SyncProcess {
     async fn run_live_no_lookback(
         &self,
         api_rest: &Arc<RestClient>,
-        api_ws: &Arc<WebSocketClient>,
+        api_ws: &Arc<StreamClient>,
     ) -> Result<Never> {
         self.status_manager
             .update(SyncStatusNotSynced::InProgress.into());
@@ -289,7 +289,7 @@ impl SyncProcess {
     async fn run_live_with_lookback(
         &self,
         api_rest: &Arc<RestClient>,
-        api_ws: &Arc<WebSocketClient>,
+        api_ws: &Arc<StreamClient>,
         lookback: Duration,
     ) -> Result<Never> {
         self.status_manager
@@ -388,7 +388,7 @@ impl SyncProcess {
     async fn run_full(
         &self,
         api_rest: &Arc<RestClient>,
-        api_ws: &Arc<WebSocketClient>,
+        api_ws: &Arc<StreamClient>,
     ) -> Result<Never> {
         self.status_manager
             .update(SyncStatusNotSynced::InProgress.into());
@@ -622,7 +622,7 @@ impl SyncProcess {
 
     fn spawn_real_time_collection_task(
         &self,
-        api_ws: Arc<WebSocketClient>,
+        api_ws: Arc<StreamClient>,
         price_tick_tx: broadcast::Sender<PriceTickRow>,
     ) -> AbortOnDropHandle<Result<()>> {
         let task = RealTimeCollectionTask::new(

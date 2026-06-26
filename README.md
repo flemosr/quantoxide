@@ -72,7 +72,7 @@ The **Synchronization** process is responsible for determining the current state
 database, identifying gaps, and fetching the necessary data from LN Markets to remediate them.
 Having some continous historical market data stored in the database is a prerequisite for
 backtesting. The `SyncEngine` supports both 'backfill' mode (to fetch historical OHLC candle and
-funding settlement data) and 'live' mode, handling live price data received via WebSocket.
+funding settlement data) and 'live' mode, handling live price data received via the Stream API.
 
 ### Backtesting
 

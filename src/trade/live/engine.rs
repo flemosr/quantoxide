@@ -6,7 +6,7 @@ use tokio::{
     time,
 };
 
-use lnm_sdk::{api_v2::WebSocketClient, rest::v3::RestClient};
+use lnm_sdk::{rest::v3::RestClient, stream::v1::StreamClient};
 
 use crate::{
     db::Database,
@@ -202,6 +202,7 @@ impl<S: Signal> LiveTradeEngine<S> {
         if evaluators.is_empty() {
             return Err(LiveError::EmptyEvaluatorsVec);
         }
+        let _ = api_domain;
 
         let api_rest = RestClient::with_credentials(
             &config,
@@ -211,7 +212,7 @@ impl<S: Signal> LiveTradeEngine<S> {
         )
         .map_err(LiveError::RestApiInit)?;
 
-        let api_ws = WebSocketClient::new(&config, api_domain.to_string());
+        let api_ws = StreamClient::new(&config);
         let sync_engine = if config.sync_mode_full() {
             SyncEngine::full(&config, db.clone(), api_rest.clone(), api_ws)
         } else {
@@ -309,6 +310,7 @@ impl LiveTradeEngine<Raw> {
         operator: Box<dyn RawOperator>,
     ) -> Result<Self> {
         let operator = WrappedRawOperator::from(operator);
+        let _ = api_domain;
 
         let api_rest = RestClient::with_credentials(
             &config,
@@ -318,7 +320,7 @@ impl LiveTradeEngine<Raw> {
         )
         .map_err(LiveError::RestApiInit)?;
 
-        let api_ws = WebSocketClient::new(&config, api_domain.to_string());
+        let api_ws = StreamClient::new(&config);
         let sync_engine = if config.sync_mode_full() {
             SyncEngine::full(&config, db.clone(), api_rest.clone(), api_ws)
         } else {

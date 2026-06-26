@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use sqlx::{Pool, Postgres};
 
-use lnm_sdk::api_v2::models::PriceTick;
+use lnm_sdk::rest::v3::models::LastPrice;
 
 use super::super::{
     error::{DbError, Result},
@@ -28,7 +28,7 @@ impl PgPriceTicksRepo {
 
 #[async_trait]
 impl PriceTicksRepository for PgPriceTicksRepo {
-    async fn add_ticks(&self, ticks: &[PriceTick]) -> Result<Vec<PriceTickRow>> {
+    async fn add_ticks(&self, ticks: &[LastPrice]) -> Result<Vec<PriceTickRow>> {
         if ticks.is_empty() {
             return Ok(Vec::new());
         }
@@ -38,7 +38,7 @@ impl PriceTicksRepository for PgPriceTicksRepo {
 
         for tick in ticks {
             times.push(tick.time());
-            prices.push(tick.last_price());
+            prices.push(tick.last_price().as_f64());
         }
 
         let inserted = sqlx::query_as!(

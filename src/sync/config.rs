@@ -3,7 +3,7 @@ use std::num::{NonZeroU32, NonZeroU64};
 use chrono::{DateTime, Duration, Utc};
 use tokio::time;
 
-use lnm_sdk::{api_v2::WebSocketClientConfig, rest::v3::RestClientConfig};
+use lnm_sdk::{rest::v3::RestClientConfig, stream::v1::StreamClientConfig};
 
 use crate::{trade::LiveTradeConfig, util::DateTimeExt};
 
@@ -37,7 +37,7 @@ pub struct SyncConfig {
 impl Default for SyncConfig {
     fn default() -> Self {
         let rest_config_default = RestClientConfig::default();
-        let ws_config_default = WebSocketClientConfig::default();
+        let ws_config_default = StreamClientConfig::default();
         Self {
             rest_api_timeout: rest_config_default.timeout(),
             rest_api_rate_limit_unauth_requests_per_second: rest_config_default
@@ -75,12 +75,12 @@ impl SyncConfig {
         self.rest_api_rate_limit_unauth_requests_per_second
     }
 
-    /// Returns whether WebSocket data collection is enabled in live modes.
+    /// Returns whether Stream data collection is enabled in live modes.
     pub fn ws_enabled(&self) -> bool {
         self.ws_enabled
     }
 
-    /// Returns the disconnect timeout for WebSocket API connections.
+    /// Returns the disconnect timeout for Stream API connections.
     pub fn ws_api_disconnect_timeout(&self) -> time::Duration {
         self.ws_api_disconnect_timeout
     }
@@ -171,22 +171,19 @@ impl SyncConfig {
         self
     }
 
-    /// Sets whether WebSocket data collection is enabled in live modes.
+    /// Sets whether Stream data collection is enabled in live modes.
     ///
-    /// When `false`, live modes rely solely on REST polling instead of WebSocket feeds.
+    /// When `false`, live modes rely solely on REST polling instead of Stream feeds.
     ///
     /// Default: `false`
-    ///
-    /// **Note**: As of Apr 14 2026, WebSocket API support is temporarily disabled on the LN Markets
-    /// platform, so REST polling is used by default.
     pub fn with_ws_enabled(mut self, enabled: bool) -> Self {
         self.ws_enabled = enabled;
         self
     }
 
-    /// Sets the disconnect timeout for WebSocket API connections.
+    /// Sets the disconnect timeout for Stream API connections.
     ///
-    /// Default: [`WebSocketClientConfig`](lnm_sdk::api_v2::WebSocketClientConfig) default
+    /// Default: [`StreamClientConfig`](lnm_sdk::stream::v1::StreamClientConfig) default
     pub fn with_ws_api_disconnect_timeout(mut self, secs: u64) -> Self {
         self.ws_api_disconnect_timeout = time::Duration::from_secs(secs);
         self
@@ -330,9 +327,9 @@ impl From<&SyncConfig> for RestClientConfig {
     }
 }
 
-impl From<&SyncConfig> for WebSocketClientConfig {
+impl From<&SyncConfig> for StreamClientConfig {
     fn from(value: &SyncConfig) -> Self {
-        WebSocketClientConfig::new(value.ws_api_disconnect_timeout())
+        StreamClientConfig::default().with_disconnect_timeout(value.ws_api_disconnect_timeout())
     }
 }
 
