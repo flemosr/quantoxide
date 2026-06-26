@@ -649,8 +649,8 @@ impl TradeExecutor for SimulatedTradeExecutor {
         amount: NonZeroU64,
     ) -> TradeExecutorResult<Arc<dyn CrossPositionCore>> {
         let mut state_guard = self.state.lock().await;
-        let amount_i64 =
-            i64::try_from(amount.get()).map_err(|_| SimulatedTradeExecutorError::CrossPositionOverflow)?;
+        let amount_i64 = i64::try_from(amount.get())
+            .map_err(|_| SimulatedTradeExecutorError::CrossPositionOverflow)?;
         let market_price = Price::bounded(state_guard.market_price);
 
         if state_guard.balance < amount_i64 {
@@ -678,8 +678,8 @@ impl TradeExecutor for SimulatedTradeExecutor {
         amount: NonZeroU64,
     ) -> TradeExecutorResult<Arc<dyn CrossPositionCore>> {
         let mut state_guard = self.state.lock().await;
-        let amount_i64 =
-            i64::try_from(amount.get()).map_err(|_| SimulatedTradeExecutorError::CrossPositionOverflow)?;
+        let amount_i64 = i64::try_from(amount.get())
+            .map_err(|_| SimulatedTradeExecutorError::CrossPositionOverflow)?;
         let cross_position = state_guard.cross_position;
         let market_price = Price::bounded(state_guard.market_price);
 
