@@ -199,7 +199,7 @@ use quantoxide::{
 
 let sync_tui = SyncTui::launch(TuiConfig::default(), None).await?;
 let db = Database::new(&pg_url).await?;
-let sync_engine = SyncEngine::new(SyncConfig::default(), db, domain, SyncMode::Backfill)?;
+let sync_engine = SyncEngine::new(SyncConfig::default(), db, SyncMode::Backfill)?;
 
 sync_tui.couple(sync_engine)?;
 sync_tui.until_stopped().await;
@@ -287,7 +287,6 @@ let operator = MyOperator::new();
 let live_engine = LiveTradeEngine::with_raw_operator(
     LiveTradeConfig::default(),
     db,
-    domain,
     key,
     secret,
     passphrase,

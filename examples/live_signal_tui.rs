@@ -24,7 +24,6 @@ async fn main() -> Result<()> {
     dotenv().ok();
 
     let pg_url = env::var("POSTGRES_DB_URL").expect("POSTGRES_DB_URL must be set");
-    let domain = env::var("LNM_API_DOMAIN").expect("LNM_API_DOMAIN must be set");
     let key = env::var("LNM_API_V3_KEY").expect("LNM_API_V3_KEY must be set");
     let secret = env::var("LNM_API_V3_SECRET").expect("LNM_API_V3_SECRET must be set");
     let passphrase = env::var("LNM_API_V3_PASSPHRASE").expect("LNM_API_V3_PASSPHRASE must be set");
@@ -51,7 +50,6 @@ async fn main() -> Result<()> {
     let live_engine = LiveTradeEngine::with_signal_operator(
         LiveTradeConfig::default(),
         db,
-        domain,
         key,
         secret,
         passphrase,

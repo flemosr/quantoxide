@@ -351,14 +351,8 @@ impl SyncEngine {
     /// Creates a new sync engine with the specified configuration and mode.
     ///
     /// This constructor automatically initializes the required API clients based on the sync mode.
-    pub fn new(
-        config: impl Into<SyncConfig>,
-        db: Arc<Database>,
-        api_domain: impl ToString,
-        mode: SyncMode,
-    ) -> Result<Self> {
+    pub fn new(config: impl Into<SyncConfig>, db: Arc<Database>, mode: SyncMode) -> Result<Self> {
         let config: SyncConfig = config.into();
-        let _ = api_domain;
 
         let api_rest = RestClient::new(&config).map_err(SyncError::RestApiInit)?;
         let api_ws = StreamClient::new(&config);

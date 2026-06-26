@@ -192,7 +192,6 @@ impl<S: Signal> LiveTradeEngine<S> {
     pub fn with_signal_operator(
         config: LiveTradeConfig,
         db: Arc<Database>,
-        api_domain: impl ToString,
         api_key: impl ToString,
         api_secret: impl ToString,
         api_passphrase: impl ToString,
@@ -202,7 +201,6 @@ impl<S: Signal> LiveTradeEngine<S> {
         if evaluators.is_empty() {
             return Err(LiveError::EmptyEvaluatorsVec);
         }
-        let _ = api_domain;
 
         let api_rest = RestClient::with_credentials(
             &config,
@@ -303,14 +301,12 @@ impl LiveTradeEngine<Raw> {
     pub fn with_raw_operator(
         config: LiveTradeConfig,
         db: Arc<Database>,
-        api_domain: impl ToString,
         api_key: impl ToString,
         api_secret: impl ToString,
         api_passphrase: impl ToString,
         operator: Box<dyn RawOperator>,
     ) -> Result<Self> {
         let operator = WrappedRawOperator::from(operator);
-        let _ = api_domain;
 
         let api_rest = RestClient::with_credentials(
             &config,

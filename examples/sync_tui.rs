@@ -15,7 +15,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenv().ok();
 
     let pg_url = env::var("POSTGRES_DB_URL").expect("POSTGRES_DB_URL must be set");
-    let domain = env::var("LNM_API_DOMAIN").expect("LNM_API_DOMAIN must be set");
 
     println!("Launching `SyncTui`...");
 
@@ -36,7 +35,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     //     .with_price_history_reach_max() // or: .with_price_history_reach(specific_date)
     //     .with_funding_settlement_reach_max(); // or: .with_funding_settlement_reach(specific_date)
 
-    let sync_engine = SyncEngine::new(config, db, domain, SyncMode::Backfill)?;
+    let sync_engine = SyncEngine::new(config, db, SyncMode::Backfill)?;
 
     sync_tui
         .log("Initialization OK. Coupling `SyncEngine`...".into())

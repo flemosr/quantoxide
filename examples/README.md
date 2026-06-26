@@ -26,11 +26,9 @@ Utilities and operators shared across examples:
 All examples require a running PostgreSQL instance and the following environment variable:
 - `POSTGRES_DB_URL` - PostgreSQL database connection URL
 
-Synchronization examples require:
-- `LNM_API_DOMAIN` - The LN Markets API domain
+Synchronization examples use the `lnm-sdk` default LN Markets REST/Stream endpoints.
 
 Live trading examples require:
-- `LNM_API_DOMAIN` - The LN Markets API domain
 - `LNM_API_V3_KEY` - The LN Markets API v3 key
 - `LNM_API_V3_SECRET` - The LN Markets API v3 secret
 - `LNM_API_V3_PASSPHRASE` - The LN Markets API v3 passphrase
