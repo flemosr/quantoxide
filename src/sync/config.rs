@@ -44,7 +44,7 @@ impl Default for SyncConfig {
                 .rate_limit_unauth_requests_per_second()
                 .try_into()
                 .expect("not zero"),
-            ws_enabled: false,
+            ws_enabled: true,
             ws_api_disconnect_timeout: ws_config_default.disconnect_timeout(),
             rest_api_error_cooldown: time::Duration::from_secs(10),
             rest_api_error_max_trials: 3.try_into().expect("not zero"),
@@ -175,7 +175,7 @@ impl SyncConfig {
     ///
     /// When `false`, live modes rely solely on REST polling instead of Stream feeds.
     ///
-    /// Default: `false`
+    /// Default: `true`
     pub fn with_ws_enabled(mut self, enabled: bool) -> Self {
         self.ws_enabled = enabled;
         self
