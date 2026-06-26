@@ -29,7 +29,7 @@ pub use live::{
     },
     state::{LiveTradeReader, LiveTradeReceiver, LiveTradeStatus, LiveTradeUpdate},
 };
-pub use lnm_sdk::api_v3::{
+pub use lnm_sdk::rest::v3::{
     error::{CrossExposureValidationError, CrossQuantityValidationError},
     models::{CrossExposure, CrossExposureRunning, CrossQuantity},
 };

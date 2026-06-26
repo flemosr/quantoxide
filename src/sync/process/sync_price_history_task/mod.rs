@@ -3,7 +3,7 @@ use std::{num::NonZeroU64, sync::Arc};
 use chrono::{DateTime, Duration, NaiveDate, Timelike, Utc};
 use tokio::{sync::mpsc, time};
 
-use lnm_sdk::api_v3::{
+use lnm_sdk::rest::v3::{
     RestClient,
     models::{OhlcCandle, OhlcRange},
 };

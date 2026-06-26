@@ -3,7 +3,7 @@ use std::num::{NonZeroU32, NonZeroU64};
 use chrono::{DateTime, Duration, Utc};
 use tokio::time;
 
-use lnm_sdk::{api_v2::WebSocketClientConfig, api_v3::RestClientConfig};
+use lnm_sdk::{api_v2::WebSocketClientConfig, rest::v3::RestClientConfig};
 
 use crate::{trade::LiveTradeConfig, util::DateTimeExt};
 
@@ -157,7 +157,7 @@ impl SyncConfig {
 
     /// Sets the timeout duration for REST API requests.
     ///
-    /// Default: [`RestClientConfig`](lnm_sdk::api_v3::RestClientConfig) default
+    /// Default: [`RestClientConfig`](lnm_sdk::rest::v3::RestClientConfig) default
     pub fn with_rest_api_timeout(mut self, secs: u64) -> Self {
         self.rest_api_timeout = time::Duration::from_secs(secs);
         self
@@ -165,7 +165,7 @@ impl SyncConfig {
 
     /// Sets the rate limit for unauthenticated REST API requests, in requests per second.
     ///
-    /// Default: [`RestClientConfig`](lnm_sdk::api_v3::RestClientConfig) default
+    /// Default: [`RestClientConfig`](lnm_sdk::rest::v3::RestClientConfig) default
     pub fn with_rest_api_rate_limit_unauth_requests_per_second(mut self, rps: NonZeroU32) -> Self {
         self.rest_api_rate_limit_unauth_requests_per_second = rps;
         self

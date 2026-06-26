@@ -9,7 +9,7 @@ use tokio::{
     time,
 };
 
-use lnm_sdk::{api_v2::WebSocketClient, api_v3::RestClient};
+use lnm_sdk::{api_v2::WebSocketClient, rest::v3::RestClient};
 
 use crate::{
     db::Database,
@@ -360,7 +360,7 @@ impl SyncEngine {
         let config: SyncConfig = config.into();
         let domain = api_domain.to_string();
 
-        let api_rest = RestClient::new(&config, domain.clone()).map_err(SyncError::RestApiInit)?;
+        let api_rest = RestClient::new(&config).map_err(SyncError::RestApiInit)?;
         let api_ws = WebSocketClient::new(&config, domain);
 
         let mode = match mode {

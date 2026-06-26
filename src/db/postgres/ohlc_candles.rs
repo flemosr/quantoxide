@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use chrono::{DateTime, Duration, Timelike, Utc};
 use sqlx::{Pool, Postgres, Transaction};
 
-use lnm_sdk::api_v3::models::OhlcCandle;
+use lnm_sdk::rest::v3::models::OhlcCandle;
 
 use crate::shared::OhlcResolution;
 

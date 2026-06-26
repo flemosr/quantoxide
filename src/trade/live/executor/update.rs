@@ -3,7 +3,7 @@ use std::{fmt, num::NonZeroU64, sync::Arc};
 use tokio::sync::broadcast;
 use uuid::Uuid;
 
-use lnm_sdk::api_v3::{
+use lnm_sdk::rest::v3::{
     RestClient,
     models::{
         Account, ClientId, CrossLeverage, CrossOrder, CrossPosition, Leverage, OrderQuantity,

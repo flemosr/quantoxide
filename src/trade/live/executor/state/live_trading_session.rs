@@ -9,7 +9,7 @@ use chrono::{DateTime, Duration, Timelike, Utc};
 use futures::future;
 use uuid::Uuid;
 
-use lnm_sdk::api_v3::{
+use lnm_sdk::rest::v3::{
     error::CrossExposureValidationError,
     models::{
         CrossExposure, CrossLeverage, CrossOrder, CrossPosition, PercentageCapped, Price, Trade,

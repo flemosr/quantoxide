@@ -4,7 +4,7 @@ use chrono::{DateTime, Utc};
 use thiserror::Error;
 use uuid::Uuid;
 
-use lnm_sdk::api_v3::error::{
+use lnm_sdk::rest::v3::error::{
     CrossExposureValidationError, CrossQuantityValidationError, PriceValidationError,
     TradeValidationError,
 };

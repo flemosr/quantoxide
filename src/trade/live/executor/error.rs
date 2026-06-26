@@ -3,7 +3,7 @@ use std::{num::NonZeroU64, result, sync::Arc};
 use thiserror::Error;
 use uuid::Uuid;
 
-use lnm_sdk::api_v3::error::{
+use lnm_sdk::rest::v3::error::{
     CrossExposureValidationError, PriceValidationError, RestApiError, TradeValidationError,
 };
 

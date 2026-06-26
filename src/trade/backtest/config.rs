@@ -1,4 +1,4 @@
-use lnm_sdk::api_v3::models::PercentageCapped;
+use lnm_sdk::rest::v3::models::PercentageCapped;
 
 use crate::shared::Lookback;
 

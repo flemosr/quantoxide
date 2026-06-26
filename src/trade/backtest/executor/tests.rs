@@ -10,7 +10,7 @@ use super::*;
 
 use chrono::Duration;
 
-use lnm_sdk::api_v3::models::{
+use lnm_sdk::rest::v3::models::{
     ClientId, CrossLeverage, Leverage, Margin, OrderQuantity, PercentageCapped, SATS_PER_BTC,
     TradeSide,
 };

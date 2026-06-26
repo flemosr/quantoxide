@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use sqlx::{Pool, Postgres};
 
-use lnm_sdk::api_v3::models::FundingSettlement;
+use lnm_sdk::rest::v3::models::FundingSettlement;
 
 use crate::{
     sync::{

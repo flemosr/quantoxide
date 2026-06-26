@@ -6,7 +6,7 @@ use uuid::Uuid;
 
 use lnm_sdk::{
     api_v2::models::PriceTick,
-    api_v3::models::{FundingSettlement, OhlcCandle},
+    rest::v3::models::{FundingSettlement, OhlcCandle},
 };
 
 use crate::{shared::OhlcResolution, trade::TradeTrailingStoploss};

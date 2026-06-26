@@ -3,7 +3,7 @@ use std::{cmp::Ordering, num::NonZeroU64, sync::Arc};
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
-use lnm_sdk::api_v3::{
+use lnm_sdk::rest::v3::{
     error::LeverageValidationError,
     models::{
         ClientId, CrossExposure, CrossLeverage, CrossQuantity, Leverage, Margin, OrderQuantity,
@@ -636,6 +636,7 @@ impl SimulatedTradeRunning {
             Err(LeverageValidationError::TooLow { .. }) => Leverage::MIN,
             Err(LeverageValidationError::TooHigh { .. }) => return Ok((None, funding_fee)),
             Err(LeverageValidationError::NotANumber) => unreachable!("using validated types"),
+            Err(_) => unreachable!("using validated types"),
         };
 
         let new_liquidation = trade_util::est_liquidation_from_leverage(

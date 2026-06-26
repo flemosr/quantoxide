@@ -71,8 +71,8 @@ pub mod error {
     pub use super::tui::error::TuiError;
     pub use super::util::PanicPayload;
 
-    // Re-export selected `lnm-sdk::api_v3` errors for convenience
-    pub use lnm_sdk::api_v3::error::{
+    // Re-export selected `lnm-sdk::rest::v3` errors for convenience
+    pub use lnm_sdk::rest::v3::error::{
         CrossExposureValidationError, CrossQuantityValidationError,
         FuturesIsolatedTradeRequestValidationError, LeverageValidationError, MarginValidationError,
         PercentageCappedValidationError, PercentageValidationError, PriceValidationError,
@@ -87,8 +87,8 @@ pub mod error {
 pub mod models {
     pub use super::db::models::{FundingSettlementRow, OhlcCandleRow, PriceTickRow};
     pub use super::shared::{Lookback, MinIterationInterval, OhlcResolution, Period};
-    // Re-export selected `lnm-sdk::api_v3` models and utils for convenience
-    pub use lnm_sdk::api_v3::models::{
+    // Re-export selected `lnm-sdk::rest::v3` models and utils for convenience
+    pub use lnm_sdk::rest::v3::models::{
         ClientId, CrossExposure, CrossExposureRunning, CrossLeverage, CrossQuantity, Leverage,
         Margin, OrderQuantity, Percentage, PercentageCapped, Price, SATS_PER_BTC, Trade,
         TradeExecution, TradeExecutionType, TradeSide, TradeSize, TradeStatus, Uuid, trade_util,

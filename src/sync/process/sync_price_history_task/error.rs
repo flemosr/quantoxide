@@ -3,7 +3,7 @@ use std::{num::NonZeroU64, result};
 use chrono::{DateTime, Utc};
 use thiserror::Error;
 
-use lnm_sdk::api_v3::error::RestApiError;
+use lnm_sdk::rest::v3::error::RestApiError;
 
 use crate::db::error::DbError;
 

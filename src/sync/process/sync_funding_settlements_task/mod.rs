@@ -3,7 +3,7 @@ use std::{pin::Pin, sync::Arc};
 use chrono::{DateTime, Duration, NaiveDate, Utc};
 use tokio::{sync::mpsc, time};
 
-use lnm_sdk::api_v3::{RestClient, models::FundingSettlement};
+use lnm_sdk::rest::v3::{RestClient, models::FundingSettlement};
 
 use crate::{db::Database, util::DateTimeExt};
 

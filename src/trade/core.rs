@@ -12,7 +12,7 @@ use chrono::{DateTime, Utc};
 use futures::FutureExt;
 use uuid::Uuid;
 
-use lnm_sdk::api_v3::{
+use lnm_sdk::rest::v3::{
     error::TradeValidationError,
     models::{
         ClientId, CrossExposure, CrossLeverage, CrossQuantity, Leverage, Margin, OrderQuantity,
@@ -179,7 +179,7 @@ impl TradeCore for Trade {
 /// # Examples
 ///
 /// ```no_run
-/// # async fn example(rest: lnm_sdk::api_v3::RestClient) -> Result<(), Box<dyn std::error::Error>> {
+/// # async fn example(rest: lnm_sdk::rest::v3::RestClient) -> Result<(), Box<dyn std::error::Error>> {
 /// use quantoxide::{
 ///     models::{Trade, TradeExecution, TradeSide, TradeSize, Leverage, Margin, Price},
 ///     trade::TradeRunning,
@@ -242,7 +242,7 @@ pub trait TradeRunning: TradeCore {
     /// # Examples
     ///
     /// ```no_run
-    /// # fn example(trade: lnm_sdk::api_v3::models::Trade) -> Result<(), Box<dyn std::error::Error>> {
+    /// # fn example(trade: lnm_sdk::rest::v3::models::Trade) -> Result<(), Box<dyn std::error::Error>> {
     /// // Assuming `trade` impl `TradeRunning`
     ///
     /// use quantoxide::trade::TradeRunning;
@@ -359,7 +359,7 @@ pub trait TradeClosed: TradeCore {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example(closed_trade: lnm_sdk::api_v3::models::Trade) -> Result<(), Box<dyn std::error::Error>> {
+    /// # async fn example(closed_trade: lnm_sdk::rest::v3::models::Trade) -> Result<(), Box<dyn std::error::Error>> {
     /// use quantoxide::trade::TradeClosed;
     ///
     /// let pl = closed_trade.pl();

@@ -5,7 +5,7 @@ use chrono::{DateTime, Duration, Utc};
 use tokio::sync::Mutex;
 use uuid::Uuid;
 
-use lnm_sdk::api_v3::models::{
+use lnm_sdk::rest::v3::models::{
     ClientId, CrossLeverage, Leverage, OrderQuantity, Price, TradeSide, TradeSize,
 };
 

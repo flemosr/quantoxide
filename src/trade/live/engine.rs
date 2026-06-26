@@ -6,7 +6,7 @@ use tokio::{
     time,
 };
 
-use lnm_sdk::{api_v2::WebSocketClient, api_v3::RestClient};
+use lnm_sdk::{api_v2::WebSocketClient, rest::v3::RestClient};
 
 use crate::{
     db::Database,
@@ -205,7 +205,6 @@ impl<S: Signal> LiveTradeEngine<S> {
 
         let api_rest = RestClient::with_credentials(
             &config,
-            api_domain.to_string(),
             api_key.to_string(),
             api_secret.to_string(),
             api_passphrase.to_string(),
@@ -313,7 +312,6 @@ impl LiveTradeEngine<Raw> {
 
         let api_rest = RestClient::with_credentials(
             &config,
-            api_domain.to_string(),
             api_key.to_string(),
             api_secret.to_string(),
             api_passphrase.to_string(),

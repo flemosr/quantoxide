@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use sqlx::{Pool, Postgres};
 use uuid::Uuid;
 
-use lnm_sdk::api_v3::models::PercentageCapped;
+use lnm_sdk::rest::v3::models::PercentageCapped;
 
 use crate::trade::TradeTrailingStoploss;
 

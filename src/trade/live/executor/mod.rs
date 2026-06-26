@@ -15,7 +15,7 @@ use tokio::{
 };
 use uuid::Uuid;
 
-use lnm_sdk::api_v3::{
+use lnm_sdk::rest::v3::{
     RestClient,
     models::{
         ClientId, CrossLeverage, Leverage, OrderQuantity, PercentageCapped, Price, TradeSide,
