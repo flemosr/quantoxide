@@ -38,8 +38,8 @@ pub enum LiveUiMessage {
 /// Terminal user interface for live trading operations.
 ///
 /// `LiveTui` provides a visual interface for monitoring live trading activity, including signals,
-/// orders, trading state, and position updates. It must be coupled with a [`LiveTradeEngine`]
-/// before trading begins.
+/// executor actions, trading state, and position updates. It must be coupled with a
+/// [`LiveTradeEngine`] before trading begins.
 pub struct LiveTui {
     event_check_interval: Duration,
     shutdown_timeout: Duration,
