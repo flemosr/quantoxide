@@ -113,7 +113,8 @@ impl CrossCarryOperatorConfig {
     }
 }
 
-enum OperatorOutput {
+enum LogOutput {
+    Disabled,
     Stdout,
     Tui(Arc<dyn TuiLogger>),
 }
@@ -129,28 +130,16 @@ enum OperatorOutput {
 pub struct CrossCarryOperator {
     config: CrossCarryOperatorConfig,
     hedge_perc: PercentageCapped,
-    output: OperatorOutput,
+    output: LogOutput,
     trade_executor: OnceLock<Arc<dyn TradeExecutor>>,
     rebalance_count: AtomicU64,
 }
 
 impl CrossCarryOperator {
-    pub fn new(config: CrossCarryOperatorConfig, hedge_perc: PercentageCapped) -> Box<Self> {
-        Self::with_output(config, hedge_perc, OperatorOutput::Stdout)
-    }
-
-    pub fn with_logger(
+    fn new(
         config: CrossCarryOperatorConfig,
         hedge_perc: PercentageCapped,
-        logger: Arc<dyn TuiLogger>,
-    ) -> Box<Self> {
-        Self::with_output(config, hedge_perc, OperatorOutput::Tui(logger))
-    }
-
-    fn with_output(
-        config: CrossCarryOperatorConfig,
-        hedge_perc: PercentageCapped,
-        output: OperatorOutput,
+        output: LogOutput,
     ) -> Box<Self> {
         Box::new(Self {
             config,
@@ -161,6 +150,26 @@ impl CrossCarryOperator {
         })
     }
 
+    /// Creates a boxed operator with internal logging disabled.
+    pub fn boxed(config: CrossCarryOperatorConfig, hedge_perc: PercentageCapped) -> Box<Self> {
+        Self::new(config, hedge_perc, LogOutput::Disabled)
+    }
+
+    /// Enables internal logging to stdout.
+    ///
+    /// Do not use this when running inside a TUI. Direct stdout output corrupts TUI rendering; use
+    /// [`Self::enable_tui_logger`] instead.
+    pub fn enable_stdout_logger(mut self: Box<Self>) -> Box<Self> {
+        self.output = LogOutput::Stdout;
+        self
+    }
+
+    /// Enables internal logging through a TUI logger.
+    pub fn enable_tui_logger(mut self: Box<Self>, logger: Arc<dyn TuiLogger>) -> Box<Self> {
+        self.output = LogOutput::Tui(logger);
+        self
+    }
+
     fn trade_executor(&self) -> Result<Arc<dyn TradeExecutor>> {
         self.trade_executor
             .get()
@@ -168,18 +177,19 @@ impl CrossCarryOperator {
             .ok_or_else(|| "trade executor was not set".into())
     }
 
-    /// Increments the rebalance counter and returns the new count.
-    fn increment_rebalance_count(&self) -> u64 {
-        self.rebalance_count.fetch_add(1, AtomicOrdering::Relaxed) + 1
-    }
-
     async fn log(&self, text: impl Into<String>) -> Result<()> {
         let text = text.into();
         match &self.output {
-            OperatorOutput::Stdout => println!("{text}"),
-            OperatorOutput::Tui(logger) => logger.log(text).await?,
+            LogOutput::Disabled => {}
+            LogOutput::Stdout => println!("{text}"),
+            LogOutput::Tui(logger) => logger.log(text).await?,
         }
         Ok(())
+    }
+
+    /// Increments the rebalance counter and returns the new count.
+    fn increment_rebalance_count(&self) -> u64 {
+        self.rebalance_count.fetch_add(1, AtomicOrdering::Relaxed) + 1
     }
 
     async fn balance_hedge_size(&self, imbalance: &HedgeImbalance) -> Result<()> {

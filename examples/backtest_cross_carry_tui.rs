@@ -87,11 +87,8 @@ async fn main() -> Result<()> {
         .log("Initializing `BacktestEngine`...".into())
         .await?;
 
-    let operator = CrossCarryOperator::with_logger(
-        CrossCarryOperatorConfig::default(),
-        hedge_perc,
-        backtest_tui.as_logger(),
-    );
+    let operator = CrossCarryOperator::boxed(CrossCarryOperatorConfig::default(), hedge_perc)
+        .enable_tui_logger(backtest_tui.as_logger());
 
     let backtest_engine = BacktestEngine::with_raw_operator(
         BacktestConfig::default(),

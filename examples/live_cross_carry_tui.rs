@@ -59,11 +59,8 @@ async fn main() -> Result<()> {
         .log("Database ready. Initializing `LiveTradeEngine`...".into())
         .await?;
 
-    let operator = CrossCarryOperator::with_logger(
-        CrossCarryOperatorConfig::default(),
-        hedge_perc,
-        live_tui.as_logger(),
-    );
+    let operator = CrossCarryOperator::boxed(CrossCarryOperatorConfig::default(), hedge_perc)
+        .enable_tui_logger(live_tui.as_logger());
 
     let live_engine = LiveTradeEngine::with_raw_operator(
         LiveTradeConfig::default(),

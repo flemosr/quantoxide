@@ -156,7 +156,8 @@ async fn main() -> Result<()> {
 
     println!("Initializing `BacktestEngine`...");
 
-    let operator = CrossCarryOperator::new(CrossCarryOperatorConfig::default(), hedge_perc);
+    let operator = CrossCarryOperator::boxed(CrossCarryOperatorConfig::default(), hedge_perc)
+        .enable_stdout_logger();
 
     let backtest_engine = BacktestEngine::with_raw_operator(
         BacktestConfig::default(),
