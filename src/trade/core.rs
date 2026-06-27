@@ -2008,26 +2008,50 @@ pub trait TradeExecutor: Send + Sync {
         leverage: CrossLeverage,
     ) -> TradeExecutorResult<Arc<dyn CrossPositionCore>>;
 
+    /// Places a validated cross-margin market order and returns the cross-order UUID.
+    async fn cross_order(&self, request: CrossOrderRequest) -> TradeExecutorResult<Uuid>;
+
+    /// Places a cross-margin market long order and returns the cross-order UUID.
+    async fn cross_order_market_long(&self, quantity: OrderQuantity) -> TradeExecutorResult<Uuid> {
+        self.cross_order(CrossOrderRequest::market(TradeSide::Buy, quantity))
+            .await
+    }
+
+    /// Places a cross-margin market short order and returns the cross-order UUID.
+    async fn cross_order_market_short(&self, quantity: OrderQuantity) -> TradeExecutorResult<Uuid> {
+        self.cross_order(CrossOrderRequest::market(TradeSide::Sell, quantity))
+            .await
+    }
+
+    /// Closes the full cross-margin position, returning the closing cross-order UUID when a
+    /// position was open.
+    async fn cross_order_close_position(&self) -> TradeExecutorResult<Option<Uuid>>;
+
     /// Places a cross-margin market order and returns the cross-order UUID.
     async fn cross_market(
         &self,
         side: TradeSide,
         quantity: OrderQuantity,
-    ) -> TradeExecutorResult<Uuid>;
+    ) -> TradeExecutorResult<Uuid> {
+        self.cross_order(CrossOrderRequest::market(side, quantity))
+            .await
+    }
 
     /// Places a cross-margin market long order and returns the cross-order UUID.
     async fn cross_market_long(&self, quantity: OrderQuantity) -> TradeExecutorResult<Uuid> {
-        self.cross_market(TradeSide::Buy, quantity).await
+        self.cross_order_market_long(quantity).await
     }
 
     /// Places a cross-margin market short order and returns the cross-order UUID.
     async fn cross_market_short(&self, quantity: OrderQuantity) -> TradeExecutorResult<Uuid> {
-        self.cross_market(TradeSide::Sell, quantity).await
+        self.cross_order_market_short(quantity).await
     }
 
     /// Closes the full cross-margin position, returning the closing cross-order UUID when a
     /// position was open.
-    async fn cross_close_position(&self) -> TradeExecutorResult<Option<Uuid>>;
+    async fn cross_close_position(&self) -> TradeExecutorResult<Option<Uuid>> {
+        self.cross_order_close_position().await
+    }
 
     /// Returns the current trading state including balance, positions, and metrics.
     async fn trading_state(&self) -> TradeExecutorResult<TradingState>;
