@@ -403,11 +403,6 @@ impl SimulatedCrossPosition {
             }
         }
     }
-
-    #[allow(dead_code)]
-    pub fn session_funding_fees(&self) -> i64 {
-        self.session_funding_fees
-    }
 }
 
 impl crate::sealed::Sealed for SimulatedCrossPosition {}
