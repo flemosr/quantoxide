@@ -17,10 +17,10 @@ use super::{
     state::{LiveTradeExecutorStatus, live_trading_session::LiveTradingSession},
 };
 
-/// Represents a trade order operation sent to the exchange API.
+/// Represents an executor operation sent to the exchange API.
 #[derive(Debug, Clone)]
 pub enum LiveTradeExecutorUpdateOrder {
-    CreateNewTrade {
+    IsolatedOrder {
         side: TradeSide,
         size: TradeSize,
         leverage: Leverage,
@@ -28,23 +28,23 @@ pub enum LiveTradeExecutorUpdateOrder {
         takeprofit: Option<Price>,
         client_id: Option<ClientId>,
     },
-    UpdateTradeStoploss {
+    IsolatedTradeUpdateStoploss {
         id: Uuid,
         stoploss: Price,
     },
-    AddMargin {
+    IsolatedTradeAddMargin {
         id: Uuid,
         amount: NonZeroU64,
     },
-    CashIn {
+    IsolatedTradeCashIn {
         id: Uuid,
         amount: NonZeroU64,
     },
-    CloseTrade {
+    IsolatedOrderClose {
         id: Uuid,
     },
-    CancelAllTrades,
-    CloseAllTrades,
+    IsolatedOrderCancelAll,
+    IsolatedOrderCloseAll,
     CrossDeposit {
         amount: NonZeroU64,
     },
@@ -54,19 +54,19 @@ pub enum LiveTradeExecutorUpdateOrder {
     CrossSetLeverage {
         leverage: CrossLeverage,
     },
-    CrossMarket {
+    CrossOrder {
         side: TradeSide,
         quantity: OrderQuantity,
         client_id: Option<ClientId>,
     },
-    CrossCancelAllOrders,
-    CrossClosePosition,
+    CrossOrderCancelAll,
+    CrossOrderClosePosition,
 }
 
 impl fmt::Display for LiveTradeExecutorUpdateOrder {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::CreateNewTrade {
+            Self::IsolatedOrder {
                 side,
                 size,
                 leverage,
@@ -84,7 +84,7 @@ impl fmt::Display for LiveTradeExecutorUpdateOrder {
 
                 write!(
                     f,
-                    "Create New Trade:\n  side: {}\n  size: {}\n  leverage: {}\n  stoploss: {}\n  takeprofit: {}\n  client_id: {}",
+                    "Isolated Order:\n  side: {}\n  size: {}\n  leverage: {}\n  stoploss: {}\n  takeprofit: {}\n  client_id: {}",
                     side,
                     size,
                     leverage,
@@ -93,24 +93,32 @@ impl fmt::Display for LiveTradeExecutorUpdateOrder {
                     client_id_str
                 )
             }
-            Self::UpdateTradeStoploss { id, stoploss } => {
+            Self::IsolatedTradeUpdateStoploss { id, stoploss } => {
                 write!(
                     f,
-                    "Update Trade Stoploss:\n  id: {}\n  stoploss: {:.1}",
+                    "Isolated Trade Stoploss Update:\n  id: {}\n  stoploss: {:.1}",
                     id, stoploss
                 )
             }
-            Self::AddMargin { id, amount } => {
-                write!(f, "Add Margin:\n  id: {}\n  amount: {}", id, amount)
+            Self::IsolatedTradeAddMargin { id, amount } => {
+                write!(
+                    f,
+                    "Isolated Trade Add Margin:\n  id: {}\n  amount: {}",
+                    id, amount
+                )
             }
-            Self::CashIn { id, amount } => {
-                write!(f, "Cash In:\n  id: {}\n  amount: {}", id, amount)
+            Self::IsolatedTradeCashIn { id, amount } => {
+                write!(
+                    f,
+                    "Isolated Trade Cash In:\n  id: {}\n  amount: {}",
+                    id, amount
+                )
             }
-            Self::CloseTrade { id } => {
-                write!(f, "Close Trade:\n  id: {}", id)
+            Self::IsolatedOrderClose { id } => {
+                write!(f, "Isolated Order Close:\n  id: {}", id)
             }
-            Self::CancelAllTrades => write!(f, "Cancel All Trades"),
-            Self::CloseAllTrades => write!(f, "Close All Trades"),
+            Self::IsolatedOrderCancelAll => write!(f, "Cancel All Isolated Orders"),
+            Self::IsolatedOrderCloseAll => write!(f, "Close All Isolated Orders"),
             Self::CrossDeposit { amount } => {
                 write!(f, "Cross Deposit:\n  amount: {}", amount)
             }
@@ -120,7 +128,7 @@ impl fmt::Display for LiveTradeExecutorUpdateOrder {
             Self::CrossSetLeverage { leverage } => {
                 write!(f, "Cross Set Leverage:\n  leverage: {}", leverage)
             }
-            Self::CrossMarket {
+            Self::CrossOrder {
                 side,
                 quantity,
                 client_id,
@@ -129,21 +137,21 @@ impl fmt::Display for LiveTradeExecutorUpdateOrder {
 
                 write!(
                     f,
-                    "Cross Market Order:\n  side: {}\n  quantity: {}\n  client_id: {}",
+                    "Cross Order:\n  side: {}\n  quantity: {}\n  client_id: {}",
                     side, quantity, client_id_str
                 )
             }
-            Self::CrossCancelAllOrders => write!(f, "Cross Cancel All Orders"),
-            Self::CrossClosePosition => write!(f, "Cross Close Position"),
+            Self::CrossOrderCancelAll => write!(f, "Cancel All Cross Orders"),
+            Self::CrossOrderClosePosition => write!(f, "Cross Order Close Position"),
         }
     }
 }
 
-/// Update events emitted by the live trade executor including orders, status changes, trading
-/// state, and closed trades.
+/// Update events emitted by the live trade executor including executor operations, status changes,
+/// trading state, and closed trades.
 #[derive(Clone)]
 pub enum LiveTradeExecutorUpdate {
-    /// A trade order operation was sent to the exchange.
+    /// An executor operation was sent to the exchange.
     Order(LiveTradeExecutorUpdateOrder),
     /// The executor status changed.
     Status(LiveTradeExecutorStatus),
@@ -173,8 +181,8 @@ impl From<LiveTradingSession> for LiveTradeExecutorUpdate {
 
 pub(super) type LiveTradeExecutorTransmitter = broadcast::Sender<LiveTradeExecutorUpdate>;
 
-/// Receiver for subscribing to [`LiveTradeExecutorUpdate`]s including orders, status changes, and
-/// closed trades.
+/// Receiver for subscribing to [`LiveTradeExecutorUpdate`]s including executor operations, status
+/// changes, and closed trades.
 pub type LiveTradeExecutorReceiver = broadcast::Receiver<LiveTradeExecutorUpdate>;
 
 #[derive(Clone)]
@@ -231,7 +239,7 @@ impl WrappedRestClient {
         takeprofit: Option<Price>,
         client_id: Option<ClientId>,
     ) -> ExecutorActionResult<Trade> {
-        self.send_order_update(LiveTradeExecutorUpdateOrder::CreateNewTrade {
+        self.send_order_update(LiveTradeExecutorUpdateOrder::IsolatedOrder {
             side,
             size,
             leverage,
@@ -260,7 +268,10 @@ impl WrappedRestClient {
         id: Uuid,
         stoploss: Price,
     ) -> ExecutorActionResult<Trade> {
-        self.send_order_update(LiveTradeExecutorUpdateOrder::UpdateTradeStoploss { id, stoploss });
+        self.send_order_update(LiveTradeExecutorUpdateOrder::IsolatedTradeUpdateStoploss {
+            id,
+            stoploss,
+        });
 
         self.api_rest
             .futures_isolated
@@ -270,7 +281,7 @@ impl WrappedRestClient {
     }
 
     pub async fn add_margin(&self, id: Uuid, amount: NonZeroU64) -> ExecutorActionResult<Trade> {
-        self.send_order_update(LiveTradeExecutorUpdateOrder::AddMargin { id, amount });
+        self.send_order_update(LiveTradeExecutorUpdateOrder::IsolatedTradeAddMargin { id, amount });
 
         self.api_rest
             .futures_isolated
@@ -280,7 +291,7 @@ impl WrappedRestClient {
     }
 
     pub async fn cash_in(&self, id: Uuid, amount: NonZeroU64) -> ExecutorActionResult<Trade> {
-        self.send_order_update(LiveTradeExecutorUpdateOrder::CashIn { id, amount });
+        self.send_order_update(LiveTradeExecutorUpdateOrder::IsolatedTradeCashIn { id, amount });
 
         self.api_rest
             .futures_isolated
@@ -290,7 +301,7 @@ impl WrappedRestClient {
     }
 
     pub async fn close_trade(&self, id: Uuid) -> ExecutorActionResult<Trade> {
-        self.send_order_update(LiveTradeExecutorUpdateOrder::CloseTrade { id });
+        self.send_order_update(LiveTradeExecutorUpdateOrder::IsolatedOrderClose { id });
 
         self.api_rest
             .futures_isolated
@@ -300,7 +311,7 @@ impl WrappedRestClient {
     }
 
     pub async fn cancel_all_trades(&self) -> ExecutorActionResult<Vec<Trade>> {
-        self.send_order_update(LiveTradeExecutorUpdateOrder::CancelAllTrades);
+        self.send_order_update(LiveTradeExecutorUpdateOrder::IsolatedOrderCancelAll);
 
         self.api_rest
             .futures_isolated
@@ -310,7 +321,7 @@ impl WrappedRestClient {
     }
 
     pub async fn close_all_trades(&self) -> ExecutorActionResult<Vec<Trade>> {
-        self.send_order_update(LiveTradeExecutorUpdateOrder::CloseAllTrades);
+        self.send_order_update(LiveTradeExecutorUpdateOrder::IsolatedOrderCloseAll);
 
         let running_trades = self
             .api_rest
@@ -382,7 +393,7 @@ impl WrappedRestClient {
         quantity: OrderQuantity,
         client_id: Option<ClientId>,
     ) -> ExecutorActionResult<CrossOrder> {
-        self.send_order_update(LiveTradeExecutorUpdateOrder::CrossMarket {
+        self.send_order_update(LiveTradeExecutorUpdateOrder::CrossOrder {
             side,
             quantity,
             client_id: client_id.clone(),
@@ -396,7 +407,7 @@ impl WrappedRestClient {
     }
 
     pub async fn cross_cancel_all_orders(&self) -> ExecutorActionResult<Vec<CrossOrder>> {
-        self.send_order_update(LiveTradeExecutorUpdateOrder::CrossCancelAllOrders);
+        self.send_order_update(LiveTradeExecutorUpdateOrder::CrossOrderCancelAll);
 
         self.api_rest
             .futures_cross
@@ -406,7 +417,7 @@ impl WrappedRestClient {
     }
 
     pub async fn cross_close_position(&self) -> ExecutorActionResult<CrossOrder> {
-        self.send_order_update(LiveTradeExecutorUpdateOrder::CrossClosePosition);
+        self.send_order_update(LiveTradeExecutorUpdateOrder::CrossOrderClosePosition);
 
         self.api_rest
             .futures_cross

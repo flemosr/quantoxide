@@ -109,15 +109,15 @@ impl From<LiveProcessFatalError> for LiveTradeStatus {
     }
 }
 
-/// Update events emitted during live trading including status changes, signals, orders, trading
-/// state, and closed trades.
+/// Update events emitted during live trading including status changes, signals, executor
+/// operations, trading state, and closed trades.
 #[derive(Clone)]
 pub enum LiveTradeUpdate<S: Signal> {
     /// Live trading status changed.
     Status(LiveTradeStatus),
     /// A trading signal was generated.
     Signal(S),
-    /// A trade order operation was sent to the exchange.
+    /// An executor operation was sent to the exchange.
     Order(LiveTradeExecutorUpdateOrder),
     /// The trading state was updated.
     TradingState(TradingState),
@@ -145,8 +145,8 @@ impl<S: Signal> From<TradingState> for LiveTradeUpdate<S> {
 
 pub(super) type LiveTradeTransmitter<S> = broadcast::Sender<LiveTradeUpdate<S>>;
 
-/// Receiver for subscribing to [`LiveTradeUpdate`]s including status changes, signals, orders, and
-/// closed trades.
+/// Receiver for subscribing to [`LiveTradeUpdate`]s including status changes, signals, executor
+/// operations, and closed trades.
 pub type LiveTradeReceiver<S> = broadcast::Receiver<LiveTradeUpdate<S>>;
 
 /// Trait for reading live trading status and subscribing to updates.

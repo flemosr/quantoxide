@@ -153,7 +153,7 @@ impl LiveTui {
                             LiveTradeUpdate::Order(order) => {
                                 send_ui_msg(
                                     &ui_tx,
-                                    LiveUiMessage::LogEntry(format!("Order: {order}")),
+                                    LiveUiMessage::LogEntry(format!("Executor action: {order}")),
                                 )
                                 .await
                             }

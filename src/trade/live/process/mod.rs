@@ -110,8 +110,8 @@ impl<S: Signal> LiveProcess<S> {
                 match executor_rx.recv().await {
                     Ok(executor_update) => match executor_update {
                         LiveTradeExecutorUpdate::Status(_) => {} // Handled in operator runner
-                        LiveTradeExecutorUpdate::Order(executor_update_order) => {
-                            let _ = update_tx.send(executor_update_order.into());
+                        LiveTradeExecutorUpdate::Order(executor_operation) => {
+                            let _ = update_tx.send(executor_operation.into());
                         }
                         LiveTradeExecutorUpdate::TradingState(trading_state) => {
                             let _ = update_tx.send(trading_state.into());
