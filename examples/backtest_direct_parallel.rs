@@ -153,8 +153,9 @@ async fn main() -> Result<()> {
     let raw_operator = RawOperatorTemplate::new();
 
     // SignalOperator - processes signals from evaluators
-    let signal_evaluators = vec![SignalEvaluatorTemplate::boxed::<SupportedSignal>()];
-    let signal_operator = MultiSignalOperatorTemplate::new();
+    let signal_evaluators =
+        vec![SignalEvaluatorTemplate::boxed().into_evaluator::<SupportedSignal>()];
+    let signal_operator = MultiSignalOperatorTemplate::boxed();
 
     let backtest_engine = BacktestParallelEngine::new(
         BacktestConfig::default(),

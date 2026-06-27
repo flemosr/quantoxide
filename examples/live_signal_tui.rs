@@ -42,10 +42,11 @@ async fn main() -> Result<()> {
         .await?;
 
     // Pass TUI logger to Signal Evaluator and Trade Operator
-    let evaluators = vec![SignalEvaluatorTemplate::with_logger::<SupportedSignal>(
-        live_tui.as_logger(),
-    )];
-    let operator = MultiSignalOperatorTemplate::with_logger(live_tui.as_logger());
+
+    let evaluator = SignalEvaluatorTemplate::boxed()
+        .enable_tui_logger(live_tui.as_logger())
+        .into_evaluator::<SupportedSignal>();
+    let operator = MultiSignalOperatorTemplate::boxed().enable_tui_logger(live_tui.as_logger());
 
     let live_engine = LiveTradeEngine::with_signal_operator(
         LiveTradeConfig::default(),
@@ -53,7 +54,7 @@ async fn main() -> Result<()> {
         key,
         secret,
         passphrase,
-        evaluators, // Multiple evaluators can run in parallel
+        vec![evaluator], // Multiple evaluators can run in parallel
         operator,
     )?;
 

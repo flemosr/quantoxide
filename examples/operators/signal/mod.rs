@@ -25,6 +25,12 @@ use quantoxide::{
 //     trade::Stoploss,
 // };
 
+enum LogOutput {
+    Disabled,
+    Stdout,
+    Tui(Arc<dyn TuiLogger>),
+}
+
 pub mod evaluator;
 
 pub use evaluator::{SignalAction, SignalTemplate};
@@ -32,23 +38,52 @@ pub use evaluator::{SignalAction, SignalTemplate};
 /// Example of a simple operator that handles a single signal type directly.
 ///
 /// This demonstrates the simpler case where no unified enum is needed.
-#[allow(dead_code)]
 pub struct SingleSignalOperatorTemplate {
     trade_executor: OnceLock<Arc<dyn TradeExecutor>>,
+    output: LogOutput,
 }
 
-#[allow(dead_code)]
 impl SingleSignalOperatorTemplate {
-    pub fn new() -> Box<Self> {
+    fn new(output: LogOutput) -> Box<Self> {
         Box::new(Self {
             trade_executor: OnceLock::new(),
+            output,
         })
+    }
+
+    /// Creates a boxed operator with internal logging disabled.
+    pub fn boxed() -> Box<Self> {
+        Self::new(LogOutput::Disabled)
+    }
+
+    /// Enables internal logging to stdout.
+    ///
+    /// Do not use this when running inside a TUI. Direct stdout output corrupts TUI rendering; use
+    /// [`Self::enable_tui_logger`] instead.
+    pub fn enable_stdout_logger(mut self: Box<Self>) -> Box<Self> {
+        self.output = LogOutput::Stdout;
+        self
+    }
+
+    /// Enables internal logging through a TUI logger.
+    pub fn enable_tui_logger(mut self: Box<Self>, logger: Arc<dyn TuiLogger>) -> Box<Self> {
+        self.output = LogOutput::Tui(logger);
+        self
     }
 
     fn trade_executor(&self) -> Result<&Arc<dyn TradeExecutor>> {
         self.trade_executor
             .get()
             .ok_or_else(|| "trade executor was not set".into())
+    }
+
+    async fn log(&self, text: String) -> Result<()> {
+        match &self.output {
+            LogOutput::Disabled => {}
+            LogOutput::Stdout => println!("{text}"),
+            LogOutput::Tui(logger) => logger.log(text).await?,
+        }
+        Ok(())
     }
 }
 
@@ -109,26 +144,35 @@ impl fmt::Display for SupportedSignal {
 /// A template signal operator that processes unified `SupportedSignal` signals.
 pub struct MultiSignalOperatorTemplate {
     trade_executor: OnceLock<Arc<dyn TradeExecutor>>,
-    logger: Option<Arc<dyn TuiLogger>>,
+    output: LogOutput,
 }
 
 impl MultiSignalOperatorTemplate {
-    /// Creates a new operator instance.
-    ///
-    /// Returns a boxed operator ready for use with engines.
-    pub fn new() -> Box<Self> {
+    fn new(output: LogOutput) -> Box<Self> {
         Box::new(Self {
             trade_executor: OnceLock::new(),
-            logger: None,
+            output,
         })
     }
 
-    /// Creates a new operator instance with TUI logging support.
-    pub fn with_logger(logger: Arc<dyn TuiLogger>) -> Box<Self> {
-        Box::new(Self {
-            trade_executor: OnceLock::new(),
-            logger: Some(logger),
-        })
+    /// Creates a boxed operator with internal logging disabled.
+    pub fn boxed() -> Box<Self> {
+        Self::new(LogOutput::Disabled)
+    }
+
+    /// Enables internal logging to stdout.
+    ///
+    /// Do not use this when running inside a TUI. Direct stdout output corrupts TUI rendering; use
+    /// [`Self::enable_tui_logger`] instead.
+    pub fn enable_stdout_logger(mut self: Box<Self>) -> Box<Self> {
+        self.output = LogOutput::Stdout;
+        self
+    }
+
+    /// Enables internal logging through a TUI logger.
+    pub fn enable_tui_logger(mut self: Box<Self>, logger: Arc<dyn TuiLogger>) -> Box<Self> {
+        self.output = LogOutput::Tui(logger);
+        self
     }
 
     fn trade_executor(&self) -> Result<&Arc<dyn TradeExecutor>> {
@@ -138,10 +182,11 @@ impl MultiSignalOperatorTemplate {
         Err("trade executor was not set".into())
     }
 
-    #[allow(dead_code)]
     async fn log(&self, text: String) -> Result<()> {
-        if let Some(logger) = self.logger.as_ref() {
-            logger.log(text).await?;
+        match &self.output {
+            LogOutput::Disabled => {}
+            LogOutput::Stdout => println!("{text}"),
+            LogOutput::Tui(logger) => logger.log(text).await?,
         }
         Ok(())
     }
@@ -151,7 +196,7 @@ impl Default for MultiSignalOperatorTemplate {
     fn default() -> Self {
         Self {
             trade_executor: OnceLock::new(),
-            logger: None,
+            output: LogOutput::Disabled,
         }
     }
 }

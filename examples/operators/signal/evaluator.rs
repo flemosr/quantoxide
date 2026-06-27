@@ -65,6 +65,12 @@ impl fmt::Display for SignalTemplate {
     }
 }
 
+enum LogOutput {
+    Disabled,
+    Stdout,
+    Tui(Arc<dyn TuiLogger>),
+}
+
 /// A template signal evaluator demonstrating the reusable evaluator pattern.
 ///
 /// The struct itself is not generic, the generic parameter `S` is only on the trait impl.
@@ -72,39 +78,51 @@ impl fmt::Display for SignalTemplate {
 /// `SignalTemplate: Into<S>`. When `S` is `SignalTemplate`, no `From` implementation is needed
 /// (uses identity conversion). When `S` is a unified enum type, consumers must implement
 /// `From<SignalTemplate> for S`.
-#[derive(Default)]
 pub struct SignalEvaluatorTemplate {
-    logger: Option<Arc<dyn TuiLogger>>,
+    output: LogOutput,
 }
 
 impl SignalEvaluatorTemplate {
-    /// Creates a new evaluator as a boxed trait object.
-    ///
-    /// The type parameter `S` specifies the target signal type. Use turbofish syntax
-    /// to specify it: `SignalEvaluatorTemplate::boxed::<SupportedSignal>()`.
-    pub fn boxed<S: Signal>() -> Box<dyn SignalEvaluator<S>>
-    where
-        SignalTemplate: Into<S>,
-    {
-        Box::new(Self::default())
+    fn new(output: LogOutput) -> Box<Self> {
+        Box::new(Self { output })
     }
 
-    /// Creates a new evaluator with TUI logging support as a boxed trait object.
+    /// Creates a boxed evaluator with internal logging disabled.
+    pub fn boxed() -> Box<Self> {
+        Self::new(LogOutput::Disabled)
+    }
+
+    /// Enables internal logging to stdout.
+    ///
+    /// Do not use this when running inside a TUI. Direct stdout output corrupts TUI rendering; use
+    /// [`Self::enable_tui_logger`] instead.
+    pub fn enable_stdout_logger(mut self: Box<Self>) -> Box<Self> {
+        self.output = LogOutput::Stdout;
+        self
+    }
+
+    /// Enables internal logging through a TUI logger.
+    pub fn enable_tui_logger(mut self: Box<Self>, logger: Arc<dyn TuiLogger>) -> Box<Self> {
+        self.output = LogOutput::Tui(logger);
+        self
+    }
+
+    /// Converts this boxed evaluator into a boxed signal evaluator trait object.
     ///
     /// The type parameter `S` specifies the target signal type. Use turbofish syntax
-    /// to specify it: `SignalEvaluatorTemplate::with_logger::<SupportedSignal>(logger)`.
-    pub fn with_logger<S: Signal>(logger: Arc<dyn TuiLogger>) -> Box<dyn SignalEvaluator<S>>
+    /// to specify it: `SignalEvaluatorTemplate::boxed().into_evaluator::<SupportedSignal>()`.
+    pub fn into_evaluator<S: Signal>(self: Box<Self>) -> Box<dyn SignalEvaluator<S>>
     where
         SignalTemplate: Into<S>,
     {
-        Box::new(Self {
-            logger: Some(logger),
-        })
+        self
     }
 
     async fn log(&self, text: String) -> Result<()> {
-        if let Some(logger) = self.logger.as_ref() {
-            logger.log(text).await?;
+        match &self.output {
+            LogOutput::Disabled => {}
+            LogOutput::Stdout => println!("{text}"),
+            LogOutput::Tui(logger) => logger.log(text).await?,
         }
         Ok(())
     }
