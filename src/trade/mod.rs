@@ -13,9 +13,9 @@ pub use backtest::{
     },
 };
 pub use core::{
-    ClosedTradeHistory, CrossPositionCore, DynRunningTradesMap, Raw, RawOperator, RunningTradesMap,
-    SignalOperator, Stoploss, TradeClosed, TradeCore, TradeExecutor, TradeReference, TradeRunning,
-    TradeTrailingStoploss, TradingState,
+    ClosedTradeHistory, CrossPositionCore, DynRunningTradesMap, IsolatedOrderRequest, Raw,
+    RawOperator, RunningTradesMap, SignalOperator, Stoploss, TradeClosed, TradeCore, TradeExecutor,
+    TradeReference, TradeRunning, TradeTrailingStoploss, TradingState,
 };
 pub use live::{
     config::{LiveTradeConfig, LiveTradeExecutorConfig},

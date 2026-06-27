@@ -1677,6 +1677,134 @@ impl From<TradeTrailingStoploss> for Percentage {
     }
 }
 
+/// Validated request for a market isolated-margin order.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct IsolatedOrderRequest {
+    side: TradeSide,
+    size: TradeSize,
+    leverage: Leverage,
+    stoploss: Option<Stoploss>,
+    takeprofit: Option<Price>,
+    client_id: Option<ClientId>,
+}
+
+impl IsolatedOrderRequest {
+    /// Creates a market isolated-margin order request from its required fields.
+    pub fn market(side: TradeSide, size: TradeSize, leverage: Leverage) -> Self {
+        Self {
+            side,
+            size,
+            leverage,
+            stoploss: None,
+            takeprofit: None,
+            client_id: None,
+        }
+    }
+
+    /// Sets a stoploss on the request.
+    pub fn with_stoploss(
+        mut self,
+        stoploss: Stoploss,
+    ) -> Result<Self, IsolatedOrderValidationError> {
+        Self::validate_fixed_risk_ordering(self.side, Some(&stoploss), self.takeprofit)?;
+        self.stoploss = Some(stoploss);
+
+        Ok(self)
+    }
+
+    /// Sets a takeprofit on the request.
+    pub fn with_takeprofit(
+        mut self,
+        takeprofit: Price,
+    ) -> Result<Self, IsolatedOrderValidationError> {
+        Self::validate_fixed_risk_ordering(self.side, self.stoploss.as_ref(), Some(takeprofit))?;
+        self.takeprofit = Some(takeprofit);
+
+        Ok(self)
+    }
+
+    /// Sets a client ID on the request.
+    pub fn with_client_id(mut self, client_id: ClientId) -> Self {
+        self.client_id = Some(client_id);
+        self
+    }
+
+    fn validate_fixed_risk_ordering(
+        side: TradeSide,
+        stoploss: Option<&Stoploss>,
+        takeprofit: Option<Price>,
+    ) -> Result<(), IsolatedOrderValidationError> {
+        let (Some(Stoploss::Fixed(stoploss)), Some(takeprofit)) = (stoploss, takeprofit) else {
+            return Ok(());
+        };
+
+        let valid = match side {
+            TradeSide::Buy => *stoploss < takeprofit,
+            TradeSide::Sell => *stoploss > takeprofit,
+        };
+
+        if !valid {
+            return Err(IsolatedOrderValidationError::InvalidRiskBounds {
+                side,
+                stoploss: *stoploss,
+                takeprofit,
+            });
+        }
+
+        Ok(())
+    }
+
+    /// Returns the order side.
+    pub fn side(&self) -> TradeSide {
+        self.side
+    }
+
+    /// Returns the requested isolated trade size.
+    pub fn size(&self) -> TradeSize {
+        self.size
+    }
+
+    /// Returns the requested isolated trade leverage.
+    pub fn leverage(&self) -> Leverage {
+        self.leverage
+    }
+
+    /// Returns the requested stoploss, if any.
+    pub fn stoploss(&self) -> Option<&Stoploss> {
+        self.stoploss.as_ref()
+    }
+
+    /// Returns the requested takeprofit, if any.
+    pub fn takeprofit(&self) -> Option<Price> {
+        self.takeprofit
+    }
+
+    /// Returns the requested client ID, if any.
+    pub fn client_id(&self) -> Option<&ClientId> {
+        self.client_id.as_ref()
+    }
+
+    pub(crate) fn into_open_trade_parts(
+        self,
+    ) -> (
+        TradeSide,
+        TradeSize,
+        Leverage,
+        Option<Stoploss>,
+        Option<Price>,
+        Option<ClientId>,
+    ) {
+        (
+            self.side,
+            self.size,
+            self.leverage,
+            self.stoploss,
+            self.takeprofit,
+            self.client_id,
+        )
+    }
+}
+
 /// Trait for executing trading operations including opening/closing positions and managing margin.
 /// Implementors provide the core trading functionality for both backtesting and live trading.
 #[async_trait]

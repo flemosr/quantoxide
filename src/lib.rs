@@ -56,7 +56,7 @@ pub mod error {
     };
     pub use super::trade::{
         backtest::error::BacktestError,
-        error::{TradeCoreError, TradeExecutorError},
+        error::{IsolatedOrderValidationError, TradeCoreError, TradeExecutorError},
         live::{
             error::LiveError,
             executor::error::{

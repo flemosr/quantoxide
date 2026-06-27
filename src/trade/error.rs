@@ -5,7 +5,7 @@ use uuid::Uuid;
 
 use lnm_sdk::rest::v3::{
     error::PriceValidationError,
-    models::{Percentage, PercentageCapped, Price},
+    models::{Percentage, PercentageCapped, Price, TradeSide},
 };
 
 use crate::util::PanicPayload;
@@ -23,9 +23,25 @@ pub enum TradeExecutorError {
 
     #[error("[Live] {0}")]
     Live(#[from] ExecutorActionError),
+
+    #[error("[Isolated Order] {0}")]
+    IsolatedOrder(#[from] IsolatedOrderValidationError),
 }
 
 pub(super) type TradeExecutorResult<T> = result::Result<T, TradeExecutorError>;
+
+#[derive(Error, Debug)]
+#[non_exhaustive]
+pub enum IsolatedOrderValidationError {
+    #[error(
+        "fixed stoploss {stoploss} and takeprofit {takeprofit} are invalid for {side} isolated orders"
+    )]
+    InvalidRiskBounds {
+        side: TradeSide,
+        stoploss: Price,
+        takeprofit: Price,
+    },
+}
 
 #[derive(Error, Debug)]
 #[non_exhaustive]
