@@ -490,7 +490,9 @@ impl LiveTradingSession {
         for chunk in to_update.chunks(3) {
             let update_futures = chunk
                 .iter()
-                .map(|&(trade_id, new_stoploss)| api.update_trade_stoploss(trade_id, new_stoploss))
+                .map(|&(trade_id, new_stoploss)| {
+                    api.isolated_trade_update_stoploss(trade_id, new_stoploss)
+                })
                 .collect::<Vec<_>>();
 
             for update_res in future::join_all(update_futures).await {

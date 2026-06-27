@@ -230,7 +230,7 @@ impl WrappedRestClient {
         let _ = self.update_tx.send(order_update.into());
     }
 
-    pub async fn create_new_trade(
+    pub async fn isolated_order(
         &self,
         side: TradeSide,
         size: TradeSize,
@@ -263,7 +263,7 @@ impl WrappedRestClient {
             .map_err(ExecutorActionError::RestApi)
     }
 
-    pub async fn update_trade_stoploss(
+    pub async fn isolated_trade_update_stoploss(
         &self,
         id: Uuid,
         stoploss: Price,
@@ -318,7 +318,7 @@ impl WrappedRestClient {
             .map_err(ExecutorActionError::RestApi)
     }
 
-    pub async fn cancel_all_trades(&self) -> ExecutorActionResult<Vec<Trade>> {
+    pub async fn isolated_order_cancel_all(&self) -> ExecutorActionResult<Vec<Trade>> {
         self.send_order_update(LiveTradeExecutorUpdateOrder::IsolatedOrderCancelAll);
 
         self.api_rest
@@ -328,7 +328,7 @@ impl WrappedRestClient {
             .map_err(ExecutorActionError::RestApi)
     }
 
-    pub async fn close_all_trades(&self) -> ExecutorActionResult<Vec<Trade>> {
+    pub async fn isolated_order_close_all(&self) -> ExecutorActionResult<Vec<Trade>> {
         self.send_order_update(LiveTradeExecutorUpdateOrder::IsolatedOrderCloseAll);
 
         let running_trades = self

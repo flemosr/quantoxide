@@ -92,7 +92,7 @@ impl LiveTradeExecutor {
     }
 
     /// Creates a new [`LiveTradeExecutorReceiver`] for subscribing to trade executor updates
-    /// including orders and closed trades.
+    /// including executor operations, status changes, trading state, and closed trades.
     pub fn update_receiver(&self) -> LiveTradeExecutorReceiver {
         self.update_tx.subscribe()
     }
@@ -170,7 +170,7 @@ impl LiveTradeExecutor {
 
         let trade = self
             .api
-            .create_new_trade(side, size, leverage, stoploss_price, takeprofit, client_id)
+            .isolated_order(side, size, leverage, stoploss_price, takeprofit, client_id)
             .await?;
 
         let trade_id = trade.id();
@@ -247,8 +247,8 @@ impl LiveTradeExecutor {
 
     async fn clean_up_all_api_trades(api: &WrappedRestClient) -> ExecutorActionResult<()> {
         let (_, _, _, _) = futures::try_join!(
-            api.cancel_all_trades(),
-            api.close_all_trades(),
+            api.isolated_order_cancel_all(),
+            api.isolated_order_close_all(),
             api.cross_cancel_all_orders(),
             api.cross_order_close_position()
         )?;
@@ -452,8 +452,10 @@ impl TradeExecutor for LiveTradeExecutor {
 
         let mut new_trading_session = locked_ready_state.trading_session().to_owned();
 
-        let (_, closed_trades) =
-            futures::try_join!(self.api.cancel_all_trades(), self.api.close_all_trades())?;
+        let (_, closed_trades) = futures::try_join!(
+            self.api.isolated_order_cancel_all(),
+            self.api.isolated_order_close_all()
+        )?;
 
         new_trading_session.close_trades(&closed_trades)?;
 
