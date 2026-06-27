@@ -148,7 +148,8 @@ Each engine has two modes:
 
 1. **TradeExecutor API** - When implementing trade execution logic:
    - Check: https://docs.rs/quantoxide/latest/quantoxide/trade/trait.TradeExecutor.html
-   - Provides methods for opening/closing positions, checking the trading state, etc.
+   - Provides explicit isolated/cross order methods, account-management methods, and trading-state
+     access.
 
 2. **TradingState API** - When working with the `trading_state` returned by the executor:
    - Check: https://docs.rs/quantoxide/latest/quantoxide/trade/struct.TradingState.html
@@ -162,6 +163,8 @@ Each engine has two modes:
    - Check: https://docs.rs/quantoxide/latest/quantoxide/models/index.html
    - Includes `OhlcCandleRow`, `Leverage`, `CrossLeverage`, `CrossQuantity`, `OrderQuantity`,
      `Price`, `Percentage`, `PercentageCapped`, `Margin`, `TradeSize`, `TradeSide`, etc.
+   - Combine these validated models with `IsolatedOrderRequest` and `CrossOrderRequest` for
+     request-based order entry.
    - These models provide compile-time validation and prevent invalid values
 
 5. **Trade Utilities** - Use built-in utility functions for calculations and validations:
