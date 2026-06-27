@@ -14,8 +14,9 @@ use crate::db::models::{FundingSettlementRow, OhlcCandleRow};
 use super::{
     super::{
         core::{
-            ClosedTradeHistory, CrossPositionCore, PriceTrigger, RunningTradesMap, Stoploss,
-            TradeClosed, TradeCore, TradeExecutor, TradeRunning, TradeRunningExt, TradingState,
+            ClosedTradeHistory, CrossPositionCore, IsolatedOrderRequest, PriceTrigger,
+            RunningTradesMap, Stoploss, TradeClosed, TradeCore, TradeExecutor, TradeRunning,
+            TradeRunningExt, TradingState,
         },
         error::TradeExecutorResult,
     },
@@ -547,47 +548,20 @@ impl SimulatedTradeExecutor {
 
 #[async_trait]
 impl TradeExecutor for SimulatedTradeExecutor {
-    async fn open_long(
-        &self,
-        size: TradeSize,
-        leverage: Leverage,
-        stoploss: Option<Stoploss>,
-        takeprofit: Option<Price>,
-        client_id: Option<ClientId>,
-    ) -> TradeExecutorResult<Uuid> {
+    async fn isolated_order(&self, request: IsolatedOrderRequest) -> TradeExecutorResult<Uuid> {
+        let (side, size, leverage, stoploss, takeprofit, client_id) =
+            request.into_open_trade_parts();
+
         Ok(self
-            .create_running(
-                TradeSide::Buy,
-                size,
-                leverage,
-                stoploss,
-                takeprofit,
-                client_id,
-            )
+            .create_running(side, size, leverage, stoploss, takeprofit, client_id)
             .await?)
     }
 
-    async fn open_short(
+    async fn isolated_trade_add_margin(
         &self,
-        size: TradeSize,
-        leverage: Leverage,
-        stoploss: Option<Stoploss>,
-        takeprofit: Option<Price>,
-        client_id: Option<ClientId>,
-    ) -> TradeExecutorResult<Uuid> {
-        Ok(self
-            .create_running(
-                TradeSide::Sell,
-                size,
-                leverage,
-                stoploss,
-                takeprofit,
-                client_id,
-            )
-            .await?)
-    }
-
-    async fn add_margin(&self, trade_id: Uuid, amount: NonZeroU64) -> TradeExecutorResult<()> {
+        trade_id: Uuid,
+        amount: NonZeroU64,
+    ) -> TradeExecutorResult<()> {
         let mut state_guard = self.state.lock().await;
 
         if state_guard.balance < amount.get() as i64 {
@@ -606,7 +580,11 @@ impl TradeExecutor for SimulatedTradeExecutor {
         Ok(())
     }
 
-    async fn cash_in(&self, trade_id: Uuid, amount: NonZeroU64) -> TradeExecutorResult<()> {
+    async fn isolated_trade_cash_in(
+        &self,
+        trade_id: Uuid,
+        amount: NonZeroU64,
+    ) -> TradeExecutorResult<()> {
         let mut state_guard = self.state.lock().await;
 
         let market_price = Price::bounded(state_guard.market_price);
@@ -627,20 +605,20 @@ impl TradeExecutor for SimulatedTradeExecutor {
         Ok(())
     }
 
-    async fn close_trade(&self, trade_id: Uuid) -> TradeExecutorResult<()> {
+    async fn isolated_order_close(&self, trade_id: Uuid) -> TradeExecutorResult<()> {
         self.close_running(Close::Single(trade_id)).await?;
         Ok(())
     }
 
-    async fn close_longs(&self) -> TradeExecutorResult<Vec<Uuid>> {
+    async fn isolated_order_close_longs(&self) -> TradeExecutorResult<Vec<Uuid>> {
         Ok(self.close_running(TradeSide::Buy.into()).await?)
     }
 
-    async fn close_shorts(&self) -> TradeExecutorResult<Vec<Uuid>> {
+    async fn isolated_order_close_shorts(&self) -> TradeExecutorResult<Vec<Uuid>> {
         Ok(self.close_running(TradeSide::Sell.into()).await?)
     }
 
-    async fn close_all(&self) -> TradeExecutorResult<Vec<Uuid>> {
+    async fn isolated_order_close_all(&self) -> TradeExecutorResult<Vec<Uuid>> {
         Ok(self.close_running(Close::All).await?)
     }
 

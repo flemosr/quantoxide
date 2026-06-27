@@ -2,7 +2,8 @@ use std::num::NonZeroU64;
 
 use crate::{
     db::models::FundingSettlementRow,
-    trade::{CrossExposure, CrossQuantity},
+    error::IsolatedOrderValidationError,
+    trade::{CrossExposure, CrossQuantity, IsolatedOrderRequest},
     util::DateTimeExt,
 };
 
@@ -38,6 +39,85 @@ fn next_candle_ohlc(
         updated_at: time,
         stable: true,
     }
+}
+
+#[test]
+fn test_isolated_order_request_validates_fixed_stoploss_takeprofit_ordering() {
+    let size = OrderQuantity::try_from(500).unwrap().into();
+    let leverage = Leverage::try_from(1).unwrap();
+    let stoploss = Stoploss::fixed(Price::bounded(105_000.));
+    let takeprofit = Price::bounded(100_000.);
+
+    let err = IsolatedOrderRequest::market(TradeSide::Buy, size, leverage)
+        .with_stoploss(stoploss)
+        .unwrap()
+        .with_takeprofit(takeprofit)
+        .unwrap_err();
+
+    assert!(matches!(
+        err,
+        IsolatedOrderValidationError::InvalidRiskBounds {
+            side: TradeSide::Buy,
+            ..
+        }
+    ));
+}
+
+#[test]
+fn test_isolated_order_request_stores_validated_values() {
+    let size = OrderQuantity::try_from(500).unwrap().into();
+    let leverage = Leverage::try_from(1).unwrap();
+    let stoploss = Stoploss::fixed(Price::bounded(98_000.));
+    let takeprofit = Price::bounded(105_000.);
+    let client_id = ClientId::try_from("isolated-request-values").unwrap();
+
+    let request = IsolatedOrderRequest::market(TradeSide::Buy, size, leverage)
+        .with_stoploss(stoploss.clone())
+        .unwrap()
+        .with_takeprofit(takeprofit)
+        .unwrap()
+        .with_client_id(client_id.clone());
+
+    assert_eq!(request.side(), TradeSide::Buy);
+    assert_eq!(request.size(), size);
+    assert_eq!(request.leverage(), leverage);
+    assert_eq!(request.stoploss(), Some(&stoploss));
+    assert_eq!(request.takeprofit(), Some(takeprofit));
+    assert_eq!(request.client_id(), Some(&client_id));
+}
+
+#[tokio::test]
+async fn test_simulated_trade_executor_isolated_order_request_opens_long() -> TradeExecutorResult<()>
+{
+    let candle = OhlcCandleRow::new_simple(Utc::now().floor_minute(), 100_000.0, 1_000);
+    let start_balance = 1_000_000;
+    let config = SimulatedTradeExecutorConfig::default();
+    let executor = SimulatedTradeExecutor::new(config, &candle, start_balance);
+
+    let size = OrderQuantity::try_from(500).unwrap().into();
+    let leverage = Leverage::try_from(1).unwrap();
+    let stoploss = Stoploss::fixed(Price::bounded(98_000.));
+    let takeprofit = Price::bounded(105_000.);
+    let client_id = ClientId::try_from("isolated-order-request-opens-long").unwrap();
+    let request = IsolatedOrderRequest::market(TradeSide::Buy, size, leverage)
+        .with_stoploss(stoploss)?
+        .with_takeprofit(takeprofit)?
+        .with_client_id(client_id.clone());
+
+    let opened_trade_id = executor.isolated_order(request).await?;
+
+    let state = executor.trading_state().await?;
+    assert_eq!(state.running_long_len(), 1);
+    assert_eq!(state.running_short_len(), 0);
+
+    let (running_trade, _) = state.running_map().get_by_id(opened_trade_id).unwrap();
+    assert_eq!(running_trade.side(), TradeSide::Buy);
+    assert_eq!(running_trade.client_id(), Some(&client_id));
+
+    let closed_trade_ids = executor.isolated_order_close_longs().await?;
+    assert_eq!(closed_trade_ids, vec![opened_trade_id]);
+
+    Ok(())
 }
 
 #[tokio::test]
