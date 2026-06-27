@@ -40,7 +40,7 @@ async fn main() -> Result<()> {
         .await?;
 
     // Pass TUI logger to Trade Operator
-    let operator = RawOperatorTemplate::with_logger(live_tui.as_logger());
+    let operator = RawOperatorTemplate::boxed().enable_tui_logger(live_tui.as_logger());
 
     let live_engine = LiveTradeEngine::with_raw_operator(
         LiveTradeConfig::default(),

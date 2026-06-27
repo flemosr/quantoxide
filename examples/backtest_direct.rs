@@ -128,7 +128,7 @@ async fn main() -> Result<()> {
 
     println!("Initializing `BacktestEngine`...");
 
-    let operator = RawOperatorTemplate::new();
+    let operator = RawOperatorTemplate::boxed();
 
     let backtest_engine = BacktestEngine::with_raw_operator(
         BacktestConfig::default(),

@@ -150,7 +150,7 @@ async fn main() -> Result<()> {
 
     // Create operators of different types to demonstrate compatibility
     // RawOperator - directly processes candles
-    let raw_operator = RawOperatorTemplate::new();
+    let raw_operator = RawOperatorTemplate::boxed();
 
     // SignalOperator - processes signals from evaluators
     let signal_evaluators =
