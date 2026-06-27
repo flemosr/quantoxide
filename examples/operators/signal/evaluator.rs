@@ -72,6 +72,7 @@ impl fmt::Display for SignalTemplate {
 /// `SignalTemplate: Into<S>`. When `S` is `SignalTemplate`, no `From` implementation is needed
 /// (uses identity conversion). When `S` is a unified enum type, consumers must implement
 /// `From<SignalTemplate> for S`.
+#[derive(Default)]
 pub struct SignalEvaluatorTemplate {
     logger: Option<Arc<dyn TuiLogger>>,
 }
@@ -80,12 +81,12 @@ impl SignalEvaluatorTemplate {
     /// Creates a new evaluator as a boxed trait object.
     ///
     /// The type parameter `S` specifies the target signal type. Use turbofish syntax
-    /// to specify it: `SignalEvaluatorTemplate::new::<SupportedSignal>()`.
-    pub fn new<S: Signal>() -> Box<dyn SignalEvaluator<S>>
+    /// to specify it: `SignalEvaluatorTemplate::boxed::<SupportedSignal>()`.
+    pub fn boxed<S: Signal>() -> Box<dyn SignalEvaluator<S>>
     where
         SignalTemplate: Into<S>,
     {
-        Box::new(Self { logger: None })
+        Box::new(Self::default())
     }
 
     /// Creates a new evaluator with TUI logging support as a boxed trait object.
@@ -101,18 +102,11 @@ impl SignalEvaluatorTemplate {
         })
     }
 
-    #[allow(dead_code)]
     async fn log(&self, text: String) -> Result<()> {
         if let Some(logger) = self.logger.as_ref() {
             logger.log(text).await?;
         }
         Ok(())
-    }
-}
-
-impl Default for SignalEvaluatorTemplate {
-    fn default() -> Self {
-        Self { logger: None }
     }
 }
 
