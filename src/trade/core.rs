@@ -1691,7 +1691,7 @@ pub struct IsolatedOrderRequest {
 }
 
 impl IsolatedOrderRequest {
-    /// Creates a market isolated-margin order request from its required fields.
+    /// Creates an isolated-margin market order request from its required fields.
     pub fn market(side: TradeSide, size: TradeSize, leverage: Leverage) -> Self {
         Self {
             side,
@@ -1804,6 +1804,50 @@ impl IsolatedOrderRequest {
             self.takeprofit,
             self.client_id,
         )
+    }
+}
+
+/// Validated request for a cross-margin market order.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CrossOrderRequest {
+    side: TradeSide,
+    quantity: OrderQuantity,
+    client_id: Option<ClientId>,
+}
+
+impl CrossOrderRequest {
+    /// Creates a cross-margin market order request from its required fields.
+    pub fn market(side: TradeSide, quantity: OrderQuantity) -> Self {
+        Self {
+            side,
+            quantity,
+            client_id: None,
+        }
+    }
+
+    /// Sets a client ID on the request.
+    pub fn with_client_id(mut self, client_id: ClientId) -> Self {
+        self.client_id = Some(client_id);
+        self
+    }
+
+    /// Returns the order side.
+    pub fn side(&self) -> TradeSide {
+        self.side
+    }
+
+    /// Returns the requested cross-margin order quantity.
+    pub fn quantity(&self) -> OrderQuantity {
+        self.quantity
+    }
+
+    /// Returns the requested client ID, if any.
+    pub fn client_id(&self) -> Option<&ClientId> {
+        self.client_id.as_ref()
+    }
+
+    pub(crate) fn into_cross_order_parts(self) -> (TradeSide, OrderQuantity, Option<ClientId>) {
+        (self.side, self.quantity, self.client_id)
     }
 }
 
