@@ -231,7 +231,7 @@ async fn test_simulated_trade_executor_long_profit() -> TradeExecutorResult<()> 
 
     let client_id = ClientId::try_from("test-long-profit-001").ok();
     let opened_trade_id = executor
-        .open_long(size, leverage, stoploss, takeprofit, client_id.clone())
+        .isolated_order_market_long(size, leverage, stoploss, takeprofit, client_id.clone())
         .await?;
 
     let state = executor.trading_state().await?;
@@ -279,7 +279,7 @@ async fn test_simulated_trade_executor_long_profit() -> TradeExecutorResult<()> 
     assert_eq!(state.closed_fees(), 0);
 
     // Step 5: Close all running long trades
-    let closed_trade_ids = executor.close_longs().await?;
+    let closed_trade_ids = executor.isolated_order_close_longs().await?;
     assert_eq!(closed_trade_ids.len(), 1);
     assert_eq!(closed_trade_ids[0], opened_trade_id);
 
@@ -345,7 +345,7 @@ async fn test_simulated_trade_executor_long_loss() -> TradeExecutorResult<()> {
     let takeprofit = None;
 
     let opened_trade_id = executor
-        .open_long(size, leverage, stoploss, takeprofit, None)
+        .isolated_order_market_long(size, leverage, stoploss, takeprofit, None)
         .await?;
 
     let state = executor.trading_state().await?;
@@ -443,7 +443,7 @@ async fn test_simulated_trade_executor_short_profit() -> TradeExecutorResult<()>
 
     let client_id = ClientId::try_from("test-short-profit-001").ok();
     let opened_trade_id = executor
-        .open_short(size, leverage, stoploss, takeprofit, client_id.clone())
+        .isolated_order_market_short(size, leverage, stoploss, takeprofit, client_id.clone())
         .await?;
 
     let state = executor.trading_state().await?;
@@ -554,7 +554,7 @@ async fn test_simulated_trade_executor_short_loss() -> TradeExecutorResult<()> {
     let takeprofit = Some(Price::bounded(98_000.));
 
     let opened_trade_id = executor
-        .open_short(size, leverage, stoploss, takeprofit, None)
+        .isolated_order_market_short(size, leverage, stoploss, takeprofit, None)
         .await?;
 
     let state = executor.trading_state().await?;
@@ -634,7 +634,7 @@ async fn test_simulated_trade_executor_trailing_stoploss_long() {
     // Open long position with trailing stop-loss
 
     let opened_trade_id = executor
-        .open_long(size, leverage, stoploss, takeprofit, None)
+        .isolated_order_market_long(size, leverage, stoploss, takeprofit, None)
         .await
         .unwrap();
 
@@ -716,7 +716,7 @@ async fn test_simulated_trade_executor_trailing_stoploss_short() {
     // Open short position with trailing stop-loss
 
     let opened_trade_id = executor
-        .open_short(size, leverage, stoploss, takeprofit, None)
+        .isolated_order_market_short(size, leverage, stoploss, takeprofit, None)
         .await
         .unwrap();
 
@@ -815,7 +815,7 @@ async fn test_simulated_trade_executor_partial_cash_in_short_profit() -> TradeEx
     let takeprofit = None;
 
     let opened_trade_id = executor
-        .open_short(size, leverage, stoploss, takeprofit, None)
+        .isolated_order_market_short(size, leverage, stoploss, takeprofit, None)
         .await?;
 
     let state = executor.trading_state().await?;
@@ -860,7 +860,7 @@ async fn test_simulated_trade_executor_partial_cash_in_short_profit() -> TradeEx
     let cash_in = 5000;
 
     executor
-        .cash_in(opened_trade_id, cash_in.try_into().unwrap())
+        .isolated_trade_cash_in(opened_trade_id, cash_in.try_into().unwrap())
         .await?;
 
     let state = executor.trading_state().await?;
@@ -882,7 +882,7 @@ async fn test_simulated_trade_executor_partial_cash_in_short_profit() -> TradeEx
 
     // Step 5: Close trade using the opened trade ID
 
-    executor.close_trade(opened_trade_id).await?;
+    executor.isolated_order_close(opened_trade_id).await?;
 
     let state = executor.trading_state().await?;
     let exp_trade_time = candle.time + Duration::seconds(59);
@@ -938,7 +938,7 @@ async fn test_simulated_trade_executor_full_cash_in_short_profit() -> TradeExecu
     let takeprofit = None;
 
     let opened_trade_id = executor
-        .open_short(size, leverage, stoploss, takeprofit, None)
+        .isolated_order_market_short(size, leverage, stoploss, takeprofit, None)
         .await?;
 
     let state = executor.trading_state().await?;
@@ -983,7 +983,7 @@ async fn test_simulated_trade_executor_full_cash_in_short_profit() -> TradeExecu
     let cash_in = 15_000;
 
     executor
-        .cash_in(opened_trade_id, cash_in.try_into().unwrap())
+        .isolated_trade_cash_in(opened_trade_id, cash_in.try_into().unwrap())
         .await?;
 
     let state = executor.trading_state().await?;
@@ -1005,7 +1005,7 @@ async fn test_simulated_trade_executor_full_cash_in_short_profit() -> TradeExecu
 
     // Step 5: Close trade using the opened trade ID
 
-    executor.close_trade(opened_trade_id).await?;
+    executor.isolated_order_close(opened_trade_id).await?;
 
     let state = executor.trading_state().await?;
     let exp_trade_time = candle.time + Duration::seconds(59);
@@ -1061,7 +1061,7 @@ async fn test_simulated_trade_executor_add_margin_short_loss() -> TradeExecutorR
     let takeprofit = Some(Price::bounded(98_000.));
 
     let opened_trade_id = executor
-        .open_short(size, leverage, stoploss, takeprofit, None)
+        .isolated_order_market_short(size, leverage, stoploss, takeprofit, None)
         .await?;
 
     let state = executor.trading_state().await?;
@@ -1098,7 +1098,7 @@ async fn test_simulated_trade_executor_add_margin_short_loss() -> TradeExecutorR
 
     let add_margin = 5_000;
     executor
-        .add_margin(opened_trade_id, add_margin.try_into().unwrap())
+        .isolated_trade_add_margin(opened_trade_id, add_margin.try_into().unwrap())
         .await?;
     let state = executor.trading_state().await?;
 
@@ -1115,7 +1115,7 @@ async fn test_simulated_trade_executor_add_margin_short_loss() -> TradeExecutorR
 
     // Step 5: Close trade using the opened trade ID
 
-    executor.close_trade(opened_trade_id).await?;
+    executor.isolated_order_close(opened_trade_id).await?;
 
     let state = executor.trading_state().await?;
     let exp_trade_time = candle.time + Duration::seconds(59);
@@ -1153,7 +1153,7 @@ async fn test_simulated_trade_executor_long_liquidation_reached() -> TradeExecut
     let takeprofit = None;
 
     executor
-        .open_long(size, leverage, stoploss, takeprofit, None)
+        .isolated_order_market_long(size, leverage, stoploss, takeprofit, None)
         .await?;
 
     let state = executor.trading_state().await?;
@@ -1188,7 +1188,7 @@ async fn test_simulated_trade_executor_long_liquidation_not_reached() -> TradeEx
     let takeprofit = None;
 
     executor
-        .open_long(size, leverage, stoploss, takeprofit, None)
+        .isolated_order_market_long(size, leverage, stoploss, takeprofit, None)
         .await?;
 
     let state = executor.trading_state().await?;
@@ -1223,7 +1223,7 @@ async fn test_simulated_trade_executor_short_liquidation_reached() -> TradeExecu
     let takeprofit = None;
 
     executor
-        .open_short(size, leverage, stoploss, takeprofit, None)
+        .isolated_order_market_short(size, leverage, stoploss, takeprofit, None)
         .await?;
 
     let state = executor.trading_state().await?;
@@ -1258,7 +1258,7 @@ async fn test_simulated_trade_executor_short_liquidation_not_reached() -> TradeE
     let takeprofit = None;
 
     executor
-        .open_short(size, leverage, stoploss, takeprofit, None)
+        .isolated_order_market_short(size, leverage, stoploss, takeprofit, None)
         .await?;
 
     let state = executor.trading_state().await?;
@@ -1320,7 +1320,9 @@ async fn test_funding_settlement_long_positive_rate() -> TradeExecutorResult<()>
     // Open a long: $10,000 quantity at $60,000
     let size = OrderQuantity::try_from(10_000).unwrap().into();
     let leverage = Leverage::try_from(1).unwrap();
-    executor.open_long(size, leverage, None, None, None).await?;
+    executor
+        .isolated_order_market_long(size, leverage, None, None, None)
+        .await?;
 
     let state = executor.trading_state().await?;
     let balance_after_open = state.balance();
@@ -1355,7 +1357,9 @@ async fn test_funding_settlement_long_negative_rate() -> TradeExecutorResult<()>
 
     let size = OrderQuantity::try_from(10_000).unwrap().into();
     let leverage = Leverage::try_from(1).unwrap();
-    executor.open_long(size, leverage, None, None, None).await?;
+    executor
+        .isolated_order_market_long(size, leverage, None, None, None)
+        .await?;
 
     let state = executor.trading_state().await?;
     let balance_after_open = state.balance();
@@ -1388,7 +1392,7 @@ async fn test_funding_settlement_short_positive_rate() -> TradeExecutorResult<()
     let size = OrderQuantity::try_from(10_000).unwrap().into();
     let leverage = Leverage::try_from(1).unwrap();
     executor
-        .open_short(size, leverage, None, None, None)
+        .isolated_order_market_short(size, leverage, None, None, None)
         .await?;
 
     let state = executor.trading_state().await?;
@@ -1421,7 +1425,7 @@ async fn test_funding_settlement_short_negative_rate() -> TradeExecutorResult<()
     let size = OrderQuantity::try_from(10_000).unwrap().into();
     let leverage = Leverage::try_from(1).unwrap();
     executor
-        .open_short(size, leverage, None, None, None)
+        .isolated_order_market_short(size, leverage, None, None, None)
         .await?;
 
     let state = executor.trading_state().await?;
@@ -1454,7 +1458,9 @@ async fn test_funding_settlement_cumulative_fees() -> TradeExecutorResult<()> {
     // Open long $500 at $100k
     let size = OrderQuantity::try_from(500).unwrap().into();
     let leverage = Leverage::try_from(1).unwrap();
-    executor.open_long(size, leverage, None, None, None).await?;
+    executor
+        .isolated_order_market_long(size, leverage, None, None, None)
+        .await?;
 
     // Settlement 1: positive rate -> long pays
     let s1 = make_settlement(candle.time, 100_000.0, 0.0001);
@@ -1516,7 +1522,9 @@ async fn test_funding_settlement_zero_rate() -> TradeExecutorResult<()> {
 
     let size = OrderQuantity::try_from(500).unwrap().into();
     let leverage = Leverage::try_from(1).unwrap();
-    executor.open_long(size, leverage, None, None, None).await?;
+    executor
+        .isolated_order_market_long(size, leverage, None, None, None)
+        .await?;
 
     let state = executor.trading_state().await?;
     let balance_after_open = state.balance();
@@ -1543,9 +1551,11 @@ async fn test_funding_settlement_mixed_positions() -> TradeExecutorResult<()> {
     let size = OrderQuantity::try_from(500).unwrap().into();
     let leverage = Leverage::try_from(1).unwrap();
 
-    executor.open_long(size, leverage, None, None, None).await?;
     executor
-        .open_short(size, leverage, None, None, None)
+        .isolated_order_market_long(size, leverage, None, None, None)
+        .await?;
+    executor
+        .isolated_order_market_short(size, leverage, None, None, None)
         .await?;
 
     let state = executor.trading_state().await?;
@@ -1582,7 +1592,9 @@ async fn test_funding_settlement_margin_reduction_long() -> TradeExecutorResult<
 
     let size = OrderQuantity::try_from(500).unwrap().into();
     let leverage = Leverage::try_from(1).unwrap();
-    executor.open_long(size, leverage, None, None, None).await?;
+    executor
+        .isolated_order_market_long(size, leverage, None, None, None)
+        .await?;
 
     let state = executor.trading_state().await?;
     let (trade_before, _) = state.running_map().trades_desc().next().unwrap();
@@ -1621,7 +1633,7 @@ async fn test_funding_settlement_margin_reduction_short() -> TradeExecutorResult
     let size = OrderQuantity::try_from(500).unwrap().into();
     let leverage = Leverage::try_from(1).unwrap();
     executor
-        .open_short(size, leverage, None, None, None)
+        .isolated_order_market_short(size, leverage, None, None, None)
         .await?;
 
     let state = executor.trading_state().await?;
@@ -1661,7 +1673,7 @@ async fn test_funding_settlement_reflected_in_close() -> TradeExecutorResult<()>
     let size = OrderQuantity::try_from(500).unwrap().into();
     let leverage = Leverage::try_from(1).unwrap();
     executor
-        .open_short(size, leverage, None, None, None)
+        .isolated_order_market_short(size, leverage, None, None, None)
         .await?;
 
     // Short receives positive rate -> funding_fees negative (revenue)
@@ -1673,7 +1685,7 @@ async fn test_funding_settlement_reflected_in_close() -> TradeExecutorResult<()>
     assert!(funding_fees_before < 0);
 
     // Close at the same price (no price PL)
-    executor.close_shorts().await?;
+    executor.isolated_order_close_shorts().await?;
 
     let state = executor.trading_state().await?;
     // Funding fees should persist after closing
@@ -1697,7 +1709,9 @@ async fn test_funding_settlement_docs_example() -> TradeExecutorResult<()> {
     // Open long with $10,000 quantity
     let size = OrderQuantity::try_from(10_000).unwrap().into();
     let leverage = Leverage::try_from(1).unwrap();
-    executor.open_long(size, leverage, None, None, None).await?;
+    executor
+        .isolated_order_market_long(size, leverage, None, None, None)
+        .await?;
 
     // +0.01% = 0.0001
     let settlement = make_settlement(candle.time, 60_000.0, 0.0001);
@@ -1723,7 +1737,7 @@ async fn test_funding_settlement_docs_example_short() -> TradeExecutorResult<()>
     let size = OrderQuantity::try_from(10_000).unwrap().into();
     let leverage = Leverage::try_from(1).unwrap();
     executor
-        .open_short(size, leverage, None, None, None)
+        .isolated_order_market_short(size, leverage, None, None, None)
         .await?;
 
     let settlement = make_settlement(candle.time, 60_000.0, 0.0001);
@@ -1748,7 +1762,9 @@ async fn test_funding_settlement_leveraged_long() -> TradeExecutorResult<()> {
     // $500 quantity with 10x leverage (so margin is ~$50 worth)
     let size = OrderQuantity::try_from(500).unwrap().into();
     let leverage = Leverage::try_from(10).unwrap();
-    executor.open_long(size, leverage, None, None, None).await?;
+    executor
+        .isolated_order_market_long(size, leverage, None, None, None)
+        .await?;
 
     let state = executor.trading_state().await?;
     let (trade_before, _) = state.running_map().trades_desc().next().unwrap();
@@ -1790,10 +1806,12 @@ async fn test_funding_settlement_after_close_is_noop() -> TradeExecutorResult<()
 
     let size = OrderQuantity::try_from(500).unwrap().into();
     let leverage = Leverage::try_from(1).unwrap();
-    executor.open_long(size, leverage, None, None, None).await?;
+    executor
+        .isolated_order_market_long(size, leverage, None, None, None)
+        .await?;
 
     // Close the trade first
-    executor.close_longs().await?;
+    executor.isolated_order_close_longs().await?;
 
     let state = executor.trading_state().await?;
     let balance_after_close = state.balance();
@@ -1821,7 +1839,9 @@ async fn test_funding_settlement_fixing_price_impact() -> TradeExecutorResult<()
 
     let size = OrderQuantity::try_from(10_000).unwrap().into();
     let leverage = Leverage::try_from(1).unwrap();
-    executor.open_long(size, leverage, None, None, None).await?;
+    executor
+        .isolated_order_market_long(size, leverage, None, None, None)
+        .await?;
 
     // Lower fixing price -> more BTC notional -> larger fee
     let settlement_low = make_settlement(candle.time, 50_000.0, 0.0001);
@@ -1848,7 +1868,9 @@ async fn test_funding_settlement_with_price_movement() -> TradeExecutorResult<()
 
     let size = OrderQuantity::try_from(500).unwrap().into();
     let leverage = Leverage::try_from(1).unwrap();
-    executor.open_long(size, leverage, None, None, None).await?;
+    executor
+        .isolated_order_market_long(size, leverage, None, None, None)
+        .await?;
 
     // Apply first settlement
     let s1 = make_settlement(candle.time, 100_000.0, 0.0001);
@@ -1892,7 +1914,9 @@ async fn test_funding_settlement_progressive_margin_erosion() -> TradeExecutorRe
 
     let size = OrderQuantity::try_from(500).unwrap().into();
     let leverage = Leverage::try_from(10).unwrap();
-    executor.open_long(size, leverage, None, None, None).await?;
+    executor
+        .isolated_order_market_long(size, leverage, None, None, None)
+        .await?;
 
     let state = executor.trading_state().await?;
     let (trade0, _) = state.running_map().trades_desc().next().unwrap();
@@ -1940,7 +1964,7 @@ async fn test_funding_settlement_positive_fee_no_margin_change() -> TradeExecuto
     let size = OrderQuantity::try_from(500).unwrap().into();
     let leverage = Leverage::try_from(1).unwrap();
     executor
-        .open_short(size, leverage, None, None, None)
+        .isolated_order_market_short(size, leverage, None, None, None)
         .await?;
 
     let state = executor.trading_state().await?;
@@ -1980,7 +2004,9 @@ async fn test_funding_settlement_margin_sized_1x_not_force_closed() -> TradeExec
     // giving economic leverage 42 * 1e8 / (99_876 * 42_879) ≈ 0.9807 — below `Leverage::MIN`.
     let size = Margin::try_from(99_876_u64).unwrap().into();
     let leverage = Leverage::try_from(1).unwrap();
-    executor.open_long(size, leverage, None, None, None).await?;
+    executor
+        .isolated_order_market_long(size, leverage, None, None, None)
+        .await?;
 
     assert_eq!(executor.trading_state().await?.running_long_len(), 1);
 
@@ -2297,8 +2323,8 @@ async fn test_simulated_trade_executor_cross_set_leverage_rejects_insufficient_f
 }
 
 #[tokio::test]
-async fn test_simulated_trade_executor_cross_market_opens_long_position() -> TradeExecutorResult<()>
-{
+async fn test_simulated_trade_executor_cross_order_market_opens_long_position()
+-> TradeExecutorResult<()> {
     let candle = OhlcCandleRow::new_simple(Utc::now().floor_minute(), 100_000.0, 1_000);
     let start_balance = 1_000_000;
     let executor = SimulatedTradeExecutor::new(
@@ -2314,7 +2340,10 @@ async fn test_simulated_trade_executor_cross_market_opens_long_position() -> Tra
         .cross_set_leverage(CrossLeverage::try_from(10).unwrap())
         .await?;
     executor
-        .cross_market(TradeSide::Buy, OrderQuantity::try_from(1_000).unwrap())
+        .cross_order(CrossOrderRequest::market(
+            TradeSide::Buy,
+            OrderQuantity::try_from(1_000).unwrap(),
+        ))
         .await?;
 
     let state = executor.trading_state().await?;
@@ -2369,8 +2398,8 @@ async fn test_simulated_trade_executor_cross_exposure_quantity_can_exceed_order_
     executor
         .cross_set_leverage(CrossLeverage::try_from(10).unwrap())
         .await?;
-    executor.cross_market_long(OrderQuantity::MAX).await?;
-    executor.cross_market_long(OrderQuantity::MAX).await?;
+    executor.cross_order_market_long(OrderQuantity::MAX).await?;
+    executor.cross_order_market_long(OrderQuantity::MAX).await?;
 
     let state = executor.trading_state().await?;
     assert_eq!(state.cross_position().quantity(), 1_000_000);
@@ -2389,7 +2418,7 @@ async fn test_simulated_trade_executor_cross_exposure_quantity_can_exceed_order_
         .unwrap()
     );
 
-    let close_id = executor.cross_close_position().await?;
+    let close_id = executor.cross_order_close_position().await?;
     let state = executor.trading_state().await?;
     assert!(close_id.is_some());
     assert_eq!(state.cross_position().quantity(), 0);
@@ -2401,7 +2430,7 @@ async fn test_simulated_trade_executor_cross_exposure_quantity_can_exceed_order_
 }
 
 #[tokio::test]
-async fn test_simulated_trade_executor_cross_market_same_side_aggregates_entry()
+async fn test_simulated_trade_executor_cross_order_market_same_side_aggregates_entry()
 -> TradeExecutorResult<()> {
     let candle = OhlcCandleRow::new_simple(Utc::now().floor_minute(), 100_000.0, 1_000);
     let executor =
@@ -2414,12 +2443,12 @@ async fn test_simulated_trade_executor_cross_market_same_side_aggregates_entry()
         .cross_set_leverage(CrossLeverage::try_from(10).unwrap())
         .await?;
     executor
-        .cross_market_long(OrderQuantity::try_from(1_000).unwrap())
+        .cross_order_market_long(OrderQuantity::try_from(1_000).unwrap())
         .await?;
     let candle = next_candle(&candle, 200_000.0);
     executor.candle_update(&candle).await?;
     executor
-        .cross_market_long(OrderQuantity::try_from(1_000).unwrap())
+        .cross_order_market_long(OrderQuantity::try_from(1_000).unwrap())
         .await?;
 
     let state = executor.trading_state().await?;
@@ -2433,7 +2462,7 @@ async fn test_simulated_trade_executor_cross_market_same_side_aggregates_entry()
 }
 
 #[tokio::test]
-async fn test_simulated_trade_executor_cross_market_profitable_partial_reduce_books_pl()
+async fn test_simulated_trade_executor_cross_order_market_profitable_partial_reduce_books_pl()
 -> TradeExecutorResult<()> {
     let candle = OhlcCandleRow::new_simple(Utc::now().floor_minute(), 100_000.0, 1_000);
     let executor =
@@ -2446,12 +2475,12 @@ async fn test_simulated_trade_executor_cross_market_profitable_partial_reduce_bo
         .cross_set_leverage(CrossLeverage::try_from(10).unwrap())
         .await?;
     executor
-        .cross_market_long(OrderQuantity::try_from(1_000).unwrap())
+        .cross_order_market_long(OrderQuantity::try_from(1_000).unwrap())
         .await?;
     let candle = next_candle(&candle, 110_000.0);
     executor.candle_update(&candle).await?;
     executor
-        .cross_market_short(OrderQuantity::try_from(400).unwrap())
+        .cross_order_market_short(OrderQuantity::try_from(400).unwrap())
         .await?;
 
     let state = executor.trading_state().await?;
@@ -2469,7 +2498,7 @@ async fn test_simulated_trade_executor_cross_market_profitable_partial_reduce_bo
 }
 
 #[tokio::test]
-async fn test_simulated_trade_executor_cross_market_losing_partial_reduce_carries_loss()
+async fn test_simulated_trade_executor_cross_order_market_losing_partial_reduce_carries_loss()
 -> TradeExecutorResult<()> {
     let candle = OhlcCandleRow::new_simple(Utc::now().floor_minute(), 100_000.0, 1_000);
     let executor =
@@ -2482,12 +2511,12 @@ async fn test_simulated_trade_executor_cross_market_losing_partial_reduce_carrie
         .cross_set_leverage(CrossLeverage::try_from(10).unwrap())
         .await?;
     executor
-        .cross_market_long(OrderQuantity::try_from(1_000).unwrap())
+        .cross_order_market_long(OrderQuantity::try_from(1_000).unwrap())
         .await?;
     let candle = next_candle(&candle, 90_000.0);
     executor.candle_update(&candle).await?;
     executor
-        .cross_market_short(OrderQuantity::try_from(400).unwrap())
+        .cross_order_market_short(OrderQuantity::try_from(400).unwrap())
         .await?;
 
     let state = executor.trading_state().await?;
@@ -2509,7 +2538,7 @@ async fn test_simulated_trade_executor_cross_market_losing_partial_reduce_carrie
 }
 
 #[tokio::test]
-async fn test_simulated_trade_executor_cross_close_position_books_pl_and_flattens()
+async fn test_simulated_trade_executor_cross_order_close_position_books_pl_and_flattens()
 -> TradeExecutorResult<()> {
     let candle = OhlcCandleRow::new_simple(Utc::now().floor_minute(), 100_000.0, 1_000);
     let executor =
@@ -2522,11 +2551,11 @@ async fn test_simulated_trade_executor_cross_close_position_books_pl_and_flatten
         .cross_set_leverage(CrossLeverage::try_from(10).unwrap())
         .await?;
     executor
-        .cross_market_long(OrderQuantity::try_from(1_000).unwrap())
+        .cross_order_market_long(OrderQuantity::try_from(1_000).unwrap())
         .await?;
     let candle = next_candle(&candle, 110_000.0);
     executor.candle_update(&candle).await?;
-    let close_id = executor.cross_close_position().await?;
+    let close_id = executor.cross_order_close_position().await?;
 
     let state = executor.trading_state().await?;
     assert!(close_id.is_some());
@@ -2544,7 +2573,7 @@ async fn test_simulated_trade_executor_cross_close_position_books_pl_and_flatten
 }
 
 #[tokio::test]
-async fn test_simulated_trade_executor_cross_market_reversal_books_pl_and_resets_entry()
+async fn test_simulated_trade_executor_cross_order_market_reversal_books_pl_and_resets_entry()
 -> TradeExecutorResult<()> {
     let candle = OhlcCandleRow::new_simple(Utc::now().floor_minute(), 100_000.0, 1_000);
     let executor =
@@ -2557,12 +2586,12 @@ async fn test_simulated_trade_executor_cross_market_reversal_books_pl_and_resets
         .cross_set_leverage(CrossLeverage::try_from(10).unwrap())
         .await?;
     executor
-        .cross_market_long(OrderQuantity::try_from(1_000).unwrap())
+        .cross_order_market_long(OrderQuantity::try_from(1_000).unwrap())
         .await?;
     let candle = next_candle(&candle, 90_000.0);
     executor.candle_update(&candle).await?;
     executor
-        .cross_market_short(OrderQuantity::try_from(1_500).unwrap())
+        .cross_order_market_short(OrderQuantity::try_from(1_500).unwrap())
         .await?;
 
     let state = executor.trading_state().await?;
@@ -2584,13 +2613,13 @@ async fn test_simulated_trade_executor_cross_market_reversal_books_pl_and_resets
 }
 
 #[tokio::test]
-async fn test_simulated_trade_executor_cross_close_position_returns_none_when_flat()
+async fn test_simulated_trade_executor_cross_order_close_position_returns_none_when_flat()
 -> TradeExecutorResult<()> {
     let candle = OhlcCandleRow::new_simple(Utc::now().floor_minute(), 100_000.0, 1_000);
     let executor =
         SimulatedTradeExecutor::new(SimulatedTradeExecutorConfig::default(), &candle, 1_000_000);
 
-    let close_id = executor.cross_close_position().await?;
+    let close_id = executor.cross_order_close_position().await?;
 
     let state = executor.trading_state().await?;
     assert_eq!(close_id, None);
@@ -2609,7 +2638,7 @@ async fn test_simulated_trade_executor_cross_orders_coexist_with_isolated_trades
         SimulatedTradeExecutor::new(SimulatedTradeExecutorConfig::default(), &candle, 1_000_000);
 
     executor
-        .open_long(
+        .isolated_order_market_long(
             OrderQuantity::try_from(100).unwrap().into(),
             Leverage::try_from(1).unwrap(),
             None,
@@ -2624,9 +2653,9 @@ async fn test_simulated_trade_executor_cross_orders_coexist_with_isolated_trades
         .cross_set_leverage(CrossLeverage::try_from(10).unwrap())
         .await?;
     executor
-        .cross_market_long(OrderQuantity::try_from(1_000).unwrap())
+        .cross_order_market_long(OrderQuantity::try_from(1_000).unwrap())
         .await?;
-    executor.cross_close_position().await?;
+    executor.cross_order_close_position().await?;
 
     let state = executor.trading_state().await?;
     assert_eq!(state.running_long_len(), 1);
@@ -2652,7 +2681,7 @@ async fn test_simulated_trade_executor_cross_funding_long_pays_from_margin()
         .cross_set_leverage(CrossLeverage::try_from(10).unwrap())
         .await?;
     executor
-        .cross_market_long(OrderQuantity::try_from(1_000).unwrap())
+        .cross_order_market_long(OrderQuantity::try_from(1_000).unwrap())
         .await?;
 
     let state = executor.trading_state().await?;
@@ -2698,7 +2727,7 @@ async fn test_simulated_trade_executor_cross_funding_cost_can_force_flatten_prof
         .cross_set_leverage(CrossLeverage::try_from(10).unwrap())
         .await?;
     executor
-        .cross_market_long(OrderQuantity::try_from(1_000).unwrap())
+        .cross_order_market_long(OrderQuantity::try_from(1_000).unwrap())
         .await?;
 
     let candle = next_candle(&candle, 110_000.0);
@@ -2742,7 +2771,7 @@ async fn test_simulated_trade_executor_cross_funding_short_receives_to_margin()
         .cross_set_leverage(CrossLeverage::try_from(10).unwrap())
         .await?;
     executor
-        .cross_market_short(OrderQuantity::try_from(1_000).unwrap())
+        .cross_order_market_short(OrderQuantity::try_from(1_000).unwrap())
         .await?;
 
     let state = executor.trading_state().await?;
@@ -2783,7 +2812,7 @@ async fn test_simulated_trade_executor_cross_long_liquidates_on_candle_low()
         .cross_set_leverage(CrossLeverage::try_from(10).unwrap())
         .await?;
     executor
-        .cross_market_long(OrderQuantity::try_from(1_000).unwrap())
+        .cross_order_market_long(OrderQuantity::try_from(1_000).unwrap())
         .await?;
 
     let state = executor.trading_state().await?;
@@ -2822,7 +2851,7 @@ async fn test_simulated_trade_executor_cross_short_liquidates_on_candle_high()
         .cross_set_leverage(CrossLeverage::try_from(10).unwrap())
         .await?;
     executor
-        .cross_market_short(OrderQuantity::try_from(1_000).unwrap())
+        .cross_order_market_short(OrderQuantity::try_from(1_000).unwrap())
         .await?;
 
     let state = executor.trading_state().await?;
@@ -2855,7 +2884,7 @@ async fn test_simulated_trade_executor_total_net_value_includes_isolated_and_cro
         SimulatedTradeExecutor::new(SimulatedTradeExecutorConfig::default(), &candle, 2_000_000);
 
     executor
-        .open_long(
+        .isolated_order_market_long(
             OrderQuantity::try_from(100).unwrap().into(),
             Leverage::try_from(1).unwrap(),
             None,
@@ -2870,7 +2899,7 @@ async fn test_simulated_trade_executor_total_net_value_includes_isolated_and_cro
         .cross_set_leverage(CrossLeverage::try_from(10).unwrap())
         .await?;
     executor
-        .cross_market_long(OrderQuantity::try_from(1_000).unwrap())
+        .cross_order_market_long(OrderQuantity::try_from(1_000).unwrap())
         .await?;
 
     let candle = next_candle(&candle, 110_000.0);
