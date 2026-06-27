@@ -452,7 +452,7 @@ impl SimulatedTradeExecutor {
         Ok(closed_ids)
     }
 
-    async fn execute_cross_market_order(
+    async fn execute_cross_order(
         &self,
         side: TradeSide,
         quantity: OrderQuantity,
@@ -705,7 +705,7 @@ impl TradeExecutor for SimulatedTradeExecutor {
     async fn cross_order(&self, request: CrossOrderRequest) -> TradeExecutorResult<Uuid> {
         let (side, quantity, _client_id) = request.into_cross_order_parts();
 
-        Ok(self.execute_cross_market_order(side, quantity).await?)
+        Ok(self.execute_cross_order(side, quantity).await?)
     }
 
     async fn cross_order_close_position(&self) -> TradeExecutorResult<Option<Uuid>> {
