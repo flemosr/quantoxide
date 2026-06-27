@@ -28,7 +28,9 @@ use crate::{
     util::DateTimeExt,
 };
 
-use super::error::{TradeCoreError, TradeCoreResult, TradeExecutorResult};
+use super::error::{
+    IsolatedOrderValidationError, TradeCoreError, TradeCoreResult, TradeExecutorResult,
+};
 
 impl crate::sealed::Sealed for Trade {}
 
@@ -1809,6 +1811,81 @@ impl IsolatedOrderRequest {
 /// Implementors provide the core trading functionality for both backtesting and live trading.
 #[async_trait]
 pub trait TradeExecutor: Send + Sync {
+    /// Places a validated isolated-margin market order.
+    async fn isolated_order(&self, request: IsolatedOrderRequest) -> TradeExecutorResult<Uuid>;
+
+    /// Places an isolated-margin market long order.
+    async fn isolated_order_market_long(
+        &self,
+        size: TradeSize,
+        leverage: Leverage,
+        stoploss: Option<Stoploss>,
+        takeprofit: Option<Price>,
+        client_id: Option<ClientId>,
+    ) -> TradeExecutorResult<Uuid> {
+        let mut request = IsolatedOrderRequest::market(TradeSide::Buy, size, leverage);
+        if let Some(stoploss) = stoploss {
+            request = request.with_stoploss(stoploss)?;
+        }
+        if let Some(takeprofit) = takeprofit {
+            request = request.with_takeprofit(takeprofit)?;
+        }
+        if let Some(client_id) = client_id {
+            request = request.with_client_id(client_id);
+        }
+
+        self.isolated_order(request).await
+    }
+
+    /// Places an isolated-margin market short order.
+    async fn isolated_order_market_short(
+        &self,
+        size: TradeSize,
+        leverage: Leverage,
+        stoploss: Option<Stoploss>,
+        takeprofit: Option<Price>,
+        client_id: Option<ClientId>,
+    ) -> TradeExecutorResult<Uuid> {
+        let mut request = IsolatedOrderRequest::market(TradeSide::Sell, size, leverage);
+        if let Some(stoploss) = stoploss {
+            request = request.with_stoploss(stoploss)?;
+        }
+        if let Some(takeprofit) = takeprofit {
+            request = request.with_takeprofit(takeprofit)?;
+        }
+        if let Some(client_id) = client_id {
+            request = request.with_client_id(client_id);
+        }
+
+        self.isolated_order(request).await
+    }
+
+    /// Adds margin to an existing isolated trade, reducing its leverage.
+    async fn isolated_trade_add_margin(
+        &self,
+        trade_id: Uuid,
+        amount: NonZeroU64,
+    ) -> TradeExecutorResult<()>;
+
+    /// Withdraws profit and/or margin from a running isolated trade without closing the position.
+    async fn isolated_trade_cash_in(
+        &self,
+        trade_id: Uuid,
+        amount: NonZeroU64,
+    ) -> TradeExecutorResult<()>;
+
+    /// Closes a specific isolated trade by its ID.
+    async fn isolated_order_close(&self, trade_id: Uuid) -> TradeExecutorResult<()>;
+
+    /// Closes all isolated long positions. Returns the UUIDs of the closed trades.
+    async fn isolated_order_close_longs(&self) -> TradeExecutorResult<Vec<Uuid>>;
+
+    /// Closes all isolated short positions. Returns the UUIDs of the closed trades.
+    async fn isolated_order_close_shorts(&self) -> TradeExecutorResult<Vec<Uuid>>;
+
+    /// Closes all isolated positions. Returns the UUIDs of the closed trades.
+    async fn isolated_order_close_all(&self) -> TradeExecutorResult<Vec<Uuid>>;
+
     /// Opens a new long position with the specified size, leverage, and optional risk management
     /// parameters. Returns the UUID of the created trade.
     async fn open_long(
@@ -1818,7 +1895,10 @@ pub trait TradeExecutor: Send + Sync {
         stoploss: Option<Stoploss>,
         takeprofit: Option<Price>,
         client_id: Option<ClientId>,
-    ) -> TradeExecutorResult<Uuid>;
+    ) -> TradeExecutorResult<Uuid> {
+        self.isolated_order_market_long(size, leverage, stoploss, takeprofit, client_id)
+            .await
+    }
 
     /// Opens a new short position with the specified size, leverage, and optional risk management
     /// parameters. Returns the UUID of the created trade.
@@ -1829,25 +1909,40 @@ pub trait TradeExecutor: Send + Sync {
         stoploss: Option<Stoploss>,
         takeprofit: Option<Price>,
         client_id: Option<ClientId>,
-    ) -> TradeExecutorResult<Uuid>;
+    ) -> TradeExecutorResult<Uuid> {
+        self.isolated_order_market_short(size, leverage, stoploss, takeprofit, client_id)
+            .await
+    }
 
     /// Adds margin to an existing trade, reducing its leverage.
-    async fn add_margin(&self, trade_id: Uuid, amount: NonZeroU64) -> TradeExecutorResult<()>;
+    async fn add_margin(&self, trade_id: Uuid, amount: NonZeroU64) -> TradeExecutorResult<()> {
+        self.isolated_trade_add_margin(trade_id, amount).await
+    }
 
     /// Withdraws profit and/or margin from a running trade without closing the position.
-    async fn cash_in(&self, trade_id: Uuid, amount: NonZeroU64) -> TradeExecutorResult<()>;
+    async fn cash_in(&self, trade_id: Uuid, amount: NonZeroU64) -> TradeExecutorResult<()> {
+        self.isolated_trade_cash_in(trade_id, amount).await
+    }
 
     /// Closes a specific trade by its ID.
-    async fn close_trade(&self, trade_id: Uuid) -> TradeExecutorResult<()>;
+    async fn close_trade(&self, trade_id: Uuid) -> TradeExecutorResult<()> {
+        self.isolated_order_close(trade_id).await
+    }
 
     /// Closes all long positions. Returns the UUIDs of the closed trades.
-    async fn close_longs(&self) -> TradeExecutorResult<Vec<Uuid>>;
+    async fn close_longs(&self) -> TradeExecutorResult<Vec<Uuid>> {
+        self.isolated_order_close_longs().await
+    }
 
     /// Closes all short positions. Returns the UUIDs of the closed trades.
-    async fn close_shorts(&self) -> TradeExecutorResult<Vec<Uuid>>;
+    async fn close_shorts(&self) -> TradeExecutorResult<Vec<Uuid>> {
+        self.isolated_order_close_shorts().await
+    }
 
     /// Closes all open positions (both long and short). Returns the UUIDs of the closed trades.
-    async fn close_all(&self) -> TradeExecutorResult<Vec<Uuid>>;
+    async fn close_all(&self) -> TradeExecutorResult<Vec<Uuid>> {
+        self.isolated_order_close_all().await
+    }
 
     /// Transfers satoshis from isolated/free balance into the cross-margin account and returns the
     /// updated cross position.
