@@ -677,7 +677,7 @@ impl LiveTradeExecutorLauncher {
         tokio::spawn(async move {
             let refresh_trading_session = async || {
                 // Hold the state lock across the entire REST + DB cycle so that mutating executor
-                // actions (open/close/update) cannot interleave with the rebuild's reads.
+                // Mutating executor actions cannot interleave with the rebuild's reads.
                 let locked_state = state_manager.lock_state().await;
                 let prev_session = locked_state.trading_session().cloned();
 
