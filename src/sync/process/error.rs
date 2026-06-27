@@ -67,10 +67,16 @@ pub enum SyncProcessFatalError {
 #[non_exhaustive]
 pub enum SyncProcessError {
     #[error(transparent)]
-    Recoverable(#[from] SyncProcessRecoverableError),
+    Recoverable(Box<SyncProcessRecoverableError>),
 
     #[error(transparent)]
     Fatal(#[from] SyncProcessFatalError),
+}
+
+impl From<SyncProcessRecoverableError> for SyncProcessError {
+    fn from(value: SyncProcessRecoverableError) -> Self {
+        Self::Recoverable(Box::new(value))
+    }
 }
 
 pub(super) type Result<T> = result::Result<T, SyncProcessError>;
