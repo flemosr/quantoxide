@@ -3,7 +3,7 @@ use std::num::NonZeroU64;
 use crate::{
     db::models::FundingSettlementRow,
     error::IsolatedOrderValidationError,
-    trade::{CrossExposure, CrossQuantity, IsolatedOrderRequest},
+    trade::{CrossExposure, CrossOrderRequest, CrossQuantity, IsolatedOrderRequest},
     util::DateTimeExt,
 };
 
@@ -116,6 +116,62 @@ async fn test_simulated_trade_executor_isolated_order_request_opens_long() -> Tr
 
     let closed_trade_ids = executor.isolated_order_close_longs().await?;
     assert_eq!(closed_trade_ids, vec![opened_trade_id]);
+
+    Ok(())
+}
+
+#[test]
+fn test_cross_order_request_stores_validated_values() {
+    let quantity = OrderQuantity::try_from(500).unwrap();
+    let client_id = ClientId::try_from("cross-request-values").unwrap();
+
+    let request =
+        CrossOrderRequest::market(TradeSide::Sell, quantity).with_client_id(client_id.clone());
+
+    assert_eq!(request.side(), TradeSide::Sell);
+    assert_eq!(request.quantity(), quantity);
+    assert_eq!(request.client_id(), Some(&client_id));
+}
+
+#[tokio::test]
+async fn test_simulated_trade_executor_cross_order_request_opens_long_position()
+-> TradeExecutorResult<()> {
+    let candle = OhlcCandleRow::new_simple(Utc::now().floor_minute(), 100_000.0, 1_000);
+    let start_balance = 1_000_000;
+    let executor = SimulatedTradeExecutor::new(
+        SimulatedTradeExecutorConfig::default(),
+        &candle,
+        start_balance,
+    );
+
+    executor
+        .cross_deposit(NonZeroU64::new(500_000).unwrap())
+        .await?;
+    executor
+        .cross_set_leverage(CrossLeverage::try_from(10).unwrap())
+        .await?;
+
+    let request =
+        CrossOrderRequest::market(TradeSide::Buy, OrderQuantity::try_from(1_000).unwrap());
+    let order_id = executor.cross_order(request).await?;
+
+    let state = executor.trading_state().await?;
+    assert_eq!(state.balance(), 500_000);
+    assert_eq!(state.last_trade_time(), Some(candle.time));
+    assert_eq!(state.cross_position().margin(), 499_000);
+    assert_eq!(state.cross_position().quantity(), 1_000);
+    assert_eq!(
+        state.cross_position().entry_price(),
+        Some(Price::bounded(100_000.0))
+    );
+
+    let close_id = executor.cross_order_close_position().await?;
+    assert!(close_id.is_some());
+    assert_ne!(close_id, Some(order_id));
+
+    let state = executor.trading_state().await?;
+    assert_eq!(state.cross_position().quantity(), 0);
+    assert_eq!(state.cross_position().exposure(), CrossExposure::Neutral);
 
     Ok(())
 }

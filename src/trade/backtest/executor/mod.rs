@@ -14,9 +14,9 @@ use crate::db::models::{FundingSettlementRow, OhlcCandleRow};
 use super::{
     super::{
         core::{
-            ClosedTradeHistory, CrossPositionCore, IsolatedOrderRequest, PriceTrigger,
-            RunningTradesMap, Stoploss, TradeClosed, TradeCore, TradeExecutor, TradeRunning,
-            TradeRunningExt, TradingState,
+            ClosedTradeHistory, CrossOrderRequest, CrossPositionCore, IsolatedOrderRequest,
+            PriceTrigger, RunningTradesMap, Stoploss, TradeClosed, TradeCore, TradeExecutor,
+            TradeRunning, TradeRunningExt, TradingState,
         },
         error::TradeExecutorResult,
     },
@@ -702,15 +702,13 @@ impl TradeExecutor for SimulatedTradeExecutor {
         Ok(Arc::new(state_guard.cross_position))
     }
 
-    async fn cross_market(
-        &self,
-        side: TradeSide,
-        quantity: OrderQuantity,
-    ) -> TradeExecutorResult<Uuid> {
+    async fn cross_order(&self, request: CrossOrderRequest) -> TradeExecutorResult<Uuid> {
+        let (side, quantity, _client_id) = request.into_cross_order_parts();
+
         Ok(self.execute_cross_market_order(side, quantity).await?)
     }
 
-    async fn cross_close_position(&self) -> TradeExecutorResult<Option<Uuid>> {
+    async fn cross_order_close_position(&self) -> TradeExecutorResult<Option<Uuid>> {
         let mut state_guard = self.state.lock().await;
 
         if state_guard.cross_position.quantity() == 0 {
