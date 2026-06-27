@@ -14,14 +14,13 @@ use async_trait::async_trait;
 
 use quantoxide::{
     error::Result,
-    models::ClientId,
     trade::{SignalOperator, TradeExecutor, TradingState},
     tui::TuiLogger,
 };
 
 // Uncomment to enable trade demo
 // use quantoxide::{
-//     models::{Leverage, PercentageCapped, TradeSide, TradeSize},
+//     models::{ClientId, Leverage, PercentageCapped, TradeSide, TradeSize},
 //     trade::{IsolatedOrderRequest, Stoploss},
 // };
 
@@ -263,7 +262,8 @@ impl SignalOperator<SupportedSignal> for MultiSignalOperatorTemplate {
         }
 
         // Uncomment to enable trade demo
-        // // If there are no running trades and balance is gte 6000 sats, open a long trade
+        // // If there are no running trades and balance is gte 6000 sats, place an isolated long
+        // // market order
         // if running_trades_map.is_empty() && balance >= 6_000 {
         //     let request = IsolatedOrderRequest::market(
         //         TradeSide::Buy,
