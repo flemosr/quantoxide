@@ -86,7 +86,7 @@ cargo run --example sync_tui
 
 ### sync_direct
 
-Demonstrates direct interaction with the sync process for custom update handling. This approach is 
+Demonstrates direct interaction with the sync process for custom update handling. This approach is
 more LLM-friendly, and simplifies integration of sync updates into other UIs or processing logic.
 
 Usage:
@@ -97,7 +97,7 @@ cargo run --example sync_direct
 ## Backtesting
 
 The following examples demonstrate the backtesting engine, which allows testing trading strategies
-against historical data stored in the local database. **Some price history must be available in the 
+against historical data stored in the local database. **Some price history must be available in the
 local database to run the backtest examples**. It can be obtained by running one of the
 synchronization examples.
 
@@ -142,44 +142,6 @@ Example:
 cargo run --example backtest_direct -- --start 2025-09-01 --end 2025-12-01 --balance 10000000 --rfr-sats 0.0 --rfr-usd 0.05
 ```
 
-### backtest_cross_carry_tui / backtest_cross_carry
-
-Demonstrates a simulated cross-margin carry trade through the explicit `TradeExecutor::cross_*`
-API. The operator moves enough starting balance into cross margin to target a configured short
-liquidation distance above the current market price, shorts the account's initial net value in USD,
-inspects `TradingState::cross_position()`, and rebalances the short hedge whenever hedge drift
-exceeds the configured threshold. When liquidation drifts beyond the configured tolerance, it
-adjusts cross collateral with deposits from or withdrawals to isolated balance. Positive funding
-rates are expected to pay shorts, and simulated cross funding receipts flow through cross margin
-into the account net value used as the hedge target.
-
-Usage with the **TUI**:
-```bash
-cargo run --example backtest_cross_carry_tui
-```
-
-Usage without the TUI:
-```bash
-cargo run --example backtest_cross_carry -- --start <DATE> --end <DATE> [OPTIONS]
-```
-
-The TUI variant prompts for start date, starting balance, and end date before launching the
-terminal interface.
-
-The direct variant accepts the following arguments.
-
-Required:
-- `--start <DATE>` - Start date in YYYY-MM-DD format
-- `--end <DATE>` - End date in YYYY-MM-DD format
-
-Options:
-- `--balance <SATS>` - Starting balance in sats (default: 10000000)
-
-Example:
-```bash
-cargo run --example backtest_cross_carry -- --start 2025-09-01 --end 2025-12-01 --balance 10000000
-```
-
 ### backtest_direct_parallel
 
 Demonstrates direct interaction with the parallel backtest engine for custom update handling. This
@@ -212,7 +174,7 @@ cargo run --example backtest_direct_parallel -- --start 2025-09-01 --end 2025-12
 
 ## Live Trading
 
-The following examples demonstrate the live trading engine, which executes trading strategies in 
+The following examples demonstrate the live trading engine, which executes trading strategies in
 real-time against the LN Markets API using live market data and real trading operations.
 
 ### live_raw_tui / live_signal_tui
@@ -231,13 +193,63 @@ Usage with a **signal operator** and evaluators:
 cargo run --example live_signal_tui
 ```
 
+### live_direct
+
+Demonstrates direct interaction with the live trading process for custom update handling. This
+approach is more LLM-friendly, and simplifies integration of live trading updates into other UIs or
+processing logic.
+
+Usage:
+```bash
+cargo run --example live_direct
+```
+
+## Carry Trading
+
+These examples demonstrate cross-margin trades applied to a carry-trade strategy. The strategy
+receives a target hedge percentage as a parameter, keeps a short cross-margin hedge sized to that
+percentage of account NAV, rebalances when hedge drift exceeds the configured threshold, and
+adjusts cross collateral to maintain the configured liquidation buffer. Positive funding rates pay
+shorts. Funding settlements are reflected in cross margin and therefore in the account net value
+used as the hedge target.
+
+### backtest_cross_carry_tui / backtest_cross_carry
+
+Runs the carry-trade strategy through the backtesting engine with simulated cross-margin trades.
+
+Usage with the **TUI**:
+```bash
+cargo run --example backtest_cross_carry_tui
+```
+
+Usage without the TUI:
+```bash
+cargo run --example backtest_cross_carry -- --start <DATE> --end <DATE> [OPTIONS]
+```
+
+The TUI variant prompts for start date, starting balance, hedge percentage, and end date before
+launching the terminal interface.
+
+The direct variant accepts the following arguments.
+
+Required:
+- `--start <DATE>` - Start date in YYYY-MM-DD format
+- `--end <DATE>` - End date in YYYY-MM-DD format
+
+Options:
+- `--balance <SATS>` - Starting balance in sats (default: 10000000)
+- `--hedge-perc <PCT>` - Target hedge percentage of account NAV (default: 100)
+
+Example:
+```bash
+cargo run --example backtest_cross_carry -- --start 2025-09-01 --end 2025-12-01 --balance 10000000 --hedge-perc 100
+```
+
 ### live_cross_carry_tui
 
-Demonstrates running the shared cross-margin carry raw operator against the live LN Markets account
-with the TUI. The operator uses `TradeExecutor::cross_*` methods to set cross leverage, transfer
-live balance between isolated/free balance and cross margin, and place live cross-margin market
-orders. It requires the recommended live API key permissions above, including `futures:cross:read`
-and `futures:cross:write`.
+Runs the same carry-trade strategy against the live LN Markets account with the TUI. It requires
+the recommended live API key permissions above, including `futures:cross:read` and
+`futures:cross:write`.
 
 **Warning:** this example results in real cross-margin exposure. Backtest the same operator with
 `backtest_cross_carry_tui` first and review your account state before running it live.
@@ -245,15 +257,4 @@ and `futures:cross:write`.
 Usage:
 ```bash
 cargo run --example live_cross_carry_tui
-```
-
-### live_direct
-
-Demonstrates direct interaction with the live trading process for custom update handling. This 
-approach is more LLM-friendly, and simplifies integration of live trading updates into other UIs or 
-processing logic.
-
-Usage:
-```bash
-cargo run --example live_direct
 ```
