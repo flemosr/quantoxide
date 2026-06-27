@@ -31,7 +31,7 @@ use crate::{
 
 use super::{
     super::{
-        core::{CrossPositionCore, Stoploss, TradeExecutor, TradingState},
+        core::{CrossPositionCore, IsolatedOrderRequest, Stoploss, TradeExecutor, TradingState},
         error::TradeExecutorResult,
     },
     config::LiveTradeExecutorConfig,
@@ -319,47 +319,20 @@ impl LiveTradeExecutor {
 
 #[async_trait]
 impl TradeExecutor for LiveTradeExecutor {
-    async fn open_long(
-        &self,
-        size: TradeSize,
-        leverage: Leverage,
-        stoploss: Option<Stoploss>,
-        takeprofit: Option<Price>,
-        client_id: Option<ClientId>,
-    ) -> TradeExecutorResult<Uuid> {
+    async fn isolated_order(&self, request: IsolatedOrderRequest) -> TradeExecutorResult<Uuid> {
+        let (side, size, leverage, stoploss, takeprofit, client_id) =
+            request.into_open_trade_parts();
+
         Ok(self
-            .open_trade(
-                TradeSide::Buy,
-                size,
-                leverage,
-                stoploss,
-                takeprofit,
-                client_id,
-            )
+            .open_trade(side, size, leverage, stoploss, takeprofit, client_id)
             .await?)
     }
 
-    async fn open_short(
+    async fn isolated_trade_add_margin(
         &self,
-        size: TradeSize,
-        leverage: Leverage,
-        stoploss: Option<Stoploss>,
-        takeprofit: Option<Price>,
-        client_id: Option<ClientId>,
-    ) -> TradeExecutorResult<Uuid> {
-        Ok(self
-            .open_trade(
-                TradeSide::Sell,
-                size,
-                leverage,
-                stoploss,
-                takeprofit,
-                client_id,
-            )
-            .await?)
-    }
-
-    async fn add_margin(&self, trade_id: Uuid, amount: NonZeroU64) -> TradeExecutorResult<()> {
+        trade_id: Uuid,
+        amount: NonZeroU64,
+    ) -> TradeExecutorResult<()> {
         let locked_ready_state = self.state_manager.try_lock_ready_state().await?;
 
         let trading_session = locked_ready_state.trading_session();
@@ -394,7 +367,11 @@ impl TradeExecutor for LiveTradeExecutor {
         Ok(())
     }
 
-    async fn cash_in(&self, trade_id: Uuid, amount: NonZeroU64) -> TradeExecutorResult<()> {
+    async fn isolated_trade_cash_in(
+        &self,
+        trade_id: Uuid,
+        amount: NonZeroU64,
+    ) -> TradeExecutorResult<()> {
         let locked_ready_state = self.state_manager.try_lock_ready_state().await?;
 
         let trading_session = locked_ready_state.trading_session();
@@ -426,7 +403,7 @@ impl TradeExecutor for LiveTradeExecutor {
         Ok(())
     }
 
-    async fn close_trade(&self, trade_id: Uuid) -> TradeExecutorResult<()> {
+    async fn isolated_order_close(&self, trade_id: Uuid) -> TradeExecutorResult<()> {
         let locked_ready_state = self.state_manager.try_lock_ready_state().await?;
 
         let trading_session = locked_ready_state.trading_session();
@@ -459,15 +436,15 @@ impl TradeExecutor for LiveTradeExecutor {
         Ok(())
     }
 
-    async fn close_longs(&self) -> TradeExecutorResult<Vec<Uuid>> {
+    async fn isolated_order_close_longs(&self) -> TradeExecutorResult<Vec<Uuid>> {
         Ok(self.close_trades(TradeSide::Buy).await?)
     }
 
-    async fn close_shorts(&self) -> TradeExecutorResult<Vec<Uuid>> {
+    async fn isolated_order_close_shorts(&self) -> TradeExecutorResult<Vec<Uuid>> {
         Ok(self.close_trades(TradeSide::Sell).await?)
     }
 
-    async fn close_all(&self) -> TradeExecutorResult<Vec<Uuid>> {
+    async fn isolated_order_close_all(&self) -> TradeExecutorResult<Vec<Uuid>> {
         let locked_ready_state = self.state_manager.try_lock_ready_state().await?;
 
         let mut new_trading_session = locked_ready_state.trading_session().to_owned();
