@@ -18,8 +18,8 @@ use uuid::Uuid;
 use lnm_sdk::rest::v3::{
     RestClient,
     models::{
-        ClientId, CrossLeverage, Leverage, OrderQuantity, PercentageCapped, Price, TradeSide,
-        TradeSize, trade_util,
+        ClientId, CrossLeverage, Leverage, PercentageCapped, Price, TradeSide, TradeSize,
+        trade_util,
     },
 };
 
@@ -31,7 +31,10 @@ use crate::{
 
 use super::{
     super::{
-        core::{CrossPositionCore, IsolatedOrderRequest, Stoploss, TradeExecutor, TradingState},
+        core::{
+            CrossOrderRequest, CrossPositionCore, IsolatedOrderRequest, Stoploss, TradeExecutor,
+            TradingState,
+        },
         error::TradeExecutorResult,
     },
     config::LiveTradeExecutorConfig,
@@ -534,14 +537,11 @@ impl TradeExecutor for LiveTradeExecutor {
         Ok(cross_position)
     }
 
-    async fn cross_market(
-        &self,
-        side: TradeSide,
-        quantity: OrderQuantity,
-    ) -> TradeExecutorResult<Uuid> {
+    async fn cross_order(&self, request: CrossOrderRequest) -> TradeExecutorResult<Uuid> {
         let locked_ready_state = self.state_manager.try_lock_ready_state().await?;
+        let (side, quantity, client_id) = request.into_cross_order_parts();
 
-        let cross_order = self.api.cross_market(side, quantity, None).await?;
+        let cross_order = self.api.cross_market(side, quantity, client_id).await?;
         if !cross_order.filled() {
             return Err(ExecutorActionError::CrossOrderNotFilled {
                 order_id: cross_order.id(),
@@ -561,7 +561,7 @@ impl TradeExecutor for LiveTradeExecutor {
         Ok(order_id)
     }
 
-    async fn cross_close_position(&self) -> TradeExecutorResult<Option<Uuid>> {
+    async fn cross_order_close_position(&self) -> TradeExecutorResult<Option<Uuid>> {
         let locked_ready_state = self.state_manager.try_lock_ready_state().await?;
 
         let latest_cross_position = self.api.cross_get_position().await?;
