@@ -99,6 +99,11 @@ impl SignalOperator<SignalTemplate> for SingleSignalOperatorTemplate {
     async fn process_signal(&self, signal: &SignalTemplate) -> Result<()> {
         let trade_executor = self.trade_executor()?;
 
+        self.log(format!("Processing signal: {signal}")).await?;
+
+        // NOTE: direct `stdout`/`stderr` outputs MUST not be used with TUIs, since they disrupt
+        // rendering. Use `enable_tui_logger` for TUI-safe logs.
+
         // Handle the signal directly - no match needed
         match &signal.action {
             SignalAction::Long { price, strength } => {}
@@ -213,11 +218,10 @@ impl SignalOperator<SupportedSignal> for MultiSignalOperatorTemplate {
     async fn process_signal(&self, signal: &SupportedSignal) -> Result<()> {
         let trade_executor = self.trade_executor()?;
 
-        // If a TUI `logger` was provided, it can be used to log info in the interface
-        // self.log("Logging in the TUI".into()).await?;
-        //
-        // NOTE: `println!` and other `stdout`/`stderr` outputs should be avoided when using TUIs,
-        // as they would disrupt rendering.
+        self.log(format!("Processing signal: {signal}")).await?;
+
+        // NOTE: direct `stdout`/`stderr` outputs MUST not be used with TUIs, since they disrupt
+        // rendering. Use `enable_tui_logger` for TUI-safe logs.
 
         // Access current trading state
         let trading_state: TradingState = trade_executor.trading_state().await?;

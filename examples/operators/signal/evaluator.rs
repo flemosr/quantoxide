@@ -144,15 +144,18 @@ where
     }
 
     async fn evaluate(&self, candles: &[OhlcCandleRow]) -> Result<S> {
-        // If a TUI `logger` was provided, it can be used to log info in the interface
-        // self.log("Logging in the TUI".into()).await?;
-        //
-        // NOTE: `println!` and other `stdout`/`stderr` outputs should be avoided when using TUIs,
-        // as they would disrupt rendering.
-
         let Some(last_candle) = candles.last() else {
             return Err("no candles were provided".into());
         };
+
+        self.log(format!(
+            "Latest candle: time={}, close={:.1}",
+            last_candle.time, last_candle.close
+        ))
+        .await?;
+
+        // NOTE: direct `stdout`/`stderr` outputs MUST not be used with TUIs, since they disrupt
+        // rendering. Use `enable_tui_logger` for TUI-safe logs.
 
         // Evaluate candles and construct the signal
         let signal = SignalTemplate {

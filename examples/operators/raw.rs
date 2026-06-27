@@ -100,12 +100,6 @@ impl RawOperator for RawOperatorTemplate {
     async fn iterate(&self, candles: &[OhlcCandleRow]) -> Result<()> {
         let trade_executor = self.trade_executor()?;
 
-        // If a TUI `logger` was provided, it can be used to log info in the interface
-        // self.log("Logging in the TUI".into()).await?;
-        //
-        // NOTE: `println!` and other `stdout`/`stderr` outputs should be avoided when using TUIs,
-        // as they would disrupt rendering.
-
         // To access the current trading state:
 
         let trading_state: TradingState = trade_executor.trading_state().await?;
@@ -114,6 +108,14 @@ impl RawOperator for RawOperatorTemplate {
         let market_price = trading_state.market_price();
         let running_trades_map = trading_state.running_map();
         // Additional information is available, see the `TradingState` docs
+
+        self.log(format!(
+            "Iteration: time={iteration_time}, market_price={market_price}",
+        ))
+        .await?;
+
+        // NOTE: direct `stdout`/`stderr` outputs MUST not be used with TUIs, since they disrupt
+        // rendering. Use `enable_tui_logger` for TUI-safe logs.
 
         // Evaluate candles. Perform trading operations via trade executor
 

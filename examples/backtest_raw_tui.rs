@@ -70,9 +70,8 @@ async fn main() -> Result<()> {
         .log("Initializing  `BacktestEngine`...".into())
         .await?;
 
-    // In general, no TUI logger should be provided to Trade Operators in backtests. Since many
-    // iterations will be processed per second, excessive per-iteration logging would create a
-    // severe performance bottleneck.
+    // Be careful with logging in backtests. Since many iterations can be processed per second,
+    // excessive per-iteration logging can create a severe performance bottleneck.
 
     let operator = RawOperatorTemplate::boxed();
 
