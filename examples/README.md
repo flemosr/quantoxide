@@ -8,16 +8,16 @@ Direct source code links for quick reference:
 
 | Category | Raw Operator | Signal Operator / Evaluator | Direct (no TUI) |
 |----------|--------------|------------------------------|-----------------|
-| **Trade Operator Templates** | [raw.rs](https://raw.githubusercontent.com/flemosr/quantoxide/main/examples/operators/raw.rs) | [signal/mod.rs](https://raw.githubusercontent.com/flemosr/quantoxide/main/examples/operators/signal/mod.rs) / [signal/evaluator.rs](https://raw.githubusercontent.com/flemosr/quantoxide/refs/heads/main/examples/operators/signal/evaluator.rs) | - |
+| **Trade Operator Templates** | [operators/raw.rs](https://raw.githubusercontent.com/flemosr/quantoxide/main/examples/operators/raw.rs) | [signal/mod.rs](https://raw.githubusercontent.com/flemosr/quantoxide/main/examples/operators/signal/mod.rs) / [signal/evaluator.rs](https://raw.githubusercontent.com/flemosr/quantoxide/refs/heads/main/examples/operators/signal/evaluator.rs) | - |
 | **Synchronization** | [sync_tui.rs](https://raw.githubusercontent.com/flemosr/quantoxide/main/examples/sync_tui.rs) | - | [sync_direct.rs](https://raw.githubusercontent.com/flemosr/quantoxide/main/examples/sync_direct.rs) |
 | **Backtesting** | [backtest_raw_tui.rs](https://raw.githubusercontent.com/flemosr/quantoxide/main/examples/backtest_raw_tui.rs) | [backtest_signal_tui.rs](https://raw.githubusercontent.com/flemosr/quantoxide/main/examples/backtest_signal_tui.rs) | [backtest_direct.rs](https://raw.githubusercontent.com/flemosr/quantoxide/main/examples/backtest_direct.rs) |
-| **Carry Trade Backtesting** | [backtest_cross_carry_tui.rs](https://raw.githubusercontent.com/flemosr/quantoxide/main/examples/backtest_cross_carry_tui.rs) | - | [backtest_cross_carry.rs](https://raw.githubusercontent.com/flemosr/quantoxide/main/examples/backtest_cross_carry.rs) |
 | **Parallel Backtesting** | - | - | [backtest_direct_parallel.rs](https://raw.githubusercontent.com/flemosr/quantoxide/main/examples/backtest_direct_parallel.rs) |
 | **Live Trading** | [live_raw_tui.rs](https://raw.githubusercontent.com/flemosr/quantoxide/main/examples/live_raw_tui.rs) | [live_signal_tui.rs](https://raw.githubusercontent.com/flemosr/quantoxide/main/examples/live_signal_tui.rs) | [live_direct.rs](https://raw.githubusercontent.com/flemosr/quantoxide/main/examples/live_direct.rs) |
+| **Carry Trade Operator** | [operators/cross_carry.rs](https://raw.githubusercontent.com/flemosr/quantoxide/main/examples/operators/cross_carry.rs) | - | - |
+| **Carry Trade Backtesting** | [backtest_cross_carry_tui.rs](https://raw.githubusercontent.com/flemosr/quantoxide/main/examples/backtest_cross_carry_tui.rs) | - | [backtest_cross_carry.rs](https://raw.githubusercontent.com/flemosr/quantoxide/main/examples/backtest_cross_carry.rs) |
 | **Live Carry Trading** | [live_cross_carry_tui.rs](https://raw.githubusercontent.com/flemosr/quantoxide/main/examples/live_cross_carry_tui.rs) | - | - |
 
-Utilities and operators shared across examples:
-- [operators/cross_carry.rs](https://raw.githubusercontent.com/flemosr/quantoxide/main/examples/operators/cross_carry.rs) - Cross-margin carry-trade raw operator used by the backtest and live examples
+Utilities shared across examples:
 - [util/input.rs](https://raw.githubusercontent.com/flemosr/quantoxide/main/examples/util/input.rs) - CLI argument parsing and date handling
 - [util/metrics.rs](https://raw.githubusercontent.com/flemosr/quantoxide/main/examples/util/metrics.rs) - Financial metrics (Sharpe ratio, max drawdown)
 
