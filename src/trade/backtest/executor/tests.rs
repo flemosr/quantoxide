@@ -855,7 +855,7 @@ async fn test_simulated_trade_executor_partial_cash_in_short_profit() -> TradeEx
     assert_eq!(state.closed_len(), 0);
     assert_eq!(state.closed_fees(), 0);
 
-    // Step 4: Cash_in using the opened trade ID
+    // Step 4: Cash in from the isolated trade using its ID
 
     let cash_in = 5000;
 
@@ -880,7 +880,7 @@ async fn test_simulated_trade_executor_partial_cash_in_short_profit() -> TradeEx
     assert_eq!(state.closed_len(), 0);
     assert_eq!(state.closed_fees(), 0);
 
-    // Step 5: Close trade using the opened trade ID
+    // Step 5: Close the isolated trade using its ID
 
     executor.isolated_order_close(opened_trade_id).await?;
 
@@ -978,7 +978,7 @@ async fn test_simulated_trade_executor_full_cash_in_short_profit() -> TradeExecu
     assert_eq!(state.closed_len(), 0);
     assert_eq!(state.closed_fees(), 0);
 
-    // Step 4: Cash_in using the opened trade ID
+    // Step 4: Cash in from the isolated trade using its ID
 
     let cash_in = 15_000;
 
@@ -1003,7 +1003,7 @@ async fn test_simulated_trade_executor_full_cash_in_short_profit() -> TradeExecu
     assert_eq!(state.closed_len(), 0);
     assert_eq!(state.closed_fees(), 0);
 
-    // Step 5: Close trade using the opened trade ID
+    // Step 5: Close the isolated trade using its ID
 
     executor.isolated_order_close(opened_trade_id).await?;
 
@@ -1094,7 +1094,7 @@ async fn test_simulated_trade_executor_add_margin_short_loss() -> TradeExecutorR
     assert_eq!(state.running_pl(), -4_951);
     assert_eq!(state.closed_len(), 0);
 
-    // Step 4: Add margin using the opened trade ID
+    // Step 4: Add margin to the isolated trade using its ID
 
     let add_margin = 5_000;
     executor
@@ -1113,7 +1113,7 @@ async fn test_simulated_trade_executor_add_margin_short_loss() -> TradeExecutorR
     assert_eq!(state.running_pl(), -4_951);
     assert_eq!(state.closed_len(), 0);
 
-    // Step 5: Close trade using the opened trade ID
+    // Step 5: Close the isolated trade using its ID
 
     executor.isolated_order_close(opened_trade_id).await?;
 
