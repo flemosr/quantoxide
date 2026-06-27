@@ -62,10 +62,8 @@ impl RealTimeCollectionTask {
                             StreamUpdate::FuturesInverseBtcUsdLastPrice(tick) => {
                                 pending_ticks.push(tick);
                             }
-                            StreamUpdate::ConnectionStatus(new_status) => {
-                                if !new_status.is_connected() {
-                                    return Err(RealTimeCollectionError::BadConnectionUpdate(new_status));
-                                }
+                            StreamUpdate::ConnectionStatus(status) if !status.is_connected() => {
+                                return Err(RealTimeCollectionError::BadConnectionUpdate(status));
                             },
                             _ => {}
                         },
