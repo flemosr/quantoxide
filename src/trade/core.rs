@@ -1930,64 +1930,6 @@ pub trait TradeExecutor: Send + Sync {
     /// Closes all isolated positions. Returns the UUIDs of the closed trades.
     async fn isolated_order_close_all(&self) -> TradeExecutorResult<Vec<Uuid>>;
 
-    /// Opens a new long position with the specified size, leverage, and optional risk management
-    /// parameters. Returns the UUID of the created trade.
-    async fn open_long(
-        &self,
-        size: TradeSize,
-        leverage: Leverage,
-        stoploss: Option<Stoploss>,
-        takeprofit: Option<Price>,
-        client_id: Option<ClientId>,
-    ) -> TradeExecutorResult<Uuid> {
-        self.isolated_order_market_long(size, leverage, stoploss, takeprofit, client_id)
-            .await
-    }
-
-    /// Opens a new short position with the specified size, leverage, and optional risk management
-    /// parameters. Returns the UUID of the created trade.
-    async fn open_short(
-        &self,
-        size: TradeSize,
-        leverage: Leverage,
-        stoploss: Option<Stoploss>,
-        takeprofit: Option<Price>,
-        client_id: Option<ClientId>,
-    ) -> TradeExecutorResult<Uuid> {
-        self.isolated_order_market_short(size, leverage, stoploss, takeprofit, client_id)
-            .await
-    }
-
-    /// Adds margin to an existing trade, reducing its leverage.
-    async fn add_margin(&self, trade_id: Uuid, amount: NonZeroU64) -> TradeExecutorResult<()> {
-        self.isolated_trade_add_margin(trade_id, amount).await
-    }
-
-    /// Withdraws profit and/or margin from a running trade without closing the position.
-    async fn cash_in(&self, trade_id: Uuid, amount: NonZeroU64) -> TradeExecutorResult<()> {
-        self.isolated_trade_cash_in(trade_id, amount).await
-    }
-
-    /// Closes a specific trade by its ID.
-    async fn close_trade(&self, trade_id: Uuid) -> TradeExecutorResult<()> {
-        self.isolated_order_close(trade_id).await
-    }
-
-    /// Closes all long positions. Returns the UUIDs of the closed trades.
-    async fn close_longs(&self) -> TradeExecutorResult<Vec<Uuid>> {
-        self.isolated_order_close_longs().await
-    }
-
-    /// Closes all short positions. Returns the UUIDs of the closed trades.
-    async fn close_shorts(&self) -> TradeExecutorResult<Vec<Uuid>> {
-        self.isolated_order_close_shorts().await
-    }
-
-    /// Closes all open positions (both long and short). Returns the UUIDs of the closed trades.
-    async fn close_all(&self) -> TradeExecutorResult<Vec<Uuid>> {
-        self.isolated_order_close_all().await
-    }
-
     /// Transfers satoshis from isolated/free balance into the cross-margin account and returns the
     /// updated cross position.
     async fn cross_deposit(
@@ -2026,32 +1968,6 @@ pub trait TradeExecutor: Send + Sync {
     /// Closes the full cross-margin position, returning the closing cross-order UUID when a
     /// position was open.
     async fn cross_order_close_position(&self) -> TradeExecutorResult<Option<Uuid>>;
-
-    /// Places a cross-margin market order and returns the cross-order UUID.
-    async fn cross_market(
-        &self,
-        side: TradeSide,
-        quantity: OrderQuantity,
-    ) -> TradeExecutorResult<Uuid> {
-        self.cross_order(CrossOrderRequest::market(side, quantity))
-            .await
-    }
-
-    /// Places a cross-margin market long order and returns the cross-order UUID.
-    async fn cross_market_long(&self, quantity: OrderQuantity) -> TradeExecutorResult<Uuid> {
-        self.cross_order_market_long(quantity).await
-    }
-
-    /// Places a cross-margin market short order and returns the cross-order UUID.
-    async fn cross_market_short(&self, quantity: OrderQuantity) -> TradeExecutorResult<Uuid> {
-        self.cross_order_market_short(quantity).await
-    }
-
-    /// Closes the full cross-margin position, returning the closing cross-order UUID when a
-    /// position was open.
-    async fn cross_close_position(&self) -> TradeExecutorResult<Option<Uuid>> {
-        self.cross_order_close_position().await
-    }
 
     /// Returns the current trading state including balance, positions, and metrics.
     async fn trading_state(&self) -> TradeExecutorResult<TradingState>;
