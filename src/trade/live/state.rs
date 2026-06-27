@@ -14,7 +14,7 @@ use crate::{
 
 use super::{
     super::core::TradingState,
-    executor::{state::LiveTradeExecutorStatusNotReady, update::LiveTradeExecutorUpdateOrder},
+    executor::{state::LiveTradeExecutorStatusNotReady, update::LiveTradeExecutorAction},
     process::error::{LiveProcessFatalError, LiveProcessRecoverableError},
 };
 
@@ -109,16 +109,16 @@ impl From<LiveProcessFatalError> for LiveTradeStatus {
     }
 }
 
-/// Update events emitted during live trading including status changes, signals, executor
-/// operations, trading state, and closed trades.
+/// Update events emitted during live trading including status changes, signals, executor actions,
+/// trading state, and closed trades.
 #[derive(Clone)]
 pub enum LiveTradeUpdate<S: Signal> {
     /// Live trading status changed.
     Status(LiveTradeStatus),
     /// A trading signal was generated.
     Signal(S),
-    /// An executor operation was sent to the exchange.
-    Order(LiveTradeExecutorUpdateOrder),
+    /// An executor action was sent to the exchange.
+    ExecutorAction(LiveTradeExecutorAction),
     /// The trading state was updated.
     TradingState(TradingState),
     /// A trade was closed.
@@ -131,9 +131,9 @@ impl<S: Signal> From<LiveTradeStatus> for LiveTradeUpdate<S> {
     }
 }
 
-impl<S: Signal> From<LiveTradeExecutorUpdateOrder> for LiveTradeUpdate<S> {
-    fn from(value: LiveTradeExecutorUpdateOrder) -> Self {
-        Self::Order(value)
+impl<S: Signal> From<LiveTradeExecutorAction> for LiveTradeUpdate<S> {
+    fn from(value: LiveTradeExecutorAction) -> Self {
+        Self::ExecutorAction(value)
     }
 }
 
@@ -146,7 +146,7 @@ impl<S: Signal> From<TradingState> for LiveTradeUpdate<S> {
 pub(super) type LiveTradeTransmitter<S> = broadcast::Sender<LiveTradeUpdate<S>>;
 
 /// Receiver for subscribing to [`LiveTradeUpdate`]s including status changes, signals, executor
-/// operations, and closed trades.
+/// actions, and closed trades.
 pub type LiveTradeReceiver<S> = broadcast::Receiver<LiveTradeUpdate<S>>;
 
 /// Trait for reading live trading status and subscribing to updates.

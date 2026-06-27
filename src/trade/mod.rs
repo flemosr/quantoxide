@@ -24,9 +24,7 @@ pub use live::{
     executor::{
         LiveTradeExecutor, LiveTradeExecutorLauncher,
         state::{LiveTradeExecutorStatus, LiveTradeExecutorStatusNotReady},
-        update::{
-            LiveTradeExecutorReceiver, LiveTradeExecutorUpdate, LiveTradeExecutorUpdateOrder,
-        },
+        update::{LiveTradeExecutorAction, LiveTradeExecutorReceiver, LiveTradeExecutorUpdate},
     },
     state::{LiveTradeReader, LiveTradeReceiver, LiveTradeStatus, LiveTradeUpdate},
 };

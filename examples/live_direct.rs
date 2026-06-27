@@ -58,8 +58,8 @@ async fn main() -> Result<()> {
                     LiveTradeUpdate::ClosedTrade(closed_trade) => {
                         println!("{closed_trade}");
                     }
-                    LiveTradeUpdate::Order(order) => {
-                        println!("{order}");
+                    LiveTradeUpdate::ExecutorAction(action) => {
+                        println!("{action}");
                     }
                     LiveTradeUpdate::TradingState(trading_state) => {
                         println!("{trading_state}");

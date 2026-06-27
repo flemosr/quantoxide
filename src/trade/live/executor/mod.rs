@@ -92,7 +92,7 @@ impl LiveTradeExecutor {
     }
 
     /// Creates a new [`LiveTradeExecutorReceiver`] for subscribing to trade executor updates
-    /// including executor operations, status changes, trading state, and closed trades.
+    /// including executor actions, status changes, trading state, and closed trades.
     pub fn update_receiver(&self) -> LiveTradeExecutorReceiver {
         self.update_tx.subscribe()
     }
