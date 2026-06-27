@@ -280,7 +280,11 @@ impl WrappedRestClient {
             .map_err(ExecutorActionError::RestApi)
     }
 
-    pub async fn add_margin(&self, id: Uuid, amount: NonZeroU64) -> ExecutorActionResult<Trade> {
+    pub async fn isolated_trade_add_margin(
+        &self,
+        id: Uuid,
+        amount: NonZeroU64,
+    ) -> ExecutorActionResult<Trade> {
         self.send_order_update(LiveTradeExecutorUpdateOrder::IsolatedTradeAddMargin { id, amount });
 
         self.api_rest
@@ -290,7 +294,11 @@ impl WrappedRestClient {
             .map_err(ExecutorActionError::RestApi)
     }
 
-    pub async fn cash_in(&self, id: Uuid, amount: NonZeroU64) -> ExecutorActionResult<Trade> {
+    pub async fn isolated_trade_cash_in(
+        &self,
+        id: Uuid,
+        amount: NonZeroU64,
+    ) -> ExecutorActionResult<Trade> {
         self.send_order_update(LiveTradeExecutorUpdateOrder::IsolatedTradeCashIn { id, amount });
 
         self.api_rest
@@ -300,7 +308,7 @@ impl WrappedRestClient {
             .map_err(ExecutorActionError::RestApi)
     }
 
-    pub async fn close_trade(&self, id: Uuid) -> ExecutorActionResult<Trade> {
+    pub async fn isolated_order_close(&self, id: Uuid) -> ExecutorActionResult<Trade> {
         self.send_order_update(LiveTradeExecutorUpdateOrder::IsolatedOrderClose { id });
 
         self.api_rest
@@ -387,7 +395,7 @@ impl WrappedRestClient {
             .map_err(ExecutorActionError::RestApi)
     }
 
-    pub async fn cross_market(
+    pub async fn cross_order(
         &self,
         side: TradeSide,
         quantity: OrderQuantity,
@@ -416,7 +424,7 @@ impl WrappedRestClient {
             .map_err(ExecutorActionError::RestApi)
     }
 
-    pub async fn cross_close_position(&self) -> ExecutorActionResult<CrossOrder> {
+    pub async fn cross_order_close_position(&self) -> ExecutorActionResult<CrossOrder> {
         self.send_order_update(LiveTradeExecutorUpdateOrder::CrossOrderClosePosition);
 
         self.api_rest

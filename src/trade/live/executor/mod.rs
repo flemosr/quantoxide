@@ -209,7 +209,7 @@ impl LiveTradeExecutor {
         for chunk in to_close.chunks(3) {
             let close_futures = chunk
                 .iter()
-                .map(|&trade_id| self.api.close_trade(trade_id))
+                .map(|&trade_id| self.api.isolated_order_close(trade_id))
                 .collect::<Vec<_>>();
 
             let closed_trades = future::join_all(close_futures)
@@ -250,7 +250,7 @@ impl LiveTradeExecutor {
             api.cancel_all_trades(),
             api.close_all_trades(),
             api.cross_cancel_all_orders(),
-            api.cross_close_position()
+            api.cross_order_close_position()
         )?;
 
         Ok(())
@@ -357,7 +357,7 @@ impl TradeExecutor for LiveTradeExecutor {
             return Err(ExecutorActionError::BalanceTooLow)?;
         }
 
-        let updated_trade = self.api.add_margin(trade_id, amount).await?;
+        let updated_trade = self.api.isolated_trade_add_margin(trade_id, amount).await?;
 
         let mut new_trading_session = trading_session.to_owned();
 
@@ -393,7 +393,7 @@ impl TradeExecutor for LiveTradeExecutor {
             })?;
         }
 
-        let updated_trade = self.api.cash_in(trade_id, amount).await?;
+        let updated_trade = self.api.isolated_trade_cash_in(trade_id, amount).await?;
 
         let mut new_trading_session = trading_session.to_owned();
 
@@ -415,7 +415,7 @@ impl TradeExecutor for LiveTradeExecutor {
             return Err(ExecutorActionError::TradeNotRegistered { trade_id })?;
         };
 
-        let closed_trade = self.api.close_trade(trade_id).await?;
+        let closed_trade = self.api.isolated_order_close(trade_id).await?;
 
         self.db
             .running_trades
@@ -541,7 +541,7 @@ impl TradeExecutor for LiveTradeExecutor {
         let locked_ready_state = self.state_manager.try_lock_ready_state().await?;
         let (side, quantity, client_id) = request.into_cross_order_parts();
 
-        let cross_order = self.api.cross_market(side, quantity, client_id).await?;
+        let cross_order = self.api.cross_order(side, quantity, client_id).await?;
         if !cross_order.filled() {
             return Err(ExecutorActionError::CrossOrderNotFilled {
                 order_id: cross_order.id(),
@@ -577,7 +577,7 @@ impl TradeExecutor for LiveTradeExecutor {
             return Ok(None);
         }
 
-        let cross_order = self.api.cross_close_position().await?;
+        let cross_order = self.api.cross_order_close_position().await?;
         if !cross_order.filled() {
             return Err(ExecutorActionError::CrossOrderNotFilled {
                 order_id: cross_order.id(),
