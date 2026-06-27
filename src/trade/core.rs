@@ -540,7 +540,7 @@ pub trait CrossPositionCore: crate::sealed::Sealed + Send + Sync + fmt::Debug + 
     /// Returns the configured cross account leverage.
     fn leverage(&self) -> CrossLeverage;
 
-    /// Returns the active cross market exposure, if any.
+    /// Returns the active cross-margin exposure, if any.
     fn exposure(&self) -> CrossExposure;
 
     /// Returns cumulative realized cross-position profit/loss in satoshis.
@@ -1851,7 +1851,7 @@ impl CrossOrderRequest {
     }
 }
 
-/// Trait for executing trading operations including opening/closing positions and managing margin.
+/// Trait for executing trading operations with explicit isolated and cross-margin namespaces.
 /// Implementors provide the core trading functionality for both backtesting and live trading.
 #[async_trait]
 pub trait TradeExecutor: Send + Sync {
@@ -1975,8 +1975,8 @@ pub trait TradeExecutor: Send + Sync {
 
 /// Trait for processing trading signals and making trading decisions.
 ///
-/// Signal operators receive evaluated signals and determine when to open, close, or modify
-/// positions. The type parameter `S` represents the signal type that this operator handles.
+/// Signal operators receive evaluated signals and determine when to place orders, close positions,
+/// or modify margin. The type parameter `S` represents the signal type that this operator handles.
 ///
 /// # Type Parameter
 ///
