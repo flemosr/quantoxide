@@ -19,7 +19,7 @@ use quantoxide::{
         CrossLeverage, CrossQuantity, Lookback, MinIterationInterval, OhlcCandleRow, OrderQuantity,
         Percentage, PercentageCapped, Price, SATS_PER_BTC, TradeSide,
     },
-    trade::{CrossPositionCore, RawOperator, TradeExecutor, TradingState},
+    trade::{CrossOrderRequest, CrossPositionCore, RawOperator, TradeExecutor, TradingState},
     tui::TuiLogger,
 };
 
@@ -215,7 +215,10 @@ impl CrossCarryOperator {
         }
 
         let order_id = trade_executor
-            .cross_market(imbalance.order_side, imbalance.order_quantity)
+            .cross_order(CrossOrderRequest::market(
+                imbalance.order_side,
+                imbalance.order_quantity,
+            ))
             .await?;
         self.log(format!(
             "  Placed cross {} order {order_id} for ${}",

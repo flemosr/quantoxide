@@ -21,8 +21,8 @@ use quantoxide::{
 
 // Uncomment to enable trade demo
 // use quantoxide::{
-//     models::{Leverage, PercentageCapped, TradeSize},
-//     trade::Stoploss,
+//     models::{Leverage, PercentageCapped, TradeSide, TradeSize},
+//     trade::{IsolatedOrderRequest, Stoploss},
 // };
 
 enum LogOutput {
@@ -259,21 +259,22 @@ impl SignalOperator<SupportedSignal> for MultiSignalOperatorTemplate {
 
             // Take action based on trade status
 
-            // trade_executor.close_trade(*trade_id).await?;
+            // trade_executor.isolated_order_close(*trade_id).await?;
         }
 
         // Uncomment to enable trade demo
         // // If there are no running trades and balance is gte 6000 sats, open a long trade
         // if running_trades_map.is_empty() && balance >= 6_000 {
-        //     let trade_id = trade_executor
-        //         .open_long(
-        //             TradeSize::quantity(1)?, // Size 1 USD. `TradeSize::margin` is also available
-        //             Leverage::try_from(6)?,  // Leverage 6x
-        //             Some(Stoploss::trailing(PercentageCapped::try_from(5)?)), // 5% trailing stoploss
-        //             None,                                                     // No takeprofit
-        //             Some(ClientId::try_from("custom-client-id")?),            // Custom `client_id`
-        //         )
-        //         .await?;
+        //     let request = IsolatedOrderRequest::market(
+        //         TradeSide::Buy,
+        //         TradeSize::quantity(1)?, // Size 1 USD. `TradeSize::margin` is also available
+        //         Leverage::try_from(6)?,  // Leverage 6x
+        //     )
+        //     // 5% trailing stoploss
+        //     .with_stoploss(Stoploss::trailing(PercentageCapped::try_from(5)?))?
+        //     // Custom `client_id`
+        //     .with_client_id(ClientId::try_from("custom-client-id")?);
+        //     let trade_id = trade_executor.isolated_order(request).await?;
         // }
 
         Ok(())
