@@ -117,7 +117,7 @@ impl LiveTradeExecutor {
         Ok(price)
     }
 
-    async fn open_trade(
+    async fn execute_isolated_order(
         &self,
         side: TradeSide,
         size: TradeSize,
@@ -324,10 +324,10 @@ impl LiveTradeExecutor {
 impl TradeExecutor for LiveTradeExecutor {
     async fn isolated_order(&self, request: IsolatedOrderRequest) -> TradeExecutorResult<Uuid> {
         let (side, size, leverage, stoploss, takeprofit, client_id) =
-            request.into_open_trade_parts();
+            request.into_isolated_order_parts();
 
         Ok(self
-            .open_trade(side, size, leverage, stoploss, takeprofit, client_id)
+            .execute_isolated_order(side, size, leverage, stoploss, takeprofit, client_id)
             .await?)
     }
 

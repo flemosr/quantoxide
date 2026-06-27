@@ -1786,7 +1786,7 @@ impl IsolatedOrderRequest {
         self.client_id.as_ref()
     }
 
-    pub(crate) fn into_open_trade_parts(
+    pub(crate) fn into_isolated_order_parts(
         self,
     ) -> (
         TradeSide,

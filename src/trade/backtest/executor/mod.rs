@@ -550,7 +550,7 @@ impl SimulatedTradeExecutor {
 impl TradeExecutor for SimulatedTradeExecutor {
     async fn isolated_order(&self, request: IsolatedOrderRequest) -> TradeExecutorResult<Uuid> {
         let (side, size, leverage, stoploss, takeprofit, client_id) =
-            request.into_open_trade_parts();
+            request.into_isolated_order_parts();
 
         Ok(self
             .create_running(side, size, leverage, stoploss, takeprofit, client_id)
