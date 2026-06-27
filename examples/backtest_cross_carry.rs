@@ -196,7 +196,7 @@ async fn main() -> Result<()> {
                         | BacktestStatus::Running => {}
                     },
                     BacktestUpdate::TradingState(trading_state) => {
-                        last_trading_state = Some(trading_state);
+                        last_trading_state = Some(*trading_state);
                     }
                 },
                 Err(e) => {

@@ -95,7 +95,7 @@ pub enum BacktestUpdate {
     /// Status change notification.
     Status(BacktestStatus),
     /// Trading state snapshot update.
-    TradingState(TradingState),
+    TradingState(Box<TradingState>),
 }
 
 impl From<BacktestStatus> for BacktestUpdate {
@@ -106,7 +106,7 @@ impl From<BacktestStatus> for BacktestUpdate {
 
 impl From<TradingState> for BacktestUpdate {
     fn from(value: TradingState) -> Self {
-        Self::TradingState(value)
+        Self::TradingState(Box::new(value))
     }
 }
 

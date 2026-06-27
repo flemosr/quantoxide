@@ -245,7 +245,7 @@ async fn main() -> Result<()> {
                         daily_net_values_sats.push(net_value_sats);
                         daily_net_values_usd.push(net_value_usd);
 
-                        last_trading_state = Some(trading_state);
+                        last_trading_state = Some(*trading_state);
                     }
                 },
                 Err(e) => {

@@ -30,7 +30,7 @@ use view::BacktestTuiView;
 #[derive(Debug)]
 pub enum BacktestUiMessage {
     LogEntry(String),
-    StateUpdate(TradingState),
+    StateUpdate(Box<TradingState>),
     ShutdownCompleted,
 }
 
