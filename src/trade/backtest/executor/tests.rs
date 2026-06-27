@@ -221,7 +221,7 @@ async fn test_simulated_trade_executor_long_profit() -> TradeExecutorResult<()> 
     assert_eq!(state.closed_len(), 0);
     assert_eq!(state.closed_fees(), 0);
 
-    // Step 3: Open a long trade
+    // Step 3: Place an isolated long market order
 
     let size = OrderQuantity::try_from(500).unwrap().into();
     let leverage = Leverage::try_from(1).unwrap();
@@ -278,7 +278,7 @@ async fn test_simulated_trade_executor_long_profit() -> TradeExecutorResult<()> 
     assert_eq!(state.closed_len(), 0);
     assert_eq!(state.closed_fees(), 0);
 
-    // Step 5: Close all running long trades
+    // Step 5: Close all isolated long trades
     let closed_trade_ids = executor.isolated_order_close_longs().await?;
     assert_eq!(closed_trade_ids.len(), 1);
     assert_eq!(closed_trade_ids[0], opened_trade_id);
@@ -336,7 +336,7 @@ async fn test_simulated_trade_executor_long_loss() -> TradeExecutorResult<()> {
     assert_eq!(state.closed_len(), 0);
     assert_eq!(state.closed_fees(), 0);
 
-    // Step 2: Open a long trade
+    // Step 2: Place an isolated long market order
 
     let size = OrderQuantity::try_from(500).unwrap().into();
     let leverage = Leverage::try_from(1).unwrap();
@@ -433,7 +433,7 @@ async fn test_simulated_trade_executor_short_profit() -> TradeExecutorResult<()>
     assert_eq!(state.closed_len(), 0);
     assert_eq!(state.closed_fees(), 0);
 
-    // Step 2: Open a short trade
+    // Step 2: Place an isolated short market order
 
     let size = OrderQuantity::try_from(500).unwrap().into();
     let leverage = Leverage::try_from(1).unwrap();
@@ -545,7 +545,7 @@ async fn test_simulated_trade_executor_short_loss() -> TradeExecutorResult<()> {
     assert_eq!(state.closed_len(), 0);
     assert_eq!(state.closed_fees(), 0);
 
-    // Step 2: Open a short trade
+    // Step 2: Place an isolated short market order
 
     let size = OrderQuantity::try_from(500).unwrap().into();
     let leverage = Leverage::try_from(1).unwrap();
@@ -631,7 +631,7 @@ async fn test_simulated_trade_executor_trailing_stoploss_long() {
     let stoploss = Some(Stoploss::trailing(stoploss_perc)); // 2% trailing stop-loss
     let takeprofit = Some(Price::bounded(104_000.));
 
-    // Open long position with trailing stop-loss
+    // Place an isolated long market order with trailing stop-loss
 
     let opened_trade_id = executor
         .isolated_order_market_long(size, leverage, stoploss, takeprofit, None)
@@ -654,7 +654,7 @@ async fn test_simulated_trade_executor_trailing_stoploss_long() {
     assert_eq!(tsl.unwrap().as_f64(), stoploss_perc.as_f64());
     assert_eq!(trade.takeprofit().unwrap().as_f64(), 104_000.0);
 
-    // Verify the opened trade ID matches the running trade
+    // Verify the returned trade ID matches the running trade
     assert_eq!(trade.id(), opened_trade_id);
 
     // Price increases to 102_000 (2% increase)
@@ -713,7 +713,7 @@ async fn test_simulated_trade_executor_trailing_stoploss_short() {
     let stoploss = Some(Stoploss::trailing(stoploss_perc));
     let takeprofit = Some(Price::bounded(96_000.));
 
-    // Open short position with trailing stop-loss
+    // Place an isolated short market order with trailing stop-loss
 
     let opened_trade_id = executor
         .isolated_order_market_short(size, leverage, stoploss, takeprofit, None)
@@ -736,7 +736,7 @@ async fn test_simulated_trade_executor_trailing_stoploss_short() {
     assert_eq!(tsl.unwrap().as_f64(), stoploss_perc.as_f64());
     assert_eq!(trade.takeprofit().unwrap().as_f64(), 96_000.0);
 
-    // Verify the opened trade ID matches the running trade
+    // Verify the returned trade ID matches the running trade
     assert_eq!(trade.id(), opened_trade_id);
 
     // Price decreases to 98_000 (2% decrease)
@@ -807,7 +807,7 @@ async fn test_simulated_trade_executor_partial_cash_in_short_profit() -> TradeEx
     assert_eq!(state.closed_len(), 0);
     assert_eq!(state.closed_fees(), 0);
 
-    // Step 2: Open a short trade
+    // Step 2: Place an isolated short market order
 
     let size = OrderQuantity::try_from(500).unwrap().into();
     let leverage = Leverage::try_from(1).unwrap();
@@ -930,7 +930,7 @@ async fn test_simulated_trade_executor_full_cash_in_short_profit() -> TradeExecu
     assert_eq!(state.closed_len(), 0);
     assert_eq!(state.closed_fees(), 0);
 
-    // Step 2: Open a short trade
+    // Step 2: Place an isolated short market order
 
     let size = OrderQuantity::try_from(500).unwrap().into();
     let leverage = Leverage::try_from(10).unwrap();
@@ -1052,7 +1052,7 @@ async fn test_simulated_trade_executor_add_margin_short_loss() -> TradeExecutorR
     assert_eq!(state.closed_len(), 0);
     assert_eq!(state.closed_fees(), 0);
 
-    // Step 2: Open a short trade
+    // Step 2: Place an isolated short market order
 
     let size = OrderQuantity::try_from(500).unwrap().into();
     let leverage = Leverage::try_from(10).unwrap();
@@ -1146,7 +1146,7 @@ async fn test_simulated_trade_executor_long_liquidation_reached() -> TradeExecut
 
     let executor = SimulatedTradeExecutor::new(config, &candle, start_balance);
 
-    // Open a long trade with high leverage and no stoploss
+    // Place an isolated long market order with high leverage and no stoploss
     let size = OrderQuantity::try_from(500).unwrap().into();
     let leverage = Leverage::try_from(50).unwrap();
     let stoploss = None;
@@ -1181,7 +1181,7 @@ async fn test_simulated_trade_executor_long_liquidation_not_reached() -> TradeEx
 
     let executor = SimulatedTradeExecutor::new(config, &candle, start_balance);
 
-    // Open a long trade with high leverage and no stoploss
+    // Place an isolated long market order with high leverage and no stoploss
     let size = OrderQuantity::try_from(500).unwrap().into();
     let leverage = Leverage::try_from(50).unwrap();
     let stoploss = None;
@@ -1216,7 +1216,7 @@ async fn test_simulated_trade_executor_short_liquidation_reached() -> TradeExecu
 
     let executor = SimulatedTradeExecutor::new(config, &candle, start_balance);
 
-    // Open a short trade with high leverage and no stoploss
+    // Place an isolated short market order with high leverage and no stoploss
     let size = OrderQuantity::try_from(500).unwrap().into();
     let leverage = Leverage::try_from(50).unwrap();
     let stoploss = None;
@@ -1251,7 +1251,7 @@ async fn test_simulated_trade_executor_short_liquidation_not_reached() -> TradeE
 
     let executor = SimulatedTradeExecutor::new(config, &candle, start_balance);
 
-    // Open a short trade with high leverage and no stoploss
+    // Place an isolated short market order with high leverage and no stoploss
     let size = OrderQuantity::try_from(500).unwrap().into();
     let leverage = Leverage::try_from(50).unwrap();
     let stoploss = None;
@@ -1317,7 +1317,7 @@ async fn test_funding_settlement_long_positive_rate() -> TradeExecutorResult<()>
 
     let executor = SimulatedTradeExecutor::new(config, &candle, start_balance);
 
-    // Open a long: $10,000 quantity at $60,000
+    // Place an isolated long market order: $10,000 quantity at $60,000
     let size = OrderQuantity::try_from(10_000).unwrap().into();
     let leverage = Leverage::try_from(1).unwrap();
     executor
@@ -1455,7 +1455,7 @@ async fn test_funding_settlement_cumulative_fees() -> TradeExecutorResult<()> {
 
     let executor = SimulatedTradeExecutor::new(config, &candle, start_balance);
 
-    // Open long $500 at $100k
+    // Place an isolated long market order for $500 at $100k
     let size = OrderQuantity::try_from(500).unwrap().into();
     let leverage = Leverage::try_from(1).unwrap();
     executor
@@ -1706,7 +1706,7 @@ async fn test_funding_settlement_docs_example() -> TradeExecutorResult<()> {
 
     let executor = SimulatedTradeExecutor::new(config, &candle, start_balance);
 
-    // Open long with $10,000 quantity
+    // Place an isolated long market order with $10,000 quantity
     let size = OrderQuantity::try_from(10_000).unwrap().into();
     let leverage = Leverage::try_from(1).unwrap();
     executor
