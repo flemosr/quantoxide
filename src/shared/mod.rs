@@ -241,14 +241,24 @@ impl fmt::Display for Period {
 pub struct MinIterationInterval(Duration);
 
 impl MinIterationInterval {
+    /// Minimum supported interval between successive iterations: 5 seconds.
     pub const MIN: Self = Self(Duration::seconds(5));
 
+    /// Maximum supported interval between successive iterations: 1 hour.
     pub const MAX: Self = Self(Duration::hours(1));
 
+    /// Creates a minimum iteration interval from a number of seconds.
+    ///
+    /// Returns [`MinIterationIntervalValidationError`] when `secs` is outside the supported
+    /// interval bounds.
     pub fn seconds(secs: u64) -> Result<Self, MinIterationIntervalValidationError> {
         Self::try_from(Duration::seconds(secs as i64))
     }
 
+    /// Creates a minimum iteration interval from a number of minutes.
+    ///
+    /// Returns [`MinIterationIntervalValidationError`] when `mins` is outside the supported
+    /// interval bounds.
     pub fn minutes(mins: u64) -> Result<Self, MinIterationIntervalValidationError> {
         Self::try_from(Duration::minutes(mins as i64))
     }
