@@ -28,7 +28,7 @@ pub(crate) trait DateTimeExt {
     /// Steps back a number of candles from this timestamp.
     ///
     /// Uses fixed durations based on the resolution's minute count.
-    fn step_back_candles(&self, resolution: OhlcResolution, candles: u64) -> DateTime<Utc>;
+    fn step_back_candles(&self, resolution: OhlcResolution, candles: u32) -> DateTime<Utc>;
 
     /// Returns `true` if this time falls on a valid funding settlement grid point.
     ///
@@ -86,7 +86,7 @@ impl DateTimeExt for DateTime<Utc> {
         DateTime::from_timestamp(floored_timestamp, 0).expect("floored timestamp is always valid")
     }
 
-    fn step_back_candles(&self, resolution: OhlcResolution, candles: u64) -> DateTime<Utc> {
+    fn step_back_candles(&self, resolution: OhlcResolution, candles: u32) -> DateTime<Utc> {
         let floored = self.floor_to_resolution(resolution);
         floored - Duration::minutes(resolution.as_minutes() as i64 * candles as i64)
     }

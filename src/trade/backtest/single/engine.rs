@@ -106,7 +106,7 @@ impl<S: Signal> BacktestEngine<S> {
             .map_err(BacktestError::PriceHistoryStateEvaluation)?;
 
         let lookback_time = if let Some(lookback) = max_lookback {
-            start_time.step_back_candles(lookback.resolution(), lookback.period().as_u64() - 1)
+            start_time.step_back_candles(lookback.resolution(), lookback.period().as_u32() - 1)
         } else {
             start_time
         };

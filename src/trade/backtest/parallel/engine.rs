@@ -237,7 +237,7 @@ impl BacktestParallelEngine {
 
         let lookback_time = if let Some(lookback) = self.max_lookback {
             self.start_time
-                .step_back_candles(lookback.resolution(), lookback.period().as_u64() - 1)
+                .step_back_candles(lookback.resolution(), lookback.period().as_u32() - 1)
         } else {
             self.start_time
         };

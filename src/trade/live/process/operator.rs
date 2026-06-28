@@ -394,7 +394,7 @@ impl<S: Signal> OperatorRunning<S> {
         if let Some(lookback) = lookback {
             let resolution = lookback.resolution();
             let current_bucket = now.floor_to_resolution(resolution);
-            let from = current_bucket.step_back_candles(resolution, lookback.period().as_u64() - 1);
+            let from = current_bucket.step_back_candles(resolution, lookback.period().as_u32() - 1);
 
             db.ohlc_candles
                 .get_candles_consolidated(from, now, resolution)

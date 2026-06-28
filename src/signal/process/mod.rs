@@ -213,7 +213,7 @@ impl<S: Signal> LiveSignalProcess<S> {
             for (resolution, group) in &resolution_groups {
                 let current_bucket = now.floor_to_resolution(*resolution);
                 let from =
-                    current_bucket.step_back_candles(*resolution, group.max_period.as_u64() - 1);
+                    current_bucket.step_back_candles(*resolution, group.max_period.as_u32() - 1);
 
                 let candles = self
                     .db
