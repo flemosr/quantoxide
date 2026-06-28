@@ -91,11 +91,11 @@ impl Period {
     /// Minimum period: 1 candle.
     pub const MIN: Self = Self(1);
 
-    /// Maximum period: derived from [`Lookback::MAX`] at 1-minute resolution.
+    /// Maximum period: 720,000 candles.
     ///
-    /// This is the theoretical `Period` upper bound for the finest resolution. The effective
-    /// `Period` limit depends on the candle resolution adopted since [`Lookback::MAX`] cannot be
-    /// exceeded.
+    /// This is derived from [`Lookback::MAX`] at 1-minute resolution and is the theoretical
+    /// `Period` upper bound for the finest resolution. The effective `Period` limit depends on the
+    /// candle resolution adopted since [`Lookback::MAX`] cannot be exceeded.
     pub const MAX: Self = Self(Lookback::MAX.num_minutes() as u64);
 
     /// Returns the period as a [`Duration`] for the given resolution.
