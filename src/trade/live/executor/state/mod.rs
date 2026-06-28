@@ -34,6 +34,7 @@ pub enum LiveTradeExecutorStatusNotReady {
 }
 
 impl LiveTradeExecutorStatusNotReady {
+    /// Returns `true` if the executor is in a recoverable failed state.
     pub fn is_failed(&self) -> bool {
         matches!(self, Self::Failed(_))
     }
