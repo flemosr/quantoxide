@@ -85,7 +85,7 @@ impl fmt::Display for OhlcResolution {
 /// depends on the candle resolution being used. For example, a period of 10 candles at 1-minute
 /// resolution covers 10 minutes, while at 1-hour resolution it covers 10 hours.
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Eq, Ord)]
-pub struct Period(u64);
+pub struct Period(u32);
 
 impl Period {
     /// Minimum period: 1 candle.
@@ -96,7 +96,7 @@ impl Period {
     /// This is derived from [`Lookback::MAX`] at 1-minute resolution and is the theoretical
     /// `Period` upper bound for the finest resolution. The effective `Period` limit depends on the
     /// candle resolution adopted since [`Lookback::MAX`] cannot be exceeded.
-    pub const MAX: Self = Self(Lookback::MAX.num_minutes() as u64);
+    pub const MAX: Self = Self(Lookback::MAX.num_minutes() as u32);
 
     /// Returns the period as a [`Duration`] for the given resolution.
     ///
@@ -118,14 +118,24 @@ impl Period {
         Duration::minutes(self.0 as i64 * resolution.as_minutes() as i64)
     }
 
+    /// Returns the number of candles as a `u32`.
+    pub const fn as_u32(&self) -> u32 {
+        self.0
+    }
+
     /// Returns the number of candles as a `u64`.
     pub const fn as_u64(&self) -> u64 {
-        self.0
+        self.0 as u64
     }
 
     /// Returns the number of candles as a `usize`.
     pub const fn as_usize(&self) -> usize {
         self.0 as usize
+    }
+
+    /// Returns the number of candles as an `i32`.
+    pub const fn as_i32(&self) -> i32 {
+        self.0 as i32
     }
 
     /// Returns the number of candles as an `i64`.
@@ -139,11 +149,59 @@ impl Period {
     }
 }
 
+impl From<Period> for u32 {
+    fn from(value: Period) -> Self {
+        value.0
+    }
+}
+
+impl From<Period> for u64 {
+    fn from(value: Period) -> Self {
+        value.0 as u64
+    }
+}
+
+impl From<Period> for u128 {
+    fn from(value: Period) -> Self {
+        value.0 as u128
+    }
+}
+
+impl From<Period> for usize {
+    fn from(value: Period) -> Self {
+        value.0 as usize
+    }
+}
+
+impl From<Period> for i32 {
+    fn from(value: Period) -> Self {
+        value.0 as i32
+    }
+}
+
+impl From<Period> for i64 {
+    fn from(value: Period) -> Self {
+        value.0 as i64
+    }
+}
+
+impl From<Period> for i128 {
+    fn from(value: Period) -> Self {
+        value.0 as i128
+    }
+}
+
+impl From<Period> for f64 {
+    fn from(value: Period) -> Self {
+        value.as_f64()
+    }
+}
+
 impl TryFrom<u8> for Period {
     type Error = PeriodValidationError;
 
     fn try_from(value: u8) -> std::result::Result<Self, Self::Error> {
-        Self::try_from(value as u64)
+        Self::try_from(value as u128)
     }
 }
 
@@ -151,7 +209,7 @@ impl TryFrom<u16> for Period {
     type Error = PeriodValidationError;
 
     fn try_from(value: u16) -> std::result::Result<Self, Self::Error> {
-        Self::try_from(value as u64)
+        Self::try_from(value as u128)
     }
 }
 
@@ -159,7 +217,7 @@ impl TryFrom<u32> for Period {
     type Error = PeriodValidationError;
 
     fn try_from(value: u32) -> std::result::Result<Self, Self::Error> {
-        Self::try_from(value as u64)
+        Self::try_from(value as u128)
     }
 }
 
@@ -167,47 +225,25 @@ impl TryFrom<u64> for Period {
     type Error = PeriodValidationError;
 
     fn try_from(value: u64) -> std::result::Result<Self, Self::Error> {
-        if value < Self::MIN.0 {
-            return Err(PeriodValidationError::TooShort { value });
+        Self::try_from(value as u128)
+    }
+}
+
+impl TryFrom<u128> for Period {
+    type Error = PeriodValidationError;
+
+    fn try_from(value: u128) -> std::result::Result<Self, Self::Error> {
+        if value < Self::MIN.0 as u128 {
+            return Err(PeriodValidationError::TooShort {
+                value: value as i128,
+            });
         }
 
-        if value > Self::MAX.0 {
+        if value > Self::MAX.0 as u128 {
             return Err(PeriodValidationError::TooLong { value });
         }
 
-        Ok(Self(value))
-    }
-}
-
-impl TryFrom<i8> for Period {
-    type Error = PeriodValidationError;
-
-    fn try_from(value: i8) -> std::result::Result<Self, Self::Error> {
-        Self::try_from(value.max(0) as u64)
-    }
-}
-
-impl TryFrom<i16> for Period {
-    type Error = PeriodValidationError;
-
-    fn try_from(value: i16) -> std::result::Result<Self, Self::Error> {
-        Self::try_from(value.max(0) as u64)
-    }
-}
-
-impl TryFrom<i32> for Period {
-    type Error = PeriodValidationError;
-
-    fn try_from(value: i32) -> std::result::Result<Self, Self::Error> {
-        Self::try_from(value.max(0) as u64)
-    }
-}
-
-impl TryFrom<i64> for Period {
-    type Error = PeriodValidationError;
-
-    fn try_from(value: i64) -> std::result::Result<Self, Self::Error> {
-        Self::try_from(value.max(0) as u64)
+        Ok(Self(value as u32))
     }
 }
 
@@ -215,7 +251,57 @@ impl TryFrom<usize> for Period {
     type Error = PeriodValidationError;
 
     fn try_from(value: usize) -> std::result::Result<Self, Self::Error> {
-        Self::try_from(value as u64)
+        Self::try_from(value as u128)
+    }
+}
+
+impl TryFrom<i8> for Period {
+    type Error = PeriodValidationError;
+
+    fn try_from(value: i8) -> std::result::Result<Self, Self::Error> {
+        Self::try_from(value as i128)
+    }
+}
+
+impl TryFrom<i16> for Period {
+    type Error = PeriodValidationError;
+
+    fn try_from(value: i16) -> std::result::Result<Self, Self::Error> {
+        Self::try_from(value as i128)
+    }
+}
+
+impl TryFrom<i32> for Period {
+    type Error = PeriodValidationError;
+
+    fn try_from(value: i32) -> std::result::Result<Self, Self::Error> {
+        Self::try_from(value as i128)
+    }
+}
+
+impl TryFrom<i64> for Period {
+    type Error = PeriodValidationError;
+
+    fn try_from(value: i64) -> std::result::Result<Self, Self::Error> {
+        Self::try_from(value as i128)
+    }
+}
+
+impl TryFrom<i128> for Period {
+    type Error = PeriodValidationError;
+
+    fn try_from(value: i128) -> std::result::Result<Self, Self::Error> {
+        if value < Self::MIN.0 as i128 {
+            return Err(PeriodValidationError::TooShort { value });
+        }
+
+        if value > Self::MAX.0 as i128 {
+            return Err(PeriodValidationError::TooLong {
+                value: value as u128,
+            });
+        }
+
+        Ok(Self(value as u32))
     }
 }
 
@@ -223,7 +309,27 @@ impl TryFrom<isize> for Period {
     type Error = PeriodValidationError;
 
     fn try_from(value: isize) -> std::result::Result<Self, Self::Error> {
-        Self::try_from(value.max(0) as u64)
+        Self::try_from(value as i128)
+    }
+}
+
+impl TryFrom<f32> for Period {
+    type Error = PeriodValidationError;
+
+    fn try_from(value: f32) -> std::result::Result<Self, Self::Error> {
+        Self::try_from(value as f64)
+    }
+}
+
+impl TryFrom<f64> for Period {
+    type Error = PeriodValidationError;
+
+    fn try_from(value: f64) -> std::result::Result<Self, Self::Error> {
+        if value.fract() != 0.0 {
+            return Err(PeriodValidationError::NotAnInteger { value });
+        }
+
+        Self::try_from(value as i128)
     }
 }
 

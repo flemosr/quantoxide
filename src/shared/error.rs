@@ -12,13 +12,16 @@ pub enum PeriodValidationError {
         "Invalid period, must be at least {} candles. Value: {value}",
         Period::MIN
     )]
-    TooShort { value: u64 },
+    TooShort { value: i128 },
 
     #[error(
         "Invalid period, must be at most {} candles. Value: {value}",
         Period::MAX
     )]
-    TooLong { value: u64 },
+    TooLong { value: u128 },
+
+    #[error("Invalid period, must be an integer. Value: {value}")]
+    NotAnInteger { value: f64 },
 }
 
 #[derive(Error, Debug)]
