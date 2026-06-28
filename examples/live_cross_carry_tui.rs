@@ -63,7 +63,7 @@ async fn main() -> Result<()> {
         .enable_tui_logger(live_tui.as_logger());
 
     let live_engine = LiveTradeEngine::with_raw_operator(
-        LiveTradeConfig::default(),
+        LiveTradeConfig::default().with_shutdown_clean_up_trades(true),
         db,
         key,
         secret,
