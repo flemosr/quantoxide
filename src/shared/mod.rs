@@ -9,17 +9,29 @@ use error::{LookbackValidationError, MinIterationIntervalValidationError, Period
 /// Supported OHLC resolutions for trading operations.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum OhlcResolution {
+    /// One-minute candles.
     OneMinute,
+    /// Three-minute candles.
     ThreeMinutes,
+    /// Five-minute candles.
     FiveMinutes,
+    /// Ten-minute candles.
     TenMinutes,
+    /// Fifteen-minute candles.
     FifteenMinutes,
+    /// Thirty-minute candles.
     ThirtyMinutes,
+    /// Forty-five-minute candles.
     FortyFiveMinutes,
+    /// One-hour candles.
     OneHour,
+    /// Two-hour candles.
     TwoHours,
+    /// Three-hour candles.
     ThreeHours,
+    /// Four-hour candles.
     FourHours,
+    /// One-day candles.
     OneDay,
 }
 
