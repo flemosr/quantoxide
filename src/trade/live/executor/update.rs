@@ -182,7 +182,7 @@ impl From<LiveTradingSession> for LiveTradeExecutorUpdate {
 pub(super) type LiveTradeExecutorTransmitter = broadcast::Sender<LiveTradeExecutorUpdate>;
 
 /// Receiver for subscribing to [`LiveTradeExecutorUpdate`]s including executor actions, status
-/// changes, and closed trades.
+/// changes, trading state, and closed trades.
 pub type LiveTradeExecutorReceiver = broadcast::Receiver<LiveTradeExecutorUpdate>;
 
 #[derive(Clone)]

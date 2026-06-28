@@ -146,7 +146,7 @@ impl<S: Signal> From<TradingState> for LiveTradeUpdate<S> {
 pub(super) type LiveTradeTransmitter<S> = broadcast::Sender<LiveTradeUpdate<S>>;
 
 /// Receiver for subscribing to [`LiveTradeUpdate`]s including status changes, signals, executor
-/// actions, and closed trades.
+/// actions, trading state, and closed trades.
 pub type LiveTradeReceiver<S> = broadcast::Receiver<LiveTradeUpdate<S>>;
 
 /// Trait for reading live trading status and subscribing to updates.
