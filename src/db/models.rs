@@ -17,14 +17,23 @@ pub(crate) struct RunningTrade {
 /// indicating when the row was created and updated, and whether the candle is stable (finalized).
 #[derive(Debug, Clone)]
 pub struct OhlcCandleRow {
+    /// Candle opening time.
     pub time: DateTime<Utc>,
+    /// Opening price.
     pub open: f64,
+    /// Highest traded price during the candle period.
     pub high: f64,
+    /// Lowest traded price during the candle period.
     pub low: f64,
+    /// Closing price.
     pub close: f64,
+    /// Traded volume during the candle period.
     pub volume: i64,
+    /// Time when the row was inserted.
     pub created_at: DateTime<Utc>,
+    /// Time when the row was last updated.
     pub updated_at: DateTime<Utc>,
+    /// Whether the candle is finalized and no longer expected to change.
     pub stable: bool,
 }
 
@@ -85,8 +94,11 @@ impl fmt::Display for OhlcCandleRow {
 /// the observation was recorded.
 #[derive(Debug, Clone)]
 pub struct PriceTickRow {
+    /// Observation time.
     pub time: DateTime<Utc>,
+    /// Last traded price at the observation time.
     pub last_price: f64,
+    /// Time when the row was inserted.
     pub created_at: DateTime<Utc>,
 }
 
@@ -116,10 +128,15 @@ impl fmt::Display for PriceTickRow {
 /// Contains the fixing price and funding rate at a specific settlement time.
 #[derive(Debug, Clone)]
 pub struct FundingSettlementRow {
+    /// Settlement identifier.
     pub id: Uuid,
+    /// Settlement time.
     pub time: DateTime<Utc>,
+    /// Settlement fixing price.
     pub fixing_price: f64,
+    /// Funding rate applied at settlement.
     pub funding_rate: f64,
+    /// Time when the row was inserted.
     pub created_at: DateTime<Utc>,
 }
 
