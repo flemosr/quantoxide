@@ -29,9 +29,9 @@ All examples require a running PostgreSQL instance and the following environment
 Synchronization examples use the `lnm-sdk` default LN Markets REST/Stream endpoints.
 
 Live trading examples require:
-- `LNM_API_V3_KEY` - The LN Markets API v3 key
-- `LNM_API_V3_SECRET` - The LN Markets API v3 secret
-- `LNM_API_V3_PASSPHRASE` - The LN Markets API v3 passphrase
+- `LNM_API_KEY` - The LN Markets API v3 key
+- `LNM_API_SECRET` - The LN Markets API v3 secret
+- `LNM_API_PASSPHRASE` - The LN Markets API v3 passphrase
 
 Recommended live API key permissions:
 + `account:read` to view account balance
