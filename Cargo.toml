@@ -18,22 +18,22 @@ categories = ["finance", "simulation", "cryptography::cryptocurrencies"]
 [dependencies]
 lnm-sdk = "0.6.0"
 async-trait = "0.1.89"
-chrono = { version = "0.4.42", features = ["now", "serde"] }
-futures = "0.3.31"
+chrono = { version = "0.4.45", features = ["now", "serde"] }
+futures = "0.3.32"
 lazy_static = "1.5.0"
-ratatui = "0.29.0"
-sqlx = { version = "0.8.6", features = [
+ratatui = "0.30.2"
+sqlx = { version = "0.9.0", features = [
     "chrono",
     "migrate",
     "postgres",
     "runtime-tokio",
     "uuid",
 ] }
-thiserror = "2.0.17"
-tokio = "1.48.0"
-uuid = { version = "1.19.0", features = ["serde", "v4"] }
-strum = { version = "0.27.2", features = ["derive"] }
+thiserror = "2.0.18"
+tokio = "1.52.3"
+uuid = { version = "1.23.4", features = ["serde", "v4"] }
+strum = { version = "0.28.0", features = ["derive"] }
 
 [dev-dependencies]
 dotenvy = "0.15.7"
-serde_json = "1.0.145"
+serde_json = "1.0.150"
