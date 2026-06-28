@@ -311,7 +311,7 @@ impl RawOperator for CrossCarryOperator {
     }
 
     fn min_iteration_interval(&self) -> MinIterationInterval {
-        MinIterationInterval::minutes(1).expect("1 minute is valid")
+        MinIterationInterval::MIN
     }
 
     async fn iterate(&self, _candles: &[OhlcCandleRow]) -> Result<()> {
