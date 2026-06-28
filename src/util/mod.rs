@@ -85,6 +85,7 @@ impl<T> Drop for AbortOnDropHandle<T> {
     }
 }
 
+/// Displayable panic payload captured from a panicking task or callback.
 #[derive(Debug)]
 pub struct PanicPayload(String);
 
