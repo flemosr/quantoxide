@@ -20,46 +20,78 @@ use super::{
 /// Represents an executor action sent to the exchange API.
 #[derive(Debug, Clone)]
 pub enum LiveTradeExecutorAction {
+    /// Opens a new isolated margin order.
     IsolatedOrder {
+        /// Order side.
         side: TradeSide,
+        /// Order size.
         size: TradeSize,
+        /// Isolated order leverage.
         leverage: Leverage,
+        /// Optional stop-loss price.
         stoploss: Option<Price>,
+        /// Optional take-profit price.
         takeprofit: Option<Price>,
+        /// Optional client-provided order identifier.
         client_id: Option<ClientId>,
     },
+    /// Updates the stop-loss price for an isolated trade.
     IsolatedTradeUpdateStoploss {
+        /// Trade identifier.
         id: Uuid,
+        /// New stop-loss price.
         stoploss: Price,
     },
+    /// Adds margin to an isolated trade.
     IsolatedTradeAddMargin {
+        /// Trade identifier.
         id: Uuid,
+        /// Margin amount in satoshis.
         amount: NonZeroU64,
     },
+    /// Withdraws margin from an isolated trade.
     IsolatedTradeCashIn {
+        /// Trade identifier.
         id: Uuid,
+        /// Cash-in amount in satoshis.
         amount: NonZeroU64,
     },
+    /// Closes an isolated order or trade.
     IsolatedOrderClose {
+        /// Order or trade identifier.
         id: Uuid,
     },
+    /// Cancels all open isolated orders.
     IsolatedOrderCancelAll,
+    /// Closes all open isolated orders and trades.
     IsolatedOrderCloseAll,
+    /// Deposits funds into the cross-margin account.
     CrossDeposit {
+        /// Deposit amount in satoshis.
         amount: NonZeroU64,
     },
+    /// Withdraws funds from the cross-margin account.
     CrossWithdraw {
+        /// Withdrawal amount in satoshis.
         amount: NonZeroU64,
     },
+    /// Sets cross-margin leverage.
     CrossSetLeverage {
+        /// New cross-margin leverage.
         leverage: CrossLeverage,
     },
+    /// Places a cross-margin order.
     CrossOrder {
+        /// Order side.
         side: TradeSide,
+        /// Order quantity.
         quantity: OrderQuantity,
+        /// Optional client-provided order identifier.
         client_id: Option<ClientId>,
     },
+    /// Cancels all open cross-margin orders.
     CrossOrderCancelAll,
+    /// Closes the current cross-margin position.
     CrossOrderClosePosition,
 }
 
