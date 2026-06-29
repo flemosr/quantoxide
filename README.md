@@ -212,7 +212,7 @@ How far back to fetch price history data can be configured with
 
 <p align="center">
   <img
-      src="https://raw.githubusercontent.com/flemosr/quantoxide/refs/heads/main/assets/v0.5.0_sync-tui_a.gif"
+      src="https://raw.githubusercontent.com/flemosr/quantoxide/v0.6.0/assets/v0.6.0_sync-tui_a.gif"
       alt="Sync TUI Demo"
       width="800">
 </p>
@@ -250,7 +250,7 @@ backtest_tui.until_stopped().await;
 
 <p align="center">
   <img
-      src="https://raw.githubusercontent.com/flemosr/quantoxide/refs/heads/main/assets/v0.5.0_backtest-tui_a.gif"
+      src="https://raw.githubusercontent.com/flemosr/quantoxide/v0.6.0/assets/v0.6.0_backtest-tui_a.gif"
       alt="Backtest TUI Demo"
       width="800">
 </p>
@@ -301,7 +301,7 @@ live_tui.until_stopped().await;
 
 <p align="center">
   <img
-      src="https://raw.githubusercontent.com/flemosr/quantoxide/refs/heads/main/assets/v0.5.0_live-tui_a.gif"
+      src="https://raw.githubusercontent.com/flemosr/quantoxide/v0.6.0/assets/v0.6.0_live-tui_a.gif"
       alt="Live TUI Demo"
       width="800">
 </p>
