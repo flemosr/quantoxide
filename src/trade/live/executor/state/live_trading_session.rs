@@ -623,7 +623,7 @@ impl LiveTradingSession {
         }
 
         let mut closed_map = HashMap::new();
-        let mut new_last_trade_time: Option<DateTime<Utc>> = None;
+        let mut new_last_trade_time = self.last_trade_time;
 
         for closed_trade in closed_trades {
             let closed_at =
