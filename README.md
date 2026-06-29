@@ -23,7 +23,7 @@ to live trading, with local historical data testing capabilities.
 
 ### Rust Version
 
-This project's MSRV is `1.88`.
+This project's MSRV is `1.94`.
 
 ### Dependencies
 
