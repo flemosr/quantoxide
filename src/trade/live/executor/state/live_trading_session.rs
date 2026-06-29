@@ -268,7 +268,9 @@ impl LiveTradingSession {
         let mut session = Self {
             expires_at,
             tsl_step_size,
-            last_trade_time: None,
+            last_trade_time: prev_trading_session
+                .as_ref()
+                .and_then(|ps| ps.last_trade_time),
             balance: user.balance(),
             last_evaluation_time: lastest_entry_time,
             last_price: lastest_entry_price,
