@@ -54,7 +54,7 @@ docker run -d \
   -e POSTGRES_PASSWORD=password \
   -p 5432:5432 \
   -v quantoxide-pgdata:/var/lib/postgresql \
-  postgres:18.1-bookworm
+  postgres:18.4-bookworm
 ```
 
 Then the `POSTGRES_DB_URL` environment variable should be set to:
