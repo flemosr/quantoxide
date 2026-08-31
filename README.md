@@ -1,3 +1,5 @@
+
+
 # quantoxide
 
 A Rust framework for developing, backtesting, and deploying algorithmic trading strategies for
@@ -31,6 +33,8 @@ This project's MSRV is `1.94`.
 [dependencies]
 quantoxide = "<quantoxide-version>"
 ```
+
+The `postgres` feature is enabled by default; use `default-features = false, features = ["sqlite"]` to select SQLite instead.
 
 ### Requirements
 
