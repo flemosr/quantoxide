@@ -13,6 +13,9 @@ pub enum FxMacroDataError {
     #[error("unsupported FXMacroData endpoint `{0}`")]
     UnsupportedEndpoint(String),
 
+    #[error("FXMacroData returned an unexpected redirect (HTTP {0})")]
+    UnexpectedRedirect(u16),
+
     #[error(transparent)]
     Http(#[from] reqwest::Error),
 }
@@ -112,7 +115,12 @@ impl FxMacroDataClient {
         Self {
             base_url: base_url.into().trim_end_matches('/').to_owned(),
             api_key: api_key.filter(|key| !key.trim().is_empty()),
-            http: reqwest::Client::new(),
+            // Redirects are not followed so the API key header is never replayed
+            // to another host.
+            http: reqwest::Client::builder()
+                .redirect(reqwest::redirect::Policy::none())
+                .build()
+                .expect("FXMacroData HTTP client"),
         }
     }
 
@@ -139,6 +147,9 @@ impl FxMacroDataClient {
             http = http.header(name, key);
         }
         let response = http.send().await?;
+        if response.status().is_redirection() {
+            return Err(FxMacroDataError::UnexpectedRedirect(response.status().as_u16()));
+        }
         Ok(response.error_for_status()?.json().await?)
     }
 
